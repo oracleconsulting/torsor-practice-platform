@@ -76,7 +76,8 @@ serve(async (req) => {
     
     console.log(`[Pass 3] Revenue extraction: _enriched_revenue=${clientData.pass1Data?._enriched_revenue}, fallback=${revenue}`);
     
-    analysis = postProcessOpportunities(analysis, revenue, clientData.directionContext);
+    // Pass full clientData for context-aware filtering
+    analysis = postProcessOpportunities(analysis, revenue, clientData);
     
     console.log(`[Pass 3] After consolidation: ${analysis.opportunities?.length || 0} opportunities (revenue: £${(revenue/1000000).toFixed(1)}M)`);
     console.log(`[Pass 3] Priorities: ${analysis.opportunities?.filter(o => o.priority === 'must_address_now').length || 0} must address, ${analysis.opportunities?.filter(o => o.priority === 'next_12_months').length || 0} next 12m, ${analysis.opportunities?.filter(o => o.priority === 'when_ready').length || 0} when ready`);
@@ -151,6 +152,30 @@ serve(async (req) => {
 // DATA GATHERING
 // ============================================================================
 
+// ============================================================================
+// CONTEXT NOTE TYPES - For intelligent service filtering
+// ============================================================================
+
+interface ContextNote {
+  id: string;
+  note_type: string;
+  content: string;
+  importance: 'critical' | 'high' | 'medium' | 'low';
+  include_in_analysis: boolean;
+}
+
+interface ClientPreferences {
+  prefersExternalSupport: boolean;
+  prefersProjectBasis: boolean;
+  avoidsInternalHires: boolean;
+  needsDocumentation: boolean;
+  needsSystemsAudit: boolean;
+  hasSuccessionConcerns: boolean;
+  explicitServiceBlocks: string[];
+  suggestedServices: string[];
+  rawNotes: string[];  // For LLM context
+}
+
 interface ClientData {
   engagementId: string;
   clientId: string;
@@ -165,6 +190,10 @@ interface ClientData {
   supplementary: any;
   // Direction context for smart prioritisation
   directionContext: DirectionContext;
+  // NEW: Context notes from advisor conversations
+  contextNotes: ContextNote[];
+  // NEW: Parsed preferences from context notes
+  clientPreferences: ClientPreferences;
 }
 
 interface DirectionContext {
@@ -180,6 +209,123 @@ interface DirectionContext {
   pricingConfidence: string | null;
   leadershipEffectiveness: string;
   recentConversations: string[];
+}
+
+// ============================================================================
+// CONTEXT NOTE PARSER - Extract preferences from advisor conversation notes
+// ============================================================================
+
+function extractClientPreferences(contextNotes: ContextNote[]): ClientPreferences {
+  // Combine all note content for pattern matching
+  const allContent = contextNotes
+    .filter(n => n.include_in_analysis)
+    .map(n => n.content.toLowerCase())
+    .join(' ');
+  
+  // Extract raw notes for LLM context (preserve original casing)
+  const rawNotes = contextNotes
+    .filter(n => n.include_in_analysis)
+    .map(n => n.content);
+  
+  return {
+    // Detect preference for external/project-based support over internal roles
+    prefersExternalSupport: 
+      allContent.includes('external support') ||
+      allContent.includes('external additional support') ||
+      allContent.includes('outside support') ||
+      allContent.includes('external advice') ||
+      allContent.includes('consultancy support'),
+    
+    prefersProjectBasis:
+      allContent.includes('project basis') ||
+      allContent.includes('project-based') ||
+      allContent.includes('ad-hoc') ||
+      allContent.includes('ad hoc') ||
+      allContent.includes('specific projects') ||
+      allContent.includes('discrete projects'),
+    
+    avoidsInternalHires:
+      allContent.includes('not internal') ||
+      allContent.includes('rather than internal') ||
+      allContent.includes('rather than attempting to insert') ||
+      allContent.includes('not insert') ||
+      allContent.includes('don\'t want to hire') ||
+      allContent.includes('avoid hiring') ||
+      allContent.includes('not looking to employ'),
+    
+    // Detect documentation/systems needs
+    needsDocumentation:
+      allContent.includes('documentation') ||
+      allContent.includes('undocumented') ||
+      allContent.includes('in heads') ||
+      allContent.includes('in their heads') ||
+      allContent.includes('processes are in place without') ||
+      allContent.includes('not written down') ||
+      allContent.includes('tribal knowledge'),
+    
+    needsSystemsAudit:
+      allContent.includes('loose structure') ||
+      allContent.includes('loose leadership') ||
+      allContent.includes('loosely structured') ||
+      (allContent.includes('founder depend') && allContent.includes('process')) ||
+      (allContent.includes('central') && allContent.includes('leadership')) ||
+      allContent.includes('single point of failure'),
+    
+    hasSuccessionConcerns:
+      allContent.includes('succession') ||
+      allContent.includes('exit in') ||
+      allContent.includes('sell the business') ||
+      allContent.includes('step back') ||
+      allContent.includes('3 to 5 year') ||
+      allContent.includes('3-5 year') ||
+      allContent.includes('2029') ||
+      allContent.includes('2030') ||
+      allContent.includes('retire'),
+    
+    // Explicit blocks (can be expanded - look for "not", "don't want", etc.)
+    explicitServiceBlocks: extractExplicitBlocks(allContent),
+    
+    // Suggested services based on context patterns
+    suggestedServices: extractSuggestedServices(allContent),
+    
+    rawNotes,
+  };
+}
+
+function extractExplicitBlocks(content: string): string[] {
+  const blocks: string[] = [];
+  
+  // Pattern: "don't need/want [service]"
+  if (content.includes('don\'t need a cfo') || content.includes('don\'t want a cfo')) {
+    blocks.push('FRACTIONAL_CFO');
+  }
+  if (content.includes('don\'t need a coo') || content.includes('don\'t want a coo') || 
+      content.includes('don\'t need operations') || content.includes('don\'t want operations')) {
+    blocks.push('FRACTIONAL_COO');
+  }
+  if (content.includes('not interested in exit') || content.includes('don\'t want exit')) {
+    blocks.push('EXIT_READINESS');
+  }
+  
+  return blocks;
+}
+
+function extractSuggestedServices(content: string): string[] {
+  const suggestions: string[] = [];
+  
+  // Patterns that suggest specific services
+  if (content.includes('systems audit') || content.includes('process audit') || 
+      content.includes('review their systems') || content.includes('document processes')) {
+    suggestions.push('SYSTEMS_AUDIT');
+  }
+  if (content.includes('succession plan') || content.includes('leadership transition')) {
+    suggestions.push('SUCCESSION_PLANNING');
+  }
+  if (content.includes('board') || content.includes('governance') || content.includes('ned')) {
+    suggestions.push('BOARD_ADVISORY');
+  }
+  
+  return suggestions;
 }
 
 async function gatherAllClientData(supabase: any, engagementId: string): Promise<ClientData> {
@@ -277,6 +423,48 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
     lastPriceIncrease: directionContext.lastPriceIncrease,
   });
 
+  // ============================================================================
+  // FETCH CONTEXT NOTES - Critical for intelligent service filtering
+  // ============================================================================
+  let contextNotes: ContextNote[] = [];
+  try {
+    const { data: notesData, error: notesError } = await supabase
+      .from('client_context_notes')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('include_in_analysis', true)
+      .order('importance', { ascending: false });
+    
+    if (notesError) {
+      console.log('[Pass 3] Error fetching context notes:', notesError.message);
+    } else if (notesData && notesData.length > 0) {
+      contextNotes = notesData;
+      console.log('[Pass 3] 📝 Found context notes:', {
+        count: notesData.length,
+        types: [...new Set(notesData.map((n: any) => n.note_type))],
+        importanceLevels: notesData.map((n: any) => n.importance),
+      });
+    } else {
+      console.log('[Pass 3] No context notes found for client');
+    }
+  } catch (err) {
+    console.log('[Pass 3] Could not fetch context notes:', err);
+  }
+
+  // Parse preferences from context notes
+  const clientPreferences = extractClientPreferences(contextNotes);
+  
+  if (contextNotes.length > 0) {
+    console.log('[Pass 3] 🎯 Extracted client preferences:', {
+      prefersExternalSupport: clientPreferences.prefersExternalSupport,
+      prefersProjectBasis: clientPreferences.prefersProjectBasis,
+      avoidsInternalHires: clientPreferences.avoidsInternalHires,
+      needsSystemsAudit: clientPreferences.needsSystemsAudit,
+      explicitBlocks: clientPreferences.explicitServiceBlocks,
+      suggestedServices: clientPreferences.suggestedServices,
+    });
+  }
+
   return {
     engagementId,
     clientId,
@@ -301,6 +489,9 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
     },
     supplementary: report?.supplementary_data || responses || {},
     directionContext,
+    // NEW: Context notes and parsed preferences
+    contextNotes,
+    clientPreferences,
   };
 }
 
@@ -487,7 +678,7 @@ Respond with valid JSON only. No markdown code blocks, no explanations outside t
 // ============================================================================
 
 function buildUserPrompt(clientData: ClientData, services: any[], existingConcepts: any[]): string {
-  const { clientName, industryCode, pass1Data, pass2Narratives, assessment, hva, metrics, founderRisk, supplementary } = clientData;
+  const { clientName, industryCode, pass1Data, pass2Narratives, assessment, hva, metrics, founderRisk, supplementary, contextNotes, clientPreferences } = clientData;
   
   // Extract enriched data with fallbacks - pass1_data stores flat fields with _enriched_ prefix
   const enriched = pass1Data?.enrichedData || pass1Data?._enriched || {};
@@ -638,6 +829,33 @@ ${hva?.unique_methods ? `Unique methods/IP: "${hva.unique_methods}"` : ''}
 
 ${pass2Narratives?.executiveSummary || 'Not yet generated'}
 
+${contextNotes && contextNotes.length > 0 ? `
+---
+
+## 📝 ADVISOR CONTEXT NOTES (from direct conversations)
+
+**CRITICAL: These are insights from actual conversations with the client. RESPECT THESE - they override general assumptions.**
+
+${contextNotes.map(n => `
+### ${n.note_type.replace(/_/g, ' ').toUpperCase()} [${n.importance}]
+${n.content}
+`).join('\n')}
+
+### KEY CLIENT PREFERENCES EXTRACTED:
+${clientPreferences?.prefersExternalSupport ? '- ✅ PREFERS: External support over internal hires' : ''}
+${clientPreferences?.prefersProjectBasis ? '- ✅ PREFERS: Project-based engagement over ongoing roles' : ''}
+${clientPreferences?.avoidsInternalHires ? '- ❌ AVOIDS: Internal/fractional roles (they said so explicitly)' : ''}
+${clientPreferences?.needsDocumentation ? '- 📋 NEEDS: Documentation/process work identified' : ''}
+${clientPreferences?.needsSystemsAudit ? '- 🔍 NEEDS: Systems audit (loose structure mentioned)' : ''}
+${clientPreferences?.hasSuccessionConcerns ? '- 🚪 EXIT: Succession/exit timeline mentioned' : ''}
+
+**IMPORTANT RULES BASED ON CONTEXT:**
+${clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport ? '- DO NOT recommend Fractional COO or Fractional CFO - client explicitly prefers external support' : ''}
+${clientPreferences?.prefersProjectBasis ? '- PREFER project-based services (Systems Audit, Strategic Advisory) over ongoing engagements' : ''}
+${clientPreferences?.needsSystemsAudit ? '- STRONGLY CONSIDER Systems & Process Audit given loose structure mentioned' : ''}
+${clientPreferences?.hasSuccessionConcerns ? '- EXIT READINESS should be prioritised given timeline mentioned' : ''}
+` : ''}
+
 ---
 
 ## OUR SERVICE CATALOGUE
@@ -763,45 +981,94 @@ Important notes:
 }
 
 // ============================================================================
-// SERVICE FILTERING RULES
+// SERVICE FILTERING RULES - Now Context-Aware!
 // ============================================================================
 
-interface ServiceBlockRule {
+interface EnhancedBlockRule {
   serviceCode: string;
-  blockIf: (ctx: DirectionContext) => boolean;
-  blockReason: (ctx: DirectionContext) => string;
+  blockIf: (ctx: DirectionContext, prefs: ClientPreferences) => boolean;
+  blockReason: (ctx: DirectionContext, prefs: ClientPreferences) => string;
 }
 
-const SERVICE_BLOCK_RULES: ServiceBlockRule[] = [
-  // Don't recommend Fractional CFO if they have one
-  {
-    serviceCode: 'FRACTIONAL_CFO',
-    blockIf: (ctx) => ctx.hasCFO,
-    blockReason: () => 'Client already has a Finance Director. Consider CFO support services instead.',
-  },
-  // Don't recommend Fractional COO if they have one
+const ENHANCED_BLOCK_RULES: EnhancedBlockRule[] = [
+  // ============================================================================
+  // FRACTIONAL COO - Block if they have one OR prefer external support
+  // ============================================================================
   {
     serviceCode: 'FRACTIONAL_COO',
-    blockIf: (ctx) => ctx.hasCOO,
-    blockReason: () => 'Client already has an Operations Director. Consider operational excellence programme instead.',
+    blockIf: (ctx, prefs) => 
+      ctx.hasCOO || 
+      prefs.prefersExternalSupport || 
+      prefs.prefersProjectBasis || 
+      prefs.avoidsInternalHires ||
+      prefs.explicitServiceBlocks.includes('FRACTIONAL_COO'),
+    blockReason: (ctx, prefs) => {
+      if (ctx.hasCOO) return 'Client already has an Operations Director. Consider operational excellence programme instead.';
+      if (prefs.avoidsInternalHires) return 'Context notes indicate client avoids internal hires. Consider project-based consultancy instead.';
+      if (prefs.prefersExternalSupport) return 'Context notes indicate preference for external support over internal roles. Consider Systems Audit or Strategic Advisory.';
+      if (prefs.prefersProjectBasis) return 'Client prefers project-based support. Consider Systems Audit or Process Documentation project instead.';
+      return 'Not suitable based on client context.';
+    },
   },
-  // Don't recommend exit services for aggressive growth focus
+  
+  // ============================================================================
+  // FRACTIONAL CFO - Block if they have one OR prefer external support
+  // ============================================================================
+  {
+    serviceCode: 'FRACTIONAL_CFO',
+    blockIf: (ctx, prefs) => 
+      ctx.hasCFO || 
+      prefs.prefersExternalSupport || 
+      prefs.avoidsInternalHires ||
+      prefs.explicitServiceBlocks.includes('FRACTIONAL_CFO'),
+    blockReason: (ctx, prefs) => {
+      if (ctx.hasCFO) return 'Client already has a Finance Director. Consider CFO support services instead.';
+      if (prefs.avoidsInternalHires || prefs.prefersExternalSupport) return 'Context notes indicate preference for external support. Consider Financial Health Check or project-based finance review.';
+      return 'Not suitable based on client context.';
+    },
+  },
+  
+  // ============================================================================
+  // EXIT READINESS - Block only for aggressive growth (allow for step-back!)
+  // ============================================================================
   {
     serviceCode: 'EXIT_READINESS',
-    blockIf: (ctx) => ctx.businessDirection === 'grow_aggressive' || ctx.businessDirection === 'Grow aggressively - acquisitions, new markets, scale significantly',
+    blockIf: (ctx, prefs) => 
+      ctx.businessDirection === 'grow_aggressive' || 
+      ctx.businessDirection === 'Grow aggressively - acquisitions, new markets, scale significantly' ||
+      prefs.explicitServiceBlocks.includes('EXIT_READINESS'),
     blockReason: () => 'Client focused on aggressive growth, not exit. Focus on growth enablement.',
   },
-  // Don't recommend aggressive growth for step-back focus
+  
+  // ============================================================================
+  // GROWTH ACCELERATOR - Block for step-back focus
+  // ============================================================================
   {
     serviceCode: 'GROWTH_ACCELERATOR',
-    blockIf: (ctx) => ctx.businessDirection === 'step_back' || ctx.businessDirection === 'Step back - reduce my involvement, more lifestyle-focused',
-    blockReason: () => 'Client wants to step back, not grow aggressively.',
+    blockIf: (ctx, prefs) => 
+      ctx.businessDirection === 'step_back' || 
+      ctx.businessDirection === 'Step back - reduce my involvement, more lifestyle-focused' ||
+      prefs.hasSuccessionConcerns,  // If exit is on the table, growth acceleration isn't priority
+    blockReason: (ctx, prefs) => {
+      if (prefs.hasSuccessionConcerns) return 'Context notes suggest succession/exit concerns. Focus on exit readiness first.';
+      return 'Client wants to step back, not grow aggressively.';
+    },
+  },
+  
+  // ============================================================================
+  // NED PLACEMENT - Block if they already have NEDs
+  // ============================================================================
+  {
+    serviceCode: 'NED_PLACEMENT',
+    blockIf: (ctx) => ctx.hasNED,
+    blockReason: () => 'Client already has Non-executive Director(s). Consider board effectiveness review instead.',
   },
 ];
 
 function filterBlockedServices(
   opportunities: any[],
-  context: DirectionContext
+  context: DirectionContext,
+  preferences: ClientPreferences  // NEW: Accept preferences
 ): { allowed: any[]; blocked: { serviceCode: string; reason: string }[] } {
   const blocked: { serviceCode: string; reason: string }[] = [];
   
@@ -809,15 +1076,17 @@ function filterBlockedServices(
     const serviceCode = opp.serviceMapping?.existingService?.code;
     if (!serviceCode) return true;
     
-    const matchingRules = SERVICE_BLOCK_RULES.filter(r => 
-      r.serviceCode === serviceCode && r.blockIf(context)
+    // Check enhanced rules that use both context AND preferences
+    const matchingRules = ENHANCED_BLOCK_RULES.filter(r => 
+      r.serviceCode === serviceCode && r.blockIf(context, preferences)
     );
     
     if (matchingRules.length > 0) {
       blocked.push({
         serviceCode,
-        reason: matchingRules[0].blockReason(context),
+        reason: matchingRules[0].blockReason(context, preferences),
       });
+      console.log(`[Pass 3] ❌ BLOCKED: ${serviceCode} - ${matchingRules[0].blockReason(context, preferences)}`);
       return false;
     }
     
@@ -825,10 +1094,138 @@ function filterBlockedServices(
   });
   
   if (blocked.length > 0) {
-    console.log('[Pass 3] Blocked services:', blocked);
+    console.log('[Pass 3] Blocked services summary:', blocked.map(b => b.serviceCode));
   }
   
   return { allowed, blocked };
+}
+
+// ============================================================================
+// CONTEXT-DRIVEN SUGGESTIONS - Add opportunities based on advisor insights
+// ============================================================================
+
+interface ContextSuggestion {
+  title: string;
+  description: string;
+  serviceCode: string;
+  severity: 'high' | 'medium';
+  priority: 'must_address_now' | 'next_12_months';
+  reason: string;
+  financialImpact?: { amount: number; type: string; basis: string };
+}
+
+function getContextDrivenSuggestions(
+  prefs: ClientPreferences,
+  ctx: DirectionContext,
+  existingOpportunities: any[],
+  clientData: ClientData
+): ContextSuggestion[] {
+  const suggestions: ContextSuggestion[] = [];
+  
+  // Helper to check if opportunity already exists
+  const hasOpportunity = (keywords: string[]): boolean => {
+    return existingOpportunities.some(o => {
+      const title = (o.title || '').toLowerCase();
+      const code = o.serviceMapping?.existingService?.code || '';
+      return keywords.some(k => title.includes(k.toLowerCase()) || code.includes(k));
+    });
+  };
+  
+  // ============================================================================
+  // 1. Systems Audit - When documentation needs or loose structure detected
+  // ============================================================================
+  if ((prefs.needsDocumentation || prefs.needsSystemsAudit) && 
+      !hasOpportunity(['systems audit', 'process documentation', 'SYSTEMS_AUDIT', 'documentation'])) {
+    
+    const revenue = clientData.pass1Data?._enriched_revenue || 0;
+    // Systems audit typically saves 2-5% efficiency gains
+    const potentialSavings = revenue * 0.02;
+    
+    suggestions.push({
+      title: 'Systems & Process Audit',
+      description: 'Context notes indicate loose structure and potential documentation gaps. A systems audit would identify what processes exist vs what\'s in heads, creating a roadmap for systemisation.',
+      serviceCode: 'SYSTEMS_AUDIT',
+      severity: prefs.hasSuccessionConcerns ? 'high' : 'medium',
+      priority: prefs.hasSuccessionConcerns ? 'must_address_now' : 'next_12_months',
+      reason: 'Identified from advisor context notes: loose leadership structure and founder dependency suggest undocumented processes.',
+      financialImpact: potentialSavings > 0 ? {
+        amount: Math.round(potentialSavings),
+        type: 'efficiency_gain',
+        basis: 'Estimated 2% efficiency improvement from systemised processes',
+      } : undefined,
+    });
+    
+    console.log('[Pass 3] ✅ SUGGESTED: Systems Audit based on context notes (loose structure/documentation needs)');
+  }
+  
+  // ============================================================================
+  // 2. Exit Readiness - When succession concerns and not already suggested
+  // ============================================================================
+  if (prefs.hasSuccessionConcerns && 
+      ctx.businessDirection !== 'grow_aggressive' &&
+      !hasOpportunity(['exit readiness', 'EXIT_READINESS', 'succession plan', 'exit prep'])) {
+    
+    suggestions.push({
+      title: 'Exit Readiness Programme',
+      description: 'Context notes mention timeline for stepping back/exit. Proactive exit planning maximises value and creates options.',
+      serviceCode: 'EXIT_READINESS',
+      severity: 'high',
+      priority: 'next_12_months',
+      reason: 'Identified from advisor context notes: mentions of exit timeline, succession, or stepping back.',
+    });
+    
+    console.log('[Pass 3] ✅ SUGGESTED: Exit Readiness based on context notes (succession concerns)');
+  }
+  
+  // ============================================================================
+  // 3. Strategic Advisory - When they prefer project-based external support
+  // ============================================================================
+  if ((prefs.prefersProjectBasis || prefs.prefersExternalSupport) && 
+      !prefs.avoidsInternalHires &&
+      !hasOpportunity(['strategic advisory', 'STRATEGIC_ADVISORY', 'strategic support'])) {
+    
+    suggestions.push({
+      title: 'Strategic Advisory (Project-Based)',
+      description: 'Context notes indicate preference for external, project-based support. Strategic advisory offers flexible engagement without permanent headcount.',
+      serviceCode: 'STRATEGIC_ADVISORY',
+      severity: 'medium',
+      priority: 'when_ready',
+      reason: 'Identified from advisor context notes: preference for external support on project basis.',
+    });
+    
+    console.log('[Pass 3] ✅ SUGGESTED: Strategic Advisory based on context notes (project-basis preference)');
+  }
+  
+  return suggestions;
+}
+
+// Convert context suggestions to opportunity format
+function contextSuggestionsToOpportunities(suggestions: ContextSuggestion[]): any[] {
+  return suggestions.map((s, idx) => ({
+    id: `ctx-suggestion-${idx + 1}`,
+    title: s.title,
+    description: s.description,
+    severity: s.severity,
+    priority: s.priority,
+    category: 'operational_efficiency',
+    financialImpact: s.financialImpact || null,
+    serviceMapping: {
+      matchConfidence: 'high',
+      existingService: {
+        code: s.serviceCode,
+        name: s.title,
+        fit: 'strong',
+      },
+      newConceptNeeded: null,
+    },
+    adviserTools: {
+      talkingPoint: `Based on our conversations, a ${s.title} would help address ${s.reason.toLowerCase()}`,
+      questionToAsk: 'Would you be open to exploring this as a discrete project?',
+      quickWin: 'We can scope this out in an initial conversation.',
+    },
+    _contextDriven: true,  // Flag for tracking
+    _contextReason: s.reason,
+  }));
 }
 
 // ============================================================================
@@ -1629,16 +2026,18 @@ interface OpportunityAnalysis {
 function postProcessOpportunities(
   analysis: OpportunityAnalysis, 
   revenue: number,
-  directionContext: DirectionContext
+  clientData: ClientData  // Now accepts full clientData for preferences
 ): OpportunityAnalysis {
+  const { directionContext, clientPreferences } = clientData;
   const rawOpps = analysis.opportunities || [];
   
-  if (rawOpps.length === 0) {
-    return analysis;
-  }
-  
+  // Even if no raw opportunities, we might add context-driven ones
   console.log(`[Post-Process] Starting with ${rawOpps.length} raw opportunities, revenue £${(revenue/1000000).toFixed(1)}M`);
   console.log(`[Post-Process] Client direction: ${directionContext.businessDirection}`);
+  
+  if (clientData.contextNotes?.length > 0) {
+    console.log(`[Post-Process] 📝 Context notes available: ${clientData.contextNotes.length}`);
+  }
   
   // Step 1: Consolidate duplicate themes
   const consolidated = consolidateOpportunities(rawOpps);
@@ -1647,9 +2046,24 @@ function postProcessOpportunities(
   // Step 2: Sanitize financial impacts (cap at sensible % of revenue)
   const sanitized = consolidated.map(opp => sanitizeFinancialImpact(opp, revenue));
   
-  // Step 3: Filter blocked services based on client context
-  const { allowed, blocked } = filterBlockedServices(sanitized, directionContext);
+  // Step 3: Filter blocked services based on client context AND preferences
+  const { allowed, blocked } = filterBlockedServices(sanitized, directionContext, clientPreferences);
   console.log(`[Post-Process] After service filtering: ${allowed.length} allowed, ${blocked.length} blocked`);
+  
+  // Step 3b: ADD context-driven suggestions (services we should recommend based on notes)
+  const contextSuggestions = getContextDrivenSuggestions(
+    clientPreferences, 
+    directionContext, 
+    allowed,
+    clientData
+  );
+  
+  if (contextSuggestions.length > 0) {
+    const contextOpps = contextSuggestionsToOpportunities(contextSuggestions);
+    console.log(`[Post-Process] ✅ Adding ${contextOpps.length} context-driven opportunities:`, 
+      contextOpps.map(o => o.title));
+    allowed.push(...contextOpps);
+  }
   
   // Step 4: Apply direction-aware priority adjustment
   const prioritised = adjustPrioritiesForDirection(allowed, directionContext.businessDirection);
@@ -1680,7 +2094,11 @@ function postProcessOpportunities(
   const mustAddress = capped.filter(o => o.priority === 'must_address_now').length;
   const next12 = capped.filter(o => o.priority === 'next_12_months').length;
   const whenReady = capped.filter(o => o.priority === 'when_ready').length;
+  const contextDriven = capped.filter(o => o._contextDriven).length;
   console.log(`[Post-Process] Priority distribution: ${mustAddress} must-address, ${next12} next-12m, ${whenReady} when-ready`);
+  if (contextDriven > 0) {
+    console.log(`[Post-Process] 📝 ${contextDriven} opportunities from context notes`);
+  }
   
   return {
     ...analysis,
@@ -1690,6 +2108,7 @@ function postProcessOpportunities(
       ...analysis.overallAssessment,
       totalOpportunityValue: totalValue,
       clientDirection: directionContext.businessDirection,
+      contextNotesUsed: clientData.contextNotes?.length || 0,
     }
   };
 }

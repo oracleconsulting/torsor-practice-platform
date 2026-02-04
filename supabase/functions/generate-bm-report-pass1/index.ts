@@ -3917,14 +3917,14 @@ serve(async (req) => {
     if (assessmentError || !assessment) {
       throw new Error(`Failed to fetch assessment: ${assessmentError?.message || 'Not found'}`);
     }
-    
-    // Get business description - check both top level and responses with bm_ prefix
-    const businessDescription = 
-      assessment.business_description || 
-      assessment.responses?.business_description ||
+      
+      // Get business description - check both top level and responses with bm_ prefix
+      const businessDescription = 
+        assessment.business_description || 
+        assessment.responses?.business_description ||
       assessment.responses?.['bm business description'] ||
-      assessment.responses?.bm_business_description;
-    
+        assessment.responses?.bm_business_description;
+      
     console.log('[BM Pass 1] Industry detection start. Description:', businessDescription ? businessDescription.substring(0, 100) : 'none');
     
     // Check if description indicates specific business type
@@ -4557,31 +4557,31 @@ When writing narratives:
     
     try {
       console.log('[BM Pass 1] Sending request to OpenRouter...');
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openRouterKey}`,
-          'Content-Type': 'application/json',
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
+        'Content-Type': 'application/json',
           'HTTP-Referer': 'https://torsor.co.uk',
           'X-Title': 'Torsor Benchmarking',
-        },
-        body: JSON.stringify({
+      },
+      body: JSON.stringify({
           model: 'openai/gpt-4o-mini',
-          messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_object' },
-          temperature: 0.3,
-        }),
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        temperature: 0.3,
+      }),
         signal: controller.signal,
-      });
+    });
       
       clearTimeout(timeoutId);
       console.log(`[BM Pass 1] Response received: ${response.status}`);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
-      }
-      
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+    }
+    
       // Read response body - use simple text() method, let Deno handle streaming
       console.log('[BM Pass 1] Reading response body...');
       const responseText = await response.text();
@@ -5027,23 +5027,23 @@ When writing narratives:
       
       try {
         const pass2Response = await fetch(pass2Url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${serviceRoleKey}`
-          },
-          body: JSON.stringify({ engagementId })
-        });
-        
-        if (!pass2Response.ok) {
-          const errorText = await pass2Response.text();
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${serviceRoleKey}`
+            },
+            body: JSON.stringify({ engagementId })
+          });
+          
+          if (!pass2Response.ok) {
+            const errorText = await pass2Response.text();
           console.error('[BM Pass 1] ❌ Pass 2 trigger failed:', pass2Response.status, errorText);
-        } else {
+          } else {
           console.log('[BM Pass 1] ✅ Pass 2 triggered successfully (response received)');
-        }
+          }
       } catch (pass2Err) {
         console.error('[BM Pass 1] ❌ Failed to trigger Pass 2:', pass2Err);
-      }
+        }
     }
     
     return new Response(
