@@ -8,6 +8,72 @@ interface ExportOptions {
 }
 
 /**
+ * Convert oklch/oklab colors to rgb fallback
+ * html2canvas doesn't support modern color functions
+ */
+function convertModernColorsToRgb(element: HTMLElement): Map<HTMLElement, Map<string, string>> {
+  const originalStyles = new Map<HTMLElement, Map<string, string>>();
+  const colorProperties = ['color', 'background-color', 'border-color', 'outline-color', 'fill', 'stroke'];
+  
+  const allElements = element.querySelectorAll('*');
+  const elementsToProcess = [element, ...Array.from(allElements)] as HTMLElement[];
+  
+  elementsToProcess.forEach(el => {
+    const computed = window.getComputedStyle(el);
+    const elementOriginals = new Map<string, string>();
+    
+    colorProperties.forEach(prop => {
+      const value = computed.getPropertyValue(prop);
+      if (value && (value.includes('oklch') || value.includes('oklab'))) {
+        // Store original
+        elementOriginals.set(prop, el.style.getPropertyValue(prop));
+        
+        // Convert to a safe fallback - use computed rgb value if available
+        // Otherwise use a neutral gray
+        try {
+          // Create a temporary element to compute the color
+          const temp = document.createElement('div');
+          temp.style.cssText = `color: ${value}; display: none;`;
+          document.body.appendChild(temp);
+          const rgbValue = window.getComputedStyle(temp).color;
+          document.body.removeChild(temp);
+          
+          if (rgbValue && !rgbValue.includes('oklch') && !rgbValue.includes('oklab')) {
+            el.style.setProperty(prop, rgbValue, 'important');
+          } else {
+            // Fallback to a neutral color
+            el.style.setProperty(prop, '#64748b', 'important');
+          }
+        } catch {
+          el.style.setProperty(prop, '#64748b', 'important');
+        }
+      }
+    });
+    
+    if (elementOriginals.size > 0) {
+      originalStyles.set(el, elementOriginals);
+    }
+  });
+  
+  return originalStyles;
+}
+
+/**
+ * Restore original styles after capture
+ */
+function restoreOriginalStyles(originalStyles: Map<HTMLElement, Map<string, string>>): void {
+  originalStyles.forEach((styles, element) => {
+    styles.forEach((value, prop) => {
+      if (value) {
+        element.style.setProperty(prop, value);
+      } else {
+        element.style.removeProperty(prop);
+      }
+    });
+  });
+}
+
+/**
  * Exports a DOM element to PDF with high quality
  * Handles multi-page content automatically
  */
@@ -25,8 +91,12 @@ export async function exportToPDF(
   const originalOverflow = element.style.overflow;
   const originalHeight = element.style.height;
   const originalMaxHeight = element.style.maxHeight;
+  let originalColorStyles: Map<HTMLElement, Map<string, string>> | null = null;
 
   try {
+    // Convert modern colors to rgb (html2canvas doesn't support oklch)
+    originalColorStyles = convertModernColorsToRgb(element);
+    
     // Temporarily expand all content
     element.style.overflow = 'visible';
     element.style.height = 'auto';
@@ -53,6 +123,9 @@ export async function exportToPDF(
       onclone: (clonedDoc) => {
         // In the cloned document, expand everything
         const clonedElement = clonedDoc.body.querySelector('[data-pdf-content]') || clonedDoc.body;
+        
+        // Convert oklch colors in cloned doc too
+        convertModernColorsToRgb(clonedElement as HTMLElement);
         
         // Remove all overflow:hidden and max-height restrictions
         const allElements = clonedElement.querySelectorAll('*');
@@ -152,6 +225,11 @@ export async function exportToPDF(
     element.style.overflow = originalOverflow;
     element.style.height = originalHeight;
     element.style.maxHeight = originalMaxHeight;
+    
+    // Restore color styles
+    if (originalColorStyles) {
+      restoreOriginalStyles(originalColorStyles);
+    }
   }
 }
 
