@@ -4838,12 +4838,16 @@ When writing narratives:
     };
     
     // Add founder risk data if available
+    // Valid columns: founder_risk_level, founder_risk_score, valuation_impact, founder_risk_factors
+    // Note: succession_readiness stored in founder_risk_factors JSONB (no top-level column)
     if (founderRisk) {
       reportData.founder_risk_level = founderRisk.riskLevel;
       reportData.founder_risk_score = founderRisk.overallScore;
       reportData.valuation_impact = founderRisk.valuationImpact;
-      reportData.founder_risk_factors = founderRisk.riskFactors;
-      reportData.succession_readiness = founderRisk.successionReadiness;
+      reportData.founder_risk_factors = {
+        ...founderRisk.riskFactors,
+        succession_readiness: founderRisk.successionReadiness  // Store in JSONB
+      };
       console.log('[BM Pass 1] Added founder risk data to report');
     }
     
