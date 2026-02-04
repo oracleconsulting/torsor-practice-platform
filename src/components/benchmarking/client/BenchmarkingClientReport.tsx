@@ -7,7 +7,7 @@ import { ScenarioExplorer } from './ScenarioExplorer';
 import { ScenarioPlanningSection } from './ScenarioPlanningSection';
 import { ServiceRecommendationsSection } from './ServiceRecommendationsSection';
 import { ValueBridgeSection } from './ValueBridgeSection';
-import { AlertTriangle, Gem, Shield, CheckCircle, Download, Loader2 } from 'lucide-react';
+import { AlertTriangle, Gem, Shield, CheckCircle, Download } from 'lucide-react';
 import { exportToPDF } from '../../../lib/pdf-export';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
@@ -231,35 +231,32 @@ export function BenchmarkingClientReport({
   clientName 
 }: BenchmarkingClientReportProps) {
   const reportRef = useRef<HTMLDivElement>(null);
-  const [isExporting, setIsExporting] = useState(false);
+  // printMode expands all sections for PDF/print
   const [printMode, setPrintMode] = useState(false);
   
   const metrics = safeJsonParse<MetricComparison[]>(data.metrics_comparison, []);
   const recommendations = safeJsonParse(data.recommendations, []);
   
-  // Handle PDF export
+  // Handle PDF export - uses browser print dialog
+  // User can select "Save as PDF" from their browser's print options
   const handleExportPDF = async () => {
     if (!reportRef.current) return;
     
-    setIsExporting(true);
-    setPrintMode(true); // This will cause components to re-render expanded
+    setPrintMode(true); // Expand all sections
     
     // Wait for re-render with expanded content
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 300));
     
     try {
       await exportToPDF(reportRef.current, {
         filename: `${clientName || 'Company'}-Benchmarking-Report.pdf`,
-        title: 'Benchmarking Analysis Report',
-        subtitle: `Prepared for ${clientName || 'Client'} | Generated ${new Date().toLocaleDateString('en-GB')}`
       });
     } catch (error) {
       console.error('PDF export failed:', error);
-      alert('Failed to export PDF. Please try again.');
-    } finally {
-      setIsExporting(false);
-      setPrintMode(false);
     }
+    
+    // Reset print mode after a delay (cleanup happens via afterprint event)
+    setTimeout(() => setPrintMode(false), 1000);
   };
   
   // Helper to get metric value from metrics array
@@ -499,20 +496,11 @@ export function BenchmarkingClientReport({
             </div>
             <button 
               onClick={handleExportPDF}
-              disabled={isExporting}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg border border-blue-200 transition-colors"
+              data-no-print
             >
-              {isExporting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating PDF...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  Download PDF
-                </>
-              )}
+              <Download className="w-4 h-4" />
+              Print / Save PDF
             </button>
           </div>
         </div>
