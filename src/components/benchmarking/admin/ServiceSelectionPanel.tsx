@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Check, X, Pin, Search, AlertTriangle, Lightbulb, Loader2 } from 'lucide-react';
+import { X, Pin, Search, AlertTriangle, Lightbulb, Loader2 } from 'lucide-react';
 
 interface Service {
   code: string;

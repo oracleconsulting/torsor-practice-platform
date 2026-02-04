@@ -609,8 +609,8 @@ export function BenchmarkingAdminView({
                 
                 {activeTab === 'pin_services' && engagementId && (
                   <ServiceSelectionPanel
-                    engagementId={engagementId}
-                    clientName={clientName}
+                    engagementId={engagementId as string}
+                    clientName={clientName || 'Client'}
                     clientPreferences={data.client_preferences}
                     onSelectionChange={() => {
                       // Could trigger refresh or show notification
