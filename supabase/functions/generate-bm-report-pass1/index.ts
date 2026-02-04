@@ -4254,7 +4254,9 @@ serve(async (req) => {
     let effectiveHVAData = hvaData;
     if (!hvaData || !hvaData.responses || Object.keys(hvaData.responses).length === 0) {
       console.log('[BM Pass 1] No HVA Part 3 data found - inferring from assessment responses');
-      const inferredResponses = inferHVAFromAssessment(assessmentData.responses);
+      // Use raw 'assessment' data fetched earlier, not 'assessmentData' which doesn't exist yet
+      const rawResponses = assessment?.responses || assessment || {};
+      const inferredResponses = inferHVAFromAssessment(rawResponses);
       effectiveHVAData = { responses: inferredResponses, value_analysis_data: null };
       console.log('[BM Pass 1] Inferred HVA values:', {
         concentration: inferredResponses.top3_customer_revenue_percentage,
