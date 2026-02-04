@@ -11,6 +11,8 @@ export default defineConfig({
       '@torsor/shared': path.resolve(__dirname, '../../packages/shared/src'),
       '@torsor/llm': path.resolve(__dirname, '../../packages/llm/src'),
       '@torsor/ui': path.resolve(__dirname, '../../packages/ui/src'),
+      // Share components/types from main platform app
+      '@torsor/platform': path.resolve(__dirname, '../../src'),
     },
   },
   server: {

@@ -16,7 +16,8 @@
       "@/*": ["./src/*"],
       "@torsor/shared": ["../../packages/shared/src"],
       "@torsor/llm": ["../../packages/llm/src"],
-      "@torsor/ui": ["../../packages/ui/src"]
+      "@torsor/ui": ["../../packages/ui/src"],
+      "@torsor/platform/*": ["../../src/*"]
     },
     "baseUrl": "."
   },
