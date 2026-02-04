@@ -2900,8 +2900,8 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
         employees: financialInputs.employees,
       });
       
-      // Extract HVA responses for value calculation
-      const hvaResponses = hvaData?.responses || {};
+      // Extract HVA responses for value calculation (using effective HVA data which may be inferred)
+      const hvaResponses = effectiveHVAData?.responses || {};
       
       // Log HVA data for debugging value suppressor mapping
       console.log('[BM Enrich] HVA data for value analysis:', {
@@ -3030,6 +3030,109 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
         console.log(`  - Enhanced suppressors: ${enriched.enhanced_suppressors.length}`);
         console.log(`  - Exit readiness breakdown: ${enriched.exit_readiness_breakdown.totalScore}/${enriched.exit_readiness_breakdown.maxScore}`);
         console.log(`  - Two paths narrative generated`);
+        
+        // ====================================================================
+        // OPPORTUNITY CALCULATIONS (Full Transparency)
+        // ====================================================================
+        console.log('[BM Enrich] Generating opportunity calculations for transparency...');
+        
+        // Find the margin gap from metrics
+        const grossMarginMetric = metricsComparison.find(m => m.metricCode === 'gross_margin');
+        if (grossMarginMetric && grossMarginMetric.clientValue && grossMarginMetric.p50) {
+          const marginGapPercent = grossMarginMetric.p50 - grossMarginMetric.clientValue;
+          const fullGapValue = (marginGapPercent / 100) * revenue;
+          
+          // Recovery factor by industry (infrastructure has structural constraints)
+          const recoveryFactor = industryCode === 'TELECOM_INFRA' ? 0.60 : 0.70;
+          const addressableValue = Math.round(fullGapValue * recoveryFactor);
+          
+          enriched.opportunity_calculations = {
+            margin_opportunity: {
+              id: 'margin_opportunity',
+              title: 'Margin Improvement Opportunity',
+              headlineValue: addressableValue,
+              calculationType: 'margin_gap',
+              calculation: {
+                steps: [
+                  {
+                    description: 'Your gross margin',
+                    formula: 'Gross Profit ÷ Revenue × 100',
+                    values: { grossMargin: grossMarginMetric.clientValue },
+                    result: grossMarginMetric.clientValue,
+                    unit: '%'
+                  },
+                  {
+                    description: 'Industry median',
+                    formula: 'From benchmarks',
+                    values: { medianGrossMargin: grossMarginMetric.p50 },
+                    result: grossMarginMetric.p50,
+                    unit: '%'
+                  },
+                  {
+                    description: 'Margin gap',
+                    formula: 'Median - Your margin',
+                    values: { 
+                      medianGrossMargin: grossMarginMetric.p50, 
+                      clientGrossMargin: grossMarginMetric.clientValue 
+                    },
+                    result: marginGapPercent,
+                    unit: '%'
+                  },
+                  {
+                    description: 'Theoretical opportunity',
+                    formula: 'Revenue × Gap %',
+                    values: { revenue, marginGapPercent },
+                    result: fullGapValue,
+                    unit: '£'
+                  },
+                  {
+                    description: `Realistic capture (${Math.round(recoveryFactor * 100)}%)`,
+                    formula: 'Theoretical × Recovery factor',
+                    values: { fullGapValue, recoveryFactor },
+                    result: addressableValue,
+                    unit: '£'
+                  }
+                ],
+                assumptions: [
+                  {
+                    name: 'Recovery factor',
+                    value: `${Math.round(recoveryFactor * 100)}%`,
+                    rationale: industryCode === 'TELECOM_INFRA' 
+                      ? 'Infrastructure delivery has structural margin constraints' 
+                      : 'Conservative capture estimate for sustainable improvement',
+                    source: 'professional_judgement'
+                  },
+                  {
+                    name: 'Median as target',
+                    value: `${grossMarginMetric.p50}%`,
+                    rationale: 'Achievable without fundamental business model change',
+                    source: 'industry_data'
+                  }
+                ],
+                adjustments: [],
+                finalValue: addressableValue
+              },
+              interpretation: {
+                whatThisMeans: `Closing the margin gap would add £${Math.round(addressableValue/1000)}k annually`,
+                whyThisMatters: 'This flows directly to the bottom line and multiplies through valuation',
+                caveat: industryCode === 'TELECOM_INFRA'
+                  ? 'Some gap may be structural to infrastructure work - focus on highest-margin project types'
+                  : 'Focus on high-margin work and pricing discipline'
+              },
+              pathToCapture: {
+                fullCapture: 'Review all project pricing and improve utilisation',
+                realisticCapture: 'Focus on highest-margin project types and eliminate margin leakage',
+                quickWin: 'Audit current projects for margin leakage and pricing opportunities',
+                timeframe: '12-18 months'
+              }
+            }
+          };
+          
+          derivedFields.push('opportunity_calculations');
+          console.log(`[BM Enrich] Opportunity calculations generated: £${Math.round(addressableValue/1000)}k margin opportunity`);
+        } else {
+          enriched.opportunity_calculations = {};
+        }
         
       } catch (valueError) {
         console.error('[BM Enrich] Value analysis failed:', valueError);
@@ -4083,6 +4186,83 @@ serve(async (req) => {
       .eq('client_id', engagement.client_id)
       .eq('assessment_type', 'part3')
       .maybeSingle();
+    
+    // =========================================================================
+    // CRITICAL FIX: If no HVA Part 3 data, infer from assessment responses
+    // =========================================================================
+    function inferHVAFromAssessment(assessmentResponses: any): any {
+      // Helper to extract percentage from text
+      const extractPercent = (text: string | number | undefined): number => {
+        if (typeof text === 'number') return text;
+        if (!text) return 0;
+        const match = String(text).match(/(\d+(?:\.\d+)?)\s*%/);
+        return match ? parseFloat(match[1]) : 0;
+      };
+      
+      const responses = assessmentResponses || {};
+      
+      // Extract concentration from multiple possible field names
+      const concentrationText = responses['Client Concentration'] || 
+                                responses['bm_supp_Client Concentration'] ||
+                                responses['bm_supp_client_concentration_top3'] ||
+                                responses['client_concentration_top3'] || '';
+      const concentration = extractPercent(concentrationText);
+      
+      // Infer knowledge dependency from blind spot fear
+      const blindSpotFear = String(responses['bm_blind_spot_fear'] || '').toLowerCase();
+      const hasFounderConcern = blindSpotFear.includes('reliant on me') ||
+                                blindSpotFear.includes('over reliant') ||
+                                blindSpotFear.includes('strategic') ||
+                                blindSpotFear.includes('decision') ||
+                                blindSpotFear.includes('key person');
+      
+      // Infer succession from action readiness and blind spot fear
+      const actionReadiness = responses['bm_action_readiness'] || '';
+      const needsTeamBuyIn = String(actionReadiness).includes('team') || 
+                             String(actionReadiness).includes('board');
+      
+      return {
+        // Customer concentration
+        top3_customer_revenue_percentage: concentration || undefined,
+        
+        // Knowledge dependency - infer from blind spot fear
+        // If they mention being over-reliant, assume 70-80% dependency
+        knowledge_dependency_percentage: hasFounderConcern ? 75 : undefined,
+        
+        // Personal brand - similar inference
+        personal_brand_percentage: hasFounderConcern ? 80 : undefined,
+        
+        // Succession plan
+        succession_your_role: needsTeamBuyIn ? 'Need to hire' : undefined,
+        
+        // Recurring revenue
+        recurring_revenue_percentage: 
+          responses['Recurring revenue percentage'] === 'N/A' || 
+          responses['Recurring revenue percentage'] === 'n/a'
+            ? 0
+            : extractPercent(responses['Recurring revenue percentage'] || ''),
+        
+        // Contract backlog (not in current assessment)
+        contract_backlog_months: 0,
+        
+        // Documentation score (not in current assessment)
+        documentation_score: undefined,
+      };
+    }
+    
+    // If no HVA Part 3 data exists, create inferred HVA data from assessment
+    let effectiveHVAData = hvaData;
+    if (!hvaData || !hvaData.responses || Object.keys(hvaData.responses).length === 0) {
+      console.log('[BM Pass 1] No HVA Part 3 data found - inferring from assessment responses');
+      const inferredResponses = inferHVAFromAssessment(assessmentData.responses);
+      effectiveHVAData = { responses: inferredResponses, value_analysis_data: null };
+      console.log('[BM Pass 1] Inferred HVA values:', {
+        concentration: inferredResponses.top3_customer_revenue_percentage,
+        knowledge_dependency: inferredResponses.knowledge_dependency_percentage,
+        personal_brand: inferredResponses.personal_brand_percentage,
+        succession: inferredResponses.succession_your_role,
+      });
+    }
     
     // Get context notes (additional information from discovery calls, follow-ups, etc.)
     let contextNotes: any[] = [];
