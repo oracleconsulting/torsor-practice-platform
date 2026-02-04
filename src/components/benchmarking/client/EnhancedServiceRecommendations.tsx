@@ -23,8 +23,7 @@ import {
   Lightbulb,
   DollarSign,
   Shield,
-  Sparkles,
-  ExternalLink
+  Sparkles
 } from 'lucide-react';
 
 interface ServiceOpportunity {
@@ -60,11 +59,6 @@ interface EnhancedServiceRecommendationsProps {
   clientName?: string;
   practitionerName?: string;
   practitionerEmail?: string;
-  valueAnalysis?: {
-    currentMarketValue?: { mid: number };
-    pathToValue?: { recoverableValue: { mid: number } };
-    suppressors?: Array<{ name: string; remediationService: string }>;
-  };
 }
 
 // Map service codes to icons
@@ -118,8 +112,7 @@ export function EnhancedServiceRecommendations({
   opportunities,
   clientName,
   practitionerName = 'your advisor',
-  practitionerEmail,
-  valueAnalysis
+  practitionerEmail
 }: EnhancedServiceRecommendationsProps) {
   const [expandedServices, setExpandedServices] = useState<Set<string>>(new Set());
 
@@ -225,12 +218,6 @@ export function EnhancedServiceRecommendations({
             
             // Calculate total financial impact for this service
             const totalImpact = opps.reduce((sum, o) => sum + (o.financial_impact_amount || 0), 0);
-            
-            // Get the highest severity
-            const maxSeverity = opps.reduce((max, o) => {
-              const order = { critical: 0, high: 1, medium: 2, low: 3 };
-              return order[o.severity] < order[max] ? o.severity : max;
-            }, 'low' as 'critical' | 'high' | 'medium' | 'low');
 
             return (
               <div 

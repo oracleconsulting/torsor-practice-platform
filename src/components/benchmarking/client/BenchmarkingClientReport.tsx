@@ -847,7 +847,6 @@ export function BenchmarkingClientReport({
             clientName={clientName}
             practitionerName={practitionerName}
             practitionerEmail={practitionerEmail}
-            valueAnalysis={data.value_analysis}
           />
         )}
         
