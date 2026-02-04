@@ -2900,8 +2900,9 @@ function enrichBenchmarkData(assessmentData: any, hvaData: any, uploadedFinancia
         employees: financialInputs.employees,
       });
       
-      // Extract HVA responses for value calculation (using effective HVA data which may be inferred)
-      const hvaResponses = effectiveHVAData?.responses || {};
+      // Extract HVA responses for value calculation 
+      // (hvaData parameter now contains effectiveHVAData which may include inferred values)
+      const hvaResponses = hvaData?.responses || {};
       
       // Log HVA data for debugging value suppressor mapping
       console.log('[BM Enrich] HVA data for value analysis:', {
@@ -4333,7 +4334,8 @@ serve(async (req) => {
     }
     
     // ENRICH DATA: Calculate derived metrics (using uploaded accounts if available)
-    const assessmentData = enrichBenchmarkData(rawAssessmentData, hvaData, uploadedFinancialData);
+    // Use effectiveHVAData (which includes inferred values if HVA Part 3 is missing)
+    const assessmentData = enrichBenchmarkData(rawAssessmentData, effectiveHVAData, uploadedFinancialData);
     
     console.log('[BM Pass 1] Data enrichment complete:', {
       derived_fields: assessmentData.derived_fields,
