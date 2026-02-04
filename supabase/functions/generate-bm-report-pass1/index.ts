@@ -4817,22 +4817,17 @@ When writing narratives:
       investment_signals: assessmentData.investment_signals || null,
       historical_financials: assessmentData.historical_financials || null,
       current_ratio: assessmentData.current_ratio || null,
+      // Financial ratios (these columns DO exist)
+      current_ratio: assessmentData.current_ratio || null,
       quick_ratio: assessmentData.quick_ratio || null,
       cash_months: assessmentData.cash_months || null,
-      creditor_days: assessmentData.creditor_days || null,
-      debtor_days: assessmentData.debtor_days || null,
+      // Note: debtor_days, creditor_days stored in pass1_data only (no top-level columns)
       benchmark_sources_detail: buildDetailedSourceData(benchmarks || []),
       // Surplus cash analysis
       surplus_cash: assessmentData.surplus_cash || null,
       // Value analysis (business valuation with HVA suppressors)
       value_analysis: assessmentData.value_analysis || null,
-      // Enriched financial data (top-level for easy access)
-      revenue: assessmentData._enriched_revenue || null,
-      employee_count: assessmentData._enriched_employee_count || null,
-      gross_margin: assessmentData.gross_margin || null,
-      net_margin: assessmentData.net_margin || null,
-      ebitda_margin: assessmentData.ebitda_margin || null,
-      // Note: client_concentration_top3 is stored in pass1_data.client_concentration_top3, not as top-level column
+      // Note: Detailed financial metrics (revenue, margins, etc.) stored in pass1_data only
       // ====================================================================
       // ENHANCED TRANSPARENCY DATA (new fields for calculation breakdown)
       // ====================================================================
