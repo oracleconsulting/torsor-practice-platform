@@ -1667,7 +1667,8 @@ function buildPass1Prompt(
   maData: any | null,
   hvaContextSection: string,
   clientName: string,
-  industry: any
+  industry: any,
+  contextNotes: any[] = []
 ): string {
   // Format benchmarks for prompt
   const benchmarkDetails = benchmarks.map(b => {
@@ -1714,6 +1715,26 @@ ${assessment.project_margin ? `- Project Margins: ${assessment.project_margin}% 
 ${assessment.ebitda_margin ? `- EBITDA Margin: ${assessment.ebitda_margin}%` : ''}
 ${assessment.debtor_days ? `- Debtor Days: ${assessment.debtor_days} days` : ''}
 ${assessment.revenue_growth ? `- Revenue Growth: ${assessment.revenue_growth}% YoY` : ''}
+` : '';
+
+  // ==========================================================================
+  // CONTEXT NOTES (Additional information from practitioner conversations)
+  // ==========================================================================
+  const contextNotesText = contextNotes.length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+ADDITIONAL CONTEXT FROM PRACTITIONER (Important - consider in your analysis)
+═══════════════════════════════════════════════════════════════════════════════
+${contextNotes.map((note, i) => `
+[${i + 1}] ${note.importance?.toUpperCase() || 'MEDIUM'} - ${note.note_type?.replace(/_/g, ' ').toUpperCase() || 'NOTE'}
+${note.title}
+${note.content}
+`).join('\n')}
+
+INSTRUCTION: These notes contain important context gathered from client conversations,
+follow-up questions, or practitioner observations. Consider this information when:
+- Interpreting metrics (e.g., if a note explains why concentration is high)
+- Framing recommendations (e.g., if a note mentions client constraints)
+- Writing narratives (e.g., if a note provides business context)
 ` : '';
 
   // ==========================================================================
@@ -1820,6 +1841,8 @@ INDUSTRY BENCHMARKS
 ${benchmarkDetails}
 
 ${hvaContextSection}
+
+${contextNotesText}
 
 ═══════════════════════════════════════════════════════════════════════════════
 YOUR TASK
@@ -4061,6 +4084,28 @@ serve(async (req) => {
       .eq('assessment_type', 'part3')
       .maybeSingle();
     
+    // Get context notes (additional information from discovery calls, follow-ups, etc.)
+    let contextNotes: any[] = [];
+    try {
+      const { data: notesData } = await supabaseClient
+        .from('client_context_notes')
+        .select('*')
+        .eq('client_id', engagement.client_id)
+        .eq('include_in_analysis', true)
+        .order('importance', { ascending: false });  // Critical notes first
+      
+      if (notesData && notesData.length > 0) {
+        contextNotes = notesData;
+        console.log('[BM Pass 1] Found context notes:', {
+          count: notesData.length,
+          types: [...new Set(notesData.map(n => n.note_type))],
+          criticalCount: notesData.filter(n => n.importance === 'critical').length
+        });
+      }
+    } catch (contextErr) {
+      console.log('[BM Pass 1] No context notes (table may not exist yet)');
+    }
+    
     // Get uploaded financial data if available
     // Priority: confirmed > extracted with high confidence > any extracted
     let uploadedFinancialData = null;
@@ -4310,7 +4355,8 @@ When writing narratives:
       maData,
       hvaContextSection,
       clientName,
-      industry || {}
+      industry || {},
+      contextNotes
     );
     
     // Single attempt with timeout

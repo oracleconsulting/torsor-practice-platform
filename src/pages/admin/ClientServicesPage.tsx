@@ -10218,6 +10218,18 @@ function BenchmarkingClientModal({
   const [accountUploads, setAccountUploads] = useState<any[]>([]);
   const [financialData, setFinancialData] = useState<any[]>([]);
   const [reviewingFinancialData, setReviewingFinancialData] = useState<any>(null);
+  
+  // Context notes state
+  const [contextNotes, setContextNotes] = useState<any[]>([]);
+  const [showAddContextNote, setShowAddContextNote] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [newContextNote, setNewContextNote] = useState({
+    note_type: 'discovery_call' as string,
+    title: '',
+    content: '',
+    importance: 'medium' as string,
+    source: ''
+  });
 
   useEffect(() => {
     if (currentMember?.practice_id) {
@@ -10560,8 +10572,80 @@ function BenchmarkingClientModal({
         .order('fiscal_year', { ascending: false });
       
       if (financial) setFinancialData(financial);
+      
+      // Load context notes
+      await loadContextNotes();
     } catch (err) {
       console.log('[Benchmarking Modal] Could not load accounts data (table may not exist yet)');
+    }
+  };
+  
+  // Load context notes for this client
+  const loadContextNotes = async () => {
+    try {
+      const { data: notes } = await supabase
+        .from('client_context_notes')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false });
+      
+      if (notes) setContextNotes(notes);
+    } catch (err) {
+      console.log('[Benchmarking Modal] Could not load context notes');
+    }
+  };
+  
+  // Save a new context note
+  const handleSaveContextNote = async () => {
+    if (!newContextNote.title || !newContextNote.content) return;
+    
+    setSavingNote(true);
+    try {
+      const { error } = await supabase
+        .from('client_context_notes')
+        .insert({
+          client_id: clientId,
+          practice_id: currentMember?.practice_id,
+          note_type: newContextNote.note_type,
+          title: newContextNote.title,
+          content: newContextNote.content,
+          importance: newContextNote.importance,
+          include_in_analysis: true,
+          created_by: user?.id
+        });
+      
+      if (error) throw error;
+      
+      // Reset form and reload
+      setNewContextNote({
+        note_type: 'discovery_call',
+        title: '',
+        content: '',
+        importance: 'medium',
+        source: ''
+      });
+      setShowAddContextNote(false);
+      await loadContextNotes();
+    } catch (err: any) {
+      alert(`Error saving note: ${err.message}`);
+    } finally {
+      setSavingNote(false);
+    }
+  };
+  
+  // Delete a context note
+  const handleDeleteContextNote = async (noteId: string) => {
+    if (!confirm('Delete this note?')) return;
+    
+    try {
+      await supabase
+        .from('client_context_notes')
+        .delete()
+        .eq('id', noteId);
+      
+      await loadContextNotes();
+    } catch (err: any) {
+      alert(`Error deleting note: ${err.message}`);
     }
   };
 
@@ -10983,16 +11067,149 @@ function BenchmarkingClientModal({
                     </div>
                   </div>
                   
-                  {/* Context Notes Section (placeholder for future) */}
+                  {/* Context Notes Section */}
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                      <h3 className="font-semibold text-gray-900">Context Notes</h3>
-                      <p className="text-sm text-gray-600 mt-1">Additional notes about this client</p>
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Context Notes</h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Additional context from discovery calls, follow-ups, or observations
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setShowAddContextNote(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add Note
+                      </button>
                     </div>
                     <div className="p-6">
-                      <div className="text-center py-8 text-gray-400">
-                        Context notes coming soon
-                      </div>
+                      {/* Add Note Form */}
+                      {showAddContextNote && (
+                        <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                              <select
+                                value={newContextNote.note_type}
+                                onChange={(e) => setNewContextNote({ ...newContextNote, note_type: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              >
+                                <option value="discovery_call">Discovery Call Notes</option>
+                                <option value="follow_up_answer">Follow-up Answer</option>
+                                <option value="advisor_observation">Advisor Observation</option>
+                                <option value="client_email">Client Email</option>
+                                <option value="meeting_notes">Meeting Notes</option>
+                                <option value="financial">Financial Context</option>
+                                <option value="strategic">Strategic Context</option>
+                                <option value="customer">Customer Information</option>
+                                <option value="team">Team Information</option>
+                                <option value="personal">Personal/Founder Context</option>
+                                <option value="general">General Note</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Importance</label>
+                              <select
+                                value={newContextNote.importance}
+                                onChange={(e) => setNewContextNote({ ...newContextNote, importance: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              >
+                                <option value="critical">Critical - Must include in analysis</option>
+                                <option value="high">High - Important context</option>
+                                <option value="medium">Medium - Helpful background</option>
+                                <option value="low">Low - Nice to know</option>
+                              </select>
+                            </div>
+                          </div>
+                          
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                            <input
+                              type="text"
+                              value={newContextNote.title}
+                              onChange={(e) => setNewContextNote({ ...newContextNote, title: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              placeholder="Brief summary (e.g., 'Top 3 customers are framework contracts')"
+                            />
+                          </div>
+                          
+                          <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                            <textarea
+                              value={newContextNote.content}
+                              onChange={(e) => setNewContextNote({ ...newContextNote, content: e.target.value })}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm h-32"
+                              placeholder="Full details, context, and any relevant background information that should be considered in the analysis..."
+                            />
+                          </div>
+                          
+                          <div className="flex justify-end gap-3">
+                            <button
+                              onClick={() => setShowAddContextNote(false)}
+                              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleSaveContextNote}
+                              disabled={savingNote || !newContextNote.title || !newContextNote.content}
+                              className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm"
+                            >
+                              {savingNote ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                              Save Note
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Notes List */}
+                      {contextNotes.length === 0 ? (
+                        <div className="text-center py-8 text-gray-400">
+                          <MessageSquare className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                          <p>No context notes yet</p>
+                          <p className="text-sm mt-1">
+                            Add notes from discovery calls, follow-ups, or any context that should inform the analysis
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {contextNotes.map((note) => (
+                            <div key={note.id} className="p-4 border border-gray-200 rounded-lg">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                      note.importance === 'critical' ? 'bg-red-100 text-red-700' :
+                                      note.importance === 'high' ? 'bg-orange-100 text-orange-700' :
+                                      note.importance === 'medium' ? 'bg-blue-100 text-blue-700' :
+                                      'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {note.importance}
+                                    </span>
+                                    <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                                      {note.note_type?.replace(/_/g, ' ')}
+                                    </span>
+                                    <span className="text-xs text-gray-400">
+                                      {new Date(note.created_at).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <h4 className="font-medium text-gray-900">{note.title}</h4>
+                                  <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{note.content}</p>
+                                </div>
+                                <button
+                                  onClick={() => handleDeleteContextNote(note.id)}
+                                  className="p-1 text-gray-400 hover:text-red-500 transition"
+                                  title="Delete note"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
