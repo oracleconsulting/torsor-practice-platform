@@ -475,12 +475,18 @@ export function getPriorityServices(issues: DetectedIssue[], maxServices: number
   const priorityScores = { immediate: 5, 'short-term': 3, 'medium-term': 1 };
   
   for (const issue of issues) {
+    // Handle cases where services might not be defined (from database-sourced issues)
+    if (!issue.services) continue;
+    
     for (const service of issue.services) {
-      const existing = serviceMap.get(service.serviceId);
+      const serviceKey = service.serviceId || service.serviceCode || service.serviceName;
+      if (!serviceKey) continue;
+      
+      const existing = serviceMap.get(serviceKey);
       const score = severityScores[issue.severity] + priorityScores[service.priority];
       
       if (!existing || existing.score < score) {
-        serviceMap.set(service.serviceId, { service, score });
+        serviceMap.set(serviceKey, { service, score });
       }
     }
   }

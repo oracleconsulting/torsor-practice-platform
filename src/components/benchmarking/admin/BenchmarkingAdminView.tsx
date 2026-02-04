@@ -109,6 +109,11 @@ interface BenchmarkAnalysis {
   } | null;
   // Business valuation analysis
   value_analysis?: ValueAnalysis | null;
+  // Context Intelligence fields (from Pass 3)
+  opportunities?: any[];
+  recommended_services?: any[];
+  not_recommended_services?: any[];
+  client_preferences?: any;
 }
 
 interface BenchmarkingAdminViewProps {
@@ -268,12 +273,6 @@ export function BenchmarkingAdminView({
   
   // Get revenue per employee from metrics comparison (where it was calculated) or fallback to clientData
   const metrics = safeJsonParse<Array<{ metricCode?: string; clientValue?: number; p50?: number }>>(data.metrics_comparison, []);
-  
-  // Extract benchmark medians from metrics comparison
-  const getBenchmarkMedian = (code: string): number | undefined => {
-    const metric = metrics.find(m => m.metricCode?.toLowerCase().includes(code.toLowerCase()));
-    return metric?.p50 ?? undefined;
-  };
   
   // ============================================================================
   // SERVICE RECOMMENDATIONS - FROM DATABASE (SINGLE SOURCE OF TRUTH)

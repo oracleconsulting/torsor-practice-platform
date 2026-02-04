@@ -130,6 +130,11 @@ interface BenchmarkAnalysis {
   founder_risk_score?: number;
   // Value analysis
   value_analysis?: ValueAnalysis;
+  // Context Intelligence fields (from Pass 3)
+  opportunities?: any[];
+  recommended_services?: any[];
+  not_recommended_services?: any[];
+  client_preferences?: any;
 }
 
 interface BenchmarkingClientReportProps {

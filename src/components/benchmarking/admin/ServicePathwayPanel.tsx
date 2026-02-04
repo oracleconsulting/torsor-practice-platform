@@ -20,7 +20,7 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
 }) => {
   const displayName = clientName || 'the client';
   const [expandedIssue, setExpandedIssue] = useState<string | null>(
-    issues.length > 0 ? issues[0].issueType : null
+    issues.length > 0 ? (issues[0].issueType || issues[0].code || null) : null
   );
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -46,7 +46,7 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
   };
 
   const generateTalkingPoint = (issue: DetectedIssue): string => {
-    const service = issue.services[0];
+    const service = issue.services?.[0];
     if (!service) return '';
     
     return `"Based on what we've found - ${issue.description.toLowerCase()} - I'd recommend we look at ${service.serviceName}. ${service.howItHelps}. Most clients see ${service.expectedOutcome.toLowerCase()} within ${service.timeToValue}."`;
@@ -87,12 +87,14 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
 
       {/* Issues List */}
       <div className="divide-y divide-slate-100">
-        {issues.map((issue) => (
-          <div key={issue.issueType} className="group">
+        {issues.map((issue, idx) => {
+          const issueKey = issue.issueType || issue.code || `issue-${idx}`;
+          return (
+          <div key={issueKey} className="group">
             {/* Issue Header - Clickable */}
             <button
               onClick={() => setExpandedIssue(
-                expandedIssue === issue.issueType ? null : issue.issueType
+                expandedIssue === issueKey ? null : issueKey
               )}
               className="w-full px-6 py-4 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left"
             >
@@ -115,7 +117,7 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
               </div>
 
               <div className="flex-shrink-0">
-                {expandedIssue === issue.issueType ? (
+                {expandedIssue === issueKey ? (
                   <ChevronUp className="w-5 h-5 text-slate-400" />
                 ) : (
                   <ChevronDown className="w-5 h-5 text-slate-400" />
@@ -124,7 +126,7 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
             </button>
 
             {/* Expanded Content */}
-            {expandedIssue === issue.issueType && (
+            {expandedIssue === issueKey && (
               <div className="px-6 pb-6 space-y-4">
                 {/* Description */}
                 <div className="pl-9">
@@ -145,11 +147,11 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
                         </div>
                       </div>
                       <button
-                        onClick={() => copyToClipboard(generateTalkingPoint(issue), issue.issueType)}
+                        onClick={() => copyToClipboard(generateTalkingPoint(issue), issueKey)}
                         className="flex-shrink-0 p-2 hover:bg-slate-200 rounded-lg transition-colors"
                         title="Copy to clipboard"
                       >
-                        {copiedId === issue.issueType ? (
+                        {copiedId === issueKey ? (
                           <Check className="w-4 h-4 text-green-600" />
                         ) : (
                           <Copy className="w-4 h-4 text-slate-400" />
@@ -160,14 +162,15 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
                 </div>
 
                 {/* Recommended Services */}
+                {issue.services && issue.services.length > 0 && (
                 <div className="pl-9">
                   <h5 className="text-sm font-semibold text-slate-700 mb-3">
                     Recommended services:
                   </h5>
                   <div className="space-y-3">
-                    {issue.services.map((service, idx) => (
+                    {issue.services.map((service, svcIdx) => (
                       <div
-                        key={idx}
+                        key={svcIdx}
                         className="bg-white rounded-lg border border-slate-200 p-4"
                       >
                         <div className="flex items-start justify-between gap-4 mb-3">
@@ -210,10 +213,11 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
                     ))}
                   </div>
                 </div>
+                )}
               </div>
             )}
           </div>
-        ))}
+        );})}
       </div>
 
       {/* No Issues State */}
