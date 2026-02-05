@@ -413,9 +413,12 @@ const CLIENT_TYPE_FRAMEWORKS: Record<ClientBusinessType, ClientTypeClassificatio
 // CLIENT TYPE CLASSIFICATION FUNCTION
 // ============================================================================
 
-function classifyClientType(
+function classifyBusinessType(
   responses: Record<string, any>,
   financials: ExtractedFinancials | null,
+  adminBusinessType?: string | null,
+  adminContextNote?: string | null,
+  adminFlags?: Record<string, any> | null,
   contextNotes: any[] = []
 ): ClientTypeClassification {
   
@@ -423,117 +426,184 @@ function classifyClientType(
   let type: ClientBusinessType = 'trading_product'; // default
   let confidence = 50;
   
-  const allText = JSON.stringify({ ...responses, contextNotes }).toLowerCase();
+  // ========================================================================
+  // ADMIN OVERRIDE CHECK (Highest Priority)
+  // ========================================================================
+  // If admin has explicitly set a business type, use it with high confidence
+  if (adminBusinessType && ['trading_product', 'trading_agency', 'professional_practice', 'investment_vehicle', 'funded_startup', 'lifestyle_business'].includes(adminBusinessType)) {
+    type = adminBusinessType as ClientBusinessType;
+    confidence = 95;
+    signals.push(`Admin override: ${adminBusinessType}`);
+    
+    // If admin context note provided, add it to signals
+    if (adminContextNote) {
+      signals.push(`Admin context: ${adminContextNote}`);
+    }
+    
+    // Apply admin flags if provided
+    if (adminFlags?.cash_constrained && !CLIENT_TYPE_FRAMEWORKS[type].maxRecommendedInvestment) {
+      // Will be handled below in cash-constrained detection
+    }
+  }
+  
+  const allText = JSON.stringify({ ...responses, contextNotes, adminContextNote }).toLowerCase();
   const financialText = JSON.stringify(financials || {}).toLowerCase();
 
   // ========================================================================
   // INVESTMENT VEHICLE DETECTION (Claude's case)
   // ========================================================================
-  
-  const hasInvestmentProperty = financials?.investmentProperty && financials.investmentProperty > 100000;
-  const hasHighNetAssets = financials?.netAssets && financials.netAssets > 1000000;
-  const hasRentalIncome = financials?.turnover && financials?.grossProfit && 
-                          financials.turnover > 0 &&
-                          (financials.grossProfit / financials.turnover) > 0.85;  // ~85%+ margin = rental-like
-  const mentionsProperty = allText.includes('property') || allText.includes('rental') || 
-                           allText.includes('landlord') || allText.includes('tenant') ||
-                           allText.includes('investment propert') || allText.includes('portfolio');
-  const mentionsIHT = allText.includes('inheritance') || allText.includes('iht') || 
-                      allText.includes('pass on') || allText.includes('wealth transfer') ||
-                      allText.includes('estate planning');
-  const lowEmployeeCount = !financials?.employeeCount || financials.employeeCount <= 2;
-  const hasFreeholdProperty = financials?.freeholdProperty && financials.freeholdProperty > 500000;
-  
-  if (hasInvestmentProperty) {
-    type = 'investment_vehicle';
-    confidence = 95;
-    signals.push(`Investment property: £${(financials!.investmentProperty!/1000000).toFixed(1)}M on balance sheet`);
-  } else if (hasFreeholdProperty && hasHighNetAssets && lowEmployeeCount) {
-    type = 'investment_vehicle';
-    confidence = 90;
-    signals.push(`High freehold property (£${(financials!.freeholdProperty!/1000000).toFixed(1)}M) + high net assets + minimal staff`);
-  } else if (hasHighNetAssets && hasRentalIncome && lowEmployeeCount) {
-    type = 'investment_vehicle';
-    confidence = 85;
-    signals.push('High net assets with rental-like margins and minimal staff');
-  } else if (mentionsProperty && mentionsIHT && hasHighNetAssets) {
-    type = 'investment_vehicle';
-    confidence = 75;
-    signals.push('Property investment language + IHT concerns + high net assets');
-  }
-
-  // ========================================================================
-  // FUNDED STARTUP DETECTION (Ben's case)
-  // ========================================================================
-  
-  if (type === 'trading_product') {  // Only check if not already classified
-    const mentionsFunding = allText.includes('raised') || allText.includes('funding') || 
-                            allText.includes('investor') || allText.includes('seed') || 
-                            allText.includes('series') || allText.includes('angel') ||
-                            allText.includes('vc') || allText.includes('venture') || 
-                            allText.includes('runway');
-    const mentionsLaunch = allText.includes('launch') || allText.includes('mvp') || 
-                           allText.includes('product-market') || allText.includes('pilot') ||
-                           allText.includes('beta') || allText.includes('pre-revenue');
-    const isPreRevenue = !financials?.turnover || financials.turnover < 50000;
-    const hasLongExitTimeline = responses.sd_exit_timeline?.includes('5-10') ||
-                                 responses.sd_exit_timeline?.includes('No plans') ||
-                                 responses.sd_exit_timeline?.includes('10+');
+  // Only run classification if admin override not set
+  if (confidence < 95) {
     
-    if (mentionsFunding && isPreRevenue) {
-      type = 'funded_startup';
+    const hasInvestmentProperty = financials?.investmentProperty && financials.investmentProperty > 100000;
+    const hasHighNetAssets = financials?.netAssets && financials.netAssets > 1000000;
+    const hasRentalIncome = financials?.turnover && financials?.grossProfit && 
+                            financials.turnover > 0 &&
+                            (financials.grossProfit / financials.turnover) > 0.85;  // ~85%+ margin = rental-like
+    const mentionsProperty = allText.includes('property') || allText.includes('rental') || 
+                             allText.includes('landlord') || allText.includes('tenant') ||
+                             allText.includes('investment propert') || allText.includes('portfolio');
+    const mentionsIHT = allText.includes('inheritance') || allText.includes('iht') || 
+                        allText.includes('pass on') || allText.includes('wealth transfer') ||
+                        allText.includes('estate planning');
+    const lowEmployeeCount = !financials?.employeeCount || financials.employeeCount <= 2;
+    const hasFreeholdProperty = financials?.freeholdProperty && financials.freeholdProperty > 500000;
+    
+    if (hasInvestmentProperty) {
+      type = 'investment_vehicle';
+      confidence = 95;
+      signals.push(`Investment property: £${(financials!.investmentProperty!/1000000).toFixed(1)}M on balance sheet`);
+    } else if (hasFreeholdProperty && hasHighNetAssets && lowEmployeeCount) {
+      type = 'investment_vehicle';
       confidence = 90;
-      signals.push('Funding language + pre-revenue');
-      if (mentionsLaunch) signals.push('Launch/MVP language detected');
-    } else if (mentionsFunding && mentionsLaunch) {
-      type = 'funded_startup';
-      confidence = 80;
-      signals.push('Funding language + launch phase');
-    } else if (isPreRevenue && hasLongExitTimeline && mentionsLaunch) {
-      type = 'funded_startup';
-      confidence = 70;
-      signals.push('Pre-revenue with long horizon and launch language');
-    }
-  }
-
-  // ========================================================================
-  // AGENCY DETECTION (Alex's case)
-  // ========================================================================
-  
-  if (type === 'trading_product') {
-    // Check for high contractor/consultancy costs
-    const consultancyCosts = financials?.consultancyFees || financials?.subcontractorCosts || 0;
-    const turnover = financials?.turnover || 1;
-    const consultancyRatio = consultancyCosts / turnover;
-    
-    const mentionsAgency = allText.includes('agency') || allText.includes('creative') || 
-                           allText.includes('digital agency') || allText.includes('advertising') ||
-                           allText.includes('design agency') || allText.includes('marketing agency');
-    const mentionsFreelance = allText.includes('freelance') || allText.includes('contractor') ||
-                              allText.includes('subcontract');
-    const hasProjectStructure = allText.includes('project') || allText.includes('retainer') ||
-                                allText.includes('client work') || allText.includes('campaign');
-    
-    if (consultancyRatio > 0.3) {
-      type = 'trading_agency';
+      signals.push(`High freehold property (£${(financials!.freeholdProperty!/1000000).toFixed(1)}M) + high net assets + minimal staff`);
+    } else if (hasHighNetAssets && hasRentalIncome && lowEmployeeCount) {
+      type = 'investment_vehicle';
       confidence = 85;
-      signals.push(`High contractor costs: ${(consultancyRatio * 100).toFixed(0)}% of revenue`);
-    } else if (mentionsAgency && (mentionsFreelance || hasProjectStructure)) {
-      type = 'trading_agency';
+      signals.push('High net assets with rental-like margins and minimal staff');
+    } else if (mentionsProperty && mentionsIHT && hasHighNetAssets) {
+      type = 'investment_vehicle';
       confidence = 75;
-      signals.push('Agency language + contractor/project structure');
-    } else if (mentionsAgency) {
-      type = 'trading_agency';
-      confidence = 60;
-      signals.push('Agency mentioned in responses');
+      signals.push('Property investment language + IHT concerns + high net assets');
     }
-  }
+
+    // ========================================================================
+    // FUNDED STARTUP DETECTION (Ben's case)
+    // ========================================================================
+    
+    if (type === 'trading_product') {  // Only check if not already classified
+      const mentionsFunding = allText.includes('raised') || allText.includes('funding') || 
+                              allText.includes('investor') || allText.includes('seed') || 
+                              allText.includes('series') || allText.includes('angel') ||
+                              allText.includes('vc') || allText.includes('venture') || 
+                              allText.includes('runway');
+      const mentionsLaunch = allText.includes('launch') || allText.includes('mvp') || 
+                             allText.includes('product-market') || allText.includes('pilot') ||
+                             allText.includes('beta') || allText.includes('pre-revenue');
+      const isPreRevenue = !financials?.turnover || financials.turnover < 50000;
+      const hasLongExitTimeline = responses.sd_exit_timeline?.includes('5-10') ||
+                                   responses.sd_exit_timeline?.includes('No plans') ||
+                                   responses.sd_exit_timeline?.includes('10+');
+      
+      if (mentionsFunding && isPreRevenue) {
+        type = 'funded_startup';
+        confidence = 90;
+        signals.push('Funding language + pre-revenue');
+        if (mentionsLaunch) signals.push('Launch/MVP language detected');
+      } else if (mentionsFunding && mentionsLaunch) {
+        type = 'funded_startup';
+        confidence = 80;
+        signals.push('Funding language + launch phase');
+      } else if (isPreRevenue && hasLongExitTimeline && mentionsLaunch) {
+        type = 'funded_startup';
+        confidence = 70;
+        signals.push('Pre-revenue with long horizon and launch language');
+      }
+    }
+
+    // ========================================================================
+    // AGENCY DETECTION (Alex's case)
+    // ========================================================================
+    
+    if (type === 'trading_product') {
+      // Check for high contractor/consultancy costs
+      const consultancyCosts = financials?.consultancyFees || financials?.subcontractorCosts || 0;
+      const turnover = financials?.turnover || 1;
+      const consultancyRatio = consultancyCosts / turnover;
+      
+      const mentionsAgency = allText.includes('agency') || allText.includes('creative') || 
+                             allText.includes('digital agency') || allText.includes('advertising') ||
+                             allText.includes('design agency') || allText.includes('marketing agency');
+      const mentionsFreelance = allText.includes('freelance') || allText.includes('contractor') ||
+                                allText.includes('subcontract');
+      const hasProjectStructure = allText.includes('project') || allText.includes('retainer') ||
+                                  allText.includes('client work') || allText.includes('campaign');
+      
+      if (consultancyRatio > 0.3) {
+        type = 'trading_agency';
+        confidence = 85;
+        signals.push(`High contractor costs: ${(consultancyRatio * 100).toFixed(0)}% of revenue`);
+      } else if (mentionsAgency && (mentionsFreelance || hasProjectStructure)) {
+        type = 'trading_agency';
+        confidence = 75;
+        signals.push('Agency language + contractor/project structure');
+      } else if (mentionsAgency) {
+        type = 'trading_agency';
+        confidence = 60;
+        signals.push('Agency mentioned in responses');
+      }
+    }
+
+    // ========================================================================
+    // PROFESSIONAL PRACTICE DETECTION
+    // ========================================================================
+    
+    if (type === 'trading_product') {
+      const isProfessional = allText.includes('accountan') || allText.includes('solicitor') ||
+                             allText.includes('law firm') || allText.includes('practice') ||
+                             allText.includes('partner') || allText.includes('barrister');
+      
+      if (isProfessional) {
+        type = 'professional_practice';
+        confidence = 75;
+        signals.push('Professional services indicators');
+      }
+    }
+
+    // ========================================================================
+    // LIFESTYLE BUSINESS DETECTION
+    // ========================================================================
+    
+    if (type === 'trading_product') {
+      const lowHours = responses.dd_weekly_hours?.includes('Under 30') ||
+                       responses.dd_owner_hours?.includes('Under 30');
+      const noExitPlans = responses.sd_exit_timeline?.includes('No plans');
+      const happyRelationship = responses.dd_business_relationship?.includes('rewarding') ||
+                                responses.dd_business_relationship?.includes('partnership') ||
+                                responses.dd_business_relationship?.includes('love');
+      
+      if (lowHours && noExitPlans && happyRelationship) {
+        type = 'lifestyle_business';
+        confidence = 70;
+        signals.push('Low hours + no exit plans + positive relationship');
+      }
+    }
+  
+  } // End of classification block (if not admin override)
 
   // ========================================================================
-  // CASH-CONSTRAINED DETECTION (for any type)
+  // CASH-CONSTRAINED DETECTION (for any type - runs after classification)
   // ========================================================================
   
   let maxInvestment: number | null = CLIENT_TYPE_FRAMEWORKS[type].maxRecommendedInvestment;
+  
+  // Check admin flags first
+  if (adminFlags?.cash_constrained) {
+    signals.push('Admin flag: cash constrained');
+    if (!maxInvestment || maxInvestment > 5000) {
+      maxInvestment = 5000;
+    }
+  }
   
   const cashAnxiety = allText.includes('cash flow') && (
     allText.includes('keeps me awake') || 
@@ -549,41 +619,6 @@ function classifyClientType(
     signals.push('Cash flow anxiety detected - recommend starting small');
     if (!maxInvestment || maxInvestment > 5000) {
       maxInvestment = 5000;  // Start small with cash-strapped clients
-    }
-  }
-
-  // ========================================================================
-  // PROFESSIONAL PRACTICE DETECTION
-  // ========================================================================
-  
-  if (type === 'trading_product') {
-    const isProfessional = allText.includes('accountan') || allText.includes('solicitor') ||
-                           allText.includes('law firm') || allText.includes('practice') ||
-                           allText.includes('partner') || allText.includes('barrister');
-    
-    if (isProfessional) {
-      type = 'professional_practice';
-      confidence = 75;
-      signals.push('Professional services indicators');
-    }
-  }
-
-  // ========================================================================
-  // LIFESTYLE BUSINESS DETECTION
-  // ========================================================================
-  
-  if (type === 'trading_product') {
-    const lowHours = responses.dd_weekly_hours?.includes('Under 30') ||
-                     responses.dd_owner_hours?.includes('Under 30');
-    const noExitPlans = responses.sd_exit_timeline?.includes('No plans');
-    const happyRelationship = responses.dd_business_relationship?.includes('rewarding') ||
-                              responses.dd_business_relationship?.includes('partnership') ||
-                              responses.dd_business_relationship?.includes('love');
-    
-    if (lowHours && noExitPlans && happyRelationship) {
-      type = 'lifestyle_business';
-      confidence = 70;
-      signals.push('Low hours + no exit plans + positive relationship');
     }
   }
 
@@ -2598,7 +2633,10 @@ serve(async (req) => {
       .select(`
         *,
         client:practice_members!discovery_engagements_client_id_fkey(id, name, email, client_company),
-        discovery:destination_discovery(*)
+        discovery:destination_discovery(*),
+        admin_business_type,
+        admin_context_note,
+        admin_flags
       `)
       .eq('id', engagementId)
       .single();
@@ -2994,12 +3032,17 @@ serve(async (req) => {
     }
     
     // ========================================================================
-    // CLASSIFY CLIENT TYPE FIRST
+    // CLASSIFY BUSINESS TYPE FIRST (BEFORE CALCULATORS)
     // ========================================================================
+    // This must run BEFORE performComprehensiveAnalysis so calculators can adapt
+    // based on client type (e.g., skip payroll for investment vehicles)
     
-    const clientType = classifyClientType(
+    const clientType = classifyBusinessType(
       discoveryResponses, 
       extractedFinancials,
+      engagement.admin_business_type,
+      engagement.admin_context_note,
+      engagement.admin_flags,
       contextNotes || []
     );
 
