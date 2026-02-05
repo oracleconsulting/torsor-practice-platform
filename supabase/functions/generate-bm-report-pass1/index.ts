@@ -881,9 +881,10 @@ function mapValueHVAToSuppressors(hva: ValueHVAResponses, baseValue: number, con
   if (knowledgeDep > 40 || personalBrand > 40) {
     const maxDep = Math.max(knowledgeDep, personalBrand);
     // Higher thresholds for more severe discounts
+    // Aligned with calculateEnhancedSuppressors percentages (20% for ≥70% dependency)
     const severity: 'critical' | 'high' | 'medium' | 'low' = maxDep >= 70 ? 'critical' : maxDep >= 50 ? 'high' : 'medium';
-    const discountLow = maxDep >= 70 ? 25 : maxDep >= 50 ? 15 : 10;
-    const discountHigh = maxDep >= 70 ? 35 : maxDep >= 50 ? 25 : 18;
+    const discountLow = maxDep >= 70 ? 18 : maxDep >= 50 ? 12 : 8;
+    const discountHigh = maxDep >= 70 ? 22 : maxDep >= 50 ? 18 : 12;
     
     console.log(`[Value Suppressors] ✅ Adding FOUNDER_DEPENDENCY: severity=${severity}, discount=${discountLow}-${discountHigh}%`);
     
@@ -935,11 +936,12 @@ function mapValueHVAToSuppressors(hva: ValueHVAResponses, baseValue: number, con
     const severity: 'critical' | 'high' | 'medium' | 'low' = concentration >= 90 ? 'critical' : concentration >= 75 ? 'high' : 'medium';
     
     // Higher discounts for severe concentration
+    // Aligned with calculateEnhancedSuppressors percentages (30% for ≥90% concentration)
     let discountLow: number, discountHigh: number;
     if (concentration >= 90) {
-      discountLow = 25; discountHigh = 40;  // 99% concentration is existential
+      discountLow = 28; discountHigh = 32;  // 99% concentration is existential - aligned with enhanced (30%)
     } else if (concentration >= 75) {
-      discountLow = 18; discountHigh = 30;
+      discountLow = 18; discountHigh = 25;
     } else {
       discountLow = 10; discountHigh = 18;
     }
@@ -1073,8 +1075,8 @@ function mapValueHVAToSuppressors(hva: ValueHVAResponses, baseValue: number, con
       hvaField: 'recurring_revenue_percentage + contract_backlog_months',
       hvaValue: `${recurring}% recurring, ${backlog}mo backlog`,
       evidence: `Only ${recurring}% recurring revenue and ${backlog} months of contract backlog. Business starts from near-zero each year.`,
-      discountPercent: { low: 5, high: 12 },
-      impactAmount: { low: baseValue * 0.05, high: baseValue * 0.12 },
+      discountPercent: { low: 10, high: 14 },  // Aligned with calculateEnhancedSuppressors (12% for 0% recurring)
+      impactAmount: { low: baseValue * 0.10, high: baseValue * 0.14 },
       severity: 'medium',
       remediable: true,
       remediationService: 'Revenue Model Optimisation',
@@ -1105,11 +1107,12 @@ function calculateValueAggregateDiscount(suppressors: ValueSuppressor[]): { perc
     byCategory[cat].push(s);
   }
   
-  console.log('[Value Calculator] Aggregating discounts by category:', Object.keys(byCategory));
+  console.log('[Value Calculator] Aggregating discounts by category (multiplicative compounding):', Object.keys(byCategory));
   
-  // For each category, take the MAXIMUM discount (not sum) - avoid double-counting
-  let totalLow = 0;
-  let totalHigh = 0;
+  // MULTIPLICATIVE COMPOUNDING: Each discount applies to remaining value after prior discounts
+  // This is standard M&A practice and prevents overestimation of combined discounts
+  let remainingLow = 1.0;  // Start with 100% of value
+  let remainingHigh = 1.0;
   const categoryContributions: string[] = [];
   
   for (const [category, items] of Object.entries(byCategory)) {
@@ -1117,21 +1120,27 @@ function calculateValueAggregateDiscount(suppressors: ValueSuppressor[]): { perc
     const maxLow = Math.max(...items.map(i => i.discountPercent.low));
     const maxHigh = Math.max(...items.map(i => i.discountPercent.high));
     
-    totalLow += maxLow;
-    totalHigh += maxHigh;
+    // Apply discount multiplicatively: remaining value after this discount
+    remainingLow *= (1 - maxLow / 100);
+    remainingHigh *= (1 - maxHigh / 100);
     
     categoryContributions.push(`${category}: ${maxLow}-${maxHigh}%`);
-    console.log(`  - ${category}: ${maxLow}-${maxHigh}% (from ${items.length} items)`);
+    console.log(`  - ${category}: ${maxLow}-${maxHigh}% (from ${items.length} items) → remaining: ${(remainingLow*100).toFixed(1)}%-${(remainingHigh*100).toFixed(1)}%`);
   }
   
-  // Cap at realistic levels - even very troubled businesses rarely trade at >70% discount
-  totalLow = Math.min(totalLow, 55);   // Cap low end at 55%
-  totalHigh = Math.min(totalHigh, 70); // Cap high end at 70%
+  // Convert remaining value fraction back to discount percentage
+  let totalLow = Math.round((1 - remainingLow) * 100);
+  let totalHigh = Math.round((1 - remainingHigh) * 100);
+  
+  // Cap at realistic levels (even very troubled businesses rarely trade at >75% discount)
+  totalLow = Math.min(totalLow, 60);
+  totalHigh = Math.min(totalHigh, 75);
   
   const critical = suppressors.filter(s => s.severity === 'critical').length;
   const high = suppressors.filter(s => s.severity === 'high').length;
   
-  console.log(`[Value Calculator] Final discount: ${totalLow}-${totalHigh}% (${critical} critical, ${high} high severity)`);
+  console.log(`[Value Calculator] Final discount (multiplicative): ${totalLow}-${totalHigh}% (${critical} critical, ${high} high severity)`);
+  console.log(`[Value Calculator] Remaining value: ${(remainingLow*100).toFixed(1)}%-${(remainingHigh*100).toFixed(1)}%`);
   
   return {
     percentRange: { 
@@ -1139,7 +1148,7 @@ function calculateValueAggregateDiscount(suppressors: ValueSuppressor[]): { perc
       mid: Math.round((totalLow + totalHigh) / 2), 
       high: Math.round(totalHigh) 
     },
-    methodology: `Aggregated by category (max per category, sum across ${Object.keys(byCategory).length} categories): ${categoryContributions.join(', ')}. ${critical > 0 ? `${critical} critical issues. ` : ''}Capped at 55-70% maximum.`,
+    methodology: `Multiplicative compounding by category (max per category, compound across ${Object.keys(byCategory).length} categories): ${categoryContributions.join(', ')}. ${critical > 0 ? `${critical} critical issues. ` : ''}Capped at 60-75% maximum.`,
   };
 }
 
