@@ -621,11 +621,75 @@ async function analyseWithLLM(
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim();
-    return JSON.parse(jsonStr);
+    const parsed = JSON.parse(jsonStr);
+    
+    // CRITICAL: Sanitise any leaked internal notes from client-facing content
+    return sanitiseInternalNotes(parsed);
   } catch (e) {
     console.error('[Pass 3] Failed to parse LLM response:', content.substring(0, 1000));
     throw new Error('Invalid JSON response from LLM');
   }
+}
+
+// ============================================================================
+// SANITISER: Remove any leaked internal notes from client-facing content
+// ============================================================================
+
+function sanitiseInternalNotes(data: any): any {
+  // Patterns that indicate internal notes have leaked into client content
+  const leakPatterns = [
+    /Discovery notes[:\s]*['""']/gi,
+    /Context notes[:\s]*['""']/gi,
+    /Discovery notes (indicate|confirm|mention|suggest|show)/gi,
+    /Context notes (indicate|confirm|mention|suggest|show)/gi,
+    /From (discovery|context) notes:/gi,
+    /According to (discovery|context) notes/gi,
+    /Advisor notes (indicate|confirm|mention)/gi,
+    /['""'][^'""]{10,100}['""']\s*\(from notes\)/gi,
+    /\bcontext notes\b/gi,
+    /\bdiscovery notes\b/gi,
+    /\badvisor notes\b/gi,
+  ];
+  
+  // Function to clean a string
+  const cleanString = (str: string): string => {
+    if (!str || typeof str !== 'string') return str;
+    
+    let cleaned = str;
+    let leaked = false;
+    
+    for (const pattern of leakPatterns) {
+      if (pattern.test(cleaned)) {
+        leaked = true;
+        // Remove the entire sentence containing the leak
+        cleaned = cleaned.replace(new RegExp(`[^.]*${pattern.source}[^.]*\\.?`, 'gi'), '');
+      }
+    }
+    
+    if (leaked) {
+      console.warn('[Pass 3] ⚠️ Sanitised leaked internal notes from client content');
+    }
+    
+    // Clean up any double spaces or leading/trailing issues
+    return cleaned.replace(/\s{2,}/g, ' ').trim();
+  };
+  
+  // Recursively clean all string fields
+  const cleanObject = (obj: any): any => {
+    if (!obj) return obj;
+    if (typeof obj === 'string') return cleanString(obj);
+    if (Array.isArray(obj)) return obj.map(cleanObject);
+    if (typeof obj === 'object') {
+      const cleaned: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        cleaned[key] = cleanObject(value);
+      }
+      return cleaned;
+    }
+    return obj;
+  };
+  
+  return cleanObject(data);
 }
 
 // ============================================================================
@@ -735,6 +799,20 @@ Name them specifically. "Revenue Diversification Programme" beats "business deve
 **Avoid:** Corporate buzzwords. Americanisms (it's "turnover" not "sales", "profit" not "earnings"). Therapy-speak. Anything that sounds like it came from a consulting framework. Generic advice that could apply to any business.
 
 **Embrace:** Plain English. Specific numbers. Direct statements. Practical next steps. The voice of a trusted adviser who's seen hundreds of businesses.
+
+## CRITICAL: CONTEXT NOTES ARE INTERNAL ONLY
+
+You will receive "Advisor Context Notes" - these are INTERNAL notes from conversations between the advisor and the client. 
+
+**NEVER quote these notes directly in client-facing content.** 
+
+These notes are for YOUR understanding of the client's situation. Use them to inform your analysis and prioritisation, but:
+- Do NOT write "Discovery notes indicate..." or "Context notes confirm..."
+- Do NOT put quotes from these notes in whyThisMatters, talking points, or recommendations
+- Do NOT reference "conversations with" or "discussions about"
+- The client must not see these internal notes reflected back to them
+
+Instead, translate the insights into YOUR professional assessment. If the notes say "leadership structure is loose", you write "there's an opportunity to formalise leadership structure" - NOT "Context notes indicate leadership structure is loose."
 
 ## JSON OUTPUT FORMAT
 
@@ -918,9 +996,12 @@ ${pass2Narratives?.executiveSummary || 'Not yet generated'}
 ${contextNotes && contextNotes.length > 0 ? `
 ---
 
-## 📝 ADVISOR CONTEXT NOTES (from direct conversations)
+## 📝 ADVISOR CONTEXT NOTES (INTERNAL - DO NOT QUOTE)
 
-**CRITICAL: These are insights from actual conversations with the client. RESPECT THESE - they override general assumptions.**
+**CRITICAL: These notes are from INTERNAL conversations between the advisor and client. Use them to INFORM your analysis, but NEVER quote them directly in your output. The client must not see "Discovery notes indicate..." or similar references.**
+
+**DO:** Use insights to shape your recommendations
+**DON'T:** Write "Discovery notes: '...'" or "Context notes confirm: '...'"
 
 ${contextNotes.map(n => `
 ### ${n.note_type.replace(/_/g, ' ').toUpperCase()} [${n.importance}]
@@ -1511,16 +1592,42 @@ function generateRecommendedServices(
     
     // Build personalised whyThisMatters
     // Fix: strip trailing periods/spaces from each piece before joining to prevent ".."
+    // CRITICAL: Also strip any leaked internal notes references
+    const stripInternalRefs = (text: string): string => {
+      if (!text) return text;
+      return text
+        // Remove "Discovery notes:" style patterns and their quoted content
+        .replace(/Discovery notes[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
+        .replace(/Context notes[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
+        // Remove "Discovery notes indicate/confirm/mention..." sentences
+        .replace(/[^.]*Discovery notes (indicate|confirm|mention|suggest|show)[^.]*\.\s*/gi, '')
+        .replace(/[^.]*Context notes (indicate|confirm|mention|suggest|show)[^.]*\.\s*/gi, '')
+        // Remove standalone references
+        .replace(/\bDiscovery notes:\s*/gi, '')
+        .replace(/\bContext notes:\s*/gi, '')
+        .replace(/\bAdvisor notes:\s*/gi, '')
+        // Clean up spacing
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+    };
+    
     let whyThisMatters = '';
     if (dataEvidence.length > 0) {
       whyThisMatters = dataEvidence
-        .map((d: string) => d.replace(/[\.\s]+$/, ''))
+        .map((d: string) => stripInternalRefs(d.replace(/[\.\s]+$/, '')))
+        .filter(Boolean)
         .join('. ') + '.';
     }
     if (talkingPoints.length > 0 && whyThisMatters) {
-      whyThisMatters += ' ' + talkingPoints[0].replace(/[\.\s]+$/, '') + '.';
+      const cleanTalkingPoint = stripInternalRefs(talkingPoints[0].replace(/[\.\s]+$/, ''));
+      if (cleanTalkingPoint) {
+        whyThisMatters += ' ' + cleanTalkingPoint + '.';
+      }
     } else if (talkingPoints.length > 0) {
-      whyThisMatters = talkingPoints[0].replace(/[\.\s]+$/, '') + '.';
+      const cleanTalkingPoint = stripInternalRefs(talkingPoints[0].replace(/[\.\s]+$/, ''));
+      if (cleanTalkingPoint) {
+        whyThisMatters = cleanTalkingPoint + '.';
+      }
     }
     if (totalValueAtStake > 0 && whyThisMatters) {
       whyThisMatters += ` This represents ${formatValue(totalValueAtStake)} in value at stake.`;
@@ -1531,6 +1638,8 @@ function generateRecommendedServices(
     if (!whyThisMatters) {
       whyThisMatters = service.description || '';
     }
+    // Final sanitisation pass
+    whyThisMatters = stripInternalRefs(whyThisMatters);
     
     // Get expected outcome with proper value formatting
     const expectedOutcome = opps.find((o: any) => o.life_impact)?.life_impact ||
