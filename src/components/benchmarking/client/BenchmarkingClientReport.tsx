@@ -5,16 +5,22 @@ import { NarrativeSection } from './NarrativeSection';
 import { RecommendationsSection } from './RecommendationsSection';
 import { ScenarioExplorer } from './ScenarioExplorer';
 import { ScenarioPlanningSection } from './ScenarioPlanningSection';
-import { ServiceRecommendationsSection } from './ServiceRecommendationsSection';
-import { EnhancedServiceRecommendations } from './EnhancedServiceRecommendations';
+// DEPRECATED: ServiceRecommendationsSection used static issue-service-mapping.ts
+// import { ServiceRecommendationsSection } from './ServiceRecommendationsSection';
+// DEPRECATED: EnhancedServiceRecommendations was interim solution
+// import { EnhancedServiceRecommendations } from './EnhancedServiceRecommendations';
+
+// NEW: Database-driven service recommendations from Pass 3
+import { RecommendedServicesSection } from './RecommendedServicesSection';
+import type { RecommendedService } from './RecommendedServicesSection';
 import { ValueBridgeSection } from './ValueBridgeSection';
 import { AlertTriangle, Gem, Shield, CheckCircle, Download } from 'lucide-react';
 import { exportToPDF } from '../../../lib/pdf-export';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
-import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
-// NOTE: We NO LONGER call detectIssues/getPriorityServices here!
-// Service recommendations come from the database (Pass 3 is the single source of truth)
+// DEPRECATED: Old static types - no longer using issue-service-mapping.ts
+// import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
+// NOTE: Service recommendations now come ONLY from bm_reports.recommended_services (built by Pass 3)
 // Enhanced transparency components
 import { SurplusCashBreakdown } from '../SurplusCashBreakdown';
 import { EnhancedSuppressorCard } from '../EnhancedSuppressorCard';
@@ -413,74 +419,89 @@ export function BenchmarkingClientReport({
   // SERVICE RECOMMENDATIONS - FROM DATABASE (SINGLE SOURCE OF TRUTH)
   // Pass 3 generates these with context awareness. We do NOT calculate here.
   // ============================================================================
+  // SERVICE RECOMMENDATIONS - From bm_reports.recommended_services (Pass 3)
+  // ============================================================================
   
-  // Issues come from opportunities in database (critical/high severity)
-  const detectedIssues = useMemo((): DetectedIssue[] => {
-    // Get opportunities from database
-    const opportunities = data.opportunities || [];
-    
-    // Convert high-priority opportunities to DetectedIssue format
-    return opportunities
-      .filter((o: any) => o.severity === 'critical' || o.severity === 'high' || o.severity === 'medium')
-      .slice(0, 6)  // Cap at 6 issues
-      .map((o: any): DetectedIssue => ({
-        code: o.code || o.id || 'unknown',
-        headline: o.title || 'Issue Identified',
-        description: o.description || o.dataEvidence || '',
-        dataPoint: o.dataEvidence || o.benchmarkComparison || '',
-        severity: o.severity || 'medium',
-        category: o.category || 'operational',
-        serviceMapping: o.serviceMapping?.existingService?.code || null,
-      }));
-  }, [data.opportunities]);
-  
-  // Service recommendations come ONLY from database (context-aware, Pass 3 authoritative)
-  const priorityServices = useMemo((): ServiceRecommendation[] => {
-    // First try the new recommended_services column (context-aware)
+  // Convert database recommended_services to the new component format
+  const recommendedServices = useMemo((): RecommendedService[] => {
+    // Primary source: bm_reports.recommended_services (built by Pass 3)
     const dbRecommendations = data.recommended_services || [];
     
     if (dbRecommendations.length > 0) {
-      // Convert database format to component's expected format
-      return dbRecommendations.map((r: any): ServiceRecommendation => ({
-        serviceCode: r.code,
-        serviceName: r.name,
-        description: r.headline || r.howItHelps,
+      return dbRecommendations.map((r: any): RecommendedService => ({
+        serviceCode: r.serviceCode || r.code,
+        serviceName: r.serviceName || r.name,
+        description: r.description || '',
+        headline: r.headline,
+        priceFrom: r.priceFrom || r.price_from,
+        priceTo: r.priceTo || r.price_to,
+        priceUnit: r.priceUnit || r.price_unit,
         priceRange: r.priceRange,
-        priority: r.priority,
-        howItHelps: r.howItHelps,
-        expectedOutcome: r.expectedOutcome,
-        timeToValue: r.timeToValue || r.timeframe,
-        contextReason: r.contextReason,  // Why this was recommended (from context notes)
-        alternativeTo: r.alternativeTo,   // If this replaced a blocked service
+        category: r.category,
+        whyThisMatters: r.whyThisMatters || r.contextReason || r.description || '',
+        whatYouGet: r.whatYouGet || r.deliverables || [],
+        expectedOutcome: r.expectedOutcome || '',
+        timeToValue: r.timeToValue || r.timeframe || '4-6 weeks',
+        addressesIssues: r.addressesIssues || [],
+        totalValueAtStake: r.totalValueAtStake,
+        source: r.source || 'opportunity',
+        priority: r.priority || 'secondary',
       }));
     }
     
-    // Fallback: derive from opportunities if recommended_services not populated yet
+    // Fallback: Build from opportunities + pinned services if recommended_services not populated
     const opportunities = data.opportunities || [];
-    const seenCodes = new Set<string>();
     const blockedCodes = (data.not_recommended_services || []).map((b: any) => b.serviceCode);
+    const serviceMap = new Map<string, RecommendedService>();
     
-    return opportunities
-      .filter((o: any) => {
-        const code = o.serviceMapping?.existingService?.code;
-        if (!code || seenCodes.has(code) || blockedCodes.includes(code)) return false;
-        seenCodes.add(code);
-        return true;
-      })
-      .slice(0, 3)
-      .map((o: any): ServiceRecommendation => ({
-        serviceCode: o.serviceMapping.existingService.code,
-        serviceName: o.serviceMapping.existingService.name || o.title,
-        description: o.description || '',
-        priceRange: 'Contact for pricing',
-        priority: o.priority === 'must_address_now' ? 'immediate' : 
-                  o.priority === 'next_12_months' ? 'short-term' : 'medium-term',
-        howItHelps: o.adviserTools?.talkingPoint || o.description,
-        expectedOutcome: o.financialImpact?.amount 
-          ? `Up to £${o.financialImpact.amount.toLocaleString()} potential impact`
-          : 'Improved operational efficiency',
-        timeToValue: '1-3 months',
-      }));
+    // Process opportunities that have service recommendations
+    for (const opp of opportunities) {
+      const service = opp.service;
+      if (!service?.code || blockedCodes.includes(service.code)) continue;
+      
+      const existing = serviceMap.get(service.code);
+      const newIssue = {
+        issueTitle: opp.title || 'Issue',
+        valueAtStake: opp.financial_impact_amount || 0,
+        severity: opp.severity || 'medium',
+      };
+      
+      if (existing) {
+        // Add this issue to existing service
+        existing.addressesIssues.push(newIssue);
+        existing.totalValueAtStake = (existing.totalValueAtStake || 0) + newIssue.valueAtStake;
+      } else {
+        // Create new service entry
+        const isPinned = opp.opportunity_code?.startsWith('pinned-');
+        serviceMap.set(service.code, {
+          serviceCode: service.code,
+          serviceName: service.name,
+          description: service.description || '',
+          headline: service.headline,
+          priceFrom: service.price_from,
+          priceTo: service.price_to,
+          priceUnit: service.price_unit,
+          category: service.category,
+          whyThisMatters: opp.service_fit_rationale || opp.talking_point || service.description || '',
+          whatYouGet: service.deliverables || [],
+          expectedOutcome: opp.life_impact || `Addresses ${opp.title}`,
+          timeToValue: service.typical_duration || '4-6 weeks',
+          addressesIssues: [newIssue],
+          totalValueAtStake: newIssue.valueAtStake,
+          source: isPinned ? 'pinned' : 'opportunity',
+          priority: isPinned || opp.severity === 'critical' || opp.severity === 'high' ? 'primary' : 'secondary',
+        });
+      }
+    }
+    
+    // Sort: pinned first, then by total value
+    return Array.from(serviceMap.values()).sort((a, b) => {
+      if (a.source === 'pinned' && b.source !== 'pinned') return -1;
+      if (b.source === 'pinned' && a.source !== 'pinned') return 1;
+      if (a.priority === 'primary' && b.priority !== 'primary') return -1;
+      if (b.priority === 'primary' && a.priority !== 'primary') return 1;
+      return (b.totalValueAtStake || 0) - (a.totalValueAtStake || 0);
+    });
   }, [data.recommended_services, data.opportunities, data.not_recommended_services]);
   
   return (
@@ -829,21 +850,11 @@ export function BenchmarkingClientReport({
           />
         )}
         
-        {/* Service Recommendations - ACT Phase (Summary) */}
-        {detectedIssues.length > 0 && (
-          <ServiceRecommendationsSection
-            issues={detectedIssues}
-            priorityServices={priorityServices}
-            practitionerName={practitionerName}
-            practitionerEmail={practitionerEmail}
-            clientName={clientName}
-          />
-        )}
-        
-        {/* Enhanced Service Recommendations - Full Detail with Costs, Outcomes, Deliverables */}
-        {data.opportunities && data.opportunities.length > 0 && (
-          <EnhancedServiceRecommendations
-            opportunities={data.opportunities}
+        {/* Recommended Services - "How We Can Help" section */}
+        {/* Database-driven from bm_reports.recommended_services + opportunities */}
+        {recommendedServices.length > 0 && (
+          <RecommendedServicesSection
+            services={recommendedServices}
             clientName={clientName}
             practitionerName={practitionerName}
             practitionerEmail={practitionerEmail}

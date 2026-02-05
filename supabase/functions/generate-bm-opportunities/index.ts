@@ -1319,20 +1319,56 @@ function contextSuggestionsToOpportunities(suggestions: ContextSuggestion[]): an
 // Frontend should ONLY display these - no independent calculation
 // ============================================================================
 
-interface RecommendedService {
-  code: string;
-  name: string;
-  headline: string;
-  priceRange: string;
-  timeframe: string;
-  priority: 'immediate' | 'short-term' | 'medium-term';
-  howItHelps: string;
-  expectedOutcome: string;
-  timeToValue: string;
-  contextReason?: string;
-  alternativeTo?: string;
+interface AddressedIssue {
+  issueTitle: string;
+  valueAtStake: number;
+  severity: 'critical' | 'high' | 'medium' | 'low' | string;
 }
 
+interface RecommendedService {
+  // Core identification
+  serviceCode: string;
+  serviceName: string;
+  description: string;
+  headline?: string;
+  // Pricing
+  priceFrom?: number;
+  priceTo?: number;
+  priceUnit?: string;
+  priceRange?: string;
+  category?: string;
+  // Personalised content for client report
+  whyThisMatters: string;
+  whatYouGet: string[];
+  expectedOutcome: string;
+  timeToValue: string;
+  // Connection to client issues
+  addressesIssues: AddressedIssue[];
+  totalValueAtStake?: number;
+  // Source and priority
+  source: 'pinned' | 'opportunity' | 'context_suggested';
+  priority: 'primary' | 'secondary';
+  // Context
+  contextReason?: string;
+  alternativeTo?: string;
+  // Legacy fields for backwards compatibility
+  code?: string;
+  name?: string;
+  timeframe?: string;
+  howItHelps?: string;
+}
+
+/**
+ * Generate AUTHORITATIVE recommended services for the client report
+ * 
+ * This builds the data that powers the "How We Can Help" section.
+ * Format matches what RecommendedServicesSection.tsx expects.
+ * 
+ * Priority logic:
+ * - Pinned services = always primary
+ * - Critical/high severity opportunities = primary
+ * - Medium/low = secondary
+ */
 function generateRecommendedServices(
   opportunities: any[],
   services: any[],
@@ -1340,70 +1376,213 @@ function generateRecommendedServices(
   clientPreferences: ClientPreferences,
   activeServiceCodes: string[]
 ): RecommendedService[] {
-  const recommendations: RecommendedService[] = [];
   const blockedCodes = blockedServices.map(b => b.serviceCode);
-  const seenCodes = new Set<string>();
   
-  // Priority order for severity
-  const severityPriority: Record<string, 'immediate' | 'short-term' | 'medium-term'> = {
-    'critical': 'immediate',
-    'high': 'immediate',
-    'medium': 'short-term',
-    'low': 'medium-term',
-    'opportunity': 'medium-term',
-  };
+  // Group opportunities by service code
+  const serviceOpportunityMap = new Map<string, any[]>();
   
-  // Process each opportunity that maps to a service
   for (const opp of opportunities) {
-    const serviceCode = opp.serviceMapping?.existingService?.code;
-    if (!serviceCode) continue;
+    // Check both old format (serviceMapping) and new format (direct service object)
+    const serviceCode = opp.serviceMapping?.existingService?.code || 
+                       opp.service?.code ||
+                       (opp.opportunity_code?.startsWith('pinned-') ? opp.opportunity_code.replace('pinned-', '').toUpperCase() : null);
     
-    // Skip if blocked or already seen
+    if (!serviceCode) continue;
     if (blockedCodes.includes(serviceCode)) continue;
-    if (seenCodes.has(serviceCode)) continue;
     if (activeServiceCodes.includes(serviceCode)) continue;
     
+    const existing = serviceOpportunityMap.get(serviceCode) || [];
+    existing.push(opp);
+    serviceOpportunityMap.set(serviceCode, existing);
+  }
+  
+  const recommendations: RecommendedService[] = [];
+  
+  // Build recommendations from grouped opportunities (use Array.from for ES5 compatibility)
+  const serviceEntries = Array.from(serviceOpportunityMap.entries());
+  for (const [serviceCode, opps] of serviceEntries) {
     // Find the service details
-    const service = services.find(s => s.code === serviceCode);
-    if (!service) continue;
+    const service = services.find((s: any) => s.code === serviceCode);
+    if (!service) {
+      console.log(`[RecommendedServices] Service not found: ${serviceCode}`);
+      continue;
+    }
     
-    seenCodes.add(serviceCode);
+    // Determine if this is a pinned service
+    const isPinned = opps.some((o: any) => o.opportunity_code?.startsWith('pinned-'));
     
+    // Get highest severity among opportunities
+    const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+    const maxSeverity = opps.reduce((max: string, o: any) => {
+      return (severityOrder[o.severity] ?? 3) < (severityOrder[max] ?? 3) ? o.severity : max;
+    }, 'low');
+    
+    // Build addressesIssues array
+    const addressesIssues: AddressedIssue[] = opps.map((opp: any) => ({
+      issueTitle: opp.title || 'Issue Identified',
+      valueAtStake: opp.financial_impact_amount || opp.financialImpact?.amount || 0,
+      severity: opp.severity || 'medium',
+    }));
+    
+    // Calculate total value at stake
+    const totalValueAtStake = addressesIssues.reduce((sum: number, i: AddressedIssue) => sum + (i.valueAtStake || 0), 0);
+    
+    // Get the best service_fit_rationale from opportunities
+    const bestRationale = opps.find((o: any) => o.service_fit_rationale)?.service_fit_rationale ||
+                         opps.find((o: any) => o.talking_point)?.talking_point ||
+                         opps.find((o: any) => o.data_evidence)?.data_evidence ||
+                         '';
+    
+    // Get expected outcome from life_impact or generate from financial impact
+    const expectedOutcome = opps.find((o: any) => o.life_impact)?.life_impact ||
+                           (totalValueAtStake > 0 
+                             ? `Addresses issues worth £${totalValueAtStake.toLocaleString()} in potential value`
+                             : 'Improved operational efficiency and reduced risk');
+    
+    // Build the recommendation
     recommendations.push({
-      code: serviceCode,
+      serviceCode: service.code,
+      serviceName: service.name,
+      description: service.description || '',
+      headline: service.headline,
+      priceFrom: service.price_from,
+      priceTo: service.price_to,
+      priceUnit: service.price_unit,
+      priceRange: formatPriceRange(service),
+      category: service.category,
+      // Personalised content
+      whyThisMatters: bestRationale,
+      whatYouGet: service.deliverables || getDefaultDeliverables(service.code),
+      expectedOutcome,
+      timeToValue: service.typical_duration || '4-6 weeks',
+      // Connection to issues
+      addressesIssues,
+      totalValueAtStake,
+      // Source and priority
+      source: isPinned ? 'pinned' : 'opportunity',
+      priority: isPinned || maxSeverity === 'critical' || maxSeverity === 'high' ? 'primary' : 'secondary',
+      // Legacy fields for backwards compatibility
+      code: service.code,
       name: service.name,
-      headline: service.headline || service.description?.substring(0, 100) || '',
-      priceRange: `£${service.price_from?.toLocaleString() || '?'}-£${service.price_to?.toLocaleString() || '?'}${service.price_unit === 'per_month' ? '/month' : ''}`,
       timeframe: service.typical_duration || 'Flexible',
-      priority: severityPriority[opp.severity] || 'medium-term',
-      howItHelps: opp.description || opp.dataEvidence || '',
-      expectedOutcome: opp.financialImpact?.amount 
-        ? `Up to £${opp.financialImpact.amount.toLocaleString()} ${opp.financialImpact.type || 'impact'}` 
-        : 'Improved operational efficiency',
-      timeToValue: service.typical_duration || '1-3 months',
-      contextReason: opp._contextDriven ? opp._contextReason : undefined,
+      howItHelps: bestRationale,
+      contextReason: isPinned ? 'Recommended by your advisor' : undefined,
     });
   }
   
   // Add alternatives for blocked services
   for (const blocked of blockedServices) {
     const alternative = getAlternativeService(blocked.serviceCode, clientPreferences, services);
-    if (alternative && !seenCodes.has(alternative.code)) {
-      seenCodes.add(alternative.code);
+    if (alternative && !recommendations.some(r => r.serviceCode === alternative.serviceCode)) {
       recommendations.push({
         ...alternative,
-        alternativeTo: blocked.serviceCode,
+        source: 'context_suggested',
+        priority: 'secondary',
         contextReason: blocked.reason,
+        // Legacy
+        alternativeTo: blocked.serviceCode,
       });
     }
   }
   
-  // Sort by priority
-  const priorityOrder = { 'immediate': 0, 'short-term': 1, 'medium-term': 2 };
-  recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+  // Sort: pinned first, then by priority, then by total value
+  recommendations.sort((a, b) => {
+    // Pinned always first
+    if (a.source === 'pinned' && b.source !== 'pinned') return -1;
+    if (b.source === 'pinned' && a.source !== 'pinned') return 1;
+    // Then by priority
+    if (a.priority === 'primary' && b.priority !== 'primary') return -1;
+    if (b.priority === 'primary' && a.priority !== 'primary') return 1;
+    // Then by value
+    return (b.totalValueAtStake || 0) - (a.totalValueAtStake || 0);
+  });
   
-  // Cap at 6 recommendations
-  return recommendations.slice(0, 6);
+  console.log(`[RecommendedServices] Built ${recommendations.length} recommendations:`,
+    recommendations.map(r => `${r.serviceCode} (${r.source}, ${r.priority})`).join(', '));
+  
+  // Cap at 8 recommendations
+  return recommendations.slice(0, 8);
+}
+
+// Helper to format price range string
+function formatPriceRange(service: any): string {
+  const from = service.price_from;
+  const to = service.price_to;
+  const unit = service.price_unit as string;
+  
+  if (!from && !to) return 'Contact for pricing';
+  
+  const unitLabels: Record<string, string> = {
+    'per_month': '/month',
+    'per_year': '/year',
+    '/project': ' (one-off)',
+    'one_off': ' (one-off)',
+    '/month': '/month',
+  };
+  const unitLabel = unit ? (unitLabels[unit] || '') : '';
+  
+  if (from && to) {
+    return `£${from.toLocaleString()} – £${to.toLocaleString()}${unitLabel}`;
+  }
+  if (from) {
+    return `From £${from.toLocaleString()}${unitLabel}`;
+  }
+  return `Up to £${to.toLocaleString()}${unitLabel}`;
+}
+
+// Default deliverables by service code
+function getDefaultDeliverables(serviceCode: string): string[] {
+  const defaults: Record<string, string[]> = {
+    'SYSTEMS_AUDIT': [
+      'Complete process inventory (what\'s documented vs what\'s assumed)',
+      'Knowledge dependency map (who knows what)',
+      'Documentation gap analysis with severity ratings',
+      'Prioritised systemisation roadmap',
+      'Quick wins you can action immediately',
+    ],
+    'QUARTERLY_BI_SUPPORT': [
+      'Monthly management dashboard with KPIs',
+      'Quarterly benchmarking update vs industry',
+      'Margin analysis by project/client/team',
+      'Trend alerts and early warnings',
+      'Strategic insights from your data',
+    ],
+    'STRATEGIC_ADVISORY': [
+      'Regular strategy review sessions',
+      'Decision support on key choices',
+      'Challenge and accountability',
+      'Network introductions where relevant',
+      'Board-level thinking without formal board',
+    ],
+    'PROFIT_EXTRACTION': [
+      'Current structure efficiency review',
+      'Tax-optimised extraction options',
+      'Scenario modelling for each option',
+      'Implementation plan with timeline',
+      'Coordination brief for your accountant',
+    ],
+    'FRACTIONAL_COO': [
+      'Operational leadership 1-2 days/week',
+      'Process improvement initiatives',
+      'Team performance management',
+      'Systems and efficiency projects',
+      'Founder time freed for strategy',
+    ],
+    'GOAL_ALIGNMENT': [
+      'Personal goals documentation',
+      'Business strategy alignment',
+      'Gap analysis (current vs desired)',
+      'Roadmap with milestones',
+      'Quarterly review framework',
+    ],
+  };
+  
+  return defaults[serviceCode] || [
+    'Detailed assessment of current state',
+    'Gap analysis and recommendations',
+    'Implementation roadmap',
+    'Ongoing support during implementation',
+  ];
 }
 
 function getAlternativeService(
@@ -1437,15 +1616,28 @@ function getAlternativeService(
   if (!service) return null;
   
   return {
+    // New format fields
+    serviceCode: altCode,
+    serviceName: service.name,
+    description: service.description || '',
+    headline: service.headline,
+    priceFrom: service.price_from,
+    priceTo: service.price_to,
+    priceUnit: service.price_unit,
+    priceRange: formatPriceRange(service),
+    category: service.category,
+    whyThisMatters: reason,
+    whatYouGet: service.deliverables || getDefaultDeliverables(altCode),
+    expectedOutcome: 'Strategic guidance aligned with your preferences',
+    timeToValue: service.typical_duration || '4-6 weeks',
+    addressesIssues: [],  // Will be populated if linked to specific issues
+    source: 'context_suggested',
+    priority: 'secondary',
+    // Legacy fields
     code: altCode,
     name: service.name,
-    headline: service.headline || service.description?.substring(0, 100) || '',
-    priceRange: `£${service.price_from?.toLocaleString() || '?'}-£${service.price_to?.toLocaleString() || '?'}${service.price_unit === 'per_month' ? '/month' : ''}`,
     timeframe: service.typical_duration || 'Flexible',
-    priority: 'short-term',
     howItHelps: reason,
-    expectedOutcome: 'Strategic guidance aligned with your preferences',
-    timeToValue: service.typical_duration || '1-3 months',
   };
 }
 
