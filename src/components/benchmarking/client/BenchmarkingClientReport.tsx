@@ -887,8 +887,9 @@ export function BenchmarkingClientReport({
                   parts.push(`with £${(surplus / 1000000).toFixed(1)}M in surplus cash`);
                 }
                 
-                // Margin trajectory
-                if (data.pass1_data?.financial_trends?.some((t: any) => t.isRecovering)) {
+                // Margin trajectory (check if financial_trends exists, using type assertion for safety)
+                const financialTrends = (data.pass1_data as any)?.financial_trends;
+                if (financialTrends && Array.isArray(financialTrends) && financialTrends.some((t: any) => t?.isRecovering)) {
                   parts.push('and a clear margin recovery trajectory');
                 }
                 

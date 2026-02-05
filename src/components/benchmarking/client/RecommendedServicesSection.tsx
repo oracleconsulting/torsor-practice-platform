@@ -310,10 +310,7 @@ function SecondaryServiceRow({ service }: { service: RecommendedService }) {
 
 export function RecommendedServicesSection({
   services,
-  clientName,
-  practitionerName = 'your advisor',
-  practitionerEmail,
-  practitionerPhone
+  clientName
 }: RecommendedServicesSectionProps) {
   if (!services || services.length === 0) {
     return null;
