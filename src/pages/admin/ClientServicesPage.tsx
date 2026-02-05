@@ -11541,69 +11541,45 @@ function BenchmarkingClientModal({
                         </button>
                         <button
                           onClick={async () => {
-                            if (!confirm('This will reset the report status and allow you to start completely fresh. Continue?')) return;
+                            if (!confirm('This will DELETE the report and allow you to start completely fresh. Continue?')) return;
                             try {
                               console.log('[Force Reset] Starting reset for engagement:', report.engagement_id);
                               
-                              // Strategy 1: Try to delete first (if RLS allows)
-                              const { error: deleteError, data: deleteData } = await supabase
-                                .from('bm_reports')
-                                .delete()
-                                .eq('engagement_id', report.engagement_id)
-                                .select();
+                              // Use Edge Function with service role to bypass RLS
+                              const { data, error } = await supabase.functions.invoke('reset-bm-report', {
+                                body: { engagement_id: report.engagement_id }
+                              });
                               
-                              if (deleteError) {
-                                console.warn('[Force Reset] Delete failed (likely RLS), trying update instead:', deleteError);
-                                
-                                // Strategy 2: Update status to null/empty to mark as deleted
-                                // This works around RLS if DELETE policy doesn't exist
-                                const { error: updateError } = await supabase
-                                  .from('bm_reports')
-                                  .update({ 
-                                    status: null,
-                                    headline: null,
-                                    executive_summary: null,
-                                    // Clear key fields to make it unusable
-                                  })
-                                  .eq('engagement_id', report.engagement_id);
-                                
-                                if (updateError) {
-                                  console.error('[Force Reset] Update also failed:', updateError);
-                                  throw new Error(`Cannot delete or update report: ${updateError.message}. You may need to delete it manually from the database.`);
-                                }
-                                
-                                console.log('[Force Reset] Report status cleared via update');
-                              } else {
-                                console.log('[Force Reset] Report deleted successfully:', deleteData);
+                              if (error) {
+                                console.error('[Force Reset] Edge function error:', error);
+                                throw new Error(`Reset function failed: ${error.message}`);
                               }
                               
-                              // Reset engagement status to allow regeneration
-                              const { error: engError } = await supabase
-                                .from('bm_engagements')
-                                .update({ status: 'assessment_complete' })
-                                .eq('id', report.engagement_id);
-                              if (engError) {
-                                console.warn('[Force Reset] Could not reset engagement status:', engError);
-                              } else {
-                                console.log('[Force Reset] Engagement status reset to assessment_complete');
+                              if (!data?.success) {
+                                throw new Error(data?.error || 'Reset failed');
                               }
+                              
+                              console.log('[Force Reset] Report reset successfully via edge function');
                               
                               // Clear local state immediately
                               setReport(null);
                               console.log('[Force Reset] Local state cleared');
                               
+                              // Wait a moment for database to sync
+                              await new Promise(resolve => setTimeout(resolve, 500));
+                              
                               // Refresh data to show the "Generate Report" button
                               await fetchData();
                               console.log('[Force Reset] Data refreshed');
                               
-                              alert('Report reset successfully. You can now regenerate from scratch.');
+                              alert('Report deleted successfully. You can now regenerate from scratch.');
                               
                               // Close modal
                               onClose();
                             } catch (err: any) {
                               console.error('[Force Reset] Failed:', err);
                               const errorMsg = err?.message || 'Unknown error';
-                              alert(`Failed to reset: ${errorMsg}\n\nYou may need to:\n1. Check browser console for details\n2. Manually delete the report from Supabase\n3. Or contact support`);
+                              alert(`Failed to reset: ${errorMsg}\n\nCheck browser console for details.`);
                             }
                           }}
                           className="px-4 py-2 border border-red-300 bg-white hover:bg-red-50 text-red-600 rounded-lg flex items-center gap-2 font-semibold"
