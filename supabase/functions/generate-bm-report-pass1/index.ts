@@ -5427,6 +5427,110 @@ When writing narratives:
       }
     }
     
+    // ====================================================================
+    // POST-LLM: Enrich Revenue Growth metric with CAGR context
+    // ====================================================================
+    if (pass1Data.metricsComparison && pass1Data.multi_year_profile?.revenue?.cagr !== null) {
+      const myp = pass1Data.multi_year_profile;
+      const revenueMetric = pass1Data.metricsComparison.find((m: any) => {
+        const code = (m.metricCode || m.metric_code || '').toLowerCase();
+        return code.includes('revenue_growth') || code.includes('revenue growth');
+      });
+      
+      if (revenueMetric && myp.revenue.cagr !== null && myp.revenue.cagr !== undefined) {
+        // Add CAGR as a secondary value for display
+        revenueMetric.cagrValue = Math.round(myp.revenue.cagr * 10) / 10;
+        revenueMetric.cagrYears = myp.yearsAvailable;
+        revenueMetric.revenueTrajectory = myp.revenue.trajectory;
+        
+        // Update the metric name to include CAGR value
+        const currentName = revenueMetric.metricName || revenueMetric.metric_name || 'Revenue Growth';
+        if (!currentName.includes('CAGR')) {
+          revenueMetric.metricName = `Revenue Growth (YoY: ${revenueMetric.clientValue > 0 ? '+' : ''}${revenueMetric.clientValue}%, ${myp.yearsAvailable}yr CAGR: ${myp.revenue.cagr > 0 ? '+' : ''}${myp.revenue.cagr.toFixed(1)}%)`;
+          revenueMetric.metric_name = revenueMetric.metricName;
+        }
+        
+        // If trajectory is retracement, annotate the annual impact
+        if (myp.patterns.revenueRetracement) {
+          revenueMetric._isRetracement = true;
+          revenueMetric._retracementNote = `Down from FY${myp.revenue.peakYear} peak but +${myp.revenue.totalGrowth?.toFixed(0)}% over ${myp.yearsAvailable} years`;
+          
+          // Nullify the annual_impact if it's based on YoY gap — it's misleading
+          // when the business has positive CAGR
+          if (myp.revenue.cagr > 0 && revenueMetric.annualImpact) {
+            console.log(`[Pass 1] Removing misleading revenue growth annualImpact (£${revenueMetric.annualImpact}) — CAGR is positive at ${myp.revenue.cagr.toFixed(1)}%`);
+            revenueMetric._originalAnnualImpact = revenueMetric.annualImpact;
+            revenueMetric.annualImpact = null;
+            revenueMetric.annual_impact = null;
+          }
+        }
+        
+        console.log(`[Pass 1] Enriched revenue growth metric: name="${revenueMetric.metricName}", CAGR=${myp.revenue.cagr.toFixed(1)}%, trajectory=${myp.revenue.trajectory}`);
+      }
+    }
+    
+    // ====================================================================
+    // POST-LLM: Remove misleading EBITDA IMPACT when gross margin drives opportunity
+    // ====================================================================
+    // If the opportunity total is based on gross margin (not EBITDA), showing an
+    // EBITDA "IMPACT" figure on its metric card confuses the reader because it's
+    // larger than the hero total and isn't independently achievable.
+    if (pass1Data.metricsComparison && pass1Data.opportunitySizing?._doubleCountCorrected) {
+      const ebitdaMetric = pass1Data.metricsComparison.find((m: any) => {
+        const code = (m.metricCode || m.metric_code || '').toLowerCase();
+        return code.includes('ebitda');
+      });
+      
+      if (ebitdaMetric && ebitdaMetric.annualImpact) {
+        console.log(`[Pass 1] Removing EBITDA annualImpact (£${ebitdaMetric.annualImpact}) — gross margin drives the opportunity total, EBITDA impact is not independently achievable`);
+        ebitdaMetric._originalAnnualImpact = ebitdaMetric.annualImpact;
+        ebitdaMetric.annualImpact = null;
+        ebitdaMetric.annual_impact = null;
+      }
+    }
+    
+    // Also handle the case where double-count was NOT corrected but EBITDA impact
+    // exceeds the total opportunity — indicates the LLM already picked one metric
+    if (pass1Data.metricsComparison && pass1Data.opportunitySizing?.totalAnnualOpportunity) {
+      const total = pass1Data.opportunitySizing.totalAnnualOpportunity;
+      const ebitdaMetric = pass1Data.metricsComparison.find((m: any) => {
+        const code = (m.metricCode || m.metric_code || '').toLowerCase();
+        return code.includes('ebitda');
+      });
+      const gmMetric = pass1Data.metricsComparison.find((m: any) => {
+        const code = (m.metricCode || m.metric_code || '').toLowerCase();
+        return code.includes('gross_margin') || code.includes('gross margin');
+      });
+      
+      // If BOTH have impact values and their sum exceeds the total, keep only the one
+      // that matches the opportunity total most closely
+      if (ebitdaMetric?.annualImpact && gmMetric?.annualImpact) {
+        const ebitdaImpact = ebitdaMetric.annualImpact;
+        const gmImpact = gmMetric.annualImpact;
+        
+        if (ebitdaImpact + gmImpact > total * 1.3) {
+          // Sum is >30% higher than total — one of them is redundant
+          // Keep whichever is closer to the total
+          const ebitdaDiff = Math.abs(ebitdaImpact - total);
+          const gmDiff = Math.abs(gmImpact - total);
+          
+          if (ebitdaDiff > gmDiff) {
+            // Gross margin is closer to total — EBITDA is redundant
+            console.log(`[Pass 1] EBITDA impact (£${ebitdaImpact}) + GM impact (£${gmImpact}) exceeds total (£${total}). Removing EBITDA impact.`);
+            ebitdaMetric._originalAnnualImpact = ebitdaMetric.annualImpact;
+            ebitdaMetric.annualImpact = null;
+            ebitdaMetric.annual_impact = null;
+          } else {
+            // EBITDA is closer — GM is the subset
+            console.log(`[Pass 1] EBITDA impact (£${ebitdaImpact}) + GM impact (£${gmImpact}) exceeds total (£${total}). Removing GM impact.`);
+            gmMetric._originalAnnualImpact = gmMetric.annualImpact;
+            gmMetric.annualImpact = null;
+            gmMetric.annual_impact = null;
+          }
+        }
+      }
+    }
+    
     const tokensUsed = result.usage?.total_tokens || 0;
     const cost = (tokensUsed / 1000) * 0.003; // Approximate cost for Sonnet 4
     const generationTime = Date.now() - startTime;

@@ -93,7 +93,8 @@ serve(async (req) => {
       services || [],
       analysis.blockedServices || [],
       clientData.clientPreferences,
-      activeServiceCodes
+      activeServiceCodes,
+      clientData  // NEW: for value analysis access
     );
     
     console.log(`[Pass 3] Generated ${recommendedServices.length} authoritative service recommendations`);
@@ -1385,7 +1386,8 @@ function generateRecommendedServices(
   services: any[],
   blockedServices: { serviceCode: string; reason: string }[],
   clientPreferences: ClientPreferences,
-  activeServiceCodes: string[]
+  activeServiceCodes: string[],
+  clientData?: ClientData  // NEW: for value analysis access
 ): RecommendedService[] {
   const blockedCodes = blockedServices.map(b => b.serviceCode);
   
@@ -1598,52 +1600,178 @@ function generateRecommendedServices(
   }
   
   // ====================================================================
-  // POST-BUILD: Force-promote Systems Audit if CRITICAL blocked-service fallback
+  // POST-BUILD: Enrich Systems Audit with founder dependency context
   // ====================================================================
-  // If Systems Audit is recommended but only addresses medium-severity context issues,
-  // AND the client has founder dependency as a CRITICAL suppressor, connect them.
-  // This handles the case where the remap didn't fire but the context suggestion did.
+  // This runs REGARDLESS of current priority. The content enrichment and
+  // priority promotion are independent operations.
+  //
+  // WHY: The remap may or may not have added the founder opp to the group.
+  // If it did, priority is already 'primary' but whyThisMatters still has
+  // generic dataEvidence. If it didn't, priority is 'secondary' and needs
+  // both promotion AND enrichment. Either way, we need to ensure the
+  // founder dependency appears in the content.
+  // ====================================================================
+  
   const systemsAuditRec = recommendations.find(r => r.serviceCode === 'SYSTEMS_AUDIT');
-  if (systemsAuditRec && systemsAuditRec.priority === 'secondary') {
-    // Check if any blocked-service opportunity was CRITICAL
-    const hasCriticalBlocked = opportunities.some(opp => {
-      const code = opp.serviceMapping?.existingService?.code || opp.service?.code;
-      return code && blockedServices.some(b => b.serviceCode === code) && 
-             (opp.severity === 'critical' || opp.severity === 'high');
+  if (systemsAuditRec) {
+    // Check if founder dependency content is ALREADY in addressesIssues
+    const hasFounderInIssues = systemsAuditRec.addressesIssues?.some(
+      (i: AddressedIssue) => 
+        i.severity === 'critical' && (
+          i.issueTitle.toLowerCase().includes('founder') ||
+          i.issueTitle.toLowerCase().includes('dependency') ||
+          i.issueTitle.toLowerCase().includes('knowledge') ||
+          i.issueTitle.toLowerCase().includes('key person')
+        )
+    );
+    
+    // Determine if founder dependency exists as a CRITICAL issue for this client.
+    // Sources (in priority order):
+    // 1. Value analysis suppressors (most reliable — deterministic calculation)
+    // 2. LLM-generated opportunities with critical severity + founder keywords
+    // 3. Blocked service opportunities (COO blocked = founder dependency exists)
+    
+    const valueAnalysis = clientData?.pass1Data?.value_analysis || clientData?.valueAnalysis;
+    const suppressors = valueAnalysis?.suppressors || valueAnalysis?.valueSupressors || [];
+    const founderSuppressor = suppressors.find((s: any) => {
+      const code = (s.code || s.name || '').toLowerCase();
+      return code.includes('founder') || code.includes('key_person') || code.includes('dependency');
     });
     
-    if (hasCriticalBlocked) {
-      systemsAuditRec.priority = 'primary';
-      systemsAuditRec.source = 'opportunity';
-      // Add the founder dependency to its addressesIssues if not already there
-      const hasFounderIssue = systemsAuditRec.addressesIssues?.some(
-        (i: AddressedIssue) => i.issueTitle.toLowerCase().includes('founder') || 
-                               i.issueTitle.toLowerCase().includes('dependency')
+    const founderRisk = clientData?.pass1Data?.founder_risk || clientData?.founderRisk;
+    const hva = clientData?.hva;
+    const knowledgeDep = hva?.knowledge_dependency_percentage;
+    const personalBrand = hva?.personal_brand_percentage;
+    
+    // Get the founder dependency valuation impact
+    let founderValuationImpact = 0;
+    if (founderSuppressor) {
+      founderValuationImpact = founderSuppressor.valuationImpact?.mid || 
+                                founderSuppressor.valuationImpact?.amount ||
+                                founderSuppressor.valuationImpact || 
+                                founderSuppressor.impact || 0;
+      // Handle case where impact is stored as percentage
+      if (founderValuationImpact > 0 && founderValuationImpact <= 1) {
+        const baseline = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
+        founderValuationImpact = baseline * founderValuationImpact;
+      }
+    }
+    
+    // Fallback: check enhanced_suppressors (used in Report 9's value bridge)
+    if (!founderValuationImpact) {
+      const enhancedSuppressors = clientData?.pass1Data?.enhanced_suppressors || [];
+      const enhancedFounder = enhancedSuppressors.find((s: any) => {
+        const code = (s.code || s.name || '').toLowerCase();
+        return code.includes('founder') || code.includes('dependency');
+      });
+      if (enhancedFounder) {
+        founderValuationImpact = enhancedFounder.valuationImpact?.mid || 
+                                  enhancedFounder.currentDiscount || 
+                                  enhancedFounder.impact || 0;
+        // If impact is a percentage, convert to absolute
+        if (founderValuationImpact > 0 && founderValuationImpact <= 1) {
+          const baseline = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
+          founderValuationImpact = baseline * founderValuationImpact;
+        }
+      }
+    }
+    
+    // Fallback: use founder risk calculator output
+    if (!founderValuationImpact && founderRisk?.valuationDiscount) {
+      founderValuationImpact = founderRisk.valuationDiscount;
+    }
+    
+    // Final fallback: estimate from baseline (20% is standard founder dep discount)
+    if (!founderValuationImpact) {
+      const baseline = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
+      if (baseline > 0 && (knowledgeDep > 50 || personalBrand > 50)) {
+        founderValuationImpact = baseline * 0.20;
+      }
+    }
+    
+    // Also check: does client have blocked COO + critical founder-related opps?
+    const hasCriticalBlockedCOO = opportunities.some(opp => {
+      const code = opp.serviceMapping?.existingService?.code || opp.service?.code;
+      const titleLower = (opp.title || '').toLowerCase();
+      return (
+        (code === 'FRACTIONAL_COO' && blockedServices.some(b => b.serviceCode === 'FRACTIONAL_COO')) ||
+        (opp.severity === 'critical' && (
+          titleLower.includes('founder') || titleLower.includes('knowledge') || 
+          titleLower.includes('dependency') || titleLower.includes('key person')
+        ))
       );
-      if (!hasFounderIssue) {
-        // Find the actual founder dependency opportunity for accurate value
-        const founderOpp = opportunities.find(opp => 
-          opp.severity === 'critical' && 
-          ((opp.title || '').toLowerCase().includes('founder') || 
-           (opp.title || '').toLowerCase().includes('knowledge') ||
-           (opp.title || '').toLowerCase().includes('dependency'))
-        );
-        systemsAuditRec.addressesIssues = systemsAuditRec.addressesIssues || [];
-        systemsAuditRec.addressesIssues.push({
-          issueTitle: founderOpp?.title || 'Founder/Knowledge Dependency',
-          valueAtStake: founderOpp?.financialImpact?.amount || 5700000, // £5.7M from value bridge
-          severity: 'critical',
-        });
-        // Recalculate total value
-        systemsAuditRec.totalValueAtStake = systemsAuditRec.addressesIssues.reduce(
-          (sum: number, i: AddressedIssue) => sum + (i.valueAtStake || 0), 0
-        );
-        // Update whyThisMatters to reflect the CRITICAL issue
-        const founderValue = founderOpp?.financialImpact?.amount || 5700000;
-        systemsAuditRec.whyThisMatters = `Founder dependency is your biggest structural risk — 75% of operational knowledge is concentrated in the founder, costing £${(founderValue / 1000000).toFixed(1)}M in valuation discount. A systems audit maps what's documented vs what's assumed, creating the roadmap to de-risk. ${systemsAuditRec.whyThisMatters}`;
+    });
+    
+    // DECISION: Should we enrich?
+    const shouldEnrich = !hasFounderInIssues && (
+      founderValuationImpact > 0 ||
+      hasCriticalBlockedCOO ||
+      (founderRisk?.level === 'critical' || founderRisk?.level === 'high') ||
+      (knowledgeDep && knowledgeDep >= 50)
+    );
+    
+    if (shouldEnrich) {
+      const impactValue = founderValuationImpact || 5700000; // Fallback to £5.7M
+      const knowledgePct = knowledgeDep || personalBrand || 75;
+      
+      // 1. Add founder dependency to addressesIssues
+      systemsAuditRec.addressesIssues = systemsAuditRec.addressesIssues || [];
+      systemsAuditRec.addressesIssues.unshift({  // unshift = put first
+        issueTitle: 'Founder/Knowledge Dependency',
+        valueAtStake: impactValue,
+        severity: 'critical',
+      });
+      
+      // 2. Recalculate total value
+      systemsAuditRec.totalValueAtStake = systemsAuditRec.addressesIssues.reduce(
+        (sum: number, i: AddressedIssue) => sum + (i.valueAtStake || 0), 0
+      );
+      
+      // 3. Rewrite whyThisMatters — founder context FIRST, then existing content
+      const existingContent = systemsAuditRec.whyThisMatters || '';
+      const impactStr = `£${(impactValue / 1000000).toFixed(1)}M`;
+      systemsAuditRec.whyThisMatters = 
+        `Founder dependency is your biggest structural risk — ${knowledgePct}% of operational knowledge is concentrated in the founder, costing ${impactStr} in valuation discount. A systems audit maps what's documented vs what's assumed, creating the roadmap to de-risk.` +
+        (existingContent ? ` ${existingContent}` : '');
+      
+      // 4. Also update whatYouGet to be founder-specific
+      systemsAuditRec.whatYouGet = [
+        'Process dependency map — who knows what, and what happens if they leave',
+        'Documentation gap analysis with severity ratings',
+        'Knowledge transfer priority assessment',
+        'Systemisation roadmap with quick wins',
+        'Founder de-risking action plan',
+      ];
+      
+      // 5. Update expectedOutcome
+      systemsAuditRec.expectedOutcome = 
+        `Addresses issues worth £${(systemsAuditRec.totalValueAtStake / 1000000).toFixed(1)}M in potential value. Creates the foundation to reduce founder dependency from ${knowledgePct}% toward <30%.`;
+      
+      // 6. Promote to primary if still secondary
+      if (systemsAuditRec.priority === 'secondary') {
+        systemsAuditRec.priority = 'primary';
+        systemsAuditRec.source = 'opportunity';
       }
       
-      console.log(`[RecommendedServices] Force-promoted SYSTEMS_AUDIT to primary (CRITICAL blocked-service fallback)`);
+      // 7. Update legacy fields
+      systemsAuditRec.howItHelps = systemsAuditRec.whyThisMatters;
+      
+      console.log(`[RecommendedServices] Enriched SYSTEMS_AUDIT with founder dependency: ${impactStr} impact, total value ${systemsAuditRec.totalValueAtStake}`);
+    } else if (hasFounderInIssues) {
+      console.log(`[RecommendedServices] SYSTEMS_AUDIT already has founder dependency in addressesIssues — no enrichment needed`);
+    } else {
+      console.log(`[RecommendedServices] SYSTEMS_AUDIT: no founder dependency detected for this client — skipping enrichment`);
+    }
+    
+    // Ensure primary if it addresses ANY critical issue (regardless of founder enrichment)
+    if (systemsAuditRec.priority === 'secondary') {
+      const hasCritical = systemsAuditRec.addressesIssues?.some(
+        (i: AddressedIssue) => i.severity === 'critical'
+      );
+      if (hasCritical) {
+        systemsAuditRec.priority = 'primary';
+        systemsAuditRec.source = systemsAuditRec.source === 'context_suggested' ? 'opportunity' : systemsAuditRec.source;
+      }
     }
   }
   
