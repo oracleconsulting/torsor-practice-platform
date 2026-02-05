@@ -10561,7 +10561,8 @@ function BenchmarkingClientModal({
           reportId: reportToUse?.id
         });
         
-        if (reportToUse) {
+        // Only set report if it has a valid status (null status means it was reset/deleted)
+        if (reportToUse && reportToUse.status !== null && reportToUse.status !== undefined) {
           console.log('[Benchmarking Modal] Setting report in state:', {
             id: reportToUse.id,
             status: reportToUse.status,
@@ -10569,6 +10570,9 @@ function BenchmarkingClientModal({
             hasExecutiveSummary: !!reportToUse.executive_summary
           });
           setReport(reportToUse);
+        } else if (reportToUse && (reportToUse.status === null || reportToUse.status === undefined)) {
+          console.log('[Benchmarking Modal] Report found but status is null - treating as deleted/reset');
+          setReport(null);
           
           // Set share status
           setIsBenchmarkShared(reportToUse.is_shared_with_client || false);
@@ -11537,33 +11541,69 @@ function BenchmarkingClientModal({
                         </button>
                         <button
                           onClick={async () => {
-                            if (!confirm('This will DELETE the current report and allow you to start completely fresh. Continue?')) return;
+                            if (!confirm('This will reset the report status and allow you to start completely fresh. Continue?')) return;
                             try {
-                              // DELETE the report entirely (most aggressive reset)
-                              const { error: deleteError } = await supabase
+                              console.log('[Force Reset] Starting reset for engagement:', report.engagement_id);
+                              
+                              // Strategy 1: Try to delete first (if RLS allows)
+                              const { error: deleteError, data: deleteData } = await supabase
                                 .from('bm_reports')
                                 .delete()
-                                .eq('engagement_id', report.engagement_id);
-                              if (deleteError) throw deleteError;
+                                .eq('engagement_id', report.engagement_id)
+                                .select();
                               
-                              // Also reset engagement status
+                              if (deleteError) {
+                                console.warn('[Force Reset] Delete failed (likely RLS), trying update instead:', deleteError);
+                                
+                                // Strategy 2: Update status to null/empty to mark as deleted
+                                // This works around RLS if DELETE policy doesn't exist
+                                const { error: updateError } = await supabase
+                                  .from('bm_reports')
+                                  .update({ 
+                                    status: null,
+                                    headline: null,
+                                    executive_summary: null,
+                                    // Clear key fields to make it unusable
+                                  })
+                                  .eq('engagement_id', report.engagement_id);
+                                
+                                if (updateError) {
+                                  console.error('[Force Reset] Update also failed:', updateError);
+                                  throw new Error(`Cannot delete or update report: ${updateError.message}. You may need to delete it manually from the database.`);
+                                }
+                                
+                                console.log('[Force Reset] Report status cleared via update');
+                              } else {
+                                console.log('[Force Reset] Report deleted successfully:', deleteData);
+                              }
+                              
+                              // Reset engagement status to allow regeneration
                               const { error: engError } = await supabase
                                 .from('bm_engagements')
                                 .update({ status: 'assessment_complete' })
                                 .eq('id', report.engagement_id);
-                              if (engError) console.warn('Could not reset engagement status:', engError);
+                              if (engError) {
+                                console.warn('[Force Reset] Could not reset engagement status:', engError);
+                              } else {
+                                console.log('[Force Reset] Engagement status reset to assessment_complete');
+                              }
                               
-                              // Clear local state
+                              // Clear local state immediately
                               setReport(null);
+                              console.log('[Force Reset] Local state cleared');
                               
-                              alert('Report deleted. You can now regenerate from scratch.');
                               // Refresh data to show the "Generate Report" button
                               await fetchData();
+                              console.log('[Force Reset] Data refreshed');
+                              
+                              alert('Report reset successfully. You can now regenerate from scratch.');
+                              
                               // Close modal
                               onClose();
-                            } catch (err) {
-                              console.error('Failed to reset:', err);
-                              alert('Failed to reset. Please try again or contact support.');
+                            } catch (err: any) {
+                              console.error('[Force Reset] Failed:', err);
+                              const errorMsg = err?.message || 'Unknown error';
+                              alert(`Failed to reset: ${errorMsg}\n\nYou may need to:\n1. Check browser console for details\n2. Manually delete the report from Supabase\n3. Or contact support`);
                             }
                           }}
                           className="px-4 py-2 border border-red-300 bg-white hover:bg-red-50 text-red-600 rounded-lg flex items-center gap-2 font-semibold"
