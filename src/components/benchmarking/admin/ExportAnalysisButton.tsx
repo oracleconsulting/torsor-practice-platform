@@ -117,10 +117,31 @@ export function ExportAnalysisButton({
       // =======================================================================
       // SECTION 1: EXECUTIVE SUMMARY
       // =======================================================================
+      
+      // Calculate ACTUAL total annual opportunity from opportunities (not Pass 1 estimate)
+      const actualTotalOpportunity = opportunities?.reduce((sum: number, opp: any) => {
+        const amount = opp.financial_impact_amount || 0;
+        const type = opp.financial_impact_type || 'other';
+        // Count upside and value_creation at 100%, risk at 20%, investment at 0
+        if (type === 'upside' || type === 'value_creation') return sum + amount;
+        if (type === 'risk') return sum + (amount * 0.2);
+        return sum;
+      }, 0) || 0;
+      
+      const displayOpportunity = actualTotalOpportunity > 0 
+        ? formatCurrency(actualTotalOpportunity)
+        : (reportData.total_annual_opportunity ? formatCurrency(reportData.total_annual_opportunity) : 'N/A');
+      
+      // Check if headline mentions a different amount than actual total
+      const headlineAmount = reportData.headline?.match(/£([\d,]+(?:k|K|m|M)?)/)?.[1];
+      const headlineNote = (actualTotalOpportunity > 1000000 && headlineAmount && !headlineAmount.toLowerCase().includes('m')) 
+        ? `\n\n_Note: The headline was generated early in the analysis process. The full opportunity analysis below identifies ${displayOpportunity} in total opportunity value._`
+        : '';
+      
       md += `## 1. EXECUTIVE SUMMARY
 
 ### Headline
-${reportData.headline || 'Not generated'}
+${reportData.headline || 'Not generated'}${headlineNote}
 
 ### Summary
 ${reportData.executive_summary || 'Not generated'}
@@ -129,7 +150,7 @@ ${reportData.executive_summary || 'Not generated'}
 | Metric | Value |
 |--------|-------|
 | Overall Percentile | ${reportData.overall_percentile ? `${reportData.overall_percentile}th` : 'N/A'} |
-| Total Annual Opportunity | ${reportData.total_annual_opportunity || 'N/A'} |
+| Total Annual Opportunity | ${displayOpportunity} |
 | Strength Count | ${reportData.strength_count ?? 'N/A'} |
 | Gap Count | ${reportData.gap_count ?? 'N/A'} |
 | Founder Risk Level | ${founderRisk?.level || pass1Data?.founderRiskLevel || 'N/A'} |
@@ -384,8 +405,134 @@ ${opp.concept ? `  - Problem it solves: ${opp.concept.problem_it_solves || 'N/A'
       md += `---\n\n`;
 
       // =======================================================================
-      // SECTION 7B: RECOMMENDED SERVICES SUMMARY (Full Details)
+      // SECTION 7B: RECOMMENDED SERVICES - COMPREHENSIVE DETAIL
       // =======================================================================
+      
+      // Enhanced service descriptions with benefits and outcomes
+      const serviceEnhancements: Record<string, { 
+        whatItIs: string; 
+        keyBenefits: string[]; 
+        expectedOutcomes: string[];
+        typicalROI?: string;
+        whoItsFor?: string;
+      }> = {
+        'SYSTEMS_AUDIT': {
+          whatItIs: 'A comprehensive review of your business systems, processes, and documentation. We map what exists, identify gaps, and create a prioritised roadmap for systemisation. This is essential preparation for growth, transition, or exit.',
+          keyBenefits: [
+            'Complete visibility of how your business actually operates (not how you think it does)',
+            'Identification of knowledge trapped in people\'s heads that needs documenting',
+            'Clear prioritisation of which processes need attention first',
+            'Reduction in founder dependency as systems replace memory',
+            'Preparation for any future sale or transition'
+          ],
+          expectedOutcomes: [
+            'Process inventory showing what exists vs what\'s assumed to exist',
+            'Documentation gap analysis with severity ratings',
+            'Knowledge dependency map (who knows what)',
+            'System health assessment across operations, finance, sales, delivery',
+            'Prioritised systemisation roadmap with quick wins identified',
+            'Estimated effort and cost for each improvement area'
+          ],
+          typicalROI: 'Reduces key person risk which typically adds 10-20% to business valuation. For a £20M business, that\'s £2-4M in protected/created value.',
+          whoItsFor: 'Business owners who want to step back, prepare for exit, or reduce the chaos of having everything in their head.'
+        },
+        'QUARTERLY_BI_SUPPORT': {
+          whatItIs: 'Ongoing business intelligence and benchmarking support. We turn your management accounts into strategic intelligence with quarterly benchmarking updates, monthly KPI tracking, and continuous insight from your financial data.',
+          keyBenefits: [
+            'Never be surprised by your numbers again - early warning of trends',
+            'See how you compare to peers continuously, not just once',
+            'Accountability partner for margin and efficiency improvements',
+            'Data-driven board/leadership conversations',
+            'Build a performance track record that adds value at exit'
+          ],
+          expectedOutcomes: [
+            'Monthly dashboard with key metrics vs targets and benchmarks',
+            'Quarterly deep-dive benchmarking report with trend analysis',
+            'Identification of margin leakage or efficiency opportunities',
+            'Strategic recommendations based on emerging patterns',
+            'Annual performance summary showing trajectory'
+          ],
+          typicalROI: 'Clients typically identify 2-5% margin improvement opportunities within first 6 months. On £5M revenue, that\'s £100-250k annually.',
+          whoItsFor: 'Business owners who want to run their business on data, not gut feel, and want continuous improvement not one-off analysis.'
+        },
+        'PROFIT_EXTRACTION': {
+          whatItIs: 'Strategic analysis of how to extract value from your business tax-efficiently. We review your current structure and model options for salary, dividends, pension contributions, and capital extraction.',
+          keyBenefits: [
+            'Understand the most tax-efficient way to take money out of your business',
+            'Model different scenarios before making decisions',
+            'Ensure you\'re not leaving money on the table',
+            'Plan extraction timing around business and personal circumstances',
+            'Peace of mind that you\'re optimising your position'
+          ],
+          expectedOutcomes: [
+            'Current structure review and efficiency assessment',
+            'Options analysis with tax modelling for each scenario',
+            'Implementation plan with timeline',
+            'Ongoing optimisation recommendations',
+            'Coordination brief for your accountant'
+          ],
+          typicalROI: 'Typically identifies 5-15% efficiency gain on extraction. On £100k extracted, that\'s £5-15k saved annually.',
+          whoItsFor: 'Business owners with surplus cash or profits who want to ensure they\'re extracting value efficiently.'
+        },
+        'FRACTIONAL_COO': {
+          whatItIs: 'Part-time Chief Operating Officer support. Senior operational leadership on a flexible basis - typically 1-2 days per week. We handle operational excellence so you can focus on strategy and growth.',
+          keyBenefits: [
+            'Senior operational expertise without full-time cost',
+            'Someone who can actually run the business when you\'re not there',
+            'Systematic operational improvement, not just firefighting',
+            'Accountability for delivery and efficiency',
+            'Reduces founder dependency practically, not just on paper'
+          ],
+          expectedOutcomes: [
+            'Operations that run smoothly without constant founder input',
+            'Improved efficiency and reduced operational chaos',
+            'Clear accountability and performance management',
+            'Documented processes and improved systems',
+            'Founder able to take holidays without the business suffering'
+          ],
+          typicalROI: '10-20% efficiency improvement typical. On £5M revenue business, that\'s £500k-1M in freed capacity or saved cost.',
+          whoItsFor: 'Growing businesses where the founder is still the chief everything officer and wants to step back from operations.'
+        },
+        'GOAL_ALIGNMENT': {
+          whatItIs: 'Structured programme to align your business strategy with your personal goals. We work through what you actually want from the business and create a roadmap to get there.',
+          keyBenefits: [
+            'Clarity on what you\'re actually working towards',
+            'Business strategy that serves your life, not the other way around',
+            'Alignment between daily decisions and long-term goals',
+            'Framework for saying no to wrong opportunities',
+            'Motivation from knowing the destination'
+          ],
+          expectedOutcomes: [
+            'Personal goals documented and prioritised',
+            'Business strategy aligned to those goals',
+            'Gap analysis between current state and desired future',
+            'Roadmap with milestones and decision points',
+            'Quarterly review framework to stay on track'
+          ],
+          typicalROI: 'Priceless - the cost of working towards the wrong goals for years is incalculable.',
+          whoItsFor: 'Business owners who feel busy but not sure they\'re heading where they want to go.'
+        },
+        'STRATEGIC_ADVISORY': {
+          whatItIs: 'Ongoing strategic advisory support. Regular meetings with a senior advisor who knows your business, challenges you on strategy, and helps you think through key decisions.',
+          keyBenefits: [
+            'Someone to think with who isn\'t invested in the status quo',
+            'Challenge and support in equal measure',
+            'Pattern recognition from seeing many businesses',
+            'Accountability for strategic priorities',
+            'Reduced isolation of leadership'
+          ],
+          expectedOutcomes: [
+            'Regular strategic review sessions',
+            'Challenge and support on key decisions',
+            'Introduction to relevant network contacts',
+            'External perspective on opportunities and threats',
+            'Board-level thinking without a formal board'
+          ],
+          typicalROI: 'One good decision or one avoided mistake typically pays for years of advisory.',
+          whoItsFor: 'Business owners who want a thinking partner and don\'t have a board or peer group.'
+        }
+      };
+      
       const servicesWithDetails = opportunities?.filter((o: any) => o.service) || [];
       const uniqueServices = new Map<string, any>();
       servicesWithDetails.forEach((opp: any) => {
@@ -400,9 +547,9 @@ ${opp.concept ? `  - Problem it solves: ${opp.concept.problem_it_solves || 'N/A'
       });
 
       if (uniqueServices.size > 0) {
-        md += `## 7B. RECOMMENDED SERVICES SUMMARY
+        md += `## 7B. RECOMMENDED SERVICES - WHAT WE CAN DO FOR YOU
 
-Based on the analysis above, we recommend the following services to address the identified issues:
+Based on the analysis above, we recommend the following services. Each is designed to address specific issues identified in your business.
 
 `;
         let serviceIdx = 1;
@@ -410,21 +557,47 @@ Based on the analysis above, we recommend the following services to address the 
           const svc = entry.service;
           const opps = entry.opportunities;
           const totalImpact = opps.reduce((sum: number, o: any) => sum + (o.financial_impact_amount || 0), 0);
+          const enhancement = serviceEnhancements[svc.code] || null;
           
           md += `### ${serviceIdx}. ${svc.name}
-**Code:** ${svc.code}
-**Category:** ${svc.category || 'General'}
-**Price:** ${svc.price_from ? `£${svc.price_from.toLocaleString()}` : 'Contact'} - ${svc.price_to ? `£${svc.price_to.toLocaleString()}` : ''} ${svc.price_unit || ''}
+
+**Investment:** ${svc.price_from ? `£${svc.price_from.toLocaleString()}` : 'Contact'} - ${svc.price_to ? `£${svc.price_to.toLocaleString()}` : ''} ${svc.price_unit || ''}
 **Typical Duration:** ${svc.typical_duration || 'Varies by scope'}
 
-**Headline:** ${svc.headline || 'N/A'}
+`;
+          // What It Is - use enhanced description if available
+          md += `#### What This Service Is
 
-**Description:** ${svc.description || 'Contact for details'}
+${enhancement?.whatItIs || svc.description || 'Contact for details'}
 
 `;
-          // Deliverables
-          if (svc.deliverables && svc.deliverables.length > 0) {
-            md += `**What You'll Receive:**
+          // Key Benefits
+          if (enhancement?.keyBenefits && enhancement.keyBenefits.length > 0) {
+            md += `#### Key Benefits
+
+`;
+            enhancement.keyBenefits.forEach((b: string) => {
+              md += `- ${b}
+`;
+            });
+            md += `
+`;
+          }
+
+          // What You'll Receive - use enhanced outcomes or deliverables
+          if (enhancement?.expectedOutcomes && enhancement.expectedOutcomes.length > 0) {
+            md += `#### What You'll Receive
+
+`;
+            enhancement.expectedOutcomes.forEach((o: string) => {
+              md += `- ${o}
+`;
+            });
+            md += `
+`;
+          } else if (svc.deliverables && svc.deliverables.length > 0) {
+            md += `#### What You'll Receive
+
 `;
             svc.deliverables.forEach((d: string) => {
               md += `- ${d}
@@ -434,29 +607,59 @@ Based on the analysis above, we recommend the following services to address the 
 `;
           }
 
-          // Why recommended
-          md += `**Why This Service Is Recommended:**
-This service directly addresses ${opps.length} identified ${opps.length === 1 ? 'issue' : 'issues'}:
+          // Why it's relevant FOR THIS CLIENT
+          md += `#### Why This Is Relevant For ${clientName || 'Your Business'}
+
+This service directly addresses ${opps.length} ${opps.length === 1 ? 'issue' : 'issues'} we've identified in your business:
+
 `;
           opps.forEach((opp: any) => {
-            md += `- **${opp.severity?.toUpperCase() || 'MEDIUM'}:** ${opp.title}${opp.financial_impact_amount ? ` (£${opp.financial_impact_amount.toLocaleString()} impact)` : ''}
+            md += `**${opp.severity?.toUpperCase() || 'MEDIUM'}: ${opp.title}**
+`;
+            if (opp.data_evidence) {
+              md += `_Evidence:_ ${opp.data_evidence.substring(0, 200)}${opp.data_evidence.length > 200 ? '...' : ''}
+`;
+            }
+            if (opp.financial_impact_amount) {
+              md += `_Financial Impact:_ £${opp.financial_impact_amount.toLocaleString()}
+`;
+            }
+            md += `
 `;
           });
           
           if (opps[0].service_fit_rationale) {
-            md += `
-**Service Fit Rationale:** ${opps[0].service_fit_rationale}
+            md += `**Why This Service Fits:** ${opps[0].service_fit_rationale}
+
 `;
           }
 
+          // Typical ROI
+          if (enhancement?.typicalROI) {
+            md += `#### Typical Return on Investment
+
+${enhancement.typicalROI}
+
+`;
+          }
+
+          // Who It's For
+          if (enhancement?.whoItsFor) {
+            md += `#### Who This Is For
+
+${enhancement.whoItsFor}
+
+`;
+          }
+
+          // Combined Impact
           if (totalImpact > 0) {
-            md += `
-**Combined Potential Impact:** £${totalImpact.toLocaleString()}
+            md += `#### Combined Potential Impact: £${totalImpact.toLocaleString()}
+
 `;
           }
 
-          md += `
----
+          md += `---
 
 `;
           serviceIdx++;
