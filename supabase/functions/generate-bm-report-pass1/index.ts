@@ -2026,6 +2026,45 @@ PRESENT HONESTLY:
 The client isn't stupid. Telling a £750K business they're leaving £700K on the table sounds like nonsense.
 
 ═══════════════════════════════════════════════════════════════════════════════
+CRITICAL: MARGIN METRIC HIERARCHY (MUST READ)
+═══════════════════════════════════════════════════════════════════════════════
+
+Margin metrics are NESTED, not independent:
+
+  Revenue
+  └─ Gross Profit = Revenue × Gross Margin %
+       └─ EBITDA = Gross Profit - Overheads
+            └─ Net Profit = EBITDA - Depreciation - Interest - Tax
+
+This means:
+- Gross margin gap FLOWS INTO EBITDA gap (they overlap)
+- EBITDA gap FLOWS INTO net margin gap (they overlap)
+- You CANNOT add gross margin gap + EBITDA gap — that's double counting
+
+WRONG (double counting):
+- Gross margin gap: £646,000
+- EBITDA margin gap: £1,260,000
+- TOTAL: £1,906,000 ❌ The £646k is already INSIDE the £1.26M
+
+RIGHT (pick ONE level):
+Option A — Use the HIGHEST-LEVEL gap with actionable levers:
+- Gross margin gap: £646,000 (the direct input lever — pricing and direct costs)
+- This is the number for totalAnnualOpportunity
+- Mention EBITDA gap in narrative as "additional overhead opportunity" but do NOT add it
+
+Option B — Use EBITDA gap as the total (if overhead reduction is also a real lever):
+- EBITDA gap: £1,260,000 (includes both margin recovery AND overhead savings)
+- Break down as: "£646k from margin recovery + £614k from overhead reduction"
+- totalAnnualOpportunity = £1,260,000 (NOT £1,906,000)
+
+RULE: totalAnnualOpportunity should reflect the EBITDA gap OR the gross margin gap,
+NEVER the sum of both. If in doubt, use the gross margin gap (most conservative,
+most directly actionable).
+
+The recommendations can list margin recovery and overhead reduction as separate
+action items, but their annualValue fields must NOT sum to more than the EBITDA gap.
+
+═══════════════════════════════════════════════════════════════════════════════
 MINIMUM VIABLE ANALYSIS RULES - CRITICAL
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -4819,6 +4858,45 @@ When writing narratives:
       console.error('[BM Pass 1] ❌ JSON parse failed:', parseError);
       console.error('[BM Pass 1] Content preview:', content.substring(0, 500));
       throw new Error('Failed to parse LLM response as JSON');
+    }
+    
+    // ====================================================================
+    // POST-LLM VALIDATION: Prevent margin double-counting
+    // ====================================================================
+    if (pass1Data.opportunitySizing?.breakdown && pass1Data.opportunitySizing.breakdown.length > 1) {
+      const margins = pass1Data.opportunitySizing.breakdown.filter((b: any) => 
+        b.metric?.toLowerCase().includes('margin') || 
+        b.metric?.toLowerCase().includes('ebitda') ||
+        b.metric?.toLowerCase().includes('gross profit')
+      );
+      
+      if (margins.length > 1) {
+        // Multiple margin metrics in the breakdown — likely double-counting
+        // Keep only the largest (most comprehensive) one
+        const sorted = margins.sort((a: any, b: any) => 
+          (b.annualImpact || b.realisticCapture || 0) - (a.annualImpact || a.realisticCapture || 0)
+        );
+        const keep = sorted[0];
+        const remove = sorted.slice(1);
+        
+        const removeMetrics = remove.map((r: any) => r.metric);
+        pass1Data.opportunitySizing.breakdown = pass1Data.opportunitySizing.breakdown.filter(
+          (b: any) => !removeMetrics.includes(b.metric)
+        );
+        
+        // Recalculate total
+        const newTotal = pass1Data.opportunitySizing.breakdown.reduce(
+          (sum: number, b: any) => sum + (b.annualImpact || b.realisticCapture || 0), 0
+        );
+        
+        console.log(`[Pass 1] ⚠️ Margin double-count detected: ${margins.map((m: any) => `${m.metric}=£${((m.annualImpact || m.realisticCapture || 0)/1000).toFixed(0)}k`).join(' + ')}`);
+        console.log(`[Pass 1] Kept: ${keep.metric} (£${((keep.annualImpact || keep.realisticCapture || 0)/1000).toFixed(0)}k). Removed: ${removeMetrics.join(', ')}`);
+        console.log(`[Pass 1] Adjusted totalAnnualOpportunity: £${((pass1Data.opportunitySizing.totalAnnualOpportunity || 0)/1000).toFixed(0)}k → £${(newTotal/1000).toFixed(0)}k`);
+        
+        pass1Data.opportunitySizing._doubleCountCorrected = true;
+        pass1Data.opportunitySizing._originalTotal = pass1Data.opportunitySizing.totalAnnualOpportunity;
+        pass1Data.opportunitySizing.totalAnnualOpportunity = newTotal;
+      }
     }
     
     const tokensUsed = result.usage?.total_tokens || 0;

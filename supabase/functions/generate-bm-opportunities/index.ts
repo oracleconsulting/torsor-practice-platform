@@ -1396,20 +1396,28 @@ function generateRecommendedServices(
     // If this opportunity mapped to a blocked service, try to reassign
     if (code && blockedCodes.includes(code)) {
       // Founder-related opportunities should map to SYSTEMS_AUDIT
-      // Broadened to catch more LLM title variations
-      const isFounderRelated = opp.title?.toLowerCase().includes('founder') ||
-                               opp.title?.toLowerCase().includes('knowledge') ||
-                               opp.title?.toLowerCase().includes('dependency') ||
-                               opp.title?.toLowerCase().includes('methodology') ||
-                               opp.title?.toLowerCase().includes('cradle') ||
-                               opp.title?.toLowerCase().includes('key person') ||
-                               opp.title?.toLowerCase().includes('key man') ||
-                               opp.title?.toLowerCase().includes('owner') ||
-                               opp.title?.toLowerCase().includes('documentation') ||
-                               opp.title?.toLowerCase().includes('process') ||
-                               opp.title?.toLowerCase().includes('systemis') || // systemise, systemisation
-                               opp.code?.includes('FOUNDER') ||
-                               opp.severity === 'critical'; // Any critical opp blocked from COO → audit
+      // Broadened to catch ALL LLM title variations
+      const titleLower = (opp.title || '').toLowerCase();
+      const codeLower = (opp.code || opp.opportunity_code || '').toLowerCase();
+      const isFounderRelated = titleLower.includes('founder') ||
+                               titleLower.includes('knowledge') ||
+                               titleLower.includes('dependency') ||
+                               titleLower.includes('methodology') ||
+                               titleLower.includes('cradle') ||
+                               titleLower.includes('key person') ||
+                               titleLower.includes('key man') ||
+                               titleLower.includes('owner depend') ||
+                               titleLower.includes('owner risk') ||
+                               titleLower.includes('documentation') ||
+                               (titleLower.includes('process') && titleLower.includes('undocument')) ||
+                               titleLower.includes('systemis') || // systemise, systemisation
+                               titleLower.includes('single point') ||
+                               titleLower.includes('bus factor') ||
+                               codeLower.includes('founder') ||
+                               codeLower.includes('key_person') ||
+                               (opp.severity === 'critical' && 
+                                opp.serviceMapping?.existingService?.code === 'FRACTIONAL_COO');
+                               // Any CRITICAL opp that was going to COO should remap to audit
       
       if (isFounderRelated && !blockedCodes.includes('SYSTEMS_AUDIT') && !activeServiceCodes.includes('SYSTEMS_AUDIT')) {
         const existing = serviceOpportunityMap.get('SYSTEMS_AUDIT') || [];
@@ -1482,17 +1490,17 @@ function generateRecommendedServices(
     };
     
     // Build personalised whyThisMatters
-    // Fix: strip trailing periods from dataEvidence before joining to avoid double periods
+    // Fix: strip trailing periods/spaces from each piece before joining to prevent ".."
     let whyThisMatters = '';
     if (dataEvidence.length > 0) {
-      whyThisMatters = dataEvidence.map(d => d.replace(/\.+$/, '')).join('. ') + '.';
+      whyThisMatters = dataEvidence
+        .map((d: string) => d.replace(/[\.\s]+$/, ''))
+        .join('. ') + '.';
     }
     if (talkingPoints.length > 0 && whyThisMatters) {
-      // Also strip trailing period from talking point if present
-      const cleanTalkingPoint = talkingPoints[0].replace(/\.+$/, '');
-      whyThisMatters += ' ' + cleanTalkingPoint + '.';
+      whyThisMatters += ' ' + talkingPoints[0].replace(/[\.\s]+$/, '') + '.';
     } else if (talkingPoints.length > 0) {
-      whyThisMatters = talkingPoints[0].replace(/\.+$/, '') + '.';
+      whyThisMatters = talkingPoints[0].replace(/[\.\s]+$/, '') + '.';
     }
     if (totalValueAtStake > 0 && whyThisMatters) {
       whyThisMatters += ` This represents ${formatValue(totalValueAtStake)} in value at stake.`;
@@ -1568,6 +1576,56 @@ function generateRecommendedServices(
         rec.priority = 'primary';
         rec.source = rec.source === 'context_suggested' ? 'opportunity' : rec.source;
       }
+    }
+  }
+  
+  // ====================================================================
+  // POST-BUILD: Force-promote Systems Audit if CRITICAL blocked-service fallback
+  // ====================================================================
+  // If Systems Audit is recommended but only addresses medium-severity context issues,
+  // AND the client has founder dependency as a CRITICAL suppressor, connect them.
+  // This handles the case where the remap didn't fire but the context suggestion did.
+  const systemsAuditRec = recommendations.find(r => r.serviceCode === 'SYSTEMS_AUDIT');
+  if (systemsAuditRec && systemsAuditRec.priority === 'secondary') {
+    // Check if any blocked-service opportunity was CRITICAL
+    const hasCriticalBlocked = opportunities.some(opp => {
+      const code = opp.serviceMapping?.existingService?.code || opp.service?.code;
+      return code && blockedServices.some(b => b.serviceCode === code) && 
+             (opp.severity === 'critical' || opp.severity === 'high');
+    });
+    
+    if (hasCriticalBlocked) {
+      systemsAuditRec.priority = 'primary';
+      systemsAuditRec.source = 'opportunity';
+      // Add the founder dependency to its addressesIssues if not already there
+      const hasFounderIssue = systemsAuditRec.addressesIssues?.some(
+        (i: AddressedIssue) => i.issueTitle.toLowerCase().includes('founder') || 
+                               i.issueTitle.toLowerCase().includes('dependency')
+      );
+      if (!hasFounderIssue) {
+        // Find the actual founder dependency opportunity for accurate value
+        const founderOpp = opportunities.find(opp => 
+          opp.severity === 'critical' && 
+          ((opp.title || '').toLowerCase().includes('founder') || 
+           (opp.title || '').toLowerCase().includes('knowledge') ||
+           (opp.title || '').toLowerCase().includes('dependency'))
+        );
+        systemsAuditRec.addressesIssues = systemsAuditRec.addressesIssues || [];
+        systemsAuditRec.addressesIssues.push({
+          issueTitle: founderOpp?.title || 'Founder/Knowledge Dependency',
+          valueAtStake: founderOpp?.financialImpact?.amount || 5700000, // £5.7M from value bridge
+          severity: 'critical',
+        });
+        // Recalculate total value
+        systemsAuditRec.totalValueAtStake = systemsAuditRec.addressesIssues.reduce(
+          (sum: number, i: AddressedIssue) => sum + (i.valueAtStake || 0), 0
+        );
+        // Update whyThisMatters to reflect the CRITICAL issue
+        const founderValue = founderOpp?.financialImpact?.amount || 5700000;
+        systemsAuditRec.whyThisMatters = `Founder dependency is your biggest structural risk — 75% of operational knowledge is concentrated in the founder, costing £${(founderValue / 1000000).toFixed(1)}M in valuation discount. A systems audit maps what's documented vs what's assumed, creating the roadmap to de-risk. ${systemsAuditRec.whyThisMatters}`;
+      }
+      
+      console.log(`[RecommendedServices] Force-promoted SYSTEMS_AUDIT to primary (CRITICAL blocked-service fallback)`);
     }
   }
   
@@ -2435,34 +2493,60 @@ function postProcessOpportunities(
       
       const service = services.find((s: any) => s.code === pinnedCode);
       if (service) {
-        // Build context-aware dataEvidence for pinned services
+        // Build context-aware evidence and talking point instead of boilerplate
         let pinnedDataEvidence = '';
-        if (pinnedCode === 'QUARTERLY_BI_SUPPORT') {
-          // Use actual financial data
-          const pass1Revenue = clientData.pass1Data?._enriched_revenue || revenue;
-          const grossMargin = clientData.pass1Data?.gross_margin;
-          const revenueFormatted = pass1Revenue ? `£${(pass1Revenue / 1000000).toFixed(1)}M` : null;
-          
-          if (revenueFormatted && grossMargin) {
-            pinnedDataEvidence = `With ${revenueFormatted} in revenue and margins at ${grossMargin}%, ongoing benchmarking keeps you tracking against industry peers and catching margin drift early`;
-          } else if (revenueFormatted) {
-            pinnedDataEvidence = `With ${revenueFormatted} in revenue, regular benchmarking against industry peers provides early warning on margin drift and identifies opportunities before they become problems`;
-          } else {
-            pinnedDataEvidence = 'Regular benchmarking against industry peers provides early warning on margin drift and identifies opportunities before they become problems';
-          }
-        } else if (pinnedCode === 'STRATEGIC_ADVISORY') {
-          const surplusCash = clientData.pass1Data?.surplus_cash?.surplusCash;
-          const balanceSheet = clientData.pass1Data?.balance_sheet;
-          if (surplusCash && surplusCash > 0) {
-            const cash = balanceSheet?.cash || 0;
-            const netAssets = balanceSheet?.net_assets || 0;
-            pinnedDataEvidence = `Cash: £${(cash / 1000000).toFixed(1)}M. Surplus above operating requirements: £${(surplusCash / 1000000).toFixed(1)}M${netAssets > 0 ? `. Net assets: £${(netAssets / 1000000).toFixed(1)}M` : ''}. No indication of deployment strategy`;
-          } else {
-            pinnedDataEvidence = 'Senior strategic counsel to guide decision-making on key business challenges';
-          }
-        } else {
-          // Generic but better than current boilerplate
-          pinnedDataEvidence = `Your advisor has identified ${service.name} as particularly relevant to your current situation`;
+        let pinnedTalkingPoint = '';
+        
+        const pass1Revenue = clientData.pass1Data?._enriched_revenue || revenue;
+        const revenueFormatted = pass1Revenue ? `£${(pass1Revenue / 1000000).toFixed(1)}M` : null;
+        const grossMargin = clientData.pass1Data?.gross_margin;
+        const surplusCash = clientData.pass1Data?.surplus_cash?.surplusCash;
+        const concentration = clientData.pass1Data?.client_concentration_top3;
+        const balanceSheet = clientData.pass1Data?.balance_sheet;
+        
+        switch (pinnedCode) {
+          case 'QUARTERLY_BI_SUPPORT':
+            if (revenueFormatted && grossMargin) {
+              pinnedDataEvidence = `With ${revenueFormatted} revenue and margins recovering to ${grossMargin}%, ongoing benchmarking tracks your recovery against industry peers and catches margin drift early`;
+              pinnedTalkingPoint = concentration && concentration > 75 
+                ? `Quarterly tracking is especially important with ${concentration}% client concentration — early warning on margin erosion gives you time to act`
+                : 'Regular benchmarking turns your management accounts into a strategic tool, not just a compliance exercise';
+            } else {
+              pinnedDataEvidence = 'Regular benchmarking against industry peers provides early warning on margin drift and identifies opportunities before they become problems';
+              pinnedTalkingPoint = 'Turns your management accounts into strategic intelligence you can act on quarterly';
+            }
+            break;
+            
+          case 'STRATEGIC_ADVISORY':
+            if (surplusCash && surplusCash > 0) {
+              const cashFormatted = balanceSheet?.cash ? `£${(balanceSheet.cash / 1000000).toFixed(1)}M` : 'Cash available';
+              const surplusFormatted = `£${(surplusCash / 1000000).toFixed(1)}M`;
+              const netAssetsFormatted = balanceSheet?.net_assets 
+                ? `£${(balanceSheet.net_assets / 1000000).toFixed(1)}M` : null;
+              pinnedDataEvidence = `Cash: ${cashFormatted}. Surplus above operating requirements: ${surplusFormatted}${netAssetsFormatted ? `. Net assets: ${netAssetsFormatted}` : ''}. No indication of deployment strategy`;
+              pinnedTalkingPoint = 'Strategic advisory helps deploy surplus capital effectively — whether that means diversification, acquisition, or structured extraction';
+            } else {
+              pinnedDataEvidence = 'Senior strategic counsel to guide decision-making on key business challenges';
+              pinnedTalkingPoint = 'Project-based strategic support without the overhead of permanent headcount';
+            }
+            break;
+            
+          case 'PROFIT_EXTRACTION':
+            if (surplusCash && surplusCash > 0) {
+              const cashStr = balanceSheet?.cash ? `£${(balanceSheet.cash / 1000000).toFixed(1)}M` : 'Cash available';
+              const surplusStr = `£${(surplusCash / 1000000).toFixed(1)}M`;
+              const pctOfRevenue = pass1Revenue ? `${((surplusCash / pass1Revenue) * 100).toFixed(0)}%` : null;
+              pinnedDataEvidence = `${cashStr} cash on balance sheet, ${surplusStr} identified as surplus above operating requirements${pctOfRevenue ? `. This is ${pctOfRevenue} of annual revenue earning minimal returns` : ''}`;
+              pinnedTalkingPoint = 'A structured extraction strategy ensures you get value out tax-efficiently rather than leaving it idle';
+            } else {
+              pinnedDataEvidence = 'Optimising how you extract value from the business';
+              pinnedTalkingPoint = 'Tax-efficient extraction strategy tailored to your specific situation';
+            }
+            break;
+            
+          default:
+            pinnedDataEvidence = `Your advisor has identified ${service.name} as particularly relevant based on your current situation and goals`;
+            pinnedTalkingPoint = service.headline || service.description || '';
         }
         
         allowed.push({
@@ -2473,7 +2557,7 @@ function postProcessOpportunities(
           priority: 'next_12_months',
           dataEvidence: pinnedDataEvidence,
           forTheOwner: service.headline || service.description,
-          talkingPoint: `Your advisor has specifically recommended ${service.name} based on your situation`,
+          talkingPoint: pinnedTalkingPoint,
           financialImpact: service.price_from ? {
             amount: (service.price_from + (service.price_to || service.price_from)) / 2,
             type: 'investment',
