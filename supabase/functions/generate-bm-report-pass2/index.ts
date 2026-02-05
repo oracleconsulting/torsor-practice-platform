@@ -41,9 +41,9 @@ THEIR WORDS (USE THESE VERBATIM)
 ═══════════════════════════════════════════════════════════════════════════════
 
 SUSPECTED UNDERPERFORMANCE: "${quotes.suspectedUnderperformance || 'Not specified'}"
-WHERE THEY'RE LEAVING MONEY: "${quotes.leavingMoney}"
+WHERE THEY'RE LEAVING MONEY: "${quotes.leavingMoney || 'Not specified'}"
 COMPETITOR ENVY: "${quotes.competitorEnvy || 'Not specified'}"
-MAGIC FIX: "${quotes.magicFix}"
+MAGIC FIX: "${quotes.magicFix || 'Not specified'}"
 BLIND SPOT FEAR: "${quotes.blindSpotFear || 'Not specified'}"
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -251,7 +251,7 @@ Return JSON:
 {
   "headline": "Under 25 words. Include the £ opportunity and their stated concern.",
   
-  "executiveSummary": "3 paragraphs following the story arc. Start with their blind spot fear or suspected underperformance. End with their magic fix quoted verbatim.",
+  "executiveSummary": "3 paragraphs following the story arc. Start with their blind spot fear or suspected underperformance. End with the data-driven opportunity. If a magic fix was specified by the client (not 'Not specified'), reference it; otherwise focus on the numbers.",
   
   "positionNarrative": "2 paragraphs. Where they actually sit. Be honest but constructive. Reference specific percentiles.",
   
@@ -339,7 +339,7 @@ EVERY narrative must include:
 - At least ONE verbatim client quote per section
 - At least THREE specific numbers per section
 - Their suspected underperformance connected to actual findings
-- Their magic fix quoted exactly in the opportunity section
+- If the client specified a magic fix (not "Not specified"), reference it in the opportunity section. If it says "Not specified", skip it entirely and focus on the data-driven opportunity instead.
 - If their blind spot fear was confirmed, address it directly
 - If their perception was wrong, correct it gently with evidence
 
@@ -470,14 +470,19 @@ serve(async (req) => {
     let narratives = JSON.parse(content);
     
     // Sanitise AI writing tells — replace em dashes with periods
+    // Also remove any literal "undefined" that leaked from missing client quotes
     const sanitiseNarrative = (text: string): string => {
       if (!text) return text;
-      // Replace em dash with period + space (most common pattern is "X — Y" or "X—Y")
       return text
+        // Remove "undefined" patterns (e.g. your "undefined" opportunity, their "undefined" in action)
+        .replace(/\s*[""\u201C\u201D]undefined[""\u201C\u201D]\s*/gi, ' ')
+        .replace(/\bundefined\b/gi, '')  // catch any unquoted "undefined"
+        // Replace em dash with period + space (most common pattern is "X — Y" or "X—Y")
         .replace(/\s*—\s*/g, '. ')    // em dash
         .replace(/\s*–\s*/g, '. ')    // en dash used as em dash
         .replace(/\.\.\s/g, '. ')      // clean up any double periods from replacement
         .replace(/\.\s\./g, '.')       // clean up ". ." patterns
+        .replace(/\s{2,}/g, ' ')       // collapse multiple spaces
         .trim();
     };
 

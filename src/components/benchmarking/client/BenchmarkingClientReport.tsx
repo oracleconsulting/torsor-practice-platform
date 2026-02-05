@@ -242,7 +242,35 @@ export function BenchmarkingClientReport({
   const [printMode, setPrintMode] = useState(false);
   
   const metrics = safeJsonParse<MetricComparison[]>(data.metrics_comparison, []);
-  const recommendations = safeJsonParse(data.recommendations, []);
+  const rawRecommendations = safeJsonParse(data.recommendations, []);
+  
+  // Normalize recommendation values to sum to the hero total
+  // This ensures the breakdown adds up to the headline figure
+  const heroTotal = parseFloat(data.total_annual_opportunity) || 0;
+  const recommendations = useMemo(() => {
+    if (!rawRecommendations.length || heroTotal <= 0) return rawRecommendations;
+    
+    const currentSum = rawRecommendations.reduce(
+      (sum: number, rec: any) => sum + (rec.annualValue || 0), 
+      0
+    );
+    
+    // If already close enough (within 5%), don't normalize
+    if (currentSum > 0 && Math.abs(currentSum - heroTotal) / heroTotal < 0.05) {
+      return rawRecommendations;
+    }
+    
+    // Scale each recommendation proportionally
+    if (currentSum > 0) {
+      const scaleFactor = heroTotal / currentSum;
+      return rawRecommendations.map((rec: any) => ({
+        ...rec,
+        annualValue: Math.round((rec.annualValue || 0) * scaleFactor)
+      }));
+    }
+    
+    return rawRecommendations;
+  }, [rawRecommendations, heroTotal]);
   
   // Handle PDF export - uses browser print dialog
   // User can select "Save as PDF" from their browser's print options

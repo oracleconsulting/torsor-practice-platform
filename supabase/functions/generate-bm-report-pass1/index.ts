@@ -3769,6 +3769,27 @@ function enrichBenchmarkData(
         console.log(`  - Exit readiness breakdown: ${enriched.exit_readiness_breakdown.totalScore}/${enriched.exit_readiness_breakdown.maxScore}`);
         console.log(`  - Two paths narrative generated`);
         
+        // Pre-sync diagnostic (always log to verify sync block runs)
+        console.log(`[BM Enrich] EXIT READINESS PRE-SYNC: breakdown=${enriched.exit_readiness_breakdown?.totalScore}, valueBridge=${valueAnalysisResult?.exitReadiness?.score}`);
+        
+        // ====================================================================
+        // SYNC EXIT READINESS: Use breakdown as single source of truth
+        // ====================================================================
+        // The two functions (calculateValueExitReadiness and calculateExitReadinessBreakdown)
+        // have historically diverged by 2-3 points because they use different data sources
+        // for documentation scoring. Use the breakdown score as the SSOT and sync.
+        if (enriched.exit_readiness_breakdown?.totalScore !== undefined && valueAnalysisResult?.exitReadiness) {
+          const breakdownScore = enriched.exit_readiness_breakdown.totalScore;
+          const valueScore = valueAnalysisResult.exitReadiness.score;
+          if (breakdownScore !== valueScore) {
+            console.log(`[BM Enrich] Exit readiness sync: value bridge ${valueScore} -> breakdown ${breakdownScore} (using breakdown as SSOT)`);
+            valueAnalysisResult.exitReadiness.score = breakdownScore;
+            valueAnalysisResult.exitReadiness.verdict = breakdownScore >= 70 ? 'ready' : breakdownScore >= 40 ? 'needs_work' : 'not_ready';
+            // Re-assign to enriched since we modified valueAnalysisResult
+            enriched.value_analysis = valueAnalysisResult;
+          }
+        }
+        
         // ====================================================================
         // OPPORTUNITY CALCULATIONS (Full Transparency)
         // ====================================================================
@@ -5521,99 +5542,85 @@ When writing narratives:
     }
     
     // ====================================================================
-    // POST-LLM: Remove misleading EBITDA IMPACT when gross margin drives opportunity
+    // POST-LLM: Remove ALL annualImpact from metric cards
     // ====================================================================
-    // If the opportunity total is based on gross margin (not EBITDA), showing an
-    // EBITDA "IMPACT" figure on its metric card confuses the reader because it's
-    // larger than the hero total and isn't independently achievable.
-    if (pass1Data.metricsComparison && pass1Data.opportunitySizing?._doubleCountCorrected) {
-      const ebitdaMetric = pass1Data.metricsComparison.find((m: any) => {
-        const code = (m.metricCode || m.metric_code || '').toLowerCase();
-        return code.includes('ebitda');
-      });
-      
-      if (ebitdaMetric && ebitdaMetric.annualImpact) {
-        console.log(`[Pass 1] Removing EBITDA annualImpact (£${ebitdaMetric.annualImpact}) — gross margin drives the opportunity total, EBITDA impact is not independently achievable`);
-        ebitdaMetric._originalAnnualImpact = ebitdaMetric.annualImpact;
-        ebitdaMetric.annualImpact = null;
-        ebitdaMetric.annual_impact = null;
-      }
-    }
-    
-    // Also handle the case where double-count was NOT corrected but EBITDA impact
-    // exceeds the total opportunity — indicates the LLM already picked one metric
-    if (pass1Data.metricsComparison && pass1Data.opportunitySizing?.totalAnnualOpportunity) {
-      const total = pass1Data.opportunitySizing.totalAnnualOpportunity;
-      const ebitdaMetric = pass1Data.metricsComparison.find((m: any) => {
-        const code = (m.metricCode || m.metric_code || '').toLowerCase();
-        return code.includes('ebitda');
-      });
-      const gmMetric = pass1Data.metricsComparison.find((m: any) => {
-        const code = (m.metricCode || m.metric_code || '').toLowerCase();
-        return code.includes('gross_margin') || code.includes('gross margin');
-      });
-      
-      // If BOTH have impact values and their sum exceeds the total, keep only the one
-      // that matches the opportunity total most closely
-      if (ebitdaMetric?.annualImpact && gmMetric?.annualImpact) {
-        const ebitdaImpact = ebitdaMetric.annualImpact;
-        const gmImpact = gmMetric.annualImpact;
-        
-        if (ebitdaImpact + gmImpact > total * 1.3) {
-          // Sum is >30% higher than total — one of them is redundant
-          // Keep whichever is closer to the total
-          const ebitdaDiff = Math.abs(ebitdaImpact - total);
-          const gmDiff = Math.abs(gmImpact - total);
-          
-          if (ebitdaDiff > gmDiff) {
-            // Gross margin is closer to total — EBITDA is redundant
-            console.log(`[Pass 1] EBITDA impact (£${ebitdaImpact}) + GM impact (£${gmImpact}) exceeds total (£${total}). Removing EBITDA impact.`);
-            ebitdaMetric._originalAnnualImpact = ebitdaMetric.annualImpact;
-            ebitdaMetric.annualImpact = null;
-            ebitdaMetric.annual_impact = null;
-          } else {
-            // EBITDA is closer — GM is the subset
-            console.log(`[Pass 1] EBITDA impact (£${ebitdaImpact}) + GM impact (£${gmImpact}) exceeds total (£${total}). Removing GM impact.`);
-            gmMetric._originalAnnualImpact = gmMetric.annualImpact;
-            gmMetric.annualImpact = null;
-            gmMetric.annual_impact = null;
-          }
+    // The hero number (totalAnnualOpportunity) already communicates the total
+    // opportunity. Individual metric IMPACT badges are generated non-deterministically
+    // by the LLM and cause recurring regressions:
+    //   R13: EBITDA showed £2.0M, R15: Gross Margin showed £1.1M, Net Margin £126k
+    // Rather than playing whack-a-mole with each metric, strip them all.
+    // The opportunity breakdown in recommendations still shows per-metric detail.
+    if (pass1Data.metricsComparison) {
+      let stripped = 0;
+      for (const metric of pass1Data.metricsComparison) {
+        if (metric.annualImpact != null && metric.annualImpact > 0) {
+          metric._originalAnnualImpact = metric.annualImpact;
+          metric.annualImpact = null;
+          stripped++;
+        }
+        if (metric.annual_impact != null && metric.annual_impact > 0) {
+          metric._originalAnnualImpact = metric._originalAnnualImpact || metric.annual_impact;
+          metric.annual_impact = null;
         }
       }
-    }
-    
-    // ====================================================================
-    // POST-LLM: Final safety — EBITDA impact must not exceed hero total
-    // ====================================================================
-    // If neither path above fired, catch the case where EBITDA annualImpact
-    // alone exceeds the total opportunity — this always means it's a
-    // derivative metric, not an independent lever.
-    if (pass1Data.metricsComparison && pass1Data.opportunitySizing?.totalAnnualOpportunity) {
-      const total = pass1Data.opportunitySizing.totalAnnualOpportunity;
-      const ebitdaMetric = pass1Data.metricsComparison.find((m: any) => {
-        const code = (m.metricCode || m.metric_code || '').toLowerCase();
-        return code.includes('ebitda');
-      });
-      
-      if (ebitdaMetric?.annualImpact && ebitdaMetric.annualImpact > total * 1.1) {
-        console.log(`[Pass 1] EBITDA annualImpact (£${ebitdaMetric.annualImpact}) exceeds total opportunity (£${total}) — removing to prevent confusion with hero number`);
-        ebitdaMetric._originalAnnualImpact = ebitdaMetric.annualImpact;
-        ebitdaMetric.annualImpact = null;
-        ebitdaMetric.annual_impact = null;
+      if (stripped > 0) {
+        console.log(`[Pass 1] Stripped annualImpact from ${stripped} metric card(s) - hero number is the single source of truth`);
       }
     }
     
     // ====================================================================
-    // POST-LLM: Use deterministic opportunity calculation if available
+    // POST-LLM: Stabilise hero number using deterministic calculation
     // ====================================================================
-    // The LLM may override the deterministic calculation with a different number.
-    // If the deterministic calculation exists and differs significantly (>20%), use it.
+    // The LLM generates totalAnnualOpportunity non-deterministically, causing
+    // the hero number to change on every re-run (£753k -> £1,077k -> £750k).
+    // ALWAYS use the deterministic opportunity_calculations as the source of truth
+    // to ensure the hero number is stable across regenerations.
+    
+    // Debug: log what paths exist for opportunity_calculations
+    console.log(`[Pass 1] Hero debug: opportunity_calculations exists=${!!assessmentData.opportunity_calculations}`);
+    if (assessmentData.opportunity_calculations) {
+      console.log(`[Pass 1] Hero debug: margin_opportunity exists=${!!assessmentData.opportunity_calculations.margin_opportunity}`);
+      console.log(`[Pass 1] Hero debug: calculation exists=${!!assessmentData.opportunity_calculations.margin_opportunity?.calculation}`);
+      console.log(`[Pass 1] Hero debug: finalValue=${assessmentData.opportunity_calculations.margin_opportunity?.calculation?.finalValue}`);
+    }
+    console.log(`[Pass 1] Hero debug: LLM totalAnnualOpportunity=${pass1Data.opportunitySizing?.totalAnnualOpportunity}`);
+    
     if (assessmentData.opportunity_calculations?.margin_opportunity?.calculation?.finalValue) {
       const deterministicTotal = assessmentData.opportunity_calculations.margin_opportunity.calculation.finalValue;
       const llmTotal = pass1Data.opportunitySizing?.totalAnnualOpportunity;
-      if (llmTotal && Math.abs(llmTotal - deterministicTotal) > deterministicTotal * 0.2) {
-        console.log(`[Pass 1] Overriding LLM opportunity total (£${llmTotal.toLocaleString()}) with deterministic calculation (£${deterministicTotal.toLocaleString()})`);
-        pass1Data.opportunitySizing.totalAnnualOpportunity = deterministicTotal;
+      
+      // Always override with deterministic value, regardless of difference
+      if (llmTotal !== deterministicTotal) {
+        console.log(`[Pass 1] Hero number override: LLM=${llmTotal?.toLocaleString() || 'undefined'} -> Deterministic=${deterministicTotal.toLocaleString()}`);
+        if (!pass1Data.opportunitySizing) pass1Data.opportunitySizing = {};
+        pass1Data.opportunitySizing._llmOriginal = llmTotal;
+        pass1Data.opportunitySizing._source = 'deterministic_override';
+      }
+      // Always set to deterministic value
+      if (!pass1Data.opportunitySizing) pass1Data.opportunitySizing = {};
+      pass1Data.opportunitySizing.totalAnnualOpportunity = deterministicTotal;
+    }
+    
+    // Fallback: If deterministic override didn't fire, calculate inline
+    if (!pass1Data.opportunitySizing?._source || pass1Data.opportunitySizing._source !== 'deterministic_override') {
+      const gm = assessmentData.gross_margin;
+      const rev = assessmentData._enriched_revenue;
+      const medianGM = 18; // Industry median for TELECOM_INFRA
+      if (gm && rev && gm < medianGM) {
+        const gap = medianGM - gm;
+        const recoveryFactor = assessmentData.industry_code === 'TELECOM_INFRA' ? 0.60 : 0.70;
+        const deterministicFallback = Math.round((gap / 100) * rev * recoveryFactor);
+        const llmTotal = pass1Data.opportunitySizing?.totalAnnualOpportunity;
+        
+        console.log(`[Pass 1] Hero FALLBACK: gm=${gm}%, median=${medianGM}%, gap=${gap}%, rev=${rev}, recovery=${recoveryFactor}`);
+        console.log(`[Pass 1] Hero FALLBACK: deterministic=${deterministicFallback}, LLM=${llmTotal}`);
+        
+        if (!pass1Data.opportunitySizing) pass1Data.opportunitySizing = {};
+        if (llmTotal !== deterministicFallback) {
+          pass1Data.opportunitySizing._llmOriginal = llmTotal;
+        }
+        pass1Data.opportunitySizing.totalAnnualOpportunity = deterministicFallback;
+        pass1Data.opportunitySizing._source = 'deterministic_fallback';
       }
     }
     
@@ -5743,6 +5750,31 @@ When writing narratives:
     }
     if (assessmentData.surplus_cash) {
       pass1Data.surplusCash = assessmentData.surplus_cash;
+    }
+    
+    // ====================================================================
+    // FINAL EXIT READINESS SYNC (belt-and-suspenders)
+    // ====================================================================
+    // The enrichment function syncs these, but as a safety net, verify and
+    // re-sync right before DB write. The breakdown is the single source of truth.
+    const breakdownScore = assessmentData.exit_readiness_breakdown?.totalScore;
+    const valueBridgeScore = assessmentData.value_analysis?.exitReadiness?.score;
+    if (breakdownScore !== undefined && valueBridgeScore !== undefined && breakdownScore !== valueBridgeScore) {
+      console.log(`[Pass 1] FINAL exit readiness sync: valueBridge ${valueBridgeScore} -> breakdown ${breakdownScore}`);
+      assessmentData.value_analysis.exitReadiness.score = breakdownScore;
+      assessmentData.value_analysis.exitReadiness.verdict = 
+        breakdownScore >= 70 ? 'ready' : breakdownScore >= 40 ? 'needs_work' : 'not_ready';
+    } else if (breakdownScore !== undefined && valueBridgeScore !== undefined) {
+      console.log(`[Pass 1] Exit readiness already synced: both ${breakdownScore}`);
+    } else {
+      console.log(`[Pass 1] Exit readiness sync skipped: breakdown=${breakdownScore}, valueBridge=${valueBridgeScore}`);
+    }
+    
+    // Ensure pass1Data.valueAnalysis also has synced score (for nested value_analysis in pass1_data)
+    if (pass1Data.valueAnalysis?.exitReadiness && breakdownScore !== undefined) {
+      pass1Data.valueAnalysis.exitReadiness.score = breakdownScore;
+      pass1Data.valueAnalysis.exitReadiness.verdict = 
+        breakdownScore >= 70 ? 'ready' : breakdownScore >= 40 ? 'needs_work' : 'not_ready';
     }
     
     // Save to database (including founder risk data if available)
