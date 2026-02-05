@@ -1,5 +1,6 @@
 // ============================================================================
 // DISCOVERY REPORT - PASS 1: EXTRACTION & SCORING + 8-DIMENSION ANALYSIS
+// Includes: Business Type Classification, Financial Analysis, Service Scoring
 // ============================================================================
 // Enhanced version with:
 // - Hidden assets extraction (freehold property, excess cash)
