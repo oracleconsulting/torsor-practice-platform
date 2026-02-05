@@ -11485,21 +11485,44 @@ function BenchmarkingClientModal({
                         })()
                       )}
                     </div>
-                  ) : report && report.status === 'pass1_complete' ? (
+                  ) : report && (report.status === 'pass1_complete' || report.status === 'cancelled') ? (
                     <div className="border border-blue-200 rounded-xl p-6 bg-blue-50">
                       <div className="flex items-center gap-3 mb-4">
-                        <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                        <h3 className="text-lg font-semibold text-blue-900">Report Generation in Progress</h3>
+                        {report.status === 'cancelled' ? (
+                          <AlertCircle className="w-5 h-5 text-amber-600" />
+                        ) : (
+                          <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                        )}
+                        <h3 className="text-lg font-semibold text-blue-900">
+                          {report.status === 'cancelled' ? 'Generation Cancelled' : 'Report Generation in Progress'}
+                        </h3>
                       </div>
-                      <p className="text-blue-800 mb-4">
-                        Pass 1 (data extraction) is complete. Narrative generation (Pass 2) is in progress...
-                      </p>
-                      <p className="text-sm text-blue-700 mb-4">
-                        If generation has stopped (e.g., ran out of API credits), you can close this modal and return later, or cancel to restart.
-                      </p>
+                      {report.status === 'cancelled' ? (
+                        <p className="text-amber-800 mb-4">
+                          The report generation was cancelled. You can now regenerate the report from scratch.
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-blue-800 mb-4">
+                            Pass 1 (data extraction) is complete. Narrative generation (Pass 2) is in progress...
+                          </p>
+                          <p className="text-sm text-blue-700 mb-4">
+                            If generation has stopped (e.g., ran out of API credits), you can close this modal and return later, or cancel to restart.
+                          </p>
+                        </>
+                      )}
                       <div className="flex items-center gap-3 flex-wrap">
                         <button
-                          onClick={fetchData}
+                          onClick={async () => {
+                            await fetchData();
+                            // If still stuck, show message
+                            if (report && report.status === 'pass1_complete') {
+                              const reportAge = report.created_at ? (Date.now() - new Date(report.created_at).getTime()) / 1000 / 60 : 0;
+                              if (reportAge > 30) {
+                                alert(`Report has been stuck for ${Math.round(reportAge)} minutes. This likely indicates Pass 2 failed. Use "Force Reset" to clear and regenerate.`);
+                              }
+                            }
+                          }}
                           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
                         >
                           <RefreshCw className="w-4 h-4" />
@@ -11514,14 +11537,14 @@ function BenchmarkingClientModal({
                         </button>
                         <button
                           onClick={async () => {
-                            if (!confirm('This will cancel the current generation and allow you to start fresh. Continue?')) return;
+                            if (!confirm('This will DELETE the current report and allow you to start completely fresh. Continue?')) return;
                             try {
-                              // Reset BOTH report and engagement status to allow regeneration
-                              const { error: reportError } = await supabase
+                              // DELETE the report entirely (most aggressive reset)
+                              const { error: deleteError } = await supabase
                                 .from('bm_reports')
-                                .update({ status: 'cancelled' })
+                                .delete()
                                 .eq('engagement_id', report.engagement_id);
-                              if (reportError) throw reportError;
+                              if (deleteError) throw deleteError;
                               
                               // Also reset engagement status
                               const { error: engError } = await supabase
@@ -11530,26 +11553,29 @@ function BenchmarkingClientModal({
                                 .eq('id', report.engagement_id);
                               if (engError) console.warn('Could not reset engagement status:', engError);
                               
-                              alert('Generation cancelled. You can now regenerate the report.');
-                              // Close modal instead of reloading immediately
+                              // Clear local state
+                              setReport(null);
+                              
+                              alert('Report deleted. You can now regenerate from scratch.');
+                              // Refresh data to show the "Generate Report" button
+                              await fetchData();
+                              // Close modal
                               onClose();
-                              // Refresh data after a short delay
-                              setTimeout(() => {
-                                window.location.reload();
-                              }, 500);
                             } catch (err) {
-                              console.error('Failed to cancel:', err);
-                              alert('Failed to cancel generation. Please try again.');
+                              console.error('Failed to reset:', err);
+                              alert('Failed to reset. Please try again or contact support.');
                             }
                           }}
-                          className="px-4 py-2 border border-red-300 bg-white hover:bg-red-50 text-red-600 rounded-lg flex items-center gap-2"
+                          className="px-4 py-2 border border-red-300 bg-white hover:bg-red-50 text-red-600 rounded-lg flex items-center gap-2 font-semibold"
                         >
                           <XCircle className="w-4 h-4" />
-                          <span>Cancel & Reset</span>
+                          <span>Force Reset & Delete Report</span>
                         </button>
                       </div>
                       <p className="text-xs text-blue-600 mt-3">
-                        If Pass 2 has failed (e.g., API timeout or credits), click "Cancel & Reset" to restart.
+                        {report.status === 'cancelled' 
+                          ? 'Click "Force Reset" to clear the cancelled report and regenerate.'
+                          : 'If Pass 2 has failed (e.g., API timeout or credits), click "Force Reset" to delete and restart.'}
                       </p>
                     </div>
                   ) : (
