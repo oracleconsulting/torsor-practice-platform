@@ -2633,10 +2633,7 @@ serve(async (req) => {
       .select(`
         *,
         client:practice_members!discovery_engagements_client_id_fkey(id, name, email, client_company),
-        discovery:destination_discovery(*),
-        admin_business_type,
-        admin_context_note,
-        admin_flags
+        discovery:destination_discovery(*)
       `)
       .eq('id', engagementId)
       .single();
@@ -3040,9 +3037,9 @@ serve(async (req) => {
     const clientType = classifyBusinessType(
       discoveryResponses, 
       extractedFinancials,
-      engagement.admin_business_type,
-      engagement.admin_context_note,
-      engagement.admin_flags,
+      (engagement as any).admin_business_type,
+      (engagement as any).admin_context_note,
+      (engagement as any).admin_flags,
       contextNotes || []
     );
 
