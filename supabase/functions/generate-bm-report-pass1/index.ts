@@ -5430,8 +5430,8 @@ When writing narratives:
     // ====================================================================
     // POST-LLM: Enrich Revenue Growth metric with CAGR context
     // ====================================================================
-    if (pass1Data.metricsComparison && pass1Data.multi_year_profile?.revenue?.cagr !== null) {
-      const myp = pass1Data.multi_year_profile;
+    if (pass1Data.metricsComparison && assessmentData.multi_year_profile?.revenue?.cagr !== null) {
+      const myp = assessmentData.multi_year_profile;
       const revenueMetric = pass1Data.metricsComparison.find((m: any) => {
         const code = (m.metricCode || m.metric_code || '').toLowerCase();
         return code.includes('revenue_growth') || code.includes('revenue growth');
@@ -5528,6 +5528,27 @@ When writing narratives:
             gmMetric.annual_impact = null;
           }
         }
+      }
+    }
+    
+    // ====================================================================
+    // POST-LLM: Final safety — EBITDA impact must not exceed hero total
+    // ====================================================================
+    // If neither path above fired, catch the case where EBITDA annualImpact
+    // alone exceeds the total opportunity — this always means it's a
+    // derivative metric, not an independent lever.
+    if (pass1Data.metricsComparison && pass1Data.opportunitySizing?.totalAnnualOpportunity) {
+      const total = pass1Data.opportunitySizing.totalAnnualOpportunity;
+      const ebitdaMetric = pass1Data.metricsComparison.find((m: any) => {
+        const code = (m.metricCode || m.metric_code || '').toLowerCase();
+        return code.includes('ebitda');
+      });
+      
+      if (ebitdaMetric?.annualImpact && ebitdaMetric.annualImpact > total * 1.1) {
+        console.log(`[Pass 1] EBITDA annualImpact (£${ebitdaMetric.annualImpact}) exceeds total opportunity (£${total}) — removing to prevent confusion with hero number`);
+        ebitdaMetric._originalAnnualImpact = ebitdaMetric.annualImpact;
+        ebitdaMetric.annualImpact = null;
+        ebitdaMetric.annual_impact = null;
       }
     }
     

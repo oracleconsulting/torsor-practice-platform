@@ -1644,48 +1644,77 @@ function generateRecommendedServices(
     const personalBrand = hva?.personal_brand_percentage;
     
     // Get the founder dependency valuation impact
+    // Data structures (confirmed from pass1 code):
+    //   value_analysis.suppressors[]: ValueSuppressor { impactAmount: {low, high}, discountPercent: {low, high} }
+    //   enhanced_suppressors[]:       { code, current: {discountValue, discountPercent}, recovery: {valueRecoverable} }
+    //   founderRisk:                  { level, score, valuationImpact: STRING e.g. "30-50% valuation discount" }
     let founderValuationImpact = 0;
-    if (founderSuppressor) {
-      founderValuationImpact = founderSuppressor.valuationImpact?.mid || 
-                                founderSuppressor.valuationImpact?.amount ||
-                                founderSuppressor.valuationImpact || 
-                                founderSuppressor.impact || 0;
-      // Handle case where impact is stored as percentage
-      if (founderValuationImpact > 0 && founderValuationImpact <= 1) {
-        const baseline = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
-        founderValuationImpact = baseline * founderValuationImpact;
-      }
-    }
     
-    // Fallback: check enhanced_suppressors (used in Report 9's value bridge)
+    // Path 1: enhanced_suppressors (most reliable — deterministic, has exact £ value)
     if (!founderValuationImpact) {
       const enhancedSuppressors = clientData?.pass1Data?.enhanced_suppressors || [];
       const enhancedFounder = enhancedSuppressors.find((s: any) => {
         const code = (s.code || s.name || '').toLowerCase();
-        return code.includes('founder') || code.includes('dependency');
+        return code.includes('founder') || code.includes('dependency') || code.includes('key_person');
       });
       if (enhancedFounder) {
-        founderValuationImpact = enhancedFounder.valuationImpact?.mid || 
-                                  enhancedFounder.currentDiscount || 
-                                  enhancedFounder.impact || 0;
-        // If impact is a percentage, convert to absolute
-        if (founderValuationImpact > 0 && founderValuationImpact <= 1) {
-          const baseline = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
-          founderValuationImpact = baseline * founderValuationImpact;
+        founderValuationImpact = enhancedFounder.current?.discountValue || 
+                                  enhancedFounder.recovery?.valueRecoverable ||
+                                  0;
+        if (founderValuationImpact) {
+          console.log(`[RecommendedServices] Founder impact from enhanced_suppressors: £${founderValuationImpact}`);
         }
       }
     }
     
-    // Fallback: use founder risk calculator output
-    if (!founderValuationImpact && founderRisk?.valuationDiscount) {
-      founderValuationImpact = founderRisk.valuationDiscount;
+    // Path 2: value_analysis.suppressors (original format)
+    if (!founderValuationImpact && founderSuppressor) {
+      founderValuationImpact = founderSuppressor.impactAmount?.high ||
+                                founderSuppressor.impactAmount?.low ||
+                                0;
+      // Handle case where impact is stored as percentage
+      if (founderValuationImpact > 0 && founderValuationImpact <= 1) {
+        const baseline = valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
+        founderValuationImpact = baseline * founderValuationImpact;
+      }
+      if (founderValuationImpact) {
+        console.log(`[RecommendedServices] Founder impact from value_analysis.suppressors: £${founderValuationImpact}`);
+      }
     }
     
-    // Final fallback: estimate from baseline (20% is standard founder dep discount)
+    // Path 3: Calculate from baseline + discount percentage (from either suppressor source)
     if (!founderValuationImpact) {
-      const baseline = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
-      if (baseline > 0 && (knowledgeDep > 50 || personalBrand > 50)) {
-        founderValuationImpact = baseline * 0.20;
+      const baseline = valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
+      if (baseline > 0) {
+        // Try enhanced suppressor discount percent
+        const enhancedSuppressors = clientData?.pass1Data?.enhanced_suppressors || [];
+        const enhancedFounder = enhancedSuppressors.find((s: any) => {
+          const code = (s.code || s.name || '').toLowerCase();
+          return code.includes('founder') || code.includes('dependency');
+        });
+        const discountPct = enhancedFounder?.current?.discountPercent || 
+                            founderSuppressor?.discountPercent?.high ||
+                            founderSuppressor?.discountPercent?.low;
+        if (discountPct && discountPct > 0) {
+          founderValuationImpact = baseline * (discountPct / 100);
+          console.log(`[RecommendedServices] Founder impact calculated: ${discountPct}% of £${baseline} = £${founderValuationImpact}`);
+        }
+      }
+    }
+    
+    // Path 4: Estimate from baseline using founder risk level
+    // This handles cases where HVA Part 3 doesn't exist (data was inferred by Pass 1)
+    if (!founderValuationImpact) {
+      const baseline = valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
+      const founderLevel = founderRisk?.level || '';
+      // Also check HVA data (may be {} if no Part 3 assessment)
+      const hasFounderSignals = knowledgeDep > 50 || personalBrand > 50 ||
+                                founderLevel === 'critical' || founderLevel === 'high';
+      if (baseline > 0 && hasFounderSignals) {
+        const estimatedDiscount = founderLevel === 'critical' ? 0.20 : 
+                                   founderLevel === 'high' ? 0.15 : 0.12;
+        founderValuationImpact = baseline * estimatedDiscount;
+        console.log(`[RecommendedServices] Founder impact estimated from risk level (${founderLevel}): £${founderValuationImpact}`);
       }
     }
     
