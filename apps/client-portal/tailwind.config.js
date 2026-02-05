@@ -5,6 +5,18 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
     // Include shared platform components (imported via @torsor/platform alias)
     "../../src/**/*.{js,ts,jsx,tsx}",
+    "../../src/components/**/*.{js,ts,jsx,tsx}",
+  ],
+  // Safelist classes that are dynamically constructed and might be missed by JIT
+  safelist: [
+    'bg-rose-500',
+    'bg-rose-600',
+    'text-rose-600',
+    'bg-emerald-500',
+    'bg-emerald-600', 
+    'text-emerald-600',
+    'border-rose-200',
+    'border-emerald-200',
   ],
   theme: {
     extend: {
