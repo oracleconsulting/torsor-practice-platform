@@ -1143,31 +1143,105 @@ function calculateValueAggregateDiscount(suppressors: ValueSuppressor[]): { perc
   };
 }
 
+/**
+ * Calculate exit readiness using COMPONENT-BASED scoring
+ * This aligns with calculateExitReadinessBreakdown for consistency
+ * 
+ * Components (100 points total):
+ * - Customer Concentration: 25 points max
+ * - Founder Dependency: 25 points max
+ * - Revenue Predictability: 20 points max
+ * - Management/Succession: 15 points max
+ * - Documentation/Systems: 15 points max
+ */
 function calculateValueExitReadiness(hva: ValueHVAResponses, suppressors: ValueSuppressor[], financials: ValueFinancialInputs): { score: number; verdict: 'ready' | 'needs_work' | 'not_ready'; blockers: string[]; strengths: string[]; } {
-  let score = 50;
   const blockers: string[] = [];
   const strengths: string[] = [];
   
-  for (const s of suppressors) {
-    if (s.severity === 'critical') { score -= 15; blockers.push(s.name); }
-    else if (s.severity === 'high') { score -= 8; if (blockers.length < 5) blockers.push(s.name); }
-    else if (s.severity === 'medium') { score -= 4; }
+  // 1. Customer Concentration (25 points)
+  const concentration = parseValuePercentage(hva.top3_customer_revenue_percentage);
+  let concentrationScore = 25;
+  if (concentration >= 90) concentrationScore = 5;
+  else if (concentration >= 75) concentrationScore = 10;
+  else if (concentration >= 60) concentrationScore = 15;
+  else if (concentration >= 40) concentrationScore = 20;
+  
+  if (concentrationScore <= 10) {
+    blockers.push('Customer Concentration Risk');
+  } else if (concentrationScore >= 20) {
+    strengths.push('Diversified customer base');
   }
   
-  const documentationScore = parseValuePercentage(hva.documentation_score);
-  if (documentationScore > 70) { score += 10; strengths.push('Good process documentation'); }
+  // 2. Founder Dependency (25 points)
+  const founderDep = Math.max(
+    parseValuePercentage(hva.knowledge_dependency_percentage),
+    parseValuePercentage(hva.personal_brand_percentage)
+  );
+  let founderScore = 25;
+  if (founderDep >= 70) founderScore = 5;
+  else if (founderDep >= 50) founderScore = 10;
+  else if (founderDep >= 30) founderScore = 18;
   
+  if (founderScore <= 10) {
+    blockers.push('Founder Dependency');
+  } else if (founderScore >= 20) {
+    strengths.push('Business runs independently');
+  }
+  
+  // 3. Revenue Predictability (20 points)
   const recurring = parseValuePercentage(hva.recurring_revenue_percentage);
-  if (recurring > 50) { score += 10; strengths.push('Strong recurring revenue'); }
+  let revenueScore = 20;
+  if (recurring < 10) revenueScore = 5;
+  else if (recurring < 30) revenueScore = 10;
+  else if (recurring < 50) revenueScore = 15;
   
+  if (revenueScore <= 5) {
+    blockers.push('Low Revenue Predictability');
+  } else if (revenueScore >= 15) {
+    strengths.push('Strong recurring revenue');
+  }
+  
+  // 4. Management/Succession (15 points)
+  const successionStatus = hva.succession_your_role;
+  let managementScore = 15;
+  if (successionStatus === 'Need to hire' || successionStatus === 'No successor identified') {
+    managementScore = 5;
+    blockers.push('No Succession Plan');
+  } else if (successionStatus === 'Developing now') {
+    managementScore = 10;
+  } else if (successionStatus === 'Ready now') {
+    managementScore = 15;
+    strengths.push('Clear succession plan');
+  }
+  
+  // 5. Documentation/Systems (15 points)
+  const docItems = hva.documentation_24hr_ready;
+  const docCount = Array.isArray(docItems) ? docItems.length : 0;
+  let docScore = 15;
+  if (docCount < 3) docScore = 5;
+  else if (docCount < 5) docScore = 10;
+  else if (docCount >= 5) {
+    docScore = 15;
+    strengths.push('Good process documentation');
+  }
+  
+  // Additional strengths (don't add to score, just note them)
   const teamAdvocacy = parseValuePercentage(hva.team_advocacy_percentage);
-  if (teamAdvocacy > 70) { score += 5; strengths.push('High team engagement'); }
+  if (teamAdvocacy > 70) strengths.push('High team engagement');
   
-  if (financials.revenue > 0 && financials.netProfit / financials.revenue > 0.1) { score += 8; strengths.push('Healthy profit margins'); }
-  if (hva.competitive_moat && Array.isArray(hva.competitive_moat) && hva.competitive_moat.length >= 3) { score += 5; strengths.push('Multiple competitive advantages'); }
+  if (financials.revenue > 0 && financials.netProfit / financials.revenue > 0.1) {
+    strengths.push('Healthy profit margins');
+  }
   
-  score = Math.max(0, Math.min(100, score));
+  if (hva.competitive_moat && Array.isArray(hva.competitive_moat) && hva.competitive_moat.length >= 3) {
+    strengths.push('Multiple competitive advantages');
+  }
+  
+  // Calculate total
+  const score = concentrationScore + founderScore + revenueScore + managementScore + docScore;
   const verdict: 'ready' | 'needs_work' | 'not_ready' = score >= 70 ? 'ready' : score >= 40 ? 'needs_work' : 'not_ready';
+  
+  console.log(`[Exit Readiness] Score breakdown: concentration=${concentrationScore}, founder=${founderScore}, revenue=${revenueScore}, management=${managementScore}, documentation=${docScore}, TOTAL=${score}/100`);
   
   return { score, verdict, blockers, strengths };
 }

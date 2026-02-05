@@ -130,6 +130,19 @@ serve(async (req) => {
       clientData.clientPreferences  // Pass context preferences for context-aware remediation
     );
     
+    // 6c. RECALCULATE total_annual_opportunity based on ACTUAL opportunities identified
+    // Pass 1's LLM estimate is often too conservative - update with real sum
+    const totalOpportunityValue = calculateTotalOpportunityValue(analysis.opportunities || []);
+    if (totalOpportunityValue > 0) {
+      await supabase
+        .from('bm_reports')
+        .update({
+          total_annual_opportunity: totalOpportunityValue,
+        })
+        .eq('engagement_id', engagementId);
+      console.log(`[Pass 3] Updated total_annual_opportunity: £${(totalOpportunityValue / 1000000).toFixed(2)}M`);
+    }
+    
     // 7. Update engagement with direction context (for filtering/queries)
     await supabase
       .from('bm_engagements')
@@ -2659,6 +2672,46 @@ function consolidateOpportunities(opportunities: any[]): any[] {
   console.log(`[Consolidation] Protected themes: ${protectedCount}`);
   
   return consolidated;
+}
+
+/**
+ * Calculate total opportunity value from identified opportunities
+ * This replaces Pass 1's conservative LLM estimate with actual opportunity sums
+ * 
+ * Rules:
+ * - Include "upside" and "value_creation" opportunities (direct value)
+ * - Include "risk" opportunities at 20% of impact (risk mitigation value)
+ * - Exclude "investment" type (these are costs, not benefits)
+ * - Cap at 50% of revenue to avoid unrealistic totals
+ */
+function calculateTotalOpportunityValue(opportunities: any[]): number {
+  let total = 0;
+  let breakdown: string[] = [];
+  
+  for (const opp of opportunities) {
+    const impact = opp.financialImpact?.amount || opp.financial_impact_amount || 0;
+    const type = opp.financialImpact?.type || opp.financial_impact_type || 'upside';
+    
+    // Skip investment type (costs, not benefits)
+    if (type === 'investment') continue;
+    
+    // Risk opportunities: count mitigation value at 20%
+    if (type === 'risk') {
+      const mitigationValue = impact * 0.20;
+      total += mitigationValue;
+      breakdown.push(`${opp.title || opp.opportunity_code}: £${(mitigationValue / 1000).toFixed(0)}k (risk mitigation)`);
+    } else {
+      // upside, value_creation: count full amount
+      total += impact;
+      breakdown.push(`${opp.title || opp.opportunity_code}: £${(impact / 1000).toFixed(0)}k`);
+    }
+  }
+  
+  console.log(`[Total Opportunity] Breakdown:`);
+  breakdown.forEach(b => console.log(`  - ${b}`));
+  console.log(`[Total Opportunity] Sum: £${(total / 1000000).toFixed(2)}M`);
+  
+  return Math.round(total);
 }
 
 function sanitizeFinancialImpact(opp: any, revenue: number): any {
