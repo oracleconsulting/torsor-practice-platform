@@ -5608,8 +5608,8 @@ When writing narratives:
     // ====================================================================
     // The LLM may override the deterministic calculation with a different number.
     // If the deterministic calculation exists and differs significantly (>20%), use it.
-    if (enriched.opportunity_calculations?.margin_opportunity?.calculation?.finalValue) {
-      const deterministicTotal = enriched.opportunity_calculations.margin_opportunity.calculation.finalValue;
+    if (assessmentData.opportunity_calculations?.margin_opportunity?.calculation?.finalValue) {
+      const deterministicTotal = assessmentData.opportunity_calculations.margin_opportunity.calculation.finalValue;
       const llmTotal = pass1Data.opportunitySizing?.totalAnnualOpportunity;
       if (llmTotal && Math.abs(llmTotal - deterministicTotal) > deterministicTotal * 0.2) {
         console.log(`[Pass 1] Overriding LLM opportunity total (£${llmTotal.toLocaleString()}) with deterministic calculation (£${deterministicTotal.toLocaleString()})`);
