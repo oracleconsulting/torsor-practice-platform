@@ -808,6 +808,12 @@ function buildUserPrompt(clientData: ClientData, services: any[], existingConcep
   const formatNum = (n: number) => n ? n.toLocaleString() : '0';
   const formatPct = (n: number) => n ? n.toFixed(1) : '0';
 
+  // Multi-year context (new)
+  const myp = pass1Data?.multi_year_profile;
+  const revenueContext = myp 
+    ? `${revenueGrowth > 0 ? '+' : ''}${formatPct(revenueGrowth)}% YoY | ${myp.revenue.cagr !== null ? `${myp.yearsAvailable}yr CAGR: ${myp.revenue.cagr.toFixed(1)}%` : ''} | Trajectory: ${myp.revenue.trajectory}`
+    : `${revenueGrowth > 0 ? '+' : ''}${formatPct(revenueGrowth)}% YoY`;
+
   return `## THE CLIENT
 
 **${clientName}**
@@ -817,7 +823,7 @@ Industry: ${industryCode || 'Not classified'}
 
 | Metric | Value | Context |
 |--------|-------|---------|
-| Revenue | £${formatNum(revenue)} | ${revenueGrowth > 0 ? '+' : ''}${formatPct(revenueGrowth)}% YoY |
+| Revenue | £${formatNum(revenue)} | ${revenueContext} |
 | Gross Margin | ${formatPct(grossMargin)}% | ${grossMargin < 15 ? 'Low for most sectors' : grossMargin > 40 ? 'Healthy' : 'Moderate'} |
 | Net Margin | ${formatPct(netMargin)}% | ${netMargin < 5 ? 'Thin' : netMargin > 10 ? 'Strong' : 'Reasonable'} |
 | EBITDA Margin | ${formatPct(ebitdaMargin)}% | Key valuation driver |
@@ -836,6 +842,18 @@ ${freeholdProperty > 0 ? `- Freehold Property: £${formatNum(freeholdProperty)} 
 
 ## TRENDS
 ${trendsText}
+${myp ? `
+## MULTI-YEAR TRAJECTORY (${myp.yearsAvailable} years)
+
+Revenue: ${myp.revenue.yearByYear.map((r: any) => `FY${r.year}: £${(r.revenue/1e6).toFixed(1)}M`).join(' → ')}
+Trajectory: ${myp.revenue.trajectory.toUpperCase()}
+${myp.revenue.cagr !== null ? `CAGR: ${myp.revenue.cagr.toFixed(1)}%` : ''}
+${myp.revenue.totalGrowth !== null ? `Total growth: ${myp.revenue.totalGrowth.toFixed(0)}%` : ''}
+${myp.patterns.revenueRetracement ? '⚠️ Revenue retracement from peak — NOT structural decline. Do NOT recommend investigating revenue decline.' : ''}
+${myp.patterns.postInvestmentRecovery ? '⚠️ Post-investment margin recovery underway.' : ''}
+
+${myp.summaryNarrative}
+` : ''}
 
 ## FOUNDER & KEY PERSON RISK
 

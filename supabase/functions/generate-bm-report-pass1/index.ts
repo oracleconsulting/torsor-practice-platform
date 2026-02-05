@@ -696,6 +696,90 @@ interface SurplusCashAnalysis {
   missingFields: string[];
 }
 
+interface MultiYearProfile {
+  yearsAvailable: number;
+  latestYear: number;
+  oldestYear: number;
+  
+  // Revenue trajectory
+  revenue: {
+    latest: number;
+    oldest: number;
+    peak: number;
+    peakYear: number;
+    trough: number;
+    troughYear: number;
+    yoyGrowth: number;                    // Latest vs prior year (existing)
+    cagr: number | null;                  // Compound annual growth rate (3+ years)
+    totalGrowth: number | null;           // Latest vs oldest (%)
+    peakToCurrentChange: number | null;   // If latest isn't peak, how far from peak (%)
+    trajectory: 'growing' | 'declining' | 'recovering' | 'peaking' | 'volatile' | 'stable';
+    trajectoryNarrative: string;
+    yearByYear: Array<{ year: number; revenue: number; yoyChange: number | null }>;
+  };
+  
+  // Margin trajectory
+  grossMargin: {
+    latest: number;
+    oldest: number;
+    peak: number;
+    peakYear: number;
+    trough: number;
+    troughYear: number;
+    trajectory: 'improving' | 'declining' | 'recovering' | 'stable' | 'volatile';
+    isRecovering: boolean;
+    yearByYear: Array<{ year: number; margin: number; yoyChange: number | null }>;
+  };
+  
+  // EBITDA trajectory
+  ebitda: {
+    latest: number;
+    oldest: number;
+    trajectory: 'improving' | 'declining' | 'recovering' | 'stable' | 'volatile';
+    isRecovering: boolean;
+    yearByYear: Array<{ year: number; margin: number; yoyChange: number | null }>;
+  } | null;
+  
+  // Employee trajectory
+  employees: {
+    latest: number;
+    oldest: number;
+    growth: number;  // total % change
+    trajectory: 'growing' | 'shrinking' | 'stable';
+    yearByYear: Array<{ year: number; count: number; yoyChange: number | null }>;
+  } | null;
+  
+  // Revenue per employee trajectory
+  revenuePerEmployee: {
+    latest: number;
+    oldest: number;
+    trajectory: 'improving' | 'declining' | 'stable';
+    yearByYear: Array<{ year: number; value: number; yoyChange: number | null }>;
+  } | null;
+  
+  // Cash position trajectory
+  cashPosition: {
+    latest: number;
+    oldest: number;
+    trajectory: 'building' | 'depleting' | 'stable';
+    yearByYear: Array<{ year: number; cash: number }>;
+  } | null;
+  
+  // Composite patterns
+  patterns: {
+    investmentCycle: boolean;          // Revenue up + margin down in same period
+    postInvestmentRecovery: boolean;   // Margin recovering after investment
+    revenueRetracement: boolean;       // Revenue down from peak but above oldest
+    sustainedGrowth: boolean;          // Revenue up in all years
+    sustainedDecline: boolean;         // Revenue down in all years
+    marginExpansion: boolean;          // Margins improving while revenue grows
+    efficiencyImproving: boolean;      // Rev/employee trending up
+  };
+  
+  // Summary for LLM consumption
+  summaryNarrative: string;
+}
+
 // =============================================================================
 // VALUE CALCULATOR - Business Valuation with HVA-based Suppressors
 // =============================================================================
@@ -1630,13 +1714,33 @@ function analyseFinancialTrends(
     else if (changePercent > 0) direction = 'improving';
     else direction = 'declining';
     
+    // ── NEW: Multi-year context for revenue ──
+    // Check if "decline" is actually a retracement from peak
+    let isRetracement = false;
     let narrative = '';
-    if (direction === 'improving') {
-      narrative = `Revenue grew: £${(priorRevenue / 1000000).toFixed(1)}M → £${(currentRevenue / 1000000).toFixed(1)}M (+${changePercent.toFixed(1)}%)`;
-    } else if (direction === 'declining') {
-      narrative = `Revenue declined: £${(priorRevenue / 1000000).toFixed(1)}M → £${(currentRevenue / 1000000).toFixed(1)}M (${changePercent.toFixed(1)}%)`;
-    } else {
-      narrative = `Revenue stable at £${(currentRevenue / 1000000).toFixed(1)}M`;
+    
+    if (direction === 'declining' && priorRevenueYears.length >= 2) {
+      const oldestRevenue = priorRevenueYears[priorRevenueYears.length - 1].revenue!;
+      if (currentRevenue > oldestRevenue * 1.1) {
+        // Revenue down YoY but still >10% above oldest year = retracement
+        isRetracement = true;
+        const totalGrowth = ((currentRevenue - oldestRevenue) / oldestRevenue) * 100;
+        const peakRevenue = Math.max(currentRevenue, ...priorRevenueYears.map(y => y.revenue!));
+        const peakFromPeak = ((currentRevenue - peakRevenue) / peakRevenue) * 100;
+        
+        narrative = `Revenue retraced from peak: £${(peakRevenue / 1e6).toFixed(1)}M → £${(currentRevenue / 1e6).toFixed(1)}M (${changePercent.toFixed(0)}% YoY), but still +${totalGrowth.toFixed(0)}% vs FY${priorRevenueYears[priorRevenueYears.length - 1].fiscal_year}. This is cycle timing, not structural decline.`;
+        direction = 'volatile'; // Don't mark as "declining" when it's a retracement
+      }
+    }
+    
+    if (!narrative) {
+      if (direction === 'improving') {
+        narrative = `Revenue grew: £${(priorRevenue / 1000000).toFixed(1)}M → £${(currentRevenue / 1000000).toFixed(1)}M (+${changePercent.toFixed(1)}%)`;
+      } else if (direction === 'declining') {
+        narrative = `Revenue declined: £${(priorRevenue / 1000000).toFixed(1)}M → £${(currentRevenue / 1000000).toFixed(1)}M (${changePercent.toFixed(1)}%)`;
+      } else {
+        narrative = `Revenue stable at £${(currentRevenue / 1000000).toFixed(1)}M`;
+      }
     }
     
     trends.push({
@@ -1646,7 +1750,7 @@ function analyseFinancialTrends(
       priorValue: priorRevenue,
       change,
       changePercent,
-      isRecovering: false,
+      isRecovering: isRetracement,
       narrative
     });
   }
@@ -1785,6 +1889,303 @@ function detectInvestmentPattern(
 }
 
 // =============================================================================
+// MULTI-YEAR FINANCIAL PROFILE
+// =============================================================================
+
+function buildMultiYearProfile(
+  current: Record<string, any>,
+  historical: YearlyFinancials[],
+  uploadedFinancialData: any[]
+): MultiYearProfile | null {
+  // Need at least the current year to do anything
+  if (!uploadedFinancialData || uploadedFinancialData.length < 1) return null;
+  if (!current._enriched_revenue) return null;
+  
+  const latest = uploadedFinancialData[0];
+  const allYears = uploadedFinancialData
+    .filter(y => y.revenue && y.revenue > 0)
+    .sort((a, b) => a.fiscal_year - b.fiscal_year); // Chronological
+  
+  if (allYears.length < 2) return null; // Need at least 2 years
+  
+  const oldestYear = allYears[0];
+  const latestYear = allYears[allYears.length - 1];
+  const yearsSpan = latestYear.fiscal_year - oldestYear.fiscal_year;
+  
+  // ── Revenue Analysis ──────────────────────────────────────────────
+  
+  const revenues = allYears.map(y => ({ year: y.fiscal_year, revenue: y.revenue }));
+  const peakRevenue = Math.max(...revenues.map(r => r.revenue));
+  const peakYear = revenues.find(r => r.revenue === peakRevenue)!.year;
+  const troughRevenue = Math.min(...revenues.map(r => r.revenue));
+  const troughYear = revenues.find(r => r.revenue === troughRevenue)!.year;
+  
+  const yoyGrowth = allYears.length >= 2 
+    ? ((latestYear.revenue - allYears[allYears.length - 2].revenue) / allYears[allYears.length - 2].revenue) * 100
+    : 0;
+  
+  const cagr = yearsSpan >= 2 
+    ? (Math.pow(latestYear.revenue / oldestYear.revenue, 1 / yearsSpan) - 1) * 100 
+    : null;
+  
+  const totalGrowth = yearsSpan >= 2
+    ? ((latestYear.revenue - oldestYear.revenue) / oldestYear.revenue) * 100
+    : null;
+  
+  const peakToCurrentChange = latestYear.revenue < peakRevenue
+    ? ((latestYear.revenue - peakRevenue) / peakRevenue) * 100
+    : null;
+  
+  // Build year-by-year with YoY changes
+  const revenueYearByYear = revenues.map((r, i) => ({
+    year: r.year,
+    revenue: r.revenue,
+    yoyChange: i > 0 ? ((r.revenue - revenues[i-1].revenue) / revenues[i-1].revenue) * 100 : null,
+  }));
+  
+  // Determine revenue trajectory
+  let revenueTrajectory: MultiYearProfile['revenue']['trajectory'];
+  const yoyChanges = revenueYearByYear.filter(r => r.yoyChange !== null).map(r => r.yoyChange!);
+  const allPositive = yoyChanges.every(c => c > 3);
+  const allNegative = yoyChanges.every(c => c < -3);
+  const latestNegative = yoyChanges.length > 0 && yoyChanges[yoyChanges.length - 1] < -3;
+  const latestPositive = yoyChanges.length > 0 && yoyChanges[yoyChanges.length - 1] > 3;
+  const isAboveOldest = latestYear.revenue > oldestYear.revenue * 1.1; // >10% above oldest
+  
+  if (allPositive) {
+    revenueTrajectory = 'growing';
+  } else if (allNegative) {
+    revenueTrajectory = 'declining';
+  } else if (latestNegative && isAboveOldest && peakYear !== latestYear.fiscal_year) {
+    revenueTrajectory = 'recovering'; // Down from peak but still well above oldest
+  } else if (latestPositive && !allPositive) {
+    revenueTrajectory = 'recovering';
+  } else if (yoyChanges.some(c => c > 15) && yoyChanges.some(c => c < -15)) {
+    revenueTrajectory = 'volatile';
+  } else if (latestYear.fiscal_year === peakYear && allYears.length >= 3) {
+    revenueTrajectory = 'peaking';
+  } else {
+    revenueTrajectory = 'stable';
+  }
+  
+  // Build trajectory narrative
+  let trajectoryNarrative = '';
+  if (revenueTrajectory === 'recovering' && peakToCurrentChange !== null) {
+    const fmtPeak = `£${(peakRevenue/1e6).toFixed(1)}M`;
+    const fmtCurrent = `£${(latestYear.revenue/1e6).toFixed(1)}M`;
+    const fmtOldest = `£${(oldestYear.revenue/1e6).toFixed(1)}M`;
+    trajectoryNarrative = `Revenue retraced ${Math.abs(peakToCurrentChange).toFixed(0)}% from FY${peakYear} peak of ${fmtPeak} to ${fmtCurrent}, but remains ${totalGrowth!.toFixed(0)}% above FY${oldestYear.fiscal_year} (${fmtOldest}). This is project cycle timing, not structural decline. ${cagr !== null ? `${yearsSpan}-year CAGR: ${cagr.toFixed(1)}%.` : ''}`;
+  } else if (revenueTrajectory === 'growing') {
+    trajectoryNarrative = `Sustained revenue growth over ${yearsSpan} years. ${cagr !== null ? `CAGR: ${cagr.toFixed(1)}%.` : ''} Total growth: ${totalGrowth?.toFixed(0) || 'N/A'}%.`;
+  } else if (revenueTrajectory === 'declining') {
+    trajectoryNarrative = `Revenue has declined in each measured year. This is a structural trend requiring investigation.`;
+  } else if (revenueTrajectory === 'volatile') {
+    trajectoryNarrative = `Revenue is volatile with swings of >15% YoY. ${cagr !== null && cagr > 0 ? `Underlying trend is positive (${cagr.toFixed(1)}% CAGR).` : cagr !== null ? `Underlying trend is flat or negative (${cagr.toFixed(1)}% CAGR).` : ''}`;
+  } else {
+    trajectoryNarrative = `Revenue broadly stable at £${(latestYear.revenue/1e6).toFixed(1)}M.`;
+  }
+  
+  // ── Gross Margin Analysis ─────────────────────────────────────────
+  
+  const gmYears = allYears.filter(y => y.gross_margin_pct != null);
+  const gmYearByYear = gmYears.map((y, i) => ({
+    year: y.fiscal_year,
+    margin: y.gross_margin_pct,
+    yoyChange: i > 0 && gmYears[i-1].gross_margin_pct != null 
+      ? y.gross_margin_pct - gmYears[i-1].gross_margin_pct 
+      : null,
+  }));
+  
+  const gmLatest = gmYears.length > 0 ? gmYears[gmYears.length - 1].gross_margin_pct : current.gross_margin || 0;
+  const gmOldest = gmYears.length > 0 ? gmYears[0].gross_margin_pct : 0;
+  const gmPeak = gmYears.length > 0 ? Math.max(...gmYears.map(y => y.gross_margin_pct)) : 0;
+  const gmPeakYear = gmYears.find(y => y.gross_margin_pct === gmPeak)?.fiscal_year || 0;
+  const gmTrough = gmYears.length > 0 ? Math.min(...gmYears.map(y => y.gross_margin_pct)) : 0;
+  const gmTroughYear = gmYears.find(y => y.gross_margin_pct === gmTrough)?.fiscal_year || 0;
+  
+  // Recovery: latest is above prior year, and prior year was below the year before it
+  const gmIsRecovering = gmYears.length >= 3 && 
+    gmLatest > gmYears[gmYears.length - 2].gross_margin_pct &&
+    gmYears[gmYears.length - 2].gross_margin_pct < gmYears[gmYears.length - 3].gross_margin_pct;
+  
+  let gmTrajectory: MultiYearProfile['grossMargin']['trajectory'];
+  if (gmIsRecovering) gmTrajectory = 'recovering';
+  else if (gmLatest > gmOldest + 2) gmTrajectory = 'improving';
+  else if (gmLatest < gmOldest - 2) gmTrajectory = 'declining';
+  else gmTrajectory = 'stable';
+  
+  // ── EBITDA Analysis ───────────────────────────────────────────────
+  
+  const ebitdaYears = allYears.filter(y => y.ebitda_margin_pct != null);
+  let ebitdaProfile: MultiYearProfile['ebitda'] = null;
+  if (ebitdaYears.length >= 2) {
+    const eLatest = ebitdaYears[ebitdaYears.length - 1].ebitda_margin_pct;
+    const eOldest = ebitdaYears[0].ebitda_margin_pct;
+    const eIsRecovering = ebitdaYears.length >= 3 &&
+      eLatest > ebitdaYears[ebitdaYears.length - 2].ebitda_margin_pct &&
+      ebitdaYears[ebitdaYears.length - 2].ebitda_margin_pct < ebitdaYears[ebitdaYears.length - 3].ebitda_margin_pct;
+    
+    ebitdaProfile = {
+      latest: eLatest,
+      oldest: eOldest,
+      trajectory: eIsRecovering ? 'recovering' : eLatest > eOldest + 2 ? 'improving' : eLatest < eOldest - 2 ? 'declining' : 'stable',
+      isRecovering: eIsRecovering,
+      yearByYear: ebitdaYears.map((y, i) => ({
+        year: y.fiscal_year,
+        margin: y.ebitda_margin_pct,
+        yoyChange: i > 0 ? y.ebitda_margin_pct - ebitdaYears[i-1].ebitda_margin_pct : null,
+      })),
+    };
+  }
+  
+  // ── Employee Analysis ─────────────────────────────────────────────
+  
+  const empYears = allYears.filter(y => y.employee_count && y.employee_count > 0);
+  let employeeProfile: MultiYearProfile['employees'] = null;
+  if (empYears.length >= 2) {
+    const empLatest = empYears[empYears.length - 1].employee_count;
+    const empOldest = empYears[0].employee_count;
+    const empGrowth = ((empLatest - empOldest) / empOldest) * 100;
+    
+    employeeProfile = {
+      latest: empLatest,
+      oldest: empOldest,
+      growth: empGrowth,
+      trajectory: empGrowth > 10 ? 'growing' : empGrowth < -10 ? 'shrinking' : 'stable',
+      yearByYear: empYears.map((y, i) => ({
+        year: y.fiscal_year,
+        count: y.employee_count,
+        yoyChange: i > 0 ? ((y.employee_count - empYears[i-1].employee_count) / empYears[i-1].employee_count) * 100 : null,
+      })),
+    };
+  }
+  
+  // ── Revenue per Employee ──────────────────────────────────────────
+  
+  let rpeProfile: MultiYearProfile['revenuePerEmployee'] = null;
+  const rpeYears = allYears.filter(y => y.revenue && y.employee_count && y.employee_count > 0);
+  if (rpeYears.length >= 2) {
+    const rpeValues = rpeYears.map(y => ({
+      year: y.fiscal_year,
+      value: Math.round(y.revenue / y.employee_count),
+    }));
+    const rpeLatest = rpeValues[rpeValues.length - 1].value;
+    const rpeOldest = rpeValues[0].value;
+    
+    rpeProfile = {
+      latest: rpeLatest,
+      oldest: rpeOldest,
+      trajectory: rpeLatest > rpeOldest * 1.05 ? 'improving' : rpeLatest < rpeOldest * 0.95 ? 'declining' : 'stable',
+      yearByYear: rpeValues.map((r, i) => ({
+        ...r,
+        yoyChange: i > 0 ? ((r.value - rpeValues[i-1].value) / rpeValues[i-1].value) * 100 : null,
+      })),
+    };
+  }
+  
+  // ── Cash Position ─────────────────────────────────────────────────
+  
+  const cashYears = allYears.filter(y => y.cash != null && y.cash > 0);
+  let cashProfile: MultiYearProfile['cashPosition'] = null;
+  if (cashYears.length >= 2) {
+    const cashLatest = cashYears[cashYears.length - 1].cash;
+    const cashOldest = cashYears[0].cash;
+    cashProfile = {
+      latest: cashLatest,
+      oldest: cashOldest,
+      trajectory: cashLatest > cashOldest * 1.2 ? 'building' : cashLatest < cashOldest * 0.8 ? 'depleting' : 'stable',
+      yearByYear: cashYears.map(y => ({ year: y.fiscal_year, cash: y.cash })),
+    };
+  }
+  
+  // ── Pattern Detection ─────────────────────────────────────────────
+  
+  const patterns: MultiYearProfile['patterns'] = {
+    investmentCycle: false,
+    postInvestmentRecovery: false,
+    revenueRetracement: false,
+    sustainedGrowth: allPositive,
+    sustainedDecline: allNegative,
+    marginExpansion: gmTrajectory === 'improving' && revenueTrajectory === 'growing',
+    efficiencyImproving: rpeProfile?.trajectory === 'improving' || false,
+  };
+  
+  // Investment cycle: a year where revenue grew but margins compressed
+  for (let i = 1; i < allYears.length; i++) {
+    const prev = allYears[i-1];
+    const curr = allYears[i];
+    if (curr.revenue > prev.revenue && 
+        curr.gross_margin_pct != null && prev.gross_margin_pct != null &&
+        curr.gross_margin_pct < prev.gross_margin_pct - 2) {
+      patterns.investmentCycle = true;
+      break;
+    }
+  }
+  
+  // Post-investment recovery: margin recovering AND investment cycle detected
+  patterns.postInvestmentRecovery = patterns.investmentCycle && gmIsRecovering;
+  
+  // Revenue retracement: latest below peak but above oldest
+  patterns.revenueRetracement = latestYear.revenue < peakRevenue * 0.95 && 
+                                 latestYear.revenue > oldestYear.revenue * 1.1;
+  
+  // ── Summary Narrative ─────────────────────────────────────────────
+  
+  const parts: string[] = [];
+  parts.push(trajectoryNarrative);
+  
+  if (gmIsRecovering) {
+    parts.push(`Gross margin recovering strongly: ${gmTrough.toFixed(1)}% trough (FY${gmTroughYear}) → ${gmLatest.toFixed(1)}% current.`);
+  }
+  if (patterns.investmentCycle && patterns.postInvestmentRecovery) {
+    parts.push('Classic investment cycle detected: growth drove margin compression, now margins are recovering as the business absorbs the investment.');
+  }
+  if (patterns.revenueRetracement && !allNegative) {
+    parts.push('Revenue pullback from peak is project-cycle timing, not structural decline.');
+  }
+  
+  const summaryNarrative = parts.join(' ');
+  
+  return {
+    yearsAvailable: allYears.length,
+    latestYear: latestYear.fiscal_year,
+    oldestYear: oldestYear.fiscal_year,
+    revenue: {
+      latest: latestYear.revenue,
+      oldest: oldestYear.revenue,
+      peak: peakRevenue,
+      peakYear,
+      trough: troughRevenue,
+      troughYear,
+      yoyGrowth,
+      cagr,
+      totalGrowth,
+      peakToCurrentChange,
+      trajectory: revenueTrajectory,
+      trajectoryNarrative,
+      yearByYear: revenueYearByYear,
+    },
+    grossMargin: {
+      latest: gmLatest,
+      oldest: gmOldest,
+      peak: gmPeak,
+      peakYear: gmPeakYear,
+      trough: gmTrough,
+      troughYear: gmTroughYear,
+      trajectory: gmTrajectory,
+      isRecovering: gmIsRecovering,
+      yearByYear: gmYearByYear,
+    },
+    ebitda: ebitdaProfile,
+    employees: employeeProfile,
+    revenuePerEmployee: rpeProfile,
+    cashPosition: cashProfile,
+    patterns,
+    summaryNarrative,
+  };
+}
+
+// =============================================================================
 // PASS 1: EXTRACTION & ANALYSIS (Sonnet)
 // Compares client metrics to industry benchmarks
 // Calculates percentile positions and annual £ impact
@@ -1890,6 +2291,12 @@ ${assessment.cash_months && assessment.cash_months >= 2 ? '→ Strong cash = fin
     if (gmTrend?.isRecovering) {
       trendSummary.push(`⚠️ MARGIN RECOVERING: ${gmTrend.narrative}`);
     }
+    
+    // Add revenue retracement warning
+    const revTrend = assessment.financial_trends.find((t: TrendAnalysis) => t.metric === 'revenue');
+    if (revTrend?.direction === 'declining' && assessment.is_revenue_retracement) {
+      trendSummary.push(`⚠️ REVENUE RETRACEMENT (not decline): YoY is ${revTrend.changePercent.toFixed(0)}% but business is ${assessment.revenue_total_growth?.toFixed(0) || 'significantly'}% above FY${assessment.multi_year_profile?.oldestYear || 'oldest year'}. This is project cycle timing.`);
+    }
   }
   if (assessment.investment_signals?.likelyInvestmentYear) {
     trendSummary.push(`⚠️ INVESTMENT PATTERN (${assessment.investment_signals.confidence}): ${assessment.investment_signals.indicators[0] || 'Recovery from investment'}`);
@@ -1905,12 +2312,69 @@ RULE: If margin is RECOVERING, do NOT flag as "crisis" or "insolvent risk".
 Instead: "Margins recovering strongly from investment period"
 ` : '';
 
-  // Historical data - just show the trend, not all years
-  const historicalText = assessment.historical_financials && assessment.historical_financials.length > 0 ? `
+  // ── MULTI-YEAR FINANCIAL CONTEXT ──────────────────────────────────
+  // This replaces the old historicalText which only showed gross margin
+  
+  const myp = assessment.multi_year_profile;
+  
+  let historicalText = '';
+  if (myp) {
+    const revTable = myp.revenue.yearByYear
+      .map((r: any) => `FY${r.year}: £${(r.revenue/1e6).toFixed(1)}M${r.yoyChange !== null ? ` (${r.yoyChange > 0 ? '+' : ''}${r.yoyChange.toFixed(0)}% YoY)` : ''}`)
+      .join(' → ');
+    
+    const gmTable = myp.grossMargin.yearByYear
+      .map((g: any) => `FY${g.year}: ${g.margin.toFixed(1)}%`)
+      .join(' → ');
+    
+    const empTable = myp.employees?.yearByYear
+      ?.map((e: any) => `FY${e.year}: ${e.count}`)
+      ?.join(' → ') || '';
+    
+    const rpeTable = myp.revenuePerEmployee?.yearByYear
+      ?.map((r: any) => `FY${r.year}: £${(r.value/1000).toFixed(0)}k`)
+      ?.join(' → ') || '';
+    
+    historicalText = `
+═══════════════════════════════════════════════════════════════════════════════
+MULTI-YEAR FINANCIAL TRAJECTORY (${myp.yearsAvailable} years of data)
+═══════════════════════════════════════════════════════════════════════════════
+
+REVENUE:       ${revTable}
+GROSS MARGIN:  ${gmTable}
+${myp.ebitda ? `EBITDA MARGIN: ${myp.ebitda.yearByYear.map((e: any) => `FY${e.year}: ${e.margin.toFixed(1)}%`).join(' → ')}` : ''}
+${empTable ? `EMPLOYEES:     ${empTable}` : ''}
+${rpeTable ? `REV/EMPLOYEE:  ${rpeTable}` : ''}
+
+REVENUE TRAJECTORY: ${myp.revenue.trajectory.toUpperCase()}
+${myp.revenue.cagr !== null ? `${myp.yearsAvailable}-year CAGR: ${myp.revenue.cagr.toFixed(1)}%` : ''}
+${myp.revenue.totalGrowth !== null ? `Total growth FY${myp.oldestYear}→FY${myp.latestYear}: ${myp.revenue.totalGrowth.toFixed(0)}%` : ''}
+${myp.revenue.peakToCurrentChange !== null ? `Peak: £${(myp.revenue.peak/1e6).toFixed(1)}M (FY${myp.revenue.peakYear}). Current is ${Math.abs(myp.revenue.peakToCurrentChange).toFixed(0)}% below peak.` : ''}
+
+GM TRAJECTORY: ${myp.grossMargin.trajectory.toUpperCase()}${myp.grossMargin.isRecovering ? ' (RECOVERING FROM TROUGH)' : ''}
+
+SUMMARY: ${myp.summaryNarrative}
+
+${myp.patterns.revenueRetracement ? `
+⚠️ REVENUE RETRACEMENT DETECTED — NOT STRUCTURAL DECLINE
+Revenue is down from a peak year but the business is significantly larger than it was ${myp.yearsAvailable - 1} years ago.
+DO NOT recommend "investigate revenue decline" when the multi-year trajectory is positive.
+Instead, discuss pipeline management and project cycle timing.
+` : ''}
+${myp.patterns.postInvestmentRecovery ? `
+⚠️ POST-INVESTMENT RECOVERY
+Margin compressed during growth period, now recovering. This is healthy.
+DO NOT flag current margins as a crisis — they are on an upward trajectory.
+` : ''}
+`;
+  } else if (assessment.historical_financials && assessment.historical_financials.length > 0) {
+    // Fallback for clients with limited data
+    historicalText = `
 HISTORICAL: ${assessment.historical_financials.map((h: YearlyFinancials) => 
-  `FY${h.fiscal_year}: ${h.gross_margin?.toFixed(1) || '?'}% GM`
+  `FY${h.fiscal_year}: Rev £${h.revenue ? (h.revenue/1e6).toFixed(1) + 'M' : '?'} | GM ${h.gross_margin?.toFixed(1) || '?'}%`
 ).join(' → ')}
-` : '';
+`;
+  }
 
   return `
 You are a financial analyst preparing a benchmarking report for a UK business.
@@ -2063,6 +2527,39 @@ most directly actionable).
 
 The recommendations can list margin recovery and overhead reduction as separate
 action items, but their annualValue fields must NOT sum to more than the EBITDA gap.
+
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL: REVENUE TRAJECTORY CONTEXT (MUST READ)
+═══════════════════════════════════════════════════════════════════════════════
+
+YoY revenue growth is ONE data point. When you have 3+ years of data, you
+MUST consider the full trajectory before making recommendations.
+
+WRONG (naive YoY only):
+- "Revenue declined 25% — investigate revenue decline urgently"
+  When the business grew 34% over 3 years and is retracing from a peak.
+
+RIGHT (multi-year context):
+- "Revenue pulled back 25% from a peak year, but the business is 34% larger
+  than 3 years ago. The trajectory is positive; this is project cycle timing."
+
+DECISION RULES:
+1. If MULTI-YEAR TRAJECTORY section says "RECOVERING" or shows retracement:
+   → Do NOT flag revenue as a "decline" or recommend "investigate decline"
+   → Instead discuss pipeline and project cycle management
+   → Use the CAGR and total growth figures, not just YoY
+
+2. If all years show declining revenue AND total growth is negative:
+   → This IS structural decline — flag it appropriately
+
+3. If revenue is volatile (big swings):
+   → Discuss revenue predictability and diversification
+   → Do NOT anchor to the YoY number alone
+
+4. For the revenue_growth metric comparison:
+   → When trajectory is retracement, use CAGR for benchmarking if available
+   → Note the YoY figure but contextualise it with the full trajectory
+   → Do NOT generate a "revenue growth gap" opportunity when CAGR is positive
 
 ═══════════════════════════════════════════════════════════════════════════════
 MINIMUM VIABLE ANALYSIS RULES - CRITICAL
@@ -3584,6 +4081,36 @@ function enrichBenchmarkData(
       investmentSignals.indicators.forEach(ind => console.log(`[BM Enrich]   - ${ind}`));
       derivedFields.push(`investment_signals (${investmentSignals.confidence} confidence)`);
     }
+    
+    // ==========================================================================
+    // MULTI-YEAR FINANCIAL PROFILE (comprehensive trajectory analysis)
+    // ==========================================================================
+    
+    const multiYearProfile = buildMultiYearProfile(enriched, historicalFinancials, uploadedFinancialData || []);
+    if (multiYearProfile) {
+      enriched.multi_year_profile = multiYearProfile;
+      derivedFields.push(`multi_year_profile (${multiYearProfile.yearsAvailable} years, trajectory: ${multiYearProfile.revenue.trajectory})`);
+      
+      console.log(`[BM Enrich] Multi-year profile built:`);
+      console.log(`  Revenue trajectory: ${multiYearProfile.revenue.trajectory}`);
+      console.log(`  ${multiYearProfile.revenue.trajectoryNarrative}`);
+      if (multiYearProfile.revenue.cagr !== null) {
+        console.log(`  CAGR: ${multiYearProfile.revenue.cagr.toFixed(1)}%`);
+      }
+      if (multiYearProfile.patterns.revenueRetracement) {
+        console.log(`  ⚠️ Revenue retracement from peak (NOT structural decline)`);
+      }
+      
+      // IMPORTANT: Override the YoY-only revenue_growth if multi-year context
+      // changes the story. The YoY number stays for benchmarking, but we add
+      // context fields that downstream consumers should prefer.
+      enriched.revenue_trajectory = multiYearProfile.revenue.trajectory;
+      enriched.revenue_cagr = multiYearProfile.revenue.cagr;
+      enriched.revenue_total_growth = multiYearProfile.revenue.totalGrowth;
+      enriched.revenue_peak = multiYearProfile.revenue.peak;
+      enriched.revenue_peak_year = multiYearProfile.revenue.peakYear;
+      enriched.is_revenue_retracement = multiYearProfile.patterns.revenueRetracement;
+    }
   }
   
   return enriched;
@@ -4864,38 +5391,39 @@ When writing narratives:
     // POST-LLM VALIDATION: Prevent margin double-counting
     // ====================================================================
     if (pass1Data.opportunitySizing?.breakdown && pass1Data.opportunitySizing.breakdown.length > 1) {
-      const margins = pass1Data.opportunitySizing.breakdown.filter((b: any) => 
-        b.metric?.toLowerCase().includes('margin') || 
-        b.metric?.toLowerCase().includes('ebitda') ||
-        b.metric?.toLowerCase().includes('gross profit')
-      );
+      const margins = pass1Data.opportunitySizing.breakdown.filter((b: any) => {
+        const metric = (b.metric || b.metricCode || '').toLowerCase();
+        return metric.includes('margin') || 
+               metric.includes('ebitda') ||
+               metric.includes('gross profit') ||
+               metric.includes('net profit');
+      });
       
       if (margins.length > 1) {
-        // Multiple margin metrics in the breakdown — likely double-counting
-        // Keep only the largest (most comprehensive) one
+        // Multiple margin metrics — keep only the largest (most comprehensive)
         const sorted = margins.sort((a: any, b: any) => 
           (b.annualImpact || b.realisticCapture || 0) - (a.annualImpact || a.realisticCapture || 0)
         );
         const keep = sorted[0];
         const remove = sorted.slice(1);
+        const removeMetrics = remove.map((r: any) => r.metric || r.metricCode);
         
-        const removeMetrics = remove.map((r: any) => r.metric);
         pass1Data.opportunitySizing.breakdown = pass1Data.opportunitySizing.breakdown.filter(
-          (b: any) => !removeMetrics.includes(b.metric)
+          (b: any) => !removeMetrics.includes(b.metric) && !removeMetrics.includes(b.metricCode)
         );
         
-        // Recalculate total
+        const originalTotal = pass1Data.opportunitySizing.totalAnnualOpportunity;
         const newTotal = pass1Data.opportunitySizing.breakdown.reduce(
           (sum: number, b: any) => sum + (b.annualImpact || b.realisticCapture || 0), 0
         );
         
-        console.log(`[Pass 1] ⚠️ Margin double-count detected: ${margins.map((m: any) => `${m.metric}=£${((m.annualImpact || m.realisticCapture || 0)/1000).toFixed(0)}k`).join(' + ')}`);
-        console.log(`[Pass 1] Kept: ${keep.metric} (£${((keep.annualImpact || keep.realisticCapture || 0)/1000).toFixed(0)}k). Removed: ${removeMetrics.join(', ')}`);
-        console.log(`[Pass 1] Adjusted totalAnnualOpportunity: £${((pass1Data.opportunitySizing.totalAnnualOpportunity || 0)/1000).toFixed(0)}k → £${(newTotal/1000).toFixed(0)}k`);
+        console.log(`[Pass 1] ⚠️ Margin double-count detected: ${margins.map((m: any) => `${m.metric || m.metricCode}=£${((m.annualImpact || m.realisticCapture || 0)/1000).toFixed(0)}k`).join(' + ')}`);
+        console.log(`[Pass 1] Kept: ${keep.metric || keep.metricCode}. Removed: ${removeMetrics.join(', ')}`);
+        console.log(`[Pass 1] Adjusted total: £${(originalTotal/1000).toFixed(0)}k → £${(newTotal/1000).toFixed(0)}k`);
         
-        pass1Data.opportunitySizing._doubleCountCorrected = true;
-        pass1Data.opportunitySizing._originalTotal = pass1Data.opportunitySizing.totalAnnualOpportunity;
         pass1Data.opportunitySizing.totalAnnualOpportunity = newTotal;
+        pass1Data.opportunitySizing._doubleCountCorrected = true;
+        pass1Data.opportunitySizing._originalTotal = originalTotal;
       }
     }
     
@@ -5080,6 +5608,8 @@ When writing narratives:
         exit_readiness_breakdown: assessmentData.exit_readiness_breakdown,
         surplus_cash_breakdown: assessmentData.surplus_cash_breakdown,
         two_paths_narrative: assessmentData.two_paths_narrative,
+        // Multi-year financial profile
+        multi_year_profile: assessmentData.multi_year_profile || null,
       },
       llm_model: 'gpt-4o-mini',
       llm_tokens_used: tokensUsed,
