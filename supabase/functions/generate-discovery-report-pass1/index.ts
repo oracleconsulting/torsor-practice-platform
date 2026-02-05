@@ -12,7 +12,7 @@
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.94.1'
 
 // NOTE: Structured calculators are defined inline below (Supabase Edge Functions 
 // don't support relative subdirectory imports). See section at end of file.
