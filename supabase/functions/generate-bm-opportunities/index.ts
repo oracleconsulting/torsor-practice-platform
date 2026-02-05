@@ -130,18 +130,11 @@ serve(async (req) => {
       clientData.clientPreferences  // Pass context preferences for context-aware remediation
     );
     
-    // 6c. RECALCULATE total_annual_opportunity based on ACTUAL opportunities identified
-    // Pass 1's LLM estimate is often too conservative - update with real sum
-    const totalOpportunityValue = calculateTotalOpportunityValue(analysis.opportunities || []);
-    if (totalOpportunityValue > 0) {
-      await supabase
-        .from('bm_reports')
-        .update({
-          total_annual_opportunity: totalOpportunityValue,
-        })
-        .eq('engagement_id', engagementId);
-      console.log(`[Pass 3] Updated total_annual_opportunity: £${(totalOpportunityValue / 1000000).toFixed(2)}M`);
-    }
+    // 6c. NOTE: total_annual_opportunity is set by Pass 1 and represents the annual margin gap
+    // We do NOT overwrite it here. Pass 1's calculation is correct and rigorous.
+    // The full opportunity value (including one-time items, risk mitigation, etc.) is stored
+    // in opportunity_assessment.totalOpportunityValue for internal use, but total_annual_opportunity
+    // should only reflect genuine annual recurring opportunities (the margin gap).
     
     // 7. Update engagement with direction context (for filtering/queries)
     await supabase
