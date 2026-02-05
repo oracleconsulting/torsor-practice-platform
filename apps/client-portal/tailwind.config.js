@@ -3,6 +3,8 @@ export default {
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
+    // Include shared platform components (imported via @torsor/platform alias)
+    "../../src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     extend: {
