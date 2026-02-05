@@ -1732,6 +1732,24 @@ function generateRecommendedServices(
     });
     
     // DECISION: Should we enrich?
+    // TEMPORARY DIAGNOSTIC — remove after confirming fix works
+    console.log('[Pass 3 DIAGNOSTIC] Systems Audit enrichment check:', {
+      hasFounderInIssues,
+      founderValuationImpact,
+      hasCriticalBlockedCOO,
+      founderRiskLevel: founderRisk?.level,
+      knowledgeDep,
+      personalBrand,
+      enhancedSuppressorsCount: (clientData?.pass1Data?.enhanced_suppressors || []).length,
+      valueAnalysisSuppressorsCount: (suppressors || []).length,
+      shouldEnrich: !hasFounderInIssues && (
+        founderValuationImpact > 0 ||
+        hasCriticalBlockedCOO ||
+        (founderRisk?.level === 'critical' || founderRisk?.level === 'high') ||
+        (knowledgeDep && knowledgeDep >= 50)
+      ),
+    });
+    
     const shouldEnrich = !hasFounderInIssues && (
       founderValuationImpact > 0 ||
       hasCriticalBlockedCOO ||

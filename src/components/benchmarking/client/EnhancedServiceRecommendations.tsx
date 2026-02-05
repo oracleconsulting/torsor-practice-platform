@@ -75,7 +75,7 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
 // Default deliverables by service category
 const DEFAULT_DELIVERABLES: Record<string, string[]> = {
   SYSTEMS_AUDIT: [
-    'Comprehensive process inventory — what exists vs what\'s assumed',
+    'Comprehensive process inventory: what exists vs what\'s assumed',
     'Documentation gap analysis with priority ratings',
     'Knowledge dependency map (who knows what)',
     'System health assessment and risk register',

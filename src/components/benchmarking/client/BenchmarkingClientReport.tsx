@@ -602,7 +602,7 @@ export function BenchmarkingClientReport({
                 <span className="text-gray-700">
                   Your supplier payment terms mean you operate with 
                   £{(Math.abs(data.surplus_cash.components.netWorkingCapital) / 1000000).toFixed(1)}M 
-                  of free working capital — suppliers fund your operations, not you.
+                  of free working capital. Suppliers fund your operations, not you.
                 </span>
               </div>
             )}
@@ -866,7 +866,7 @@ export function BenchmarkingClientReport({
         {/* Closing Summary - Confident wrap-up, no CTA */}
         {baselineMetrics && (
           <section className="bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl p-8 text-white print:bg-slate-800 print:rounded-lg">
-            <h2 className="text-2xl font-bold mb-4">Your Position — Summed Up</h2>
+            <h2 className="text-2xl font-bold mb-4">Your Position: Summed Up</h2>
             <p className="text-slate-300 leading-relaxed text-lg">
               {(() => {
                 const parts: string[] = [];

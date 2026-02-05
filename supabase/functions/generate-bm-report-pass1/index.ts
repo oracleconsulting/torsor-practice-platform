@@ -419,13 +419,15 @@ function calculateExitReadinessBreakdown(
     console.log('[ExitReadiness] Context-aware mode: client prefers external support');
   }
   
-  // 1. Customer Concentration (25 points)
+  // 1. Customer Concentration (25 points) — interpolated scoring
   const concentration = inputs.customerConcentration || 0;
-  let concentrationScore = 25;
-  if (concentration >= 90) concentrationScore = 5;
-  else if (concentration >= 75) concentrationScore = 10;
-  else if (concentration >= 60) concentrationScore = 15;
-  else if (concentration >= 40) concentrationScore = 20;
+  let concentrationScore: number;
+  if (concentration >= 95) concentrationScore = 3;
+  else if (concentration >= 90) concentrationScore = 5 + Math.round((95 - concentration) / 5 * 2);  // 5-7
+  else if (concentration >= 75) concentrationScore = 8 + Math.round((90 - concentration) / 15 * 4);  // 8-12
+  else if (concentration >= 60) concentrationScore = 13 + Math.round((75 - concentration) / 15 * 4); // 13-17
+  else if (concentration >= 40) concentrationScore = 18 + Math.round((60 - concentration) / 20 * 4); // 18-22
+  else concentrationScore = 23 + Math.round((40 - Math.max(concentration, 0)) / 40 * 2);            // 23-25
   
   components.push({
     id: 'concentration',
@@ -437,12 +439,14 @@ function calculateExitReadinessBreakdown(
     improvementActions: ['Identify 10 target prospects', 'Hire BD resource', 'Develop framework bid pipeline']
   });
   
-  // 2. Founder Dependency (25 points) - CONTEXT-AWARE
+  // 2. Founder Dependency (25 points) - CONTEXT-AWARE, interpolated
   const founderDep = Math.max(inputs.knowledgeDependency || 0, inputs.personalBrand || 0);
-  let founderScore = 25;
-  if (founderDep >= 70) founderScore = 5;
-  else if (founderDep >= 50) founderScore = 10;
-  else if (founderDep >= 30) founderScore = 18;
+  let founderScore: number;
+  if (founderDep >= 85) founderScore = 3;
+  else if (founderDep >= 70) founderScore = 4 + Math.round((85 - founderDep) / 15 * 4);   // 4-8
+  else if (founderDep >= 50) founderScore = 9 + Math.round((70 - founderDep) / 20 * 5);   // 9-14
+  else if (founderDep >= 30) founderScore = 15 + Math.round((50 - founderDep) / 20 * 5);  // 15-20
+  else founderScore = 21 + Math.round((30 - Math.max(founderDep, 0)) / 30 * 4);           // 21-25
   
   // CONTEXT-AWARE: Adjust gap text and improvement actions based on client preferences
   const prefersExternal = clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport;
@@ -461,12 +465,18 @@ function calculateExitReadinessBreakdown(
       : ['Hire or promote COO/GM', 'Document top 20 processes', 'Transition key relationships']
   });
   
-  // 3. Revenue Predictability (20 points)
+  // 3. Revenue Predictability (20 points) — interpolated, factor in contract backlog
   const recurringPct = inputs.recurringRevenue || 0;
-  let revenueScore = 20;
-  if (recurringPct < 20) revenueScore = 5;
-  else if (recurringPct < 40) revenueScore = 10;
-  else if (recurringPct < 60) revenueScore = 15;
+  const backlogMonths = inputs.contractBacklog || 0;
+  // Backlog gives partial credit even when recurring % is low
+  const backlogBonus = backlogMonths >= 12 ? 3 : backlogMonths >= 6 ? 2 : backlogMonths >= 3 ? 1 : 0;
+  let revenueScore: number;
+  if (recurringPct < 10) revenueScore = 3 + Math.round(recurringPct / 10 * 2);            // 3-5
+  else if (recurringPct < 20) revenueScore = 5 + Math.round((recurringPct - 10) / 10 * 3); // 5-8
+  else if (recurringPct < 40) revenueScore = 8 + Math.round((recurringPct - 20) / 20 * 4); // 8-12
+  else if (recurringPct < 60) revenueScore = 12 + Math.round((recurringPct - 40) / 20 * 4);// 12-16
+  else revenueScore = 17 + Math.round((recurringPct - 60) / 40 * 3);                       // 17-20
+  revenueScore = Math.min(20, revenueScore + backlogBonus);
   
   components.push({
     id: 'revenue',
@@ -478,12 +488,15 @@ function calculateExitReadinessBreakdown(
     improvementActions: ['Negotiate longer contract terms', 'Add maintenance/support revenue', 'Build framework pipeline']
   });
   
-  // 4. Management Team (15 points)
+  // 4. Management Team (15 points) — more granular
   const successionPlan = (inputs.successionPlan || '').toLowerCase();
   const noSuccessor = successionPlan.includes('nobody') || successionPlan.includes('need to hire') || successionPlan === 'none' || successionPlan === '';
-  let managementScore = 15;
-  if (noSuccessor) managementScore = 5;
-  else if (successionPlan.includes('developing')) managementScore = 10;
+  let managementScore: number;
+  if (noSuccessor && founderDep >= 70) managementScore = 3;        // No successor + high dependency = worst case
+  else if (noSuccessor) managementScore = 5;                        // No successor but lower dependency
+  else if (successionPlan.includes('developing')) managementScore = 9;
+  else if (successionPlan.includes('ready') || successionPlan.includes('identified')) managementScore = 13;
+  else managementScore = 7;  // Some plan but unclear
   
   components.push({
     id: 'management',
@@ -495,11 +508,14 @@ function calculateExitReadinessBreakdown(
     improvementActions: ['Hire senior leader', 'Develop internal talent', 'Create leadership meeting cadence']
   });
   
-  // 5. Documentation (15 points)
-  const docScore = inputs.documentationScore || 0;
-  let documentationPoints = 15;
-  if (docScore < 30) documentationPoints = 5;
-  else if (docScore < 60) documentationPoints = 10;
+  // 5. Documentation (15 points) — interpolated, handle unknown data
+  const docScore = inputs.documentationScore ?? 35;  // Default to mid-range when unknown, not 0
+  let documentationPoints: number;
+  if (docScore < 15) documentationPoints = 3;
+  else if (docScore < 30) documentationPoints = 4 + Math.round((docScore - 15) / 15 * 3);   // 4-7
+  else if (docScore < 50) documentationPoints = 7 + Math.round((docScore - 30) / 20 * 3);   // 7-10
+  else if (docScore < 70) documentationPoints = 10 + Math.round((docScore - 50) / 20 * 3);  // 10-13
+  else documentationPoints = 13 + Math.round((docScore - 70) / 30 * 2);                      // 13-15
   
   components.push({
     id: 'documentation',
@@ -575,14 +591,14 @@ function generateTwoPathsNarrative(
   
   return {
     headline: 'Two opportunities. One destination.',
-    explanation: `The ${marginFormatted} margin opportunity and ${valueGapFormatted} value gap aren't competing priorities—they're connected. Improving margins funds your diversification. Diversification reduces concentration risk. Reduced risk unlocks trapped value.`,
+    explanation: `The ${marginFormatted} margin opportunity and ${valueGapFormatted} value gap aren't competing priorities; they're connected. Improving margins funds your diversification. Diversification reduces concentration risk. Reduced risk unlocks trapped value.`,
     ownerJourney: {
       year1: `Capture ${formatEnhancedCurrency(marginOpportunity * 0.5)} of margin improvement. Hire BD lead. Win first 2 new clients.`,
       year2: year2Action,  // Context-aware action
       year3: `Exit-ready at ${targetValueFormatted}. Option to sell, scale, or step back.`
     },
     bottomLine: exitReadinessScore < 50 
-      ? `Every pound of margin improvement funds your path to optionality. The question isn't which to pursue—it's how fast you want to move.`
+      ? `Every pound of margin improvement funds your path to optionality. The question isn't which to pursue. It's how fast you want to move.`
       : `You're closer than you think. Focus on the operational improvements and the strategic value will follow.`
   };
 }
@@ -1048,7 +1064,7 @@ function mapValueHVAToSuppressors(hva: ValueHVAResponses, baseValue: number, con
       remediationService: 'Revenue Diversification Programme',
       remediationTimeMonths: concentration >= 90 ? 36 : 24,
       talkingPoint: concentration >= 90 
-        ? `"${concentration}% from three clients isn't a customer base - it's a dependency. A buyer would discount your value 25-40% just for this risk, or walk away entirely."`
+        ? `"${concentration}% from three clients isn't a customer base. It's a dependency. A buyer would discount your value 25-40% just for this risk, or walk away entirely."`
         : `"Your top 3 clients at ${concentration}% is above the comfort zone for most buyers. They'll want to see diversification progress."`,
       questionToAsk: concentration >= 90
         ? '"If your biggest client gave you 6 months notice tomorrow, what would happen to the business?"'
@@ -1087,7 +1103,7 @@ function mapValueHVAToSuppressors(hva: ValueHVAResponses, baseValue: number, con
       remediable: true,
       remediationService: 'Systems Audit + Process Documentation',
       remediationTimeMonths: 6,
-      talkingPoint: '"When a buyer asks how the magic happens, you need a playbook, not \'ask Ian\'. Undocumented IP is invisible IP—they won\'t pay for what they can\'t see or transfer."',
+      talkingPoint: '"When a buyer asks how the magic happens, you need a playbook, not \'ask Ian\'. Undocumented IP is invisible IP. They won\'t pay for what they can\'t see or transfer."',
       questionToAsk: 'If you had to train someone to do your top 3 money-making activities, what would you hand them?',
     });
   }
@@ -1133,8 +1149,8 @@ function mapValueHVAToSuppressors(hva: ValueHVAResponses, baseValue: number, con
       remediationService: 'Exit Readiness Programme',
       remediationTimeMonths: 24,
       talkingPoint: noSuccessor 
-        ? `"You said succession is '${successionRole}'. That means if something happened to you, your family wouldn't inherit a business—they'd inherit a crisis."`
-        : '"Multiple critical functions fail without you. Right now, you can\'t sell this business—you\'d have to sell yourself with it."',
+        ? `"You said succession is '${successionRole}'. That means if something happened to you, your family wouldn't inherit a business. They'd inherit a crisis."`
+        : '"Multiple critical functions fail without you. Right now, you can\'t sell this business. You\'d have to sell yourself with it."',
       questionToAsk: '"Who would you trust to run this business for 3 months if you couldn\'t? What would they need to know that only you know?"',
     });
   } else {
@@ -1251,13 +1267,15 @@ function calculateValueExitReadiness(hva: ValueHVAResponses, suppressors: ValueS
   const blockers: string[] = [];
   const strengths: string[] = [];
   
-  // 1. Customer Concentration (25 points)
+  // 1. Customer Concentration (25 points) — interpolated scoring
   const concentration = parseValuePercentage(hva.top3_customer_revenue_percentage);
-  let concentrationScore = 25;
-  if (concentration >= 90) concentrationScore = 5;
-  else if (concentration >= 75) concentrationScore = 10;
-  else if (concentration >= 60) concentrationScore = 15;
-  else if (concentration >= 40) concentrationScore = 20;
+  let concentrationScore: number;
+  if (concentration >= 95) concentrationScore = 3;
+  else if (concentration >= 90) concentrationScore = 5 + Math.round((95 - concentration) / 5 * 2);  // 5-7
+  else if (concentration >= 75) concentrationScore = 8 + Math.round((90 - concentration) / 15 * 4);  // 8-12
+  else if (concentration >= 60) concentrationScore = 13 + Math.round((75 - concentration) / 15 * 4); // 13-17
+  else if (concentration >= 40) concentrationScore = 18 + Math.round((60 - concentration) / 20 * 4); // 18-22
+  else concentrationScore = 23 + Math.round((40 - Math.max(concentration, 0)) / 40 * 2);            // 23-25
   
   if (concentrationScore <= 10) {
     blockers.push('Customer Concentration Risk');
@@ -1265,15 +1283,17 @@ function calculateValueExitReadiness(hva: ValueHVAResponses, suppressors: ValueS
     strengths.push('Diversified customer base');
   }
   
-  // 2. Founder Dependency (25 points)
+  // 2. Founder Dependency (25 points) — interpolated
   const founderDep = Math.max(
     parseValuePercentage(hva.knowledge_dependency_percentage),
     parseValuePercentage(hva.personal_brand_percentage)
   );
-  let founderScore = 25;
-  if (founderDep >= 70) founderScore = 5;
-  else if (founderDep >= 50) founderScore = 10;
-  else if (founderDep >= 30) founderScore = 18;
+  let founderScore: number;
+  if (founderDep >= 85) founderScore = 3;
+  else if (founderDep >= 70) founderScore = 4 + Math.round((85 - founderDep) / 15 * 4);   // 4-8
+  else if (founderDep >= 50) founderScore = 9 + Math.round((70 - founderDep) / 20 * 5);   // 9-14
+  else if (founderDep >= 30) founderScore = 15 + Math.round((50 - founderDep) / 20 * 5);  // 15-20
+  else founderScore = 21 + Math.round((30 - Math.max(founderDep, 0)) / 30 * 4);           // 21-25
   
   if (founderScore <= 10) {
     blockers.push('Founder Dependency');
@@ -1281,12 +1301,17 @@ function calculateValueExitReadiness(hva: ValueHVAResponses, suppressors: ValueS
     strengths.push('Business runs independently');
   }
   
-  // 3. Revenue Predictability (20 points)
+  // 3. Revenue Predictability (20 points) — interpolated, factor in contract backlog
   const recurring = parseValuePercentage(hva.recurring_revenue_percentage);
-  let revenueScore = 20;
-  if (recurring < 10) revenueScore = 5;
-  else if (recurring < 30) revenueScore = 10;
-  else if (recurring < 50) revenueScore = 15;
+  const backlogMonths = hva.contract_backlog_months || 0;
+  const backlogBonus = backlogMonths >= 12 ? 3 : backlogMonths >= 6 ? 2 : backlogMonths >= 3 ? 1 : 0;
+  let revenueScore: number;
+  if (recurring < 10) revenueScore = 3 + Math.round(recurring / 10 * 2);            // 3-5
+  else if (recurring < 20) revenueScore = 5 + Math.round((recurring - 10) / 10 * 3); // 5-8
+  else if (recurring < 40) revenueScore = 8 + Math.round((recurring - 20) / 20 * 4); // 8-12
+  else if (recurring < 60) revenueScore = 12 + Math.round((recurring - 40) / 20 * 4);// 12-16
+  else revenueScore = 17 + Math.round((recurring - 60) / 40 * 3);                       // 17-20
+  revenueScore = Math.min(20, revenueScore + backlogBonus);
   
   if (revenueScore <= 5) {
     blockers.push('Low Revenue Predictability');
@@ -1294,29 +1319,40 @@ function calculateValueExitReadiness(hva: ValueHVAResponses, suppressors: ValueS
     strengths.push('Strong recurring revenue');
   }
   
-  // 4. Management/Succession (15 points)
+  // 4. Management/Succession (15 points) — more granular
   const successionStatus = hva.succession_your_role;
-  let managementScore = 15;
-  if (successionStatus === 'Need to hire' || successionStatus === 'No successor identified') {
-    managementScore = 5;
+  const founderDep = Math.max(
+    parseValuePercentage(hva.knowledge_dependency_percentage),
+    parseValuePercentage(hva.personal_brand_percentage)
+  );
+  let managementScore: number;
+  const noSuccessor = successionStatus === 'Need to hire' || successionStatus === 'No successor identified' || !successionStatus;
+  if (noSuccessor && founderDep >= 70) {
+    managementScore = 3;        // No successor + high dependency = worst case
+    blockers.push('No Succession Plan');
+  } else if (noSuccessor) {
+    managementScore = 5;         // No successor but lower dependency
     blockers.push('No Succession Plan');
   } else if (successionStatus === 'Developing now') {
-    managementScore = 10;
+    managementScore = 9;
   } else if (successionStatus === 'Ready now') {
-    managementScore = 15;
+    managementScore = 13;
     strengths.push('Clear succession plan');
+  } else {
+    managementScore = 7;  // Some plan but unclear
   }
   
-  // 5. Documentation/Systems (15 points)
+  // 5. Documentation/Systems (15 points) — interpolated
   const docItems = hva.documentation_24hr_ready;
   const docCount = Array.isArray(docItems) ? docItems.length : 0;
-  let docScore = 15;
-  if (docCount < 3) docScore = 5;
-  else if (docCount < 5) docScore = 10;
-  else if (docCount >= 5) {
-    docScore = 15;
-    strengths.push('Good process documentation');
-  }
+  // Map count to score (0-10 items possible, interpolate to 3-15 points)
+  let docScore: number;
+  if (docCount === 0) docScore = 3;
+  else if (docCount < 3) docScore = 3 + Math.round(docCount / 3 * 2);   // 3-5
+  else if (docCount < 5) docScore = 5 + Math.round((docCount - 3) / 2 * 3);   // 5-8
+  else if (docCount < 7) docScore = 8 + Math.round((docCount - 5) / 2 * 3);   // 8-11
+  else docScore = 11 + Math.round((docCount - 7) / 3 * 4);                      // 11-15
+  if (docScore >= 13) strengths.push('Good process documentation');
   
   // Additional strengths (don't add to score, just note them)
   const teamAdvocacy = parseValuePercentage(hva.team_advocacy_percentage);
@@ -1599,7 +1635,7 @@ function calculateSurplusCash(financials: Record<string, any>, revenue: number |
   
   // Build methodology explanation
   const methodology = `Operating buffer = 3 months fixed costs (${staffCosts && adminExpenses ? 'staff + admin' : staffCosts ? 'estimated from staff costs' : 'estimated from revenue'}). ` +
-    `Working capital requirement = MAX(0, debtors + stock - creditors)${netWorkingCapital && netWorkingCapital < 0 ? ' — negative means suppliers fund the business' : ''}.`;
+    `Working capital requirement = MAX(0, debtors + stock - creditors)${netWorkingCapital && netWorkingCapital < 0 ? '. Negative means suppliers fund the business' : ''}.`;
   
   // Build narrative
   let narrative = '';
@@ -1618,7 +1654,7 @@ function calculateSurplusCash(financials: Record<string, any>, revenue: number |
       narrative += `This represents ${surplusAsPercentOfRevenue.toFixed(1)}% of annual revenue.`;
     }
   } else if (surplusCash !== null) {
-    narrative = 'Cash position is in line with operating requirements — no material surplus identified.';
+    narrative = 'Cash position is in line with operating requirements. No material surplus identified.';
   } else {
     narrative = 'Unable to calculate surplus cash from available data.';
   }
@@ -4971,8 +5007,15 @@ serve(async (req) => {
         // Contract backlog (not in current assessment)
         contract_backlog_months: 0,
         
-        // Documentation score (not in current assessment)
-        documentation_score: undefined,
+        // Documentation score — estimate from available signals
+        // When no HVA Part 3 exists, infer from context rather than defaulting to 0
+        documentation_score: (() => {
+          // If context notes mention "loose structure" or systems audit needed, score low
+          // If succession is "Need to hire", processes are likely undocumented
+          // Otherwise, use a neutral midpoint (don't assume worst case)
+          if (needsTeamBuyIn || hasFounderConcern) return 20;  // Likely poor documentation
+          return 40;  // Neutral — not enough data to judge
+        })(),
       };
     }
     

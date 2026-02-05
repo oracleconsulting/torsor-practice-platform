@@ -299,6 +299,19 @@ BANNED VOCABULARY (never use):
 - Streamline, optimize, holistic, impactful, scalable, robust (consultant clichés)
 - Best practices, industry-leading, unlock potential, drive growth
 
+BANNED PUNCTUATION:
+- Em dashes (—) are COMPLETELY BANNED. Never use them. They are the single biggest tell of AI writing.
+  Instead of "X — Y", use one of these alternatives:
+  - Period + new sentence: "X. Y"
+  - Semicolon: "X; Y"  
+  - Comma: "X, Y" (when clauses are short)
+  - Colon: "X: Y" (when second part explains first)
+  - Parentheses: "X (Y)" (for asides)
+  - "which" clause: "X, which Y"
+  Example: Instead of "That's not a crisis — that's a business that invested"
+  Write: "That's not a crisis. That's a business that invested."
+- Do not use en dashes (–) as substitutes for em dashes either.
+
 BANNED STRUCTURES:
 - "Not only X but also Y" parallelisms (pick X or Y)
 - "It's important to note..." / "In summary..." / "In conclusion..."
@@ -454,7 +467,28 @@ serve(async (req) => {
       content = content.trim();
     }
     
-    const narratives = JSON.parse(content);
+    let narratives = JSON.parse(content);
+    
+    // Sanitise AI writing tells — replace em dashes with periods
+    const sanitiseNarrative = (text: string): string => {
+      if (!text) return text;
+      // Replace em dash with period + space (most common pattern is "X — Y" or "X—Y")
+      return text
+        .replace(/\s*—\s*/g, '. ')    // em dash
+        .replace(/\s*–\s*/g, '. ')    // en dash used as em dash
+        .replace(/\.\.\s/g, '. ')      // clean up any double periods from replacement
+        .replace(/\.\s\./g, '.')       // clean up ". ." patterns
+        .trim();
+    };
+
+    // Apply to all narrative fields
+    if (narratives.executiveSummary) narratives.executiveSummary = sanitiseNarrative(narratives.executiveSummary);
+    if (narratives.positionNarrative) narratives.positionNarrative = sanitiseNarrative(narratives.positionNarrative);
+    if (narratives.strengthNarrative) narratives.strengthNarrative = sanitiseNarrative(narratives.strengthNarrative);
+    if (narratives.gapNarrative) narratives.gapNarrative = sanitiseNarrative(narratives.gapNarrative);
+    if (narratives.opportunityNarrative) narratives.opportunityNarrative = sanitiseNarrative(narratives.opportunityNarrative);
+    if (narratives.headline) narratives.headline = sanitiseNarrative(narratives.headline);
+    
     const tokensUsed = result.usage?.total_tokens || 0;
     const cost = (tokensUsed / 1000) * 0.015; // Approximate cost for Opus 4
     const generationTime = Date.now() - startTime;

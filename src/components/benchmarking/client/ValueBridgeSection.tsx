@@ -203,7 +203,7 @@ export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business'
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-lg font-semibold text-slate-900">Exit Readiness</h3>
           <div className={`px-4 py-2 rounded-full font-bold ${exitVerdictConfig[exitReadiness.verdict as keyof typeof exitVerdictConfig].bg} ${exitVerdictConfig[exitReadiness.verdict as keyof typeof exitVerdictConfig].text}`}>
-            {exitReadiness.score}/100 — {exitVerdictConfig[exitReadiness.verdict as keyof typeof exitVerdictConfig].label}
+            {exitReadiness.score}/100: {exitVerdictConfig[exitReadiness.verdict as keyof typeof exitVerdictConfig].label}
           </div>
         </div>
         
