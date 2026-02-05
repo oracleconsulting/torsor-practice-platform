@@ -3143,9 +3143,23 @@ function enrichBenchmarkData(
         }
         
         // Generate two paths narrative (CONTEXT-AWARE)
-        const marginOpportunity = enriched.enhanced_suppressors.reduce(
-          (sum: number, s: EnhancedValueSuppressor) => sum + s.recovery.valueRecoverable, 0
-        ) * 0.15; // Approximate margin opportunity as 15% of recoverable value
+        // Use the actual margin gap (consistent with hero number and opportunity_calculations)
+        // Calculate inline using same logic as opportunity_calculations to ensure consistency
+        let marginOpportunity = 0;
+        if (pass1Data?.opportunitySizing?.totalAnnualOpportunity) {
+          // Use Pass 1's calculated margin opportunity (most accurate)
+          marginOpportunity = pass1Data.opportunitySizing.totalAnnualOpportunity;
+        } else {
+          // Fallback: Calculate margin gap inline (same logic as opportunity_calculations)
+          const clientGrossMargin = enriched.gross_margin;
+          const medianGrossMargin = 18; // Industry median
+          if (clientGrossMargin && medianGrossMargin && clientGrossMargin < medianGrossMargin) {
+            const marginGapPercent = medianGrossMargin - clientGrossMargin;
+            const fullGapValue = (marginGapPercent / 100) * revenue;
+            const recoveryFactor = industryCode === 'TELECOM_INFRA' ? 0.60 : 0.70;
+            marginOpportunity = Math.round(fullGapValue * recoveryFactor);
+          }
+        }
         
         enriched.two_paths_narrative = generateTwoPathsNarrative(
           marginOpportunity,

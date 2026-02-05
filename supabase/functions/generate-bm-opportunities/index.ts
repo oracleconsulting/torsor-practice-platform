@@ -1410,26 +1410,67 @@ function generateRecommendedServices(
       return (severityOrder[o.severity] ?? 3) < (severityOrder[max] ?? 3) ? o.severity : max;
     }, 'low');
     
-    // Build addressesIssues array
-    const addressesIssues: AddressedIssue[] = opps.map((opp: any) => ({
-      issueTitle: opp.title || 'Issue Identified',
-      valueAtStake: opp.financial_impact_amount || opp.financialImpact?.amount || 0,
-      severity: opp.severity || 'medium',
-    }));
+    // Build addressesIssues array with value sanity check
+    const addressesIssues: AddressedIssue[] = opps.map((opp: any) => {
+      let value = opp.financial_impact_amount || opp.financialImpact?.amount || 0;
+      // Fix values that appear to be in thousands (LLM output inconsistency)
+      // If value is > 0 but < 10,000, it's likely in thousands
+      if (value > 0 && value < 10000) {
+        console.warn(`[RecommendedServices] Value appears to be in thousands: £${value} for "${opp.title}" - multiplying by 1000`);
+        value = value * 1000;
+      }
+      return {
+        issueTitle: opp.title || 'Issue Identified',
+        valueAtStake: value,
+        severity: opp.severity || 'medium',
+      };
+    });
     
     // Calculate total value at stake
     const totalValueAtStake = addressesIssues.reduce((sum: number, i: AddressedIssue) => sum + (i.valueAtStake || 0), 0);
     
-    // Get the best service_fit_rationale from opportunities
-    const bestRationale = opps.find((o: any) => o.service_fit_rationale)?.service_fit_rationale ||
-                         opps.find((o: any) => o.talking_point)?.talking_point ||
-                         opps.find((o: any) => o.data_evidence)?.data_evidence ||
-                         '';
+    // Build personalised whyThisMatters from opportunity data
+    // Combine data evidence, talking points, and value context
+    const dataEvidence = opps
+      .map((o: any) => o.dataEvidence || o.data_evidence)
+      .filter(Boolean)
+      .slice(0, 2);
+    const talkingPoints = opps
+      .map((o: any) => o.talkingPoint || o.talking_point)
+      .filter(Boolean)
+      .slice(0, 1);
     
-    // Get expected outcome from life_impact or generate from financial impact
+    // Format value for display
+    const formatValue = (val: number): string => {
+      if (val >= 1000000) return `£${(val / 1000000).toFixed(1)}M`;
+      if (val >= 1000) return `£${Math.round(val / 1000)}k`;
+      return `£${val.toLocaleString()}`;
+    };
+    
+    // Build personalised whyThisMatters
+    let whyThisMatters = '';
+    if (dataEvidence.length > 0) {
+      whyThisMatters = dataEvidence.join('. ') + '.';
+    }
+    if (talkingPoints.length > 0 && whyThisMatters) {
+      whyThisMatters += ' ' + talkingPoints[0];
+    } else if (talkingPoints.length > 0) {
+      whyThisMatters = talkingPoints[0];
+    }
+    if (totalValueAtStake > 0 && whyThisMatters) {
+      whyThisMatters += ` This represents ${formatValue(totalValueAtStake)} in value at stake.`;
+    } else if (totalValueAtStake > 0) {
+      whyThisMatters = `This addresses issues worth ${formatValue(totalValueAtStake)} in potential value.`;
+    }
+    // Fallback to service description if no personalised content
+    if (!whyThisMatters) {
+      whyThisMatters = service.description || '';
+    }
+    
+    // Get expected outcome with proper value formatting
     const expectedOutcome = opps.find((o: any) => o.life_impact)?.life_impact ||
                            (totalValueAtStake > 0 
-                             ? `Addresses issues worth £${totalValueAtStake.toLocaleString()} in potential value`
+                             ? `Addresses issues worth ${formatValue(totalValueAtStake)} in potential value`
                              : 'Improved operational efficiency and reduced risk');
     
     // Build the recommendation
@@ -1917,14 +1958,14 @@ async function syncValueAnalysisWithOpportunities(
   hvaData: any,
   clientPreferences?: ClientPreferences
 ): Promise<void> {
-  console.log('[Value Sync] Starting value analysis sync with opportunities');
+  console.log('[Value Sync] Starting value analysis sync with opportunities (remediation fields only)');
   console.log('[Value Sync] Client preferences:', {
     avoidsInternalHires: clientPreferences?.avoidsInternalHires,
     prefersExternalSupport: clientPreferences?.prefersExternalSupport,
     needsSystemsAudit: clientPreferences?.needsSystemsAudit,
   });
   
-  // Get existing value analysis
+  // Get existing value analysis (Pass 1's calculation - DO NOT RECALCULATE)
   const { data: report } = await supabase
     .from('bm_reports')
     .select('pass1_data, value_analysis')
@@ -1936,325 +1977,133 @@ async function syncValueAnalysisWithOpportunities(
     return;
   }
   
-  // Get baseline value from existing analysis
+  // Get existing value analysis from Pass 1 (this is the authoritative calculation)
   const existingAnalysis = report.value_analysis || report.pass1_data?.value_analysis || {};
-  const baselineValue = existingAnalysis.baseline?.totalBaseline || 
-                        existingAnalysis.baseline?.enterpriseValue?.mid ||
-                        28600000; // Default for Installation Tech
-  const surplusCash = existingAnalysis.baseline?.surplusCash || pass1Data?.surplus_cash?.surplusCash || 7700000;
+  const existingSuppressors = existingAnalysis.suppressors || [];
   
-  console.log(`[Value Sync] Baseline: £${(baselineValue/1000000).toFixed(1)}M, Surplus: £${(surplusCash/1000000).toFixed(1)}M`);
+  if (existingSuppressors.length === 0) {
+    console.log('[Value Sync] No existing suppressors found, skipping sync');
+    return;
+  }
+  
+  console.log(`[Value Sync] Found ${existingSuppressors.length} existing suppressors from Pass 1`);
+  console.log(`[Value Sync] Current value: £${(existingAnalysis.currentMarketValue?.mid || 0)/1000000}M`);
+  console.log(`[Value Sync] Value gap: £${(existingAnalysis.valueGap?.mid || 0)/1000000}M (${existingAnalysis.valueGapPercent || 0}%)`);
+  console.log(`[Value Sync] Exit readiness: ${existingAnalysis.exitReadiness?.score || 0}/100`);
   
   // Get CRITICAL opportunities
   const criticalOpps = opportunities.filter(o => o.severity === 'critical');
-  console.log(`[Value Sync] Found ${criticalOpps.length} CRITICAL opportunities`);
+  console.log(`[Value Sync] Found ${criticalOpps.length} CRITICAL opportunities to match`);
   
-  // Build new suppressors from CRITICAL opportunities
-  const syncedSuppressors: ValueSuppressor[] = [];
-  
-  // -------------------------------------------------------------------------
-  // CONCENTRATION SUPPRESSOR
-  // -------------------------------------------------------------------------
-  const concentrationOpp = criticalOpps.find(o => 
-    o.title?.toLowerCase().includes('concentration') ||
-    o.code?.includes('CONCENTRATION')
-  );
-  
-  if (concentrationOpp) {
-    const concValue = concentrationOpp.dataValues?.concentration || 99;
-    syncedSuppressors.push({
-      id: 'customer_concentration',
-      name: 'Customer Concentration Risk',
-      category: 'concentration',
-      severity: 'critical',
-      hvaField: 'top3_customer_revenue_percentage',
-      hvaValue: `${concValue}%`,
-      evidence: `${concValue}% of revenue from top 3 clients. Existential risk - loss of any major client is catastrophic.`,
-      discountPercent: { low: 25, high: 35 },
-      impactAmount: {
-        low: baselineValue * 0.25,
-        high: baselineValue * 0.35,
-      },
-      remediable: true,
-      remediationService: 'Revenue Diversification Programme',
-      remediationTimeMonths: 24,
-      talkingPoint: concentrationOpp.talkingPoint,
-      questionToAsk: concentrationOpp.questionToAsk,
-    });
-    console.log('[Value Sync] Added concentration suppressor: 25-35%');
-  }
-  
-  // -------------------------------------------------------------------------
-  // FOUNDER/KNOWLEDGE DEPENDENCY SUPPRESSOR
-  // -------------------------------------------------------------------------
-  const founderOpp = criticalOpps.find(o => 
-    o.title?.toLowerCase().includes('methodology') ||
-    o.title?.toLowerCase().includes('founder') ||
-    o.title?.toLowerCase().includes('knowledge') ||
-    o.title?.toLowerCase().includes('cradle') ||
-    o.title?.toLowerCase().includes('ip')
-  );
-  
-  if (founderOpp) {
-    // Reduce discount if concentration already added (overlapping risk)
-    const hasConc = syncedSuppressors.some(s => s.category === 'concentration');
-    const discountLow = hasConc ? 12 : 20;
-    const discountHigh = hasConc ? 20 : 30;
+  // Update ONLY remediation fields on existing suppressors (DO NOT recalculate discounts/values)
+  // Match each existing suppressor to a CRITICAL opportunity and update only remediation fields
+  for (const existingSuppressor of existingSuppressors) {
+    const updatedSuppressor = { ...existingSuppressor }; // Keep all existing fields
     
-    // =========================================================================
-    // CONTEXT-AWARE REMEDIATION SERVICE for founder dependency
-    // If client prefers external support or avoids internal hires, suggest
-    // Systems Audit + Strategic Advisory instead of Fractional COO
-    // =========================================================================
-    let founderRemediationService = 'IP Documentation & Fractional COO';  // Default
+    // Find matching opportunity by category or name
+    let matchedOpp = null;
     
-    if (clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport) {
-      // Client explicitly prefers external/project-based support
-      if (clientPreferences?.needsSystemsAudit || clientPreferences?.needsDocumentation) {
-        founderRemediationService = 'Systems Audit + Strategic Advisory';
-      } else {
-        founderRemediationService = 'IP Documentation + Strategic Advisory';
-      }
-      console.log(`[Value Sync] Context-aware remediation: ${founderRemediationService} (client prefers external support)`);
-    } else if (clientPreferences?.prefersProjectBasis) {
-      founderRemediationService = 'Systems Audit + Process Documentation';
-      console.log(`[Value Sync] Context-aware remediation: ${founderRemediationService} (client prefers project basis)`);
+    if (existingSuppressor.category === 'concentration' || existingSuppressor.id === 'customer_concentration') {
+      matchedOpp = criticalOpps.find(o => 
+        o.title?.toLowerCase().includes('concentration') ||
+        o.code?.includes('CONCENTRATION')
+      );
+    } else if (existingSuppressor.category === 'founder_dependency' || existingSuppressor.id === 'founder_dependency') {
+      matchedOpp = criticalOpps.find(o => 
+        o.title?.toLowerCase().includes('methodology') ||
+        o.title?.toLowerCase().includes('founder') ||
+        o.title?.toLowerCase().includes('knowledge') ||
+        o.title?.toLowerCase().includes('cradle') ||
+        o.title?.toLowerCase().includes('ip')
+      );
+    } else if (existingSuppressor.category === 'succession' || existingSuppressor.id === 'succession_gap') {
+      matchedOpp = criticalOpps.find(o => 
+        o.title?.toLowerCase().includes('succession') ||
+        o.title?.toLowerCase().includes('leadership bench') ||
+        o.title?.toLowerCase().includes('leadership gap') ||
+        o.title?.toLowerCase().includes('no plan')
+      );
+    } else if (existingSuppressor.category === 'documentation' || existingSuppressor.id === 'contract_risk') {
+      matchedOpp = criticalOpps.find(o => 
+        o.title?.toLowerCase().includes('contract') ||
+        o.title?.toLowerCase().includes('renewal') ||
+        o.title?.toLowerCase().includes('terms unknown')
+      );
     }
     
-    syncedSuppressors.push({
-      id: 'founder_dependency',
-      name: 'Founder/Knowledge Dependency',
-      category: 'founder_dependency',
-      severity: 'critical',
-      hvaField: 'knowledge_dependency_percentage',
-      hvaValue: '70-80%',
-      evidence: 'Critical knowledge and methodology undocumented. Business cannot operate or sell without owner involvement.',
-      discountPercent: { low: discountLow, high: discountHigh },
-      impactAmount: {
-        low: baselineValue * (discountLow / 100),
-        high: baselineValue * (discountHigh / 100),
-      },
-      remediable: true,
-      remediationService: founderRemediationService,  // CONTEXT-AWARE
-      remediationTimeMonths: 18,
-      talkingPoint: founderOpp.talkingPoint,
-      questionToAsk: founderOpp.questionToAsk,
-    });
-    console.log(`[Value Sync] Added founder dependency suppressor: ${discountLow}-${discountHigh}%`);
-  }
-  
-  // -------------------------------------------------------------------------
-  // SUCCESSION GAP SUPPRESSOR
-  // -------------------------------------------------------------------------
-  const successionOpp = criticalOpps.find(o => 
-    o.title?.toLowerCase().includes('succession') ||
-    o.title?.toLowerCase().includes('leadership bench') ||
-    o.title?.toLowerCase().includes('leadership gap') ||
-    o.title?.toLowerCase().includes('no plan')
-  );
-  
-  if (successionOpp) {
-    // Reduced discount if founder dependency already captured
-    const hasFounder = syncedSuppressors.some(s => s.category === 'founder_dependency');
-    const discountLow = hasFounder ? 3 : 8;
-    const discountHigh = hasFounder ? 8 : 15;
+    // Update ONLY remediation fields if opportunity found
+    if (matchedOpp) {
+      // Context-aware remediation service for founder dependency
+      if (existingSuppressor.category === 'founder_dependency' || existingSuppressor.id === 'founder_dependency') {
+        let remediationService = 'IP Documentation & Fractional COO'; // Default
+        
+        if (clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport) {
+          if (clientPreferences?.needsSystemsAudit || clientPreferences?.needsDocumentation) {
+            remediationService = 'Systems Audit + Strategic Advisory';
+          } else {
+            remediationService = 'IP Documentation + Strategic Advisory';
+          }
+          console.log(`[Value Sync] Context-aware remediation for ${existingSuppressor.name}: ${remediationService}`);
+        } else if (clientPreferences?.prefersProjectBasis) {
+          remediationService = 'Systems Audit + Process Documentation';
+          console.log(`[Value Sync] Context-aware remediation for ${existingSuppressor.name}: ${remediationService}`);
+        }
+        
+        updatedSuppressor.remediationService = remediationService;
+      } else {
+        // For other suppressors, use opportunity's service mapping if available
+        const serviceCode = matchedOpp.serviceMapping?.existingService?.code;
+        if (serviceCode) {
+          // Map service code to readable name (simplified - could be enhanced)
+          const serviceNames: Record<string, string> = {
+            'REVENUE_DIVERSIFICATION': 'Revenue Diversification Programme',
+            'SYSTEMS_AUDIT': 'Systems Audit',
+            'EXIT_READINESS': 'Exit Readiness Programme',
+            'CONTRACT_INTELLIGENCE': 'Contract Intelligence Audit',
+          };
+          updatedSuppressor.remediationService = serviceNames[serviceCode] || updatedSuppressor.remediationService;
+        }
+      }
+      
+      // Update talking point and question from opportunity
+      if (matchedOpp.talkingPoint) {
+        updatedSuppressor.talkingPoint = matchedOpp.talkingPoint;
+      }
+      if (matchedOpp.questionToAsk) {
+        updatedSuppressor.questionToAsk = matchedOpp.questionToAsk;
+      }
+      
+      console.log(`[Value Sync] Updated remediation fields for ${existingSuppressor.name}`);
+    }
     
-    syncedSuppressors.push({
-      id: 'succession_gap',
-      name: 'No Succession Plan',
-      category: 'succession',
-      severity: 'high',
-      hvaField: 'succession_your_role',
-      hvaValue: 'Need to hire',
-      evidence: 'No identified successor. Owner cannot step back or exit without significant value destruction.',
-      discountPercent: { low: discountLow, high: discountHigh },
-      impactAmount: {
-        low: baselineValue * (discountLow / 100),
-        high: baselineValue * (discountHigh / 100),
-      },
-      remediable: true,
-      remediationService: 'Exit Readiness Programme',
-      remediationTimeMonths: 24,
-      talkingPoint: successionOpp.talkingPoint,
-      questionToAsk: successionOpp.questionToAsk,
-    });
-    console.log(`[Value Sync] Added succession suppressor: ${discountLow}-${discountHigh}%`);
+    updatedSuppressors.push(updatedSuppressor);
   }
   
-  // -------------------------------------------------------------------------
-  // CONTRACT RISK SUPPRESSOR (if critical)
-  // -------------------------------------------------------------------------
-  const contractOpp = criticalOpps.find(o => 
-    o.title?.toLowerCase().includes('contract') ||
-    o.title?.toLowerCase().includes('renewal') ||
-    o.title?.toLowerCase().includes('terms unknown')
-  );
-  
-  if (contractOpp) {
-    syncedSuppressors.push({
-      id: 'contract_risk',
-      name: 'Contract Terms Unknown',
-      category: 'documentation',
-      severity: 'high',
-      evidence: 'Critical contract terms, renewal dates, and termination clauses not visible. Due diligence risk.',
-      discountPercent: { low: 3, high: 8 },
-      impactAmount: {
-        low: baselineValue * 0.03,
-        high: baselineValue * 0.08,
-      },
-      remediable: true,
-      remediationService: 'Contract Intelligence Audit',
-      remediationTimeMonths: 3,
-      talkingPoint: contractOpp.talkingPoint,
-      questionToAsk: contractOpp.questionToAsk,
-    });
-    console.log('[Value Sync] Added contract risk suppressor: 3-8%');
-  }
-  
-  // -------------------------------------------------------------------------
-  // LOW PREDICTABILITY SUPPRESSOR (keep from existing if present)
-  // -------------------------------------------------------------------------
-  const existingSuppressors = existingAnalysis.suppressors || [];
-  const existingPredictability = existingSuppressors.find((s: any) => 
-    s.id === 'low_recurring' || s.category === 'predictability'
-  );
-  
-  if (existingPredictability) {
-    syncedSuppressors.push(existingPredictability);
-    console.log('[Value Sync] Kept existing predictability suppressor');
-  }
-  
-  // -------------------------------------------------------------------------
-  // CALCULATE AGGREGATE DISCOUNT
-  // -------------------------------------------------------------------------
-  // Use max per category, then sum (to avoid double-counting overlapping risks)
-  const byCategory: Record<string, number[]> = {};
-  
-  for (const s of syncedSuppressors) {
-    if (!byCategory[s.category]) byCategory[s.category] = [];
-    const midDiscount = (s.discountPercent.low + s.discountPercent.high) / 2;
-    byCategory[s.category].push(midDiscount);
-  }
-  
-  let totalDiscount = 0;
-  for (const [category, discounts] of Object.entries(byCategory)) {
-    const maxDiscount = Math.max(...discounts);
-    totalDiscount += maxDiscount;
-    console.log(`[Value Sync] ${category}: ${maxDiscount.toFixed(1)}%`);
-  }
-  
-  // Cap at 60%
-  totalDiscount = Math.min(totalDiscount, 60);
-  console.log(`[Value Sync] Total discount: ${totalDiscount.toFixed(1)}% (capped at 60%)`);
-  
-  const discountAmount = baselineValue * (totalDiscount / 100);
-  const currentValue = baselineValue - discountAmount;
-  
-  // Exit readiness score (inverse of discount)
-  const exitReadinessScore = Math.max(15, Math.min(75, Math.round(100 - totalDiscount - 15)));
-  const exitReadinessLabel = exitReadinessScore < 35 ? 'Not Ready' : 
-                              exitReadinessScore < 55 ? 'Needs Work' : 'Progressing';
-  
-  // Build updated value analysis
+  // Build updated value analysis - KEEP ALL Pass 1 calculations, only update suppressors
   const updatedValueAnalysis = {
-    asOfDate: new Date().toISOString(),
-    baseline: {
-      method: 'EBITDA',
-      ebitda: (baselineValue - surplusCash) / 5, // Reverse engineer EBITDA
-      ebitdaMargin: 9, // Approximate
-      multipleRange: { low: 4, mid: 5, high: 6 },
-      baseValue: {
-        low: (baselineValue - surplusCash) * 0.8,
-        mid: baselineValue - surplusCash,
-        high: (baselineValue - surplusCash) * 1.2,
-      },
-      surplusCash: surplusCash,
-      enterpriseValue: {
-        low: baselineValue * 0.8,
-        mid: baselineValue,
-        high: baselineValue * 1.2,
-      },
-      totalBaseline: baselineValue,
-      multipleJustification: 'TELECOM_INFRA industry standard for £63M revenue business',
-    },
-    suppressors: syncedSuppressors,
-    aggregateDiscount: {
-      percentRange: {
-        low: Math.round(totalDiscount * 0.85),
-        mid: Math.round(totalDiscount),
-        high: Math.round(totalDiscount * 1.15),
-      },
-      methodology: `Max per category across ${syncedSuppressors.length} suppressors, capped at 60%`,
-    },
-    currentMarketValue: {
-      low: Math.round(baselineValue * (1 - totalDiscount * 1.15 / 100)),
-      mid: Math.round(currentValue),
-      high: Math.round(baselineValue * (1 - totalDiscount * 0.85 / 100)),
-    },
-    valueGap: {
-      low: Math.round(discountAmount * 0.85),
-      mid: Math.round(discountAmount),
-      high: Math.round(discountAmount * 1.15),
-    },
-    valueGapPercent: totalDiscount,
-    exitReadiness: {
-      score: exitReadinessScore,
-      verdict: exitReadinessLabel.toLowerCase().replace(' ', '_'),
-      label: exitReadinessLabel,
-      blockers: syncedSuppressors.filter(s => s.severity === 'critical').map(s => s.name),
-      strengths: existingAnalysis.exitReadiness?.strengths || ['Strong cash position'],
-    },
-    potentialValue: {
-      low: Math.round(baselineValue * 0.7),
-      mid: Math.round(baselineValue * 0.8),
-      high: Math.round(baselineValue * 0.9),
-    },
-    pathToValue: {
-      timeframeMonths: 24,
-      recoverableValue: {
-        low: Math.round(discountAmount * 0.5),
-        mid: Math.round(discountAmount * 0.65),
-        high: Math.round(discountAmount * 0.8),
-      },
-      keyActions: syncedSuppressors.slice(0, 3).map(s => s.remediationService || s.name),
-    },
-    enhancers: existingAnalysis.enhancers || [
-      {
-        id: 'strong_cash',
-        name: 'Strong Cash Position',
-        evidence: `£${(surplusCash/1000000).toFixed(1)}M surplus cash provides runway and optionality`,
-        impact: 'premium_protection',
-      },
-    ],
-    // Store the sync metadata
+    ...existingAnalysis, // Keep all Pass 1 calculations
+    suppressors: updatedSuppressors, // Only suppressors changed
     _syncedAt: new Date().toISOString(),
     _syncedFromOpportunities: criticalOpps.length,
   };
   
-  console.log(`[Value Sync] Calculated current value: £${(currentValue/1000000).toFixed(1)}M (${totalDiscount.toFixed(0)}% discount)`);
-  console.log(`[Value Sync] Exit readiness: ${exitReadinessScore}/100 - ${exitReadinessLabel}`);
+  console.log(`[Value Sync] Updated ${updatedSuppressors.length} suppressors with remediation fields`);
+  console.log(`[Value Sync] KEPT Pass 1 calculations: current value £${(existingAnalysis.currentMarketValue?.mid || 0)/1000000}M, gap ${existingAnalysis.valueGapPercent || 0}%, exit readiness ${existingAnalysis.exitReadiness?.score || 0}/100`);
   
-  // Calculate discounted multiple
-  const baselineMultiple = 5.0;
-  const discountedMultiple = baselineMultiple * (1 - totalDiscount / 100);
-  
-  // Update the report with synced value analysis AND dedicated columns
+  // Update ONLY the value_analysis JSONB - do NOT update dedicated columns (they should match Pass 1)
   const { error: updateError } = await supabase
     .from('bm_reports')
     .update({
       value_analysis: updatedValueAnalysis,
-      // Also write to dedicated columns for easier querying
-      value_suppressors: syncedSuppressors,
-      total_value_discount: totalDiscount,
-      baseline_multiple: baselineMultiple,
-      discounted_multiple: Math.round(discountedMultiple * 10) / 10,
+      // DO NOT update: value_suppressors, total_value_discount, baseline_multiple, discounted_multiple
+      // These should remain as calculated by Pass 1
     })
     .eq('engagement_id', engagementId);
   
   if (updateError) {
     console.error('[Value Sync] Failed to update value_analysis:', updateError);
   } else {
-    console.log(`[Value Sync] Successfully updated value_analysis with ${syncedSuppressors.length} suppressors, ${totalDiscount.toFixed(1)}% total discount`);
+    console.log(`[Value Sync] Successfully updated value_analysis suppressors (remediation fields only)`);
   }
 }
 
