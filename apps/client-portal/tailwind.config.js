@@ -9,6 +9,7 @@ export default {
   ],
   // Safelist classes that are dynamically constructed and might be missed by JIT
   safelist: [
+    // Metric card indicators
     'bg-rose-500',
     'bg-rose-600',
     'text-rose-600',
@@ -17,6 +18,39 @@ export default {
     'text-emerald-600',
     'border-rose-200',
     'border-emerald-200',
+    // Value analysis gradients
+    'bg-gradient-to-br',
+    'bg-gradient-to-r',
+    'from-slate-900',
+    'via-slate-800',
+    'to-blue-900',
+    'from-blue-50',
+    'via-indigo-50',
+    'to-purple-50',
+    'from-green-50',
+    'to-emerald-50',
+    // Severity colors for suppressors
+    'bg-red-50',
+    'border-red-300',
+    'text-red-800',
+    'bg-red-500',
+    'text-red-400',
+    'bg-amber-50',
+    'border-amber-300',
+    'text-amber-800',
+    'bg-amber-500',
+    'text-amber-400',
+    'bg-blue-50',
+    'border-blue-300',
+    'text-blue-800',
+    'bg-blue-400',
+    'text-blue-400',
+    // Additional colors used in shared components
+    'bg-slate-100',
+    'bg-slate-200',
+    'border-slate-700',
+    'text-slate-300',
+    'text-slate-400',
   ],
   theme: {
     extend: {
