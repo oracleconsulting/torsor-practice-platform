@@ -1865,12 +1865,24 @@ function generateRecommendedServices(
         (sum: number, i: AddressedIssue) => sum + (i.valueAtStake || 0), 0
       );
       
-      // 3. Rewrite whyThisMatters - founder context FIRST, then existing content
-      const existingContent = systemsAuditRec.whyThisMatters || '';
+      // 3. Rewrite whyThisMatters - founder context FIRST, then existing content (SANITISED)
+      // CRITICAL: Strip any internal notes references from existing content before appending
+      const rawExistingContent = systemsAuditRec.whyThisMatters || '';
+      const existingContent = rawExistingContent
+        .replace(/Discovery notes[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
+        .replace(/Context notes[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
+        .replace(/[^.]*Discovery notes (indicate|confirm|mention|suggest|show)[^.]*\.\s*/gi, '')
+        .replace(/[^.]*Context notes (indicate|confirm|mention|suggest|show)[^.]*\.\s*/gi, '')
+        .replace(/Client prefers ['""'][^'""]*['""']\.?\s*/gi, '')
+        .replace(/No CFO\/COO in place\.\s*/gi, '')
+        .replace(/Succession plan for founder role[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      
       const impactStr = `£${(impactValue / 1000000).toFixed(1)}M`;
       systemsAuditRec.whyThisMatters = 
         `Founder dependency is your biggest structural risk. ${knowledgePct}% of operational knowledge is concentrated in the founder, costing ${impactStr} in valuation discount. A systems audit maps what's documented vs what's assumed, creating the roadmap to de-risk.` +
-        (existingContent ? ` ${existingContent}` : '');
+        (existingContent && !existingContent.match(/^\s*$/) ? ` ${existingContent}` : '');
       
       // 4. Also update whatYouGet to be founder-specific
       systemsAuditRec.whatYouGet = [
