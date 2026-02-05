@@ -636,8 +636,9 @@ async function analyseWithLLM(
 // ============================================================================
 
 function sanitiseInternalNotes(data: any): any {
-  // Patterns that indicate internal notes have leaked into client content
+  // Patterns that indicate internal notes/observations have leaked into client content
   const leakPatterns = [
+    // Explicit note references
     /Discovery notes[:\s]*['""']/gi,
     /Context notes[:\s]*['""']/gi,
     /Discovery notes (indicate|confirm|mention|suggest|show)/gi,
@@ -645,10 +646,24 @@ function sanitiseInternalNotes(data: any): any {
     /From (discovery|context) notes:/gi,
     /According to (discovery|context) notes/gi,
     /Advisor notes (indicate|confirm|mention)/gi,
-    /['""'][^'""]{10,100}['""']\s*\(from notes\)/gi,
     /\bcontext notes\b/gi,
     /\bdiscovery notes\b/gi,
     /\badvisor notes\b/gi,
+    // Paraphrased internal observations - these should NOT be in client content
+    /leadership structure.*loose/gi,
+    /described as ['""']?loose['""']?/gi,
+    /No CFO\/COO in place/gi,
+    /unique methodology identified/gi,
+    /methodology identified:/gi,
+    /rare in sector/gi,
+    /cradle to grave/gi,
+    /institutional knowledge.*not documented/gi,
+    /succession plan for founder/gi,
+    /client prefers ['""'][^'""]*['""']/gi,
+    /team advocacy at \d+%/gi,
+    /informal structure/gi,
+    /processes exist but oversight/gi,
+    /oversight flows through founder/gi,
   ];
   
   // Function to clean a string
@@ -996,31 +1011,27 @@ ${pass2Narratives?.executiveSummary || 'Not yet generated'}
 ${contextNotes && contextNotes.length > 0 ? `
 ---
 
-## 📝 ADVISOR CONTEXT NOTES (INTERNAL - DO NOT QUOTE)
+## 📋 CLIENT PREFERENCES (from advisor conversations - DO NOT REFERENCE IN OUTPUT)
 
-**CRITICAL: These notes are from INTERNAL conversations between the advisor and client. Use them to INFORM your analysis, but NEVER quote them directly in your output. The client must not see "Discovery notes indicate..." or similar references.**
+**These preferences have been extracted from internal conversations. Use them to shape recommendations, but NEVER mention them in client-facing content. Do not describe HOW you know these preferences.**
 
-**DO:** Use insights to shape your recommendations
-**DON'T:** Write "Discovery notes: '...'" or "Context notes confirm: '...'"
+### WORKING STYLE PREFERENCES:
+${clientPreferences?.prefersExternalSupport ? '- Prefers external support over internal hires' : ''}
+${clientPreferences?.prefersProjectBasis ? '- Prefers project-based engagement over ongoing roles' : ''}
+${clientPreferences?.avoidsInternalHires ? '- Avoids internal/fractional roles' : ''}
 
-${contextNotes.map(n => `
-### ${n.note_type.replace(/_/g, ' ').toUpperCase()} [${n.importance}]
-${n.content}
-`).join('\n')}
+### IDENTIFIED NEEDS:
+${clientPreferences?.needsDocumentation ? '- Documentation/process work needed' : ''}
+${clientPreferences?.needsSystemsAudit ? '- Systems audit appropriate' : ''}
+${clientPreferences?.hasSuccessionConcerns ? '- Exit/succession timeline is a factor' : ''}
 
-### KEY CLIENT PREFERENCES EXTRACTED:
-${clientPreferences?.prefersExternalSupport ? '- ✅ PREFERS: External support over internal hires' : ''}
-${clientPreferences?.prefersProjectBasis ? '- ✅ PREFERS: Project-based engagement over ongoing roles' : ''}
-${clientPreferences?.avoidsInternalHires ? '- ❌ AVOIDS: Internal/fractional roles (they said so explicitly)' : ''}
-${clientPreferences?.needsDocumentation ? '- 📋 NEEDS: Documentation/process work identified' : ''}
-${clientPreferences?.needsSystemsAudit ? '- 🔍 NEEDS: Systems audit (loose structure mentioned)' : ''}
-${clientPreferences?.hasSuccessionConcerns ? '- 🚪 EXIT: Succession/exit timeline mentioned' : ''}
-
-**IMPORTANT RULES BASED ON CONTEXT:**
-${clientPreferences?.avoidsInternalHires || clientPreferences?.prefersExternalSupport ? '- DO NOT recommend Fractional COO or Fractional CFO - client explicitly prefers external support' : ''}
-${clientPreferences?.prefersProjectBasis ? '- PREFER project-based services (Systems Audit, Strategic Advisory) over ongoing engagements' : ''}
-${clientPreferences?.needsSystemsAudit ? '- STRONGLY CONSIDER Systems & Process Audit given loose structure mentioned' : ''}
-${clientPreferences?.hasSuccessionConcerns ? '- EXIT READINESS should be prioritised given timeline mentioned' : ''}
+### RULES FOR YOUR OUTPUT:
+- DO NOT recommend Fractional COO or CFO if they prefer external support
+- DO NOT mention "leadership structure", "loose structure", or similar phrases from notes
+- DO NOT quote anything the client said in conversations
+- DO NOT reference "methodology" or "unique approaches" from notes
+- ONLY use observable data (financials, metrics, HVA scores) in your reasoning
+- Keep whyThisMatters focused on NUMBERS and BENCHMARKS, not qualitative observations
 ` : ''}
 
 ---
@@ -1592,16 +1603,31 @@ function generateRecommendedServices(
     
     // Build personalised whyThisMatters
     // Fix: strip trailing periods/spaces from each piece before joining to prevent ".."
-    // CRITICAL: Also strip any leaked internal notes references
+    // CRITICAL: Strip ANY content that looks like paraphrased internal observations
     const stripInternalRefs = (text: string): string => {
       if (!text) return text;
       return text
-        // Remove "Discovery notes:" style patterns and their quoted content
+        // Remove explicit "Discovery notes:" patterns
         .replace(/Discovery notes[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
         .replace(/Context notes[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
-        // Remove "Discovery notes indicate/confirm/mention..." sentences
         .replace(/[^.]*Discovery notes (indicate|confirm|mention|suggest|show)[^.]*\.\s*/gi, '')
         .replace(/[^.]*Context notes (indicate|confirm|mention|suggest|show)[^.]*\.\s*/gi, '')
+        // Remove paraphrased internal observations
+        .replace(/[^.]*leadership structure[^.]*\.\s*/gi, '')
+        .replace(/[^.]*described as ['""']?loose['""']?[^.]*\.\s*/gi, '')
+        .replace(/[^.]*No CFO\/COO in place[^.]*\.\s*/gi, '')
+        .replace(/[^.]*unique methodology[^.]*\.\s*/gi, '')
+        .replace(/[^.]*methodology identified[^.]*\.\s*/gi, '')
+        .replace(/[^.]*rare in sector[^.]*\.\s*/gi, '')
+        .replace(/[^.]*cradle to grave[^.]*\.\s*/gi, '')
+        .replace(/[^.]*institutional knowledge[^.]*\.\s*/gi, '')
+        .replace(/[^.]*succession plan for founder[^.]*\.\s*/gi, '')
+        .replace(/[^.]*client prefers ['""'][^'""]*['""'][^.]*\.\s*/gi, '')
+        .replace(/[^.]*team advocacy at \d+%[^.]*\.\s*/gi, '')
+        .replace(/[^.]*informal structure[^.]*\.\s*/gi, '')
+        .replace(/[^.]*processes exist but[^.]*\.\s*/gi, '')
+        .replace(/[^.]*flows through founder[^.]*\.\s*/gi, '')
+        .replace(/[^.]*oversight flows through[^.]*\.\s*/gi, '')
         // Remove standalone references
         .replace(/\bDiscovery notes:\s*/gi, '')
         .replace(/\bContext notes:\s*/gi, '')
@@ -1865,24 +1891,14 @@ function generateRecommendedServices(
         (sum: number, i: AddressedIssue) => sum + (i.valueAtStake || 0), 0
       );
       
-      // 3. Rewrite whyThisMatters - founder context FIRST, then existing content (SANITISED)
-      // CRITICAL: Strip any internal notes references from existing content before appending
-      const rawExistingContent = systemsAuditRec.whyThisMatters || '';
-      const existingContent = rawExistingContent
-        .replace(/Discovery notes[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
-        .replace(/Context notes[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
-        .replace(/[^.]*Discovery notes (indicate|confirm|mention|suggest|show)[^.]*\.\s*/gi, '')
-        .replace(/[^.]*Context notes (indicate|confirm|mention|suggest|show)[^.]*\.\s*/gi, '')
-        .replace(/Client prefers ['""'][^'""]*['""']\.?\s*/gi, '')
-        .replace(/No CFO\/COO in place\.\s*/gi, '')
-        .replace(/Succession plan for founder role[:\s]*['""'][^'""]*['""']\.?\s*/gi, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
+      // 3. Rewrite whyThisMatters - use ONLY the standard founder dependency message
+      // CRITICAL: Do NOT append any existing content - it may contain paraphrased internal notes
+      // The LLM-generated content often includes observations from discovery calls that shouldn't be client-facing
       
       const impactStr = `£${(impactValue / 1000000).toFixed(1)}M`;
+      // Use ONLY the deterministic founder message - do NOT append LLM content
       systemsAuditRec.whyThisMatters = 
-        `Founder dependency is your biggest structural risk. ${knowledgePct}% of operational knowledge is concentrated in the founder, costing ${impactStr} in valuation discount. A systems audit maps what's documented vs what's assumed, creating the roadmap to de-risk.` +
-        (existingContent && !existingContent.match(/^\s*$/) ? ` ${existingContent}` : '');
+        `Founder dependency is your biggest structural risk. ${knowledgePct}% of operational knowledge is concentrated in the founder, costing ${impactStr} in valuation discount. A systems audit maps what's documented vs what's assumed, creating the roadmap to de-risk.`;
       
       // 4. Also update whatYouGet to be founder-specific
       systemsAuditRec.whatYouGet = [
