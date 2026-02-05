@@ -197,6 +197,8 @@ export function calculateTrajectoryMetrics(
   }
   
   return {
+    status: 'calculated',
+    hasData: true,
     revenueGrowthYoY,
     revenueGrowth3Year,
     profitGrowthYoY,

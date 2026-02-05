@@ -189,6 +189,8 @@ export function calculateProfitabilityMetrics(
   }
   
   return {
+    status: 'calculated',
+    hasData: true,
     grossMargin: grossMarginMetric,
     operatingMargin: operatingMarginMetric,
     netMargin: netMarginMetric,

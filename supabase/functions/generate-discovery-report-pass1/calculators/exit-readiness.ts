@@ -11,6 +11,26 @@ import {
   formatPercent
 } from '../types/pass1-output.ts';
 
+type ClientBusinessType = 
+  | 'trading_product'
+  | 'trading_agency'
+  | 'professional_practice'
+  | 'investment_vehicle'
+  | 'funded_startup'
+  | 'lifestyle_business';
+
+interface FrameworkOverrides {
+  useEarningsValuation: boolean;
+  useAssetValuation: boolean;
+  benchmarkAgainst: string | null;
+  exitReadinessRelevant: boolean;
+  payrollBenchmarkRelevant: boolean;
+  appropriateServices: string[];
+  inappropriateServices: string[];
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation';
+  maxRecommendedInvestment: number | null;
+}
+
 export interface ExitReadinessInputs {
   // From assessment
   hoursWorked?: string;
@@ -33,8 +53,34 @@ export interface ExitReadinessInputs {
  * Calculate exit readiness metrics with pre-built phrases
  */
 export function calculateExitReadinessMetrics(
-  inputs: ExitReadinessInputs
-): ExitReadinessMetrics {
+  inputs: ExitReadinessInputs,
+  clientType?: ClientBusinessType,
+  frameworkOverrides?: FrameworkOverrides
+): ExitReadinessMetrics | { status: 'not_applicable'; notApplicableReason: string; hasData: false } {
+  // ========================================================================
+  // APPLICABILITY CHECK
+  // ========================================================================
+  // Exit readiness is not applicable for:
+  // - investment_vehicle (not planning exit, wealth protection focus)
+  // - funded_startup (5+ year horizon, no exit planning)
+  // - lifestyle_business (not exit-focused)
+  
+  if (frameworkOverrides && !frameworkOverrides.exitReadinessRelevant) {
+    const reason = clientType === 'investment_vehicle'
+      ? 'Exit readiness not applicable - investment vehicles focus on wealth protection, not exit'
+      : clientType === 'funded_startup'
+      ? 'Exit readiness not applicable - funded startups have 5+ year horizon, no exit planning'
+      : clientType === 'lifestyle_business'
+      ? 'Exit readiness not applicable - lifestyle businesses not exit-focused'
+      : 'Exit readiness not applicable for this client type';
+    
+    console.log('[Exit Readiness] Not applicable:', reason);
+    return {
+      status: 'not_applicable',
+      notApplicableReason: reason,
+      hasData: false
+    } as any;
+  }
   const now = new Date().toISOString();
   
   const factors: ExitReadinessFactor[] = [];
@@ -204,6 +250,8 @@ export function calculateExitReadinessMetrics(
   };
   
   return {
+    status: 'calculated',
+    hasData: true,
     overallScore: overallScoreMetric,
     founderDependency: founderDependencyMetric,
     documentationScore: null, // Could expand

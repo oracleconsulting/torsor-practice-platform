@@ -78,6 +78,151 @@ interface AssetValuation {
 }
 
 // ============================================================================
+// REPORT FRAMING INSTRUCTIONS
+// ============================================================================
+
+function getReportFramingInstructions(
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation',
+  clientType: ClientBusinessType
+): string {
+  const framingMap: Record<string, string> = {
+    'transformation': `
+============================================================================
+📈 REPORT FRAMING: TRANSFORMATION
+============================================================================
+This is a trading business focused on growth and exit readiness.
+
+NARRATIVE STRUCTURE:
+"Here's where you are → here's where you want to be → here's how we get there."
+
+APPROPRIATE LANGUAGE:
+✅ "transformation journey"
+✅ "unlocking potential"
+✅ "scaling"
+✅ "building value"
+✅ "exit readiness"
+✅ "cost of inaction"
+✅ "leaving money on the table"
+✅ Growth-focused language
+
+TONE:
+- Forward-looking and ambitious
+- Focus on potential and opportunity
+- Emphasize the gap between current state and desired state
+- Frame services as enablers of transformation
+`,
+
+    'wealth_protection': `
+============================================================================
+🛡️ REPORT FRAMING: WEALTH PROTECTION
+============================================================================
+This client has built significant wealth (investment vehicle, property portfolio).
+They're not looking to transform - they're looking to protect and transfer.
+
+NARRATIVE STRUCTURE:
+"You've built significant wealth → here are the risks to it → here's how to protect and transfer it."
+
+APPROPRIATE LANGUAGE:
+✅ "protecting"
+✅ "transferring"
+✅ "structuring"
+✅ "planning ahead"
+✅ "wealth preservation"
+✅ "succession planning"
+✅ "IHT planning"
+✅ "asset protection"
+
+FORBIDDEN LANGUAGE:
+⛔ DO NOT use "transformation journey"
+⛔ DO NOT use "unlocking potential"
+⛔ DO NOT use "scaling"
+⛔ DO NOT use "cost of inaction" (they're not inaction - they're protecting)
+⛔ DO NOT use "leaving money on the table"
+⛔ DO NOT use growth-focused language
+
+TONE:
+- Respectful of what they've built
+- Focus on preservation and transfer
+- Emphasize risks (IHT, succession, structure)
+- Frame services as protection mechanisms
+- Acknowledge they KNOW their value (don't say "you don't know what you're worth")
+`,
+
+    'foundations': `
+============================================================================
+🏗️ REPORT FRAMING: FOUNDATIONS
+============================================================================
+This is a funded startup building something ambitious. They need infrastructure, not transformation.
+
+NARRATIVE STRUCTURE:
+"You're building something ambitious → here's what you need in place → here's how we help you build it right."
+
+APPROPRIATE LANGUAGE:
+✅ "building right from the start"
+✅ "getting the foundations in place"
+✅ "investor-ready"
+✅ "runway management"
+✅ "board reporting"
+✅ "financial foundations"
+✅ "operational infrastructure"
+✅ "building the infrastructure that makes growth possible"
+
+FORBIDDEN LANGUAGE:
+⛔ DO NOT use "you're leaving money on the table"
+⛔ DO NOT use "cost of inaction"
+⛔ DO NOT use "transformation journey" (too heavy for this stage)
+⛔ DO NOT use exit-focused language (5-10 year horizon)
+⛔ DO NOT push heavy transformation services
+
+TONE:
+- Supportive of their ambition
+- Focus on building correctly from the start
+- Emphasize investor-readiness and runway
+- Frame services as foundational infrastructure
+- Respect their 5+ year horizon
+`,
+
+    'optimisation': `
+============================================================================
+⚙️ REPORT FRAMING: OPTIMISATION
+============================================================================
+This is a lifestyle business or professional practice. They've got a good thing - make it better.
+
+NARRATIVE STRUCTURE:
+"You've got a good thing → here's where it could be better → here are targeted improvements."
+
+APPROPRIATE LANGUAGE:
+✅ "making what works, work better"
+✅ "targeted improvements"
+✅ "efficiency gains"
+✅ "optimising"
+✅ "refining"
+✅ "fine-tuning"
+✅ "work-life balance"
+✅ "sustainable operations"
+
+FORBIDDEN LANGUAGE:
+⛔ DO NOT push growth
+⛔ DO NOT use "scaling"
+⛔ DO NOT use "transformation journey"
+⛔ DO NOT use "unlocking potential"
+⛔ DO NOT use exit-focused language (unless they explicitly mentioned it)
+⛔ DO NOT disrespect their choices to prioritize lifestyle
+
+TONE:
+- Respectful of their choices
+- Focus on efficiency, not growth
+- Emphasize work-life balance
+- Frame services as targeted improvements
+- Acknowledge what's already working
+- Don't push transformation if they're content
+`
+  };
+  
+  return framingMap[reportFraming] || framingMap['transformation'];
+}
+
+// ============================================================================
 // CLIENT TYPE PROMPT GUIDANCE
 // ============================================================================
 
@@ -1171,6 +1316,15 @@ No validated financial data available. When discussing financial figures:
     
     // Get client-type specific prompt guidance
     const clientTypeGuidance = getClientTypePromptGuidance(clientType, frameworkOverrides, assetValuation);
+    
+    // Get report framing instructions
+    const reportFraming = frameworkOverrides?.reportFraming || 'transformation';
+    const framingInstructions = getReportFramingInstructions(reportFraming, clientType);
+    
+    console.log('[Pass2] 📝 Report Framing:', {
+      framing: reportFraming,
+      clientType: clientType
+    });
 
     // ========================================================================
     // EXTRACT 7-DIMENSION ANALYSIS FROM PASS 1
@@ -1873,6 +2027,14 @@ IMPORTANT: When generating pages 1-5, you MUST:
     // ============================================================================
 
     const prompt = `You are writing a Destination-Focused Discovery Report for ${clientName} from ${companyName}.
+
+============================================================================
+CLIENT TYPE & REPORT FRAMING
+============================================================================
+Client Type: ${clientType}
+Report Framing: ${reportFraming}
+
+${framingInstructions}
 
 ============================================================================
 THE FUNDAMENTAL PRINCIPLE

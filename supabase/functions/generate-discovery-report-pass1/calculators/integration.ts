@@ -8,6 +8,26 @@
 import { Pass1Output } from '../types/pass1-output.ts';
 import { orchestratePass1Calculations, ExtractedFinancials } from './orchestrator.ts';
 
+type ClientBusinessType = 
+  | 'trading_product'
+  | 'trading_agency'
+  | 'professional_practice'
+  | 'investment_vehicle'
+  | 'funded_startup'
+  | 'lifestyle_business';
+
+interface FrameworkOverrides {
+  useEarningsValuation: boolean;
+  useAssetValuation: boolean;
+  benchmarkAgainst: string | null;
+  exitReadinessRelevant: boolean;
+  payrollBenchmarkRelevant: boolean;
+  appropriateServices: string[];
+  inappropriateServices: string[];
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation';
+  maxRecommendedInvestment: number | null;
+}
+
 /**
  * Run new structured calculations alongside existing analysis
  * Returns both formats for backward compatibility
@@ -18,7 +38,9 @@ export function runStructuredCalculations(
   clientName: string,
   companyName: string,
   financials: ExtractedFinancials,
-  responses: Record<string, any>
+  responses: Record<string, any>,
+  clientType?: ClientBusinessType,
+  frameworkOverrides?: FrameworkOverrides
 ): Pass1Output {
   console.log('[Integration] Running new structured calculations...');
   
@@ -28,7 +50,9 @@ export function runStructuredCalculations(
     clientName,
     companyName,
     financials,
-    responses
+    responses,
+    clientType,
+    frameworkOverrides
   });
   
   console.log('[Integration] Structured output complete:', {

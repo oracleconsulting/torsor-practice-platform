@@ -12,6 +12,26 @@ import {
 
 import { IndustryBenchmark, getRevenuePerHeadStatus } from '../benchmarks/industry-benchmarks.ts';
 
+type ClientBusinessType = 
+  | 'trading_product'
+  | 'trading_agency'
+  | 'professional_practice'
+  | 'investment_vehicle'
+  | 'funded_startup'
+  | 'lifestyle_business';
+
+interface FrameworkOverrides {
+  useEarningsValuation: boolean;
+  useAssetValuation: boolean;
+  benchmarkAgainst: string | null;
+  exitReadinessRelevant: boolean;
+  payrollBenchmarkRelevant: boolean;
+  appropriateServices: string[];
+  inappropriateServices: string[];
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation';
+  maxRecommendedInvestment: number | null;
+}
+
 export interface ProductivityInputs {
   revenue: number;
   employeeCount: number;
@@ -24,8 +44,45 @@ export interface ProductivityInputs {
  */
 export function calculateProductivityMetrics(
   inputs: ProductivityInputs,
-  benchmark: IndustryBenchmark
-): ProductivityMetrics {
+  benchmark: IndustryBenchmark,
+  clientType?: ClientBusinessType,
+  frameworkOverrides?: FrameworkOverrides
+): ProductivityMetrics | { status: 'not_applicable'; notApplicableReason: string; hasData: false } | { status: 'no_data'; hasData: false; notApplicableReason: string } {
+  // ========================================================================
+  // APPLICABILITY CHECK
+  // ========================================================================
+  // Productivity benchmarking is not applicable when benchmarks don't apply:
+  // - trading_agency (contractor models break benchmarks) ⚠️
+  // - investment_vehicle (no productivity relevance)
+  // - funded_startup (pre-revenue or early stage, benchmarks don't apply)
+  
+  if (frameworkOverrides && (!frameworkOverrides.benchmarkAgainst || !frameworkOverrides.payrollBenchmarkRelevant)) {
+    const reason = clientType === 'trading_agency' 
+      ? 'Productivity benchmarking not applicable for agency contractor model'
+      : clientType === 'investment_vehicle'
+      ? 'Productivity benchmarking not relevant for investment vehicles'
+      : clientType === 'funded_startup'
+      ? 'Productivity benchmarking not applicable for early-stage funded startups'
+      : 'Productivity benchmarking not applicable for this client type';
+    
+    console.log('[Productivity] Not applicable:', reason);
+    return {
+      status: 'not_applicable',
+      notApplicableReason: reason,
+      hasData: false
+    };
+  }
+  
+  // Check if we have required data
+  if (!inputs.revenue || !inputs.employeeCount) {
+    console.log('[Productivity] No data: Missing revenue or employee count');
+    return {
+      status: 'no_data',
+      hasData: false,
+      notApplicableReason: 'Missing required data: revenue or employee count'
+    };
+  }
+  
   const { revenue, employeeCount, operatingProfit, staffCosts } = inputs;
   const now = new Date().toISOString();
   
@@ -163,6 +220,8 @@ export function calculateProductivityMetrics(
   };
   
   return {
+    status: 'calculated',
+    hasData: true,
     revenuePerHead: revenuePerHeadMetric,
     profitPerHead: profitPerHeadMetric,
     revenuePerPayrollPound: revenuePerPayrollPoundMetric,

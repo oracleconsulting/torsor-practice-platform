@@ -13,6 +13,26 @@ import {
 
 import { IndustryBenchmark, getPayrollStatus } from '../benchmarks/industry-benchmarks.ts';
 
+type ClientBusinessType = 
+  | 'trading_product'
+  | 'trading_agency'
+  | 'professional_practice'
+  | 'investment_vehicle'
+  | 'funded_startup'
+  | 'lifestyle_business';
+
+interface FrameworkOverrides {
+  useEarningsValuation: boolean;
+  useAssetValuation: boolean;
+  benchmarkAgainst: string | null;
+  exitReadinessRelevant: boolean;
+  payrollBenchmarkRelevant: boolean;
+  appropriateServices: string[];
+  inappropriateServices: string[];
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation';
+  maxRecommendedInvestment: number | null;
+}
+
 export interface PayrollInputs {
   turnover: number;
   staffCosts: number;
@@ -26,8 +46,44 @@ export interface PayrollInputs {
  */
 export function calculatePayrollMetrics(
   inputs: PayrollInputs,
-  benchmark: IndustryBenchmark
-): PayrollMetrics {
+  benchmark: IndustryBenchmark,
+  clientType?: ClientBusinessType,
+  frameworkOverrides?: FrameworkOverrides
+): PayrollMetrics | { status: 'not_applicable'; notApplicableReason: string; hasData: false } | { status: 'no_data'; hasData: false; notApplicableReason: string } {
+  // ========================================================================
+  // APPLICABILITY CHECK
+  // ========================================================================
+  // Payroll benchmarking is not applicable for:
+  // - trading_agency (contractor models break benchmarks) ⚠️
+  // - investment_vehicle (no payroll relevance)
+  // - funded_startup (pre-revenue or early stage, benchmarks don't apply)
+  
+  if (frameworkOverrides && !frameworkOverrides.payrollBenchmarkRelevant) {
+    const reason = clientType === 'trading_agency' 
+      ? 'Payroll benchmarking not applicable for agency contractor model'
+      : clientType === 'investment_vehicle'
+      ? 'Payroll benchmarking not relevant for investment vehicles'
+      : clientType === 'funded_startup'
+      ? 'Payroll benchmarking not applicable for early-stage funded startups'
+      : 'Payroll benchmarking not applicable for this client type';
+    
+    console.log('[Payroll] Not applicable:', reason);
+    return {
+      status: 'not_applicable',
+      notApplicableReason: reason,
+      hasData: false
+    };
+  }
+  
+  // Check if we have required data
+  if (!inputs.turnover || !inputs.staffCosts) {
+    console.log('[Payroll] No data: Missing turnover or staff costs');
+    return {
+      status: 'no_data',
+      hasData: false,
+      notApplicableReason: 'Missing required data: turnover or staff costs'
+    };
+  }
   const { turnover, staffCosts, grossProfit, directorSalary } = inputs;
   const now = new Date().toISOString();
   
@@ -216,6 +272,8 @@ export function calculatePayrollMetrics(
   }
   
   return {
+    status: 'calculated',
+    hasData: true,
     staffCostsPercent: staffCostsPercentMetric,
     annualExcess: annualExcessMetric,
     monthlyExcess: monthlyExcessMetric,

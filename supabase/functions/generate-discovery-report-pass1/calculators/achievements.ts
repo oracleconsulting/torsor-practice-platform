@@ -149,6 +149,8 @@ export function calculateAchievementsMetrics(
     : "Let's identify and build on your strengths";
   
   return {
+    status: 'calculated',
+    hasData: true,
     achievements,
     phrases: {
       topAchievements,

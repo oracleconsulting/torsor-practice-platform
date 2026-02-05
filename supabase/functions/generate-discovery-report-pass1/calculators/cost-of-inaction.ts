@@ -149,6 +149,8 @@ export function calculateCostOfInactionMetrics(
   };
   
   return {
+    status: 'calculated',
+    hasData: true,
     payrollExcess: payrollExcessComponent,
     marginLeakage: marginLeakageComponent,
     efficiencyLoss: null, // Could add productivity-based calculation
