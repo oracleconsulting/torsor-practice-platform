@@ -1389,6 +1389,32 @@ function generateRecommendedServices(
     serviceOpportunityMap.set(serviceCode, existing);
   }
   
+  // Remap blocked service opportunities to alternative services
+  // This ensures founder dependency maps to SYSTEMS_AUDIT when COO is blocked
+  for (const opp of opportunities) {
+    const code = opp.serviceMapping?.existingService?.code || opp.service?.code;
+    // If this opportunity mapped to a blocked service, try to reassign
+    if (code && blockedCodes.includes(code)) {
+      // Founder-related opportunities should map to SYSTEMS_AUDIT
+      const isFounderRelated = opp.title?.toLowerCase().includes('founder') ||
+                               opp.title?.toLowerCase().includes('knowledge') ||
+                               opp.title?.toLowerCase().includes('dependency') ||
+                               opp.title?.toLowerCase().includes('methodology') ||
+                               opp.title?.toLowerCase().includes('cradle') ||
+                               opp.code?.includes('FOUNDER');
+      
+      if (isFounderRelated && !blockedCodes.includes('SYSTEMS_AUDIT') && !activeServiceCodes.includes('SYSTEMS_AUDIT')) {
+        const existing = serviceOpportunityMap.get('SYSTEMS_AUDIT') || [];
+        // Only add if not already mapped here
+        if (!existing.some((e: any) => e.code === opp.code || e.title === opp.title)) {
+          existing.push(opp);
+          serviceOpportunityMap.set('SYSTEMS_AUDIT', existing);
+          console.log(`[RecommendedServices] Remapped blocked ${code} → SYSTEMS_AUDIT for "${opp.title}"`);
+        }
+      }
+    }
+  }
+  
   const recommendations: RecommendedService[] = [];
   
   // Build recommendations from grouped opportunities (use Array.from for ES5 compatibility)
@@ -1485,7 +1511,7 @@ function generateRecommendedServices(
       priceRange: formatPriceRange(service),
       category: service.category,
       // Personalised content
-      whyThisMatters: bestRationale,
+      whyThisMatters,
       whatYouGet: service.deliverables || getDefaultDeliverables(service.code),
       expectedOutcome,
       timeToValue: service.typical_duration || '4-6 weeks',
@@ -1499,7 +1525,7 @@ function generateRecommendedServices(
       code: service.code,
       name: service.name,
       timeframe: service.typical_duration || 'Flexible',
-      howItHelps: bestRationale,
+      howItHelps: whyThisMatters,
       contextReason: isPinned ? 'Recommended by your advisor' : undefined,
     });
   }
@@ -1997,6 +2023,7 @@ async function syncValueAnalysisWithOpportunities(
   
   // Update ONLY remediation fields on existing suppressors (DO NOT recalculate discounts/values)
   // Match each existing suppressor to a CRITICAL opportunity and update only remediation fields
+  const updatedSuppressors: any[] = [];
   for (const existingSuppressor of existingSuppressors) {
     const updatedSuppressor = { ...existingSuppressor }; // Keep all existing fields
     
