@@ -1284,6 +1284,7 @@ function calculateValueExitReadiness(hva: ValueHVAResponses, suppressors: ValueS
   }
   
   // 2. Founder Dependency (25 points) — interpolated
+  // Calculate founderDep once at the top (used in both founder scoring and management scoring)
   const founderDep = Math.max(
     parseValuePercentage(hva.knowledge_dependency_percentage),
     parseValuePercentage(hva.personal_brand_percentage)
@@ -1320,11 +1321,8 @@ function calculateValueExitReadiness(hva: ValueHVAResponses, suppressors: ValueS
   }
   
   // 4. Management/Succession (15 points) — more granular
+  // Note: founderDep already declared above for founder dependency scoring
   const successionStatus = hva.succession_your_role;
-  const founderDep = Math.max(
-    parseValuePercentage(hva.knowledge_dependency_percentage),
-    parseValuePercentage(hva.personal_brand_percentage)
-  );
   let managementScore: number;
   const noSuccessor = successionStatus === 'Need to hire' || successionStatus === 'No successor identified' || !successionStatus;
   if (noSuccessor && founderDep >= 70) {
