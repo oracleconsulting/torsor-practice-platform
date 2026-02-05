@@ -20,8 +20,6 @@ import {
   Target,
   AlertTriangle,
   Sparkles,
-  Mail,
-  Phone,
   Pin,
   TrendingUp
 } from 'lucide-react';
@@ -363,39 +361,12 @@ export function RecommendedServicesSection({
           </div>
         )}
         
-        {/* Call to Action */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-8 text-center text-white">
-          <h3 className="text-xl font-semibold mb-2">Ready to Take Action?</h3>
-          <p className="text-blue-100 mb-6 max-w-lg mx-auto">
-            Let's discuss which of these recommendations makes the most sense for your situation and timeline.
+        {/* Softer close - no hard CTA */}
+        <div className="bg-slate-50 rounded-xl p-6 text-center">
+          <p className="text-slate-600">
+            These recommendations are based on your business data and industry benchmarks.
+            Service scope and pricing are confirmed based on your specific requirements.
           </p>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            {practitionerEmail && (
-              <a 
-                href={`mailto:${practitionerEmail}?subject=Benchmarking Report Follow-up${clientName ? ` - ${clientName}` : ''}`}
-                className="inline-flex items-center gap-2 bg-white text-blue-700 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors"
-              >
-                <Mail className="w-4 h-4" />
-                Email {practitionerName}
-              </a>
-            )}
-            {practitionerPhone && (
-              <a 
-                href={`tel:${practitionerPhone}`}
-                className="inline-flex items-center gap-2 text-white border border-white/30 px-6 py-3 rounded-lg font-semibold hover:bg-white/10 transition-colors"
-              >
-                <Phone className="w-4 h-4" />
-                Call to Discuss
-              </a>
-            )}
-          </div>
-          
-          {practitionerName && practitionerName !== 'your advisor' && (
-            <p className="text-blue-200 text-sm mt-4">
-              Your advisor: {practitionerName}
-            </p>
-          )}
         </div>
       </div>
     </section>

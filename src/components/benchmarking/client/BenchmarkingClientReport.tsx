@@ -826,6 +826,18 @@ export function BenchmarkingClientReport({
           <ExitReadinessBreakdown data={data.pass1_data.exit_readiness_breakdown} />
         )}
         
+        {/* Recommended Services - "How We Can Help" section */}
+        {/* MOVED UP: After showing problems (exit readiness), services = the fix */}
+        {/* Database-driven from bm_reports.recommended_services + opportunities */}
+        {recommendedServices.length > 0 && (
+          <RecommendedServicesSection
+            services={recommendedServices}
+            clientName={clientName}
+            practitionerName={practitionerName}
+            practitionerEmail={practitionerEmail}
+          />
+        )}
+        
         {/* Two Paths Section - Connecting Operational and Strategic */}
         {data.pass1_data?.two_paths_narrative && baselineMetrics && (
           <TwoPathsSection
@@ -837,6 +849,7 @@ export function BenchmarkingClientReport({
         )}
         
         {/* Scenario Planning - What If Projections */}
+        {/* ASPIRATIONAL CLOSE: Ends on possibility, not pressure */}
         {baselineMetrics && baselineMetrics.revenue > 0 && (
           <ScenarioPlanningSection 
             revenue={baselineMetrics.revenue}
@@ -850,15 +863,55 @@ export function BenchmarkingClientReport({
           />
         )}
         
-        {/* Recommended Services - "How We Can Help" section */}
-        {/* Database-driven from bm_reports.recommended_services + opportunities */}
-        {recommendedServices.length > 0 && (
-          <RecommendedServicesSection
-            services={recommendedServices}
-            clientName={clientName}
-            practitionerName={practitionerName}
-            practitionerEmail={practitionerEmail}
-          />
+        {/* Closing Summary - Confident wrap-up, no CTA */}
+        {baselineMetrics && (
+          <section className="bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl p-8 text-white print:bg-slate-800 print:rounded-lg">
+            <h2 className="text-2xl font-bold mb-4">Your Position — Summed Up</h2>
+            <p className="text-slate-300 leading-relaxed text-lg">
+              {(() => {
+                const parts: string[] = [];
+                
+                // Revenue context
+                if (baselineMetrics.revenue) {
+                  parts.push(`You're a £${(baselineMetrics.revenue / 1000000).toFixed(0)}M business`);
+                }
+                
+                // Percentile
+                if (data.overall_percentile) {
+                  parts.push(`sitting at the ${getOrdinalSuffix(data.overall_percentile)} percentile`);
+                }
+                
+                // Surplus cash
+                const surplus = data.surplus_cash?.surplusCash || data.pass1_data?.surplus_cash?.surplusCash;
+                if (surplus && surplus > 0) {
+                  parts.push(`with £${(surplus / 1000000).toFixed(1)}M in surplus cash`);
+                }
+                
+                // Margin trajectory
+                if (data.pass1_data?.financial_trends?.some((t: any) => t.isRecovering)) {
+                  parts.push('and a clear margin recovery trajectory');
+                }
+                
+                let summary = parts.join(' ');
+                
+                // Opportunity
+                const opp = parseFloat(data.total_annual_opportunity) || 0;
+                if (opp > 0) {
+                  summary += `. The data shows £${opp.toLocaleString()} in annual opportunity`;
+                }
+                
+                // Value gap
+                const valueGap = data.value_analysis?.valueGap?.mid;
+                if (valueGap && valueGap > 0) {
+                  summary += ` and £${(valueGap / 1000000).toFixed(1)}M in trapped value`;
+                }
+                
+                summary += '. The path forward is about protecting what you\'ve built and unlocking what\'s already there.';
+                
+                return summary;
+              })()}
+            </p>
+          </section>
         )}
         
         {/* Data Sources / Methodology */}
