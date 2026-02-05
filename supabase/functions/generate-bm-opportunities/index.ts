@@ -787,7 +787,7 @@ function buildUserPrompt(clientData: ClientData, services: any[], existingConcep
                        percentile < 50 ? 'below median' :
                        percentile < 75 ? 'above median' : 'top quartile';
       const gapText = m.annual_impact ? ` (£${Math.abs(m.annual_impact).toLocaleString()} annual gap)` : '';
-      return `- ${m.metric_name || m.metricName}: ${m.client_value || m.clientValue} — ${percentile}th percentile (${position})${gapText}`;
+      return `- ${m.metric_name || m.metricName}: ${m.client_value || m.clientValue} - ${percentile}th percentile (${position})${gapText}`;
     })
     .join('\n') || 'Benchmark data not available';
 
@@ -850,7 +850,7 @@ Revenue: ${myp.revenue.yearByYear.map((r: any) => `FY${r.year}: £${(r.revenue/1
 Trajectory: ${myp.revenue.trajectory.toUpperCase()}
 ${myp.revenue.cagr !== null ? `CAGR: ${myp.revenue.cagr.toFixed(1)}%` : ''}
 ${myp.revenue.totalGrowth !== null ? `Total growth: ${myp.revenue.totalGrowth.toFixed(0)}%` : ''}
-${myp.patterns.revenueRetracement ? '⚠️ Revenue retracement from peak — NOT structural decline. Do NOT recommend investigating revenue decline.' : ''}
+${myp.patterns.revenueRetracement ? '⚠️ Revenue retracement from peak - NOT structural decline. Do NOT recommend investigating revenue decline.' : ''}
 ${myp.patterns.postInvestmentRecovery ? '⚠️ Post-investment margin recovery underway.' : ''}
 
 ${myp.summaryNarrative}
@@ -1627,7 +1627,7 @@ function generateRecommendedServices(
     
     // Determine if founder dependency exists as a CRITICAL issue for this client.
     // Sources (in priority order):
-    // 1. Value analysis suppressors (most reliable — deterministic calculation)
+    // 1. Value analysis suppressors (most reliable - deterministic calculation)
     // 2. LLM-generated opportunities with critical severity + founder keywords
     // 3. Blocked service opportunities (COO blocked = founder dependency exists)
     
@@ -1650,7 +1650,7 @@ function generateRecommendedServices(
     //   founderRisk:                  { level, score, valuationImpact: STRING e.g. "30-50% valuation discount" }
     let founderValuationImpact = 0;
     
-    // Path 1: enhanced_suppressors (most reliable — deterministic, has exact £ value)
+    // Path 1: enhanced_suppressors (most reliable - deterministic, has exact £ value)
     if (!founderValuationImpact) {
       const enhancedSuppressors = clientData?.pass1Data?.enhanced_suppressors || [];
       const enhancedFounder = enhancedSuppressors.find((s: any) => {
@@ -1732,24 +1732,6 @@ function generateRecommendedServices(
     });
     
     // DECISION: Should we enrich?
-    // TEMPORARY DIAGNOSTIC — remove after confirming fix works
-    console.log('[Pass 3 DIAGNOSTIC] Systems Audit enrichment check:', {
-      hasFounderInIssues,
-      founderValuationImpact,
-      hasCriticalBlockedCOO,
-      founderRiskLevel: founderRisk?.level,
-      knowledgeDep,
-      personalBrand,
-      enhancedSuppressorsCount: (clientData?.pass1Data?.enhanced_suppressors || []).length,
-      valueAnalysisSuppressorsCount: (suppressors || []).length,
-      shouldEnrich: !hasFounderInIssues && (
-        founderValuationImpact > 0 ||
-        hasCriticalBlockedCOO ||
-        (founderRisk?.level === 'critical' || founderRisk?.level === 'high') ||
-        (knowledgeDep && knowledgeDep >= 50)
-      ),
-    });
-    
     const shouldEnrich = !hasFounderInIssues && (
       founderValuationImpact > 0 ||
       hasCriticalBlockedCOO ||
@@ -1774,16 +1756,16 @@ function generateRecommendedServices(
         (sum: number, i: AddressedIssue) => sum + (i.valueAtStake || 0), 0
       );
       
-      // 3. Rewrite whyThisMatters — founder context FIRST, then existing content
+      // 3. Rewrite whyThisMatters - founder context FIRST, then existing content
       const existingContent = systemsAuditRec.whyThisMatters || '';
       const impactStr = `£${(impactValue / 1000000).toFixed(1)}M`;
       systemsAuditRec.whyThisMatters = 
-        `Founder dependency is your biggest structural risk — ${knowledgePct}% of operational knowledge is concentrated in the founder, costing ${impactStr} in valuation discount. A systems audit maps what's documented vs what's assumed, creating the roadmap to de-risk.` +
+        `Founder dependency is your biggest structural risk. ${knowledgePct}% of operational knowledge is concentrated in the founder, costing ${impactStr} in valuation discount. A systems audit maps what's documented vs what's assumed, creating the roadmap to de-risk.` +
         (existingContent ? ` ${existingContent}` : '');
       
       // 4. Also update whatYouGet to be founder-specific
       systemsAuditRec.whatYouGet = [
-        'Process dependency map — who knows what, and what happens if they leave',
+        'Process dependency map: who knows what, and what happens if they leave',
         'Documentation gap analysis with severity ratings',
         'Knowledge transfer priority assessment',
         'Systemisation roadmap with quick wins',
@@ -1805,9 +1787,9 @@ function generateRecommendedServices(
       
       console.log(`[RecommendedServices] Enriched SYSTEMS_AUDIT with founder dependency: ${impactStr} impact, total value ${systemsAuditRec.totalValueAtStake}`);
     } else if (hasFounderInIssues) {
-      console.log(`[RecommendedServices] SYSTEMS_AUDIT already has founder dependency in addressesIssues — no enrichment needed`);
+      console.log(`[RecommendedServices] SYSTEMS_AUDIT already has founder dependency in addressesIssues - no enrichment needed`);
     } else {
-      console.log(`[RecommendedServices] SYSTEMS_AUDIT: no founder dependency detected for this client — skipping enrichment`);
+      console.log(`[RecommendedServices] SYSTEMS_AUDIT: no founder dependency detected for this client - skipping enrichment`);
     }
     
     // Ensure primary if it addresses ANY critical issue (regardless of founder enrichment)
@@ -2702,7 +2684,7 @@ function postProcessOpportunities(
             if (revenueFormatted && grossMargin) {
               pinnedDataEvidence = `With ${revenueFormatted} revenue and margins recovering to ${grossMargin}%, ongoing benchmarking tracks your recovery against industry peers and catches margin drift early`;
               pinnedTalkingPoint = concentration && concentration > 75 
-                ? `Quarterly tracking is especially important with ${concentration}% client concentration — early warning on margin erosion gives you time to act`
+                ? `Quarterly tracking is especially important with ${concentration}% client concentration. Early warning on margin erosion gives you time to act`
                 : 'Regular benchmarking turns your management accounts into a strategic tool, not just a compliance exercise';
             } else {
               pinnedDataEvidence = 'Regular benchmarking against industry peers provides early warning on margin drift and identifies opportunities before they become problems';
@@ -2717,7 +2699,7 @@ function postProcessOpportunities(
               const netAssetsFormatted = balanceSheet?.net_assets 
                 ? `£${(balanceSheet.net_assets / 1000000).toFixed(1)}M` : null;
               pinnedDataEvidence = `Cash: ${cashFormatted}. Surplus above operating requirements: ${surplusFormatted}${netAssetsFormatted ? `. Net assets: ${netAssetsFormatted}` : ''}. No indication of deployment strategy`;
-              pinnedTalkingPoint = 'Strategic advisory helps deploy surplus capital effectively — whether that means diversification, acquisition, or structured extraction';
+              pinnedTalkingPoint = 'Strategic advisory helps deploy surplus capital effectively: whether that means diversification, acquisition, or structured extraction';
             } else {
               pinnedDataEvidence = 'Senior strategic counsel to guide decision-making on key business challenges';
               pinnedTalkingPoint = 'Project-based strategic support without the overhead of permanent headcount';

@@ -132,7 +132,7 @@ export function calculateMarginScenario(
     businessValueImpact: valueImpact,
     summary: `Improving gross margin from ${currentGM.toFixed(1)}% to ${targetGrossMargin.toFixed(1)}% would generate £${formatCurrency(additionalGP)} additional gross profit annually. After overheads, this translates to approximately £${formatCurrency(netImpact)} on the bottom line, potentially adding £${formatCurrency(valueImpact)} to business value.`,
     howToAchieve: [
-      'Review pricing structure — when did you last increase rates?',
+      'Review pricing structure: when did you last increase rates?',
       'Analyse project profitability by client and service type',
       'Identify and eliminate margin-diluting work',
       'Negotiate better terms with suppliers and subcontractors',

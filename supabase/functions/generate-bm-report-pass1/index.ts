@@ -1341,15 +1341,25 @@ function calculateValueExitReadiness(hva: ValueHVAResponses, suppressors: ValueS
   }
   
   // 5. Documentation/Systems (15 points) — interpolated
+  // When HVA Part 3 exists, use documentation_24hr_ready count
+  // When it doesn't, fall back to the same inferred score that calculateExitReadinessBreakdown uses
   const docItems = hva.documentation_24hr_ready;
-  const docCount = Array.isArray(docItems) ? docItems.length : 0;
-  // Map count to score (0-10 items possible, interpolate to 3-15 points)
+  const docCount = Array.isArray(docItems) ? docItems.length : -1;  // -1 = no data
   let docScore: number;
-  if (docCount === 0) docScore = 3;
-  else if (docCount < 3) docScore = 3 + Math.round(docCount / 3 * 2);   // 3-5
-  else if (docCount < 5) docScore = 5 + Math.round((docCount - 3) / 2 * 3);   // 5-8
-  else if (docCount < 7) docScore = 8 + Math.round((docCount - 5) / 2 * 3);   // 8-11
-  else docScore = 11 + Math.round((docCount - 7) / 3 * 4);                      // 11-15
+  if (docCount < 0) {
+    // No HVA Part 3 data — use same default as calculateExitReadinessBreakdown
+    // to ensure both functions produce identical scores
+    const inferredDocScore = 35;  // Mid-range default (matches calculateExitReadinessBreakdown)
+    if (inferredDocScore < 15) docScore = 3;
+    else if (inferredDocScore < 30) docScore = 4 + Math.round((inferredDocScore - 15) / 15 * 3);
+    else if (inferredDocScore < 50) docScore = 7 + Math.round((inferredDocScore - 30) / 20 * 3);
+    else if (inferredDocScore < 70) docScore = 10 + Math.round((inferredDocScore - 50) / 20 * 3);
+    else docScore = 13 + Math.round((inferredDocScore - 70) / 30 * 2);
+  } else if (docCount === 0) docScore = 3;
+  else if (docCount < 3) docScore = 3 + Math.round(docCount / 3 * 2);
+  else if (docCount < 5) docScore = 5 + Math.round((docCount - 3) / 2 * 3);
+  else if (docCount < 7) docScore = 8 + Math.round((docCount - 5) / 2 * 3);
+  else docScore = 11 + Math.round((docCount - 7) / 3 * 4);
   if (docScore >= 13) strengths.push('Good process documentation');
   
   // Additional strengths (don't add to score, just note them)
@@ -1363,7 +1373,7 @@ function calculateValueExitReadiness(hva: ValueHVAResponses, suppressors: ValueS
   if (hva.competitive_moat && Array.isArray(hva.competitive_moat) && hva.competitive_moat.length >= 3) {
     strengths.push('Multiple competitive advantages');
   }
-  
+   
   // Calculate total
   const score = concentrationScore + founderScore + revenueScore + managementScore + docScore;
   const verdict: 'ready' | 'needs_work' | 'not_ready' = score >= 70 ? 'ready' : score >= 40 ? 'needs_work' : 'not_ready';
@@ -5590,6 +5600,20 @@ When writing narratives:
         ebitdaMetric._originalAnnualImpact = ebitdaMetric.annualImpact;
         ebitdaMetric.annualImpact = null;
         ebitdaMetric.annual_impact = null;
+      }
+    }
+    
+    // ====================================================================
+    // POST-LLM: Use deterministic opportunity calculation if available
+    // ====================================================================
+    // The LLM may override the deterministic calculation with a different number.
+    // If the deterministic calculation exists and differs significantly (>20%), use it.
+    if (enriched.opportunity_calculations?.margin_opportunity?.calculation?.finalValue) {
+      const deterministicTotal = enriched.opportunity_calculations.margin_opportunity.calculation.finalValue;
+      const llmTotal = pass1Data.opportunitySizing?.totalAnnualOpportunity;
+      if (llmTotal && Math.abs(llmTotal - deterministicTotal) > deterministicTotal * 0.2) {
+        console.log(`[Pass 1] Overriding LLM opportunity total (£${llmTotal.toLocaleString()}) with deterministic calculation (£${deterministicTotal.toLocaleString()})`);
+        pass1Data.opportunitySizing.totalAnnualOpportunity = deterministicTotal;
       }
     }
     
