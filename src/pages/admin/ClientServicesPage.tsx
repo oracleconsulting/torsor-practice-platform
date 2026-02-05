@@ -11494,13 +11494,23 @@ function BenchmarkingClientModal({
                       <p className="text-blue-800 mb-4">
                         Pass 1 (data extraction) is complete. Narrative generation (Pass 2) is in progress...
                       </p>
-                      <div className="flex items-center gap-3">
+                      <p className="text-sm text-blue-700 mb-4">
+                        If generation has stopped (e.g., ran out of API credits), you can close this modal and return later, or cancel to restart.
+                      </p>
+                      <div className="flex items-center gap-3 flex-wrap">
                         <button
                           onClick={fetchData}
                           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2"
                         >
                           <RefreshCw className="w-4 h-4" />
                           <span>Refresh Status</span>
+                        </button>
+                        <button
+                          onClick={onClose}
+                          className="px-4 py-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 rounded-lg flex items-center gap-2"
+                        >
+                          <X className="w-4 h-4" />
+                          <span>Close Modal</span>
                         </button>
                         <button
                           onClick={async () => {
@@ -11521,8 +11531,12 @@ function BenchmarkingClientModal({
                               if (engError) console.warn('Could not reset engagement status:', engError);
                               
                               alert('Generation cancelled. You can now regenerate the report.');
-                              // Force full page data refresh
-                              window.location.reload();
+                              // Close modal instead of reloading immediately
+                              onClose();
+                              // Refresh data after a short delay
+                              setTimeout(() => {
+                                window.location.reload();
+                              }, 500);
                             } catch (err) {
                               console.error('Failed to cancel:', err);
                               alert('Failed to cancel generation. Please try again.');
