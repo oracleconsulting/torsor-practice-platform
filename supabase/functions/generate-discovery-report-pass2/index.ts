@@ -3538,11 +3538,14 @@ Before returning, verify:
     });
 
     // Update report with Pass 2 results
+    console.log('[Pass2] 📝 Final headline being saved:', narratives.meta?.headline);
+    
     const { error: updateError } = await supabase
       .from('discovery_reports')
       .update({
         status: reportStatus,
         destination_report: narratives,
+        headline: narratives.meta?.headline || '',
         page1_destination: narratives.page1_destination,
         page2_gaps: narratives.page2_gaps,
         page3_journey: narratives.page3_journey,
