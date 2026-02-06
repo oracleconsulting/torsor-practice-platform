@@ -165,15 +165,80 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
         setUrgentDecisionDetail(flags.urgent_decision_detail || '');
 
         // Fetch discovery responses
+        // Try by discovery_id first, then fallback to client_id
+        let discoveryData = null;
+        
+        console.log('[DiscoveryAdminModal] Fetching discovery responses:', {
+          engagementId: engagementData.id,
+          discoveryId: engagementData.discovery_id,
+          clientId: clientId
+        });
+        
         if (engagementData.discovery_id) {
-          const { data: discoveryData } = await supabase
+          const { data, error } = await supabase
             .from('destination_discovery')
             .select('*')
             .eq('id', engagementData.discovery_id)
-            .single();
+            .maybeSingle();
           
-          setDiscovery(discoveryData);
+          if (error) {
+            console.error('[DiscoveryAdminModal] Error fetching by discovery_id:', error);
+          } else {
+            discoveryData = data;
+            console.log('[DiscoveryAdminModal] Found discovery by discovery_id:', {
+              hasData: !!discoveryData,
+              hasResponses: !!(discoveryData?.responses),
+              responseCount: discoveryData?.responses ? Object.keys(discoveryData.responses).length : 0
+            });
+          }
         }
+        
+        // Fallback: If no discovery_id or no data found, try fetching by client_id
+        // This handles cases where discovery_id wasn't set but responses exist
+        if (!discoveryData || !discoveryData.responses || Object.keys(discoveryData.responses || {}).length === 0) {
+          console.log('[DiscoveryAdminModal] Trying fallback fetch by client_id...');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('destination_discovery')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (fallbackError) {
+            console.error('[DiscoveryAdminModal] Error fetching by client_id:', fallbackError);
+          } else if (fallbackData) {
+            console.log('[DiscoveryAdminModal] Found discovery by client_id:', {
+              id: fallbackData.id,
+              hasResponses: !!(fallbackData.responses),
+              responseCount: fallbackData.responses ? Object.keys(fallbackData.responses).length : 0
+            });
+            
+            // Only use fallback if it has responses
+            if (fallbackData.responses && Object.keys(fallbackData.responses).length > 0) {
+              discoveryData = fallbackData;
+              
+              // Update engagement with the correct discovery_id if it was missing
+              if (!engagementData.discovery_id && fallbackData.id) {
+                console.log('[DiscoveryAdminModal] Updating engagement with discovery_id:', fallbackData.id);
+                const { error: updateError } = await supabase
+                  .from('discovery_engagements')
+                  .update({ discovery_id: fallbackData.id })
+                  .eq('id', engagementData.id);
+                
+                if (updateError) {
+                  console.error('[DiscoveryAdminModal] Error updating engagement discovery_id:', updateError);
+                }
+              }
+            }
+          }
+        }
+        
+        if (!discoveryData || !discoveryData.responses || Object.keys(discoveryData.responses || {}).length === 0) {
+          console.warn('[DiscoveryAdminModal] No discovery responses found for client:', clientId);
+        }
+        
+        setDiscovery(discoveryData);
 
         // Fetch report
         const { data: reportData } = await supabase
