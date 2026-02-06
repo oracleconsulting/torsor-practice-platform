@@ -3172,6 +3172,13 @@ Before returning, verify:
       exitTimelineLower.includes('5-10 years') ||
       exitTimelineLower.includes('never');
     
+    console.log('[Pass2] Headline check:', { 
+      shouldNotLeadWithExit, 
+      headline: narratives.meta?.headline || narratives.page2_gaps?.openingLine || 'N/A',
+      adminContextLower: adminContextLower.substring(0, 50),
+      clientType: clientType || 'unknown'
+    });
+    
     if (shouldNotLeadWithExit) {
       // Check if headline contains exit-focused language
       const headline = narratives.meta?.headline || 
@@ -3185,7 +3192,7 @@ Before returning, verify:
         /exit.ready/i,
         /preparing to sell/i,
         /your exit/i,
-        /£\d+[mk]? exit/i,
+        /£\d+[mk]?\s*exit/i,  // Updated: matches "£5M exit" with optional whitespace
         /exit.*£\d+[mk]?/i
       ];
       
@@ -3195,30 +3202,43 @@ Before returning, verify:
         console.warn(`[Pass2] ⚠️ Headline leads with exit despite admin context saying otherwise. Original: "${headline}"`);
         
         // Check if there's a better headline from the gap analysis or journey
-        // Try to build one from the strongest gap or opportunity
         const gaps = narratives.page2_gaps?.gaps || [];
-        const strategicGap = gaps.find((g: any) => 
-          g.title?.toLowerCase().includes('relationship') || 
-          g.title?.toLowerCase().includes('revenue') ||
-          g.title?.toLowerCase().includes('growth') ||
-          g.title?.toLowerCase().includes('ceiling') ||
-          g.title?.toLowerCase().includes('scale')
-        );
+        
+        // For trading_agency, prioritize gaps containing "relationship" or "£1M"
+        let strategicGap: any = null;
+        if (clientType === 'trading_agency') {
+          strategicGap = gaps.find((g: any) => 
+            g.title?.toLowerCase().includes('relationship') || 
+            g.title?.includes('£1M') ||
+            g.title?.includes('£1 M')
+          );
+        }
+        
+        // Fallback to general strategic gaps if no agency-specific match
+        if (!strategicGap) {
+          strategicGap = gaps.find((g: any) => 
+            g.title?.toLowerCase().includes('relationship') || 
+            g.title?.toLowerCase().includes('revenue') ||
+            g.title?.toLowerCase().includes('growth') ||
+            g.title?.toLowerCase().includes('ceiling') ||
+            g.title?.toLowerCase().includes('scale')
+          );
+        }
         
         if (strategicGap) {
-          // Use the strategic gap as headline inspiration
+          // Use the strategic gap title directly as the headline
           const newHeadline = strategicGap.title;
           if (narratives.meta) narratives.meta.headline = newHeadline;
           if (narratives.page2_gaps) narratives.page2_gaps.openingLine = newHeadline;
-          console.log(`[Pass2] ✅ Replaced exit headline with: "${newHeadline}"`);
+          console.log(`[Pass2] ✅ Replaced exit headline with strategic gap: "${newHeadline}"`);
         } else {
           // Generic replacement: strip "exit" framing, keep the operational tension
           const cleaned = headline
-            .replace(/building for a £\d+[mk]? exit but/i, 'growing but')
+            .replace(/building for a £\d+[mk]?\s*exit but/i, 'growing but')
             .replace(/building for .* exit but/i, 'growing but')
             .replace(/exit-ready/gi, 'scalable')
             .replace(/your exit/gi, 'your growth')
-            .replace(/£\d+[mk]? exit/gi, 'growth')
+            .replace(/£\d+[mk]?\s*exit/gi, 'growth')
             .replace(/exit.*£\d+[mk]?/gi, 'growth');
           
           if (narratives.meta) narratives.meta.headline = cleaned;
