@@ -447,7 +447,12 @@ function classifyBusinessType(
     }
   }
   
-  const allText = JSON.stringify({ ...responses, contextNotes, adminContextNote }).toLowerCase();
+  // Convert contextNotes array to text strings for classification
+  const contextNoteTexts = Array.isArray(contextNotes) 
+    ? contextNotes.filter((n: any) => n && (typeof n === 'string' ? n.trim() : true))
+    : [];
+  
+  const allText = JSON.stringify({ ...responses, contextNotes: contextNoteTexts, adminContextNote }).toLowerCase();
   const financialText = JSON.stringify(financials || {}).toLowerCase();
 
   // ========================================================================
@@ -2707,6 +2712,19 @@ serve(async (req) => {
     }
 
     // ========================================================================
+    // FETCH CONTEXT NOTES
+    // ========================================================================
+    // Fetch context notes from client_context_notes table for classification
+    const { data: contextNotesData } = await supabase
+      .from('client_context_notes')
+      .select('content')
+      .eq('client_id', engagement.client_id);
+    
+    const contextNoteTexts = (contextNotesData || []).map((n: any) => n.content || '').filter((text: string) => text.trim().length > 0);
+    
+    console.log('[Pass1] Loaded context notes:', contextNoteTexts.length, 'notes');
+
+    // ========================================================================
     // FETCH FINANCIAL CONTEXT
     // ========================================================================
     
@@ -2790,22 +2808,32 @@ serve(async (req) => {
       }
       
       // === CORE P&L ===
-      const turnover = financialContext.turnover || financialContext.revenue || insights.turnover || insights.revenue;
+      // Support both snake_case and camelCase field names
+      const turnover = financialContext.turnover || financialContext.revenue || 
+                       insights.turnover || insights.revenue ||
+                       (insights as any).turnover || (insights as any).revenue;
       const turnoverPriorYear = priorYearContext?.turnover || priorYearContext?.revenue || 
                                 insights.turnover_prior_year || insights.prior_year_turnover ||
+                                (insights as any).turnoverPriorYear || (insights as any).priorYearTurnover ||
                                 priorInsights.turnover;
       
-      const grossProfit = financialContext.gross_profit || insights.gross_profit;
-      const grossProfitPriorYear = priorYearContext?.gross_profit || insights.gross_profit_prior_year || priorInsights.gross_profit;
+      const grossProfit = financialContext.gross_profit || insights.gross_profit || (insights as any).grossProfit;
+      const grossProfitPriorYear = priorYearContext?.gross_profit || insights.gross_profit_prior_year || 
+                                   (insights as any).grossProfitPriorYear || priorInsights.gross_profit;
       
-      const operatingProfit = financialContext.operating_profit || insights.operating_profit;
-      const operatingProfitPriorYear = priorYearContext?.operating_profit || insights.operating_profit_prior_year || priorInsights.operating_profit;
+      const operatingProfit = financialContext.operating_profit || insights.operating_profit || (insights as any).operatingProfit;
+      const operatingProfitPriorYear = priorYearContext?.operating_profit || insights.operating_profit_prior_year || 
+                                      (insights as any).operatingProfitPriorYear || priorInsights.operating_profit;
       
-      const netProfit = financialContext.net_profit || insights.net_profit || insights.profit_after_tax;
-      const netProfitPriorYear = priorYearContext?.net_profit || insights.net_profit_prior_year || priorInsights.net_profit;
+      const netProfit = financialContext.net_profit || insights.net_profit || insights.profit_after_tax ||
+                       (insights as any).netProfit || (insights as any).profitAfterTax;
+      const netProfitPriorYear = priorYearContext?.net_profit || insights.net_profit_prior_year || 
+                                 (insights as any).netProfitPriorYear || priorInsights.net_profit;
       
-      const costOfSales = insights.cost_of_sales || insights.cost_of_goods_sold;
-      const costOfSalesPriorYear = insights.cost_of_sales_prior_year || priorInsights.cost_of_sales;
+      const costOfSales = insights.cost_of_sales || insights.cost_of_goods_sold ||
+                          (insights as any).costOfSales || (insights as any).costOfGoodsSold;
+      const costOfSalesPriorYear = insights.cost_of_sales_prior_year || (insights as any).costOfSalesPriorYear || 
+                                   priorInsights.cost_of_sales;
       
       // === STAFF COSTS (Detailed breakdown) ===
       // Total staff costs from multiple possible sources
@@ -2832,8 +2860,9 @@ serve(async (req) => {
                                      priorInsights.employee_count;
       
       // === BALANCE SHEET ASSETS ===
-      const netAssets = financialContext.net_assets || insights.net_assets || insights.total_equity;
-      const totalAssets = financialContext.total_assets || insights.total_assets;
+      const netAssets = financialContext.net_assets || insights.net_assets || insights.total_equity ||
+                        (insights as any).netAssets || (insights as any).totalEquity;
+      const totalAssets = financialContext.total_assets || insights.total_assets || (insights as any).totalAssets;
       
       // Fixed assets breakdown
       const fixedAssets = insights.fixed_assets || insights.total_fixed_assets;
@@ -2841,9 +2870,14 @@ serve(async (req) => {
       const intangibleAssets = insights.intangible_assets || insights.intangible_fixed_assets;
       
       // Property (critical for hidden assets)
+      // Support both snake_case and camelCase, plus investment_property and rental_income
       const freeholdProperty = insights.freehold_property || insights.freehold_land_buildings || 
-                               insights.land_and_buildings_freehold;
-      const leaseholdProperty = insights.leasehold_property || insights.leasehold_improvements;
+                               insights.land_and_buildings_freehold ||
+                               (insights as any).freeholdProperty || (insights as any).freeholdLandBuildings;
+      const leaseholdProperty = insights.leasehold_property || insights.leasehold_improvements ||
+                                (insights as any).leaseholdProperty || (insights as any).leaseholdImprovements;
+      const investmentProperty = insights.investment_property || (insights as any).investmentProperty;
+      const rentalIncome = insights.rental_income || (insights as any).rentalIncome;
       
       // Other fixed assets
       const plantAndMachinery = insights.plant_and_machinery || insights.plant_machinery;
@@ -2954,6 +2988,8 @@ serve(async (req) => {
           intangibleAssets,
           freeholdProperty,
           leaseholdProperty,
+          investmentProperty,
+          rentalIncome,
           plantAndMachinery,
           fixturesAndFittings,
           motorVehicles,
@@ -3035,13 +3071,24 @@ serve(async (req) => {
     // This must run BEFORE performComprehensiveAnalysis so calculators can adapt
     // based on client type (e.g., skip payroll for investment vehicles)
     
+    // Ensure admin fields are properly read from engagement
+    const adminBusinessType = engagement.admin_business_type || null;
+    const adminContextNote = engagement.admin_context_note || null;
+    const adminFlags = engagement.admin_flags || null;
+    
+    console.log('[Pass1] Admin overrides:', {
+      adminBusinessType,
+      hasAdminContextNote: !!adminContextNote,
+      hasAdminFlags: !!adminFlags
+    });
+    
     const clientType = classifyBusinessType(
       discoveryResponses, 
       extractedFinancials,
-      (engagement as any).admin_business_type,
-      (engagement as any).admin_context_note,
-      (engagement as any).admin_flags,
-      contextNotes || []
+      adminBusinessType,
+      adminContextNote,
+      adminFlags,
+      contextNoteTexts
     );
 
     console.log('[Pass1] 🏷️ Client Type:', {

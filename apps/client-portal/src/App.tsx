@@ -8,7 +8,6 @@ import SignupPage from './pages/SignupPage';
 import InvitationPage from './pages/InvitationPage';
 import DashboardPage from './pages/DashboardPage';
 import UnifiedDashboardPage from './pages/UnifiedDashboardPage';
-import DiscoveryPortalPage from './pages/DiscoveryPortalPage';
 import DiscoveryCompletePage from './pages/DiscoveryCompletePage';
 import AssessmentsPage from './pages/assessments/AssessmentsPage';
 import AssessmentPart1Page from './pages/assessments/Part1Page';
@@ -29,6 +28,7 @@ import BenchmarkingReportPage from './pages/services/BenchmarkingReportPage';
 import ReportsPage from './pages/ReportsPage';
 import DestinationDiscoveryPage from './pages/discovery/DestinationDiscoveryPage';
 import DiscoveryReportPage from './pages/discovery/DiscoveryReportPage';
+import DiscoveryFollowUpPage from './pages/discovery/DiscoveryFollowUpPage';
 
 function App() {
   return (
@@ -90,6 +90,7 @@ function App() {
             
             {/* Destination Discovery Assessment */}
             <Route path="/discovery" element={<DestinationDiscoveryPage />} />
+            <Route path="/discovery/follow-up" element={<DiscoveryFollowUpPage />} />
             <Route path="/discovery/complete" element={<DiscoveryCompletePage />} />
             <Route path="/discovery/report" element={<DiscoveryReportPage />} />
           </Route>
