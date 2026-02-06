@@ -40,7 +40,8 @@ export function runStructuredCalculations(
   financials: ExtractedFinancials,
   responses: Record<string, any>,
   clientType?: ClientBusinessType,
-  frameworkOverrides?: FrameworkOverrides
+  frameworkOverrides?: FrameworkOverrides,
+  adminFlags?: Record<string, any>
 ): Pass1Output {
   console.log('[Integration] Running new structured calculations...');
   
@@ -52,8 +53,9 @@ export function runStructuredCalculations(
     financials,
     responses,
     clientType,
-    frameworkOverrides
-  });
+    frameworkOverrides,
+    adminFlags
+  } as any);
   
   console.log('[Integration] Structured output complete:', {
     dataQuality: structuredOutput.meta.dataQuality,

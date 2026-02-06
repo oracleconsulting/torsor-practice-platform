@@ -37,6 +37,7 @@ export interface ProductivityInputs {
   employeeCount: number;
   operatingProfit?: number | null;
   staffCosts?: number;
+  contractorCountEstimate?: number;  // For agencies: estimated contractor count
 }
 
 /**
@@ -83,11 +84,17 @@ export function calculateProductivityMetrics(
     };
   }
   
-  const { revenue, employeeCount, operatingProfit, staffCosts } = inputs;
+  const { revenue, employeeCount, operatingProfit, staffCosts, contractorCountEstimate } = inputs;
   const now = new Date().toISOString();
   
-  // Calculate revenue per head
-  const revenuePerHead = revenue / employeeCount;
+  // For agencies, adjust headcount to include contractors
+  const isAgency = clientType === 'trading_agency';
+  const productiveHeadcount = isAgency && contractorCountEstimate 
+    ? employeeCount + contractorCountEstimate
+    : employeeCount;
+  
+  // Calculate revenue per head (or per productive head for agencies)
+  const revenuePerHead = revenue / productiveHeadcount;
   const benchmarkLow = benchmark.revenuePerHead.low;
   const benchmarkTypical = benchmark.revenuePerHead.typical;
   const gap = revenuePerHead - benchmarkTypical;
@@ -121,10 +128,16 @@ export function calculateProductivityMetrics(
             status === 'good' ? 'good' :
             status === 'typical' ? 'neutral' : 'concern',
     direction: gap >= 0 ? 'above' : 'below',
-    phrases: buildRevenuePerHeadPhrases(revenuePerHead, benchmarkTypical, gap, benchmark.name),
+    phrases: buildRevenuePerHeadPhrases(
+      revenuePerHead, 
+      benchmarkTypical, 
+      gap, 
+      benchmark.name,
+      isAgency ? ` (per productive head: ${employeeCount} FT + ${contractorCountEstimate || 0} contractors)` : undefined
+    ),
     calculation: {
-      formula: 'revenue / employeeCount',
-      inputs: { revenue, employeeCount },
+      formula: isAgency ? `revenue / (employeeCount + contractorCountEstimate)` : 'revenue / employeeCount',
+      inputs: isAgency ? { revenue, employeeCount, contractorCountEstimate, productiveHeadcount } : { revenue, employeeCount },
       timestamp: now
     }
   };
@@ -236,7 +249,8 @@ function buildRevenuePerHeadPhrases(
   revenuePerHead: number,
   benchmark: number,
   gap: number,
-  industryName: string
+  industryName: string,
+  note?: string
 ): {
   headline: string;
   impact: string;
@@ -247,20 +261,24 @@ function buildRevenuePerHeadPhrases(
   const formatted = formatCurrency(revenuePerHead);
   const benchmarkFormatted = formatCurrency(benchmark);
   
+  const headline = note 
+    ? `Revenue per productive head at ${formatted}${note}`
+    : `Revenue per head at ${formatted}`;
+  
   if (gap >= 0) {
     return {
-      headline: `Revenue per head at ${formatted}`,
+      headline,
       impact: `${formatCurrency(gap)} above the ${benchmarkFormatted} benchmark`,
-      context: `Team productivity is strong for ${industryName.toLowerCase()}`,
-      comparison: `${formatted} vs the ${benchmarkFormatted} benchmark`
+      context: `Team productivity is strong for ${industryName.toLowerCase()}${note ? ' (includes contractors)' : ''}`,
+      comparison: `${formatted} vs the ${benchmarkFormatted} benchmark${note ? note : ''}`
     };
   }
   
   return {
-    headline: `Revenue per head at ${formatted}`,
+    headline,
     impact: `${formatCurrency(Math.abs(gap))} below the ${benchmarkFormatted} benchmark`,
-    context: `The team generates ${formatCurrency(Math.abs(gap))} less per person than industry standard`,
-    comparison: `${formatted} vs the ${benchmarkFormatted} benchmark for ${industryName.toLowerCase()}`,
+    context: `The team generates ${formatCurrency(Math.abs(gap))} less per person than industry standard${note ? ' (includes contractors)' : ''}`,
+    comparison: `${formatted} vs the ${benchmarkFormatted} benchmark for ${industryName.toLowerCase()}${note ? note : ''}`,
     actionRequired: 'Improve productivity or right-size the team'
   };
 }

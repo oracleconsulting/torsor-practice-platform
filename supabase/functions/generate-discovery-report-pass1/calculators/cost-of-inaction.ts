@@ -20,6 +20,9 @@ export interface CostOfInactionInputs {
   valuation?: ValuationMetrics | null;
   exitTimeline?: string;  // "1-3 years", "3-5 years", etc.
   turnover?: number;
+  responses?: Record<string, any>;  // Discovery responses for founder time analysis
+  adminFlags?: Record<string, any>;  // Admin flags for urgent decisions
+  clientRevenueConcentration?: Record<string, any>;  // Client revenue concentration data
 }
 
 /**
@@ -28,7 +31,7 @@ export interface CostOfInactionInputs {
 export function calculateCostOfInactionMetrics(
   inputs: CostOfInactionInputs
 ): CostOfInactionMetrics {
-  const { payroll, trajectory, valuation, exitTimeline, turnover } = inputs;
+  const { payroll, trajectory, valuation, exitTimeline, turnover, responses, adminFlags, clientRevenueConcentration } = inputs;
   
   // Determine time horizon based on exit timeline
   const timeHorizon = determineTimeHorizon(exitTimeline);
@@ -134,6 +137,149 @@ export function calculateCostOfInactionMetrics(
     breakdownParts.push(`Valuation Impact: ${formatCurrency(valuationLoss)}`);
   }
   
+  // ========================================================================
+  // FIX 2: ADD REAL OPPORTUNITY COSTS
+  // ========================================================================
+  
+  // 1. Founder time opportunity cost
+  let founderTimeComponent: CostComponent | null = null;
+  if (responses) {
+    const weeklyHours = responses.dd_weekly_hours || responses.rl_weekly_hours || '';
+    const timeAllocation = responses.dd_time_allocation || responses.rl_time_allocation || '';
+    
+    // Check if founder works 50+ hours and spends 50%+ firefighting
+    const hoursMatch = String(weeklyHours).match(/(\d+)/);
+    const hours = hoursMatch ? parseInt(hoursMatch[1]) : 0;
+    const isFirefighting = String(timeAllocation).toLowerCase().includes('70%') || 
+                          String(timeAllocation).toLowerCase().includes('90%') ||
+                          String(timeAllocation).toLowerCase().includes('firefighting');
+    
+    if (hours >= 50 && isFirefighting) {
+      // Conservative: 10 hours/week × 48 weeks × £50/hour = £24,000/year
+      const strategicHoursPerWeek = 10;
+      const weeksPerYear = 48;
+      const hourlyRate = 50;
+      const annualOpportunityCost = strategicHoursPerWeek * weeksPerYear * hourlyRate;
+      const monthly = Math.round(annualOpportunityCost / 12);
+      const overHorizon = annualOpportunityCost * timeHorizon;
+      
+      founderTimeComponent = {
+        category: 'Founder Time Opportunity Cost',
+        monthly,
+        annual: annualOpportunityCost,
+        overHorizon,
+        formatted: {
+          monthly: formatCurrency(monthly),
+          annual: formatCurrency(annualOpportunityCost),
+          overHorizon: formatCurrency(overHorizon)
+        },
+        phrases: {
+          monthly: `${formatCurrency(monthly)}/month in lost strategic time`,
+          annual: `${formatCurrency(annualOpportunityCost)}/year - value of strategic time lost to firefighting`,
+          overHorizon: `${formatCurrency(overHorizon)} over ${timeHorizon} years - strategic time that could drive growth`
+        },
+        confidence: 'estimated'
+      };
+      
+      totalMonthly += monthly;
+      totalAnnual += annualOpportunityCost;
+      totalOverHorizon += overHorizon;
+      breakdownParts.push(`Founder Time: ${formatCurrency(overHorizon)}`);
+    }
+  }
+  
+  // 2. Client concentration risk
+  let concentrationRiskComponent: CostComponent | null = null;
+  if (clientRevenueConcentration && turnover) {
+    // Find any client >40% of revenue
+    for (const [clientName, details] of Object.entries(clientRevenueConcentration)) {
+      const d = details as any;
+      const revenue = d.revenue || 0;
+      const pct = d.pct_of_total || (revenue / turnover * 100);
+      
+      if (pct > 40) {
+        // Annual revenue at risk if client relationship is lost
+        const annualRisk = revenue;
+        const monthly = Math.round(annualRisk / 12);
+        const overHorizon = annualRisk * timeHorizon;
+        
+        concentrationRiskComponent = {
+          category: `Client Concentration Risk (${clientName})`,
+          monthly,
+          annual: annualRisk,
+          overHorizon,
+          formatted: {
+            monthly: formatCurrency(monthly),
+            annual: formatCurrency(annualRisk),
+            overHorizon: formatCurrency(overHorizon)
+          },
+          phrases: {
+            monthly: `${formatCurrency(monthly)}/month at risk from single client dependency`,
+            annual: `${formatCurrency(annualRisk)}/year (${pct.toFixed(0)}% of revenue) dependent on ${clientName}`,
+            overHorizon: `${formatCurrency(overHorizon)} at risk over ${timeHorizon} years if ${clientName} relationship is lost`
+          },
+          confidence: 'estimated'
+        };
+        
+        totalMonthly += monthly;
+        totalAnnual += annualRisk;
+        totalOverHorizon += overHorizon;
+        breakdownParts.push(`Concentration Risk: ${formatCurrency(overHorizon)}`);
+        break; // Only flag the largest concentration
+      }
+    }
+  }
+  
+  // 3. Decision delay cost (from admin flags)
+  let decisionDelayComponent: CostComponent | null = null;
+  if (adminFlags?.urgent_decision) {
+    const delayDetail = adminFlags.urgent_decision_detail || '';
+    // Estimate cost based on decision type
+    let monthlyCost = 0;
+    let decisionType = 'urgent decision';
+    
+    if (delayDetail.toLowerCase().includes('hire') || delayDetail.toLowerCase().includes('lead')) {
+      // Senior hire delay: ~£5k/month if not embedded on billable work
+      monthlyCost = 5000;
+      decisionType = 'senior hire delay';
+    } else if (delayDetail.toLowerCase().includes('client') || delayDetail.toLowerCase().includes('contract')) {
+      // Client/contract delay: estimate based on typical contract value
+      monthlyCost = turnover ? Math.round(turnover * 0.05 / 12) : 3000; // 5% of revenue / 12
+      decisionType = 'client/contract delay';
+    } else {
+      // Generic urgent decision: £3k/month
+      monthlyCost = 3000;
+    }
+    
+    if (monthlyCost > 0) {
+      const annual = monthlyCost * 12;
+      const overHorizon = annual * timeHorizon;
+      
+      decisionDelayComponent = {
+        category: `Decision Delay (${decisionType})`,
+        monthly: monthlyCost,
+        annual,
+        overHorizon,
+        formatted: {
+          monthly: formatCurrency(monthlyCost),
+          annual: formatCurrency(annual),
+          overHorizon: formatCurrency(overHorizon)
+        },
+        phrases: {
+          monthly: `${formatCurrency(monthlyCost)}/month cost of delayed ${decisionType}`,
+          annual: `${formatCurrency(annual)}/year - cost of not making the ${decisionType}`,
+          overHorizon: `${formatCurrency(overHorizon)} over ${timeHorizon} years from delayed ${decisionType}`
+        },
+        confidence: 'estimated'
+      };
+      
+      totalMonthly += monthlyCost;
+      totalAnnual += annual;
+      totalOverHorizon += overHorizon;
+      breakdownParts.push(`Decision Delay: ${formatCurrency(overHorizon)}`);
+    }
+  }
+  
   // Build total cost of inaction
   const totalCostOfInaction = {
     monthly: totalMonthly,
@@ -155,6 +301,9 @@ export function calculateCostOfInactionMetrics(
     marginLeakage: marginLeakageComponent,
     efficiencyLoss: null, // Could add productivity-based calculation
     valuationImpact: valuationImpactComponent,
+    founderTimeOpportunity: founderTimeComponent,
+    concentrationRisk: concentrationRiskComponent,
+    decisionDelay: decisionDelayComponent,
     totalCostOfInaction
   };
 }

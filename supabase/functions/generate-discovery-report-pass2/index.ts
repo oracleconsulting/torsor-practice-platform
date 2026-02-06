@@ -334,6 +334,16 @@ This client runs a project-based business with contractors. Standard payroll ben
 - Project profitability by client
 - Cash flow timing (project billing vs costs)
 - Utilisation rates
+
+**CRITICAL CONTEXT - CLIENT REVENUE CONCENTRATION:**
+If the client's financial data includes client_revenue_concentration data showing a major client with documented growth potential, this MUST feature prominently in the report:
+- In the Gap Analysis: as a strategic opportunity (not just a risk)
+- In the Journey: as the key growth lever
+- In the closing narrative: as the reason for optimism
+
+For example, if Boston Scientific (or any major client) represents 50%+ of revenue with documented potential to expand 10x across multiple departments, this is potentially a £1-2M relationship. The report should frame the growth story around executing on this opportunity — not just generic "build a new business function" advice.
+
+However, also flag the concentration risk: 50%+ of revenue from one client is a vulnerability. The report should acknowledge both sides — the massive opportunity AND the need to diversify.
 `,
 
     'trading_product': `
@@ -1291,6 +1301,20 @@ No validated financial data available. When discussing financial figures:
       .select('*')
       .eq('engagement_id', engagementId)
       .single();
+    
+    // Fetch engagement to get admin context and exit timeline
+    const { data: engagementData } = await supabase
+      .from('discovery_engagements')
+      .select('admin_flags, discovery')
+      .eq('id', engagementId)
+      .single();
+    
+    const adminFlags = engagementData?.admin_flags || null;
+    const exitTimeline = engagement?.discovery?.responses?.sd_exit_timeline || 
+                        engagement?.discovery?.responses?.dd_exit_mindset ||
+                        engagementData?.discovery?.responses?.sd_exit_timeline ||
+                        engagementData?.discovery?.responses?.dd_exit_mindset ||
+                        '';
 
     if (reportError || !report) {
       throw new Error('Pass 1 must be completed first');
@@ -1672,6 +1696,39 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
 ⛔ Reference these achievements to show the foundation is solid. 
    Don't just focus on gaps - acknowledge what's working.
 `;
+    }
+    
+    // ========================================================================
+    // FIX 7: CLIENT REVENUE CONCENTRATION DATA INJECTION
+    // ========================================================================
+    // Extract client revenue concentration from financial context or comprehensive analysis
+    const clientRevenueConcentration = financialContext?.extracted_insights?.client_revenue_concentration ||
+                                      (financialContext?.extracted_insights as any)?.clientRevenueConcentration ||
+                                      comprehensiveAnalysis?.clientRevenueConcentration ||
+                                      (comprehensiveAnalysis as any)?.client_revenue_concentration ||
+                                      undefined;
+    
+    if (clientRevenueConcentration) {
+      financialDataSection += `
+
+============================================================================
+📊 CLIENT REVENUE CONCENTRATION
+============================================================================
+`;
+      for (const [clientName, details] of Object.entries(clientRevenueConcentration)) {
+        const d = details as any;
+        const revenue = d.revenue || 0;
+        const pct = d.pct_of_total || (revenue && validatedPayroll.turnover ? (revenue / validatedPayroll.turnover * 100) : 0);
+        financialDataSection += `- ${clientName}: £${revenue.toLocaleString()} (${pct.toFixed(0)}% of revenue)`;
+        if (d.contract_length) financialDataSection += ` — ${d.contract_length}`;
+        if (d.growth_potential) financialDataSection += ` — Growth potential: ${d.growth_potential}`;
+        financialDataSection += '\n';
+      }
+      financialDataSection += `
+⚠️ If any single client is >40% of revenue, flag BOTH the opportunity AND the risk.
+`;
+      
+      console.log('[Pass2] ✅ Injected client revenue concentration data');
     }
 
     // ========================================================================
@@ -2199,6 +2256,65 @@ DO NOT mention COO as an enabler.
 If the client needs help with redundancies/restructuring, suggest a one-time HR consultant or business advisory support instead.
 The client's issues can be addressed through the OTHER services listed above.
 ` : ''}
+
+============================================================================
+🚨 FIX 5: INVESTMENT CAP ENFORCEMENT
+============================================================================
+${frameworkOverrides?.maxRecommendedInvestment ? `
+CRITICAL: This client is cash-strapped. Maximum initial investment recommendation: £${frameworkOverrides.maxRecommendedInvestment}
+
+RULES:
+1. The transformation journey's FIRST step must cost ≤ £${frameworkOverrides.maxRecommendedInvestment}
+2. The total "to start" investment shown in the Investment Summary must be ≤ £${frameworkOverrides.maxRecommendedInvestment}
+3. Subsequent steps can be presented as "when cash flow allows" or "Phase 2 — when ready" but should NOT be included in the headline investment figure
+4. Present only the first step as the commitment. Any additional services should be positioned as future phases, not upfront commitments.
+
+EXAMPLE: If benchmarking (£2,000) is the first step and fits within a £3,000 cap, present it as the initial commitment. The £4,500 365 programme should be presented as "Phase 2 — when the benchmarking data confirms the path."
+
+⛔ DO NOT show total investment exceeding £${frameworkOverrides.maxRecommendedInvestment} in the headline "to start" figure.
+` : ''}
+
+============================================================================
+🚨 FIX 6: HEADLINE FRAMING RULES (Exit vs Growth)
+============================================================================
+${(() => {
+  const exitTimelineLower = String(exitTimeline || '').toLowerCase();
+  const adminContextLower = String(adminFlags?.admin_context_note || '').toLowerCase();
+  
+  // Check exit timeline
+  const isActivelyExiting = exitTimelineLower.includes('already exploring') || 
+                           exitTimelineLower.includes('1-3 years') ||
+                           exitTimelineLower.includes('actively preparing');
+  const isFutureExit = exitTimelineLower.includes('3-5 years') || 
+                      exitTimelineLower.includes('need to start thinking');
+  const isLongTermOrNever = exitTimelineLower.includes('5-10 years') || 
+                           exitTimelineLower.includes('never');
+  
+  // Check admin context
+  const notActivelyPreparing = adminContextLower.includes('can exit but don\'t want to') ||
+                               adminContextLower.includes('not actively preparing') ||
+                               adminContextLower.includes('growth priority');
+  
+  if (isActivelyExiting && !notActivelyPreparing) {
+    return `✅ EXIT CAN BE THE HEADLINE: Client is actively exploring exit (1-3 years). Exit readiness can be the primary framing.`;
+  } else if (isFutureExit || notActivelyPreparing) {
+    return `⛔ DO NOT LEAD WITH EXIT: 
+- Exit timeline is 3-5 years ("need to start thinking") OR
+- Admin context indicates "can exit but don't want to" / "not actively preparing" / "growth priority"
+
+HEADLINE SHOULD FOCUS ON:
+- Growth/scaling (for growth-stage agencies: "You're sitting on a relationship that could 5x your business — but you can't scale until you solve the people problem.")
+- Unlocking the key client relationship
+- Breaking through the revenue ceiling
+- Immediate operational/growth priorities
+
+Exit should be mentioned as a FUTURE BENEFIT, not the headline theme.`;
+  } else if (isLongTermOrNever) {
+    return `⛔ DO NOT LEAD WITH EXIT: Exit timeline is 5-10 years or never. Focus on immediate operational/growth priorities.`;
+  } else {
+    return `✅ Use standard transformation framing.`;
+  }
+})()}
 
 ${isExitFocused ? `
 ============================================================================

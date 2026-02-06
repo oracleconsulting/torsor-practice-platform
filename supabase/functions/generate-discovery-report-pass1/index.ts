@@ -2854,6 +2854,15 @@ serve(async (req) => {
       const costOfSalesWages = insights.cost_of_sales_wages || insights.production_wages || 
                                insights.direct_labour;
       
+      // Contractor/consulting costs (for agencies)
+      const consultingCosts = insights.consulting_costs || insights.consultancy_costs || 
+                             insights.contractor_costs || insights.subcontractor_costs ||
+                             (insights as any).consultingCosts || (insights as any).consultancyCosts;
+      const contractorCountEstimate = insights.contractor_count_estimate || 
+                                     insights.contractor_count ||
+                                     (insights as any).contractorCountEstimate || 
+                                     (insights as any).contractorCount;
+      
       const employeeCount = financialContext.staff_count || insights.employee_count || 
                             insights.average_employees || insights.staff_count;
       const employeeCountPriorYear = priorYearContext?.staff_count || insights.employee_count_prior_year || 
@@ -2933,6 +2942,11 @@ serve(async (req) => {
       const depreciation = insights.depreciation || insights.depreciation_charge;
       const amortisation = insights.amortisation || insights.amortisation_charge;
       
+      // === CLIENT REVENUE CONCENTRATION (for cost of inaction) ===
+      const clientRevenueConcentration = insights.client_revenue_concentration || 
+                                         (insights as any).clientRevenueConcentration || 
+                                         undefined;
+      
       // Calculate derived values
       const grossMarginPct = financialContext.gross_margin_pct || 
                              (grossProfit && turnover ? (grossProfit / turnover) * 100 : undefined);
@@ -2943,8 +2957,20 @@ serve(async (req) => {
       const turnoverGrowth = turnover && turnoverPriorYear ? 
                              ((turnover - turnoverPriorYear) / turnoverPriorYear) * 100 : 
                              financialContext.revenue_growth_pct;
-      const revenuePerEmployee = employeeCount && turnover ? turnover / employeeCount : 
-                                 financialContext.revenue_per_head;
+      
+      // For agencies, adjust revenue per employee to include contractors
+      let revenuePerEmployee: number | undefined;
+      if (employeeCount && turnover) {
+        if (contractorCountEstimate) {
+          // Agency: use productive headcount (FT + contractors)
+          const productiveHeadcount = employeeCount + contractorCountEstimate;
+          revenuePerEmployee = turnover / productiveHeadcount;
+        } else {
+          revenuePerEmployee = turnover / employeeCount;
+        }
+      } else {
+        revenuePerEmployee = financialContext.revenue_per_head;
+      }
       
       if (turnover) {
         extractedFinancials = {

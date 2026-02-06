@@ -351,6 +351,9 @@ export interface CostOfInactionMetrics {
   marginLeakage: CostComponent | null;
   efficiencyLoss: CostComponent | null;
   valuationImpact: CostComponent | null;
+  founderTimeOpportunity?: CostComponent | null;  // Founder time opportunity cost
+  concentrationRisk?: CostComponent | null;  // Client concentration risk
+  decisionDelay?: CostComponent | null;  // Decision delay cost
   
   totalCostOfInaction: {
     monthly: number;

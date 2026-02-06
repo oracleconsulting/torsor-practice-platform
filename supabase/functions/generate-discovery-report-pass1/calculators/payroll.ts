@@ -39,6 +39,8 @@ export interface PayrollInputs {
   grossProfit?: number;
   directorSalary?: number;
   employeeCount?: number;
+  consultingCosts?: number;  // For agencies: contractor/consultancy costs
+  contractorCountEstimate?: number;  // Estimated number of contractors
 }
 
 /**
@@ -54,25 +56,28 @@ export function calculatePayrollMetrics(
   // APPLICABILITY CHECK
   // ========================================================================
   // Payroll benchmarking is not applicable for:
-  // - trading_agency (contractor models break benchmarks) ⚠️
   // - investment_vehicle (no payroll relevance)
   // - funded_startup (pre-revenue or early stage, benchmarks don't apply)
+  // NOTE: trading_agency IS applicable but uses different logic (includes contractors)
   
   if (frameworkOverrides && !frameworkOverrides.payrollBenchmarkRelevant) {
-    const reason = clientType === 'trading_agency' 
-      ? 'Payroll benchmarking not applicable for agency contractor model'
-      : clientType === 'investment_vehicle'
-      ? 'Payroll benchmarking not relevant for investment vehicles'
-      : clientType === 'funded_startup'
-      ? 'Payroll benchmarking not applicable for early-stage funded startups'
-      : 'Payroll benchmarking not applicable for this client type';
-    
-    console.log('[Payroll] Not applicable:', reason);
-    return {
-      status: 'not_applicable',
-      notApplicableReason: reason,
-      hasData: false
-    };
+    // For agencies, we still run payroll but with contractor costs included
+    if (clientType === 'trading_agency') {
+      // Continue - we'll handle agencies specially below
+    } else {
+      const reason = clientType === 'investment_vehicle'
+        ? 'Payroll benchmarking not relevant for investment vehicles'
+        : clientType === 'funded_startup'
+        ? 'Payroll benchmarking not applicable for early-stage funded startups'
+        : 'Payroll benchmarking not applicable for this client type';
+      
+      console.log('[Payroll] Not applicable:', reason);
+      return {
+        status: 'not_applicable',
+        notApplicableReason: reason,
+        hasData: false
+      };
+    }
   }
   
   // Check if we have required data
@@ -84,18 +89,57 @@ export function calculatePayrollMetrics(
       notApplicableReason: 'Missing required data: turnover or staff costs'
     };
   }
-  const { turnover, staffCosts, grossProfit, directorSalary } = inputs;
+  const { turnover, staffCosts, grossProfit, directorSalary, consultingCosts, contractorCountEstimate } = inputs;
   const now = new Date().toISOString();
   
-  // Core calculation
-  const staffCostsPct = (staffCosts / turnover) * 100;
-  const excessPct = Math.max(0, staffCostsPct - benchmark.payroll.good);
+  // ========================================================================
+  // AGENCY-SPECIFIC LOGIC: Include contractor costs in total people costs
+  // ========================================================================
+  let totalPeopleCosts = staffCosts;
+  let effectiveBenchmark = benchmark;
+  let isAgency = clientType === 'trading_agency';
+  
+  if (isAgency && consultingCosts) {
+    // For agencies, contractors ARE the workforce - include them
+    totalPeopleCosts = staffCosts + consultingCosts;
+    console.log('[Payroll] Agency mode: Including contractor costs', {
+      staffCosts,
+      consultingCosts,
+      totalPeopleCosts
+    });
+    
+    // Use agency-specific benchmark (45-55% range)
+    effectiveBenchmark = {
+      ...benchmark,
+      payroll: {
+        good: 45,    // Under 45% = efficient
+        typical: 50, // 45-50% = typical
+        concern: 55  // Over 55% = concerning
+      },
+      name: 'Agency/Creative Services',
+      code: 'agency'
+    };
+  }
+  
+  // Core calculation using totalPeopleCosts (includes contractors for agencies)
+  const staffCostsPct = (totalPeopleCosts / turnover) * 100;
+  const excessPct = Math.max(0, staffCostsPct - effectiveBenchmark.payroll.good);
   const annualExcess = Math.round((excessPct / 100) * turnover);
   const monthlyExcess = Math.round(annualExcess / 12);
   const twoYearExcess = annualExcess * 2;
   
-  const assessment = getPayrollStatus(staffCostsPct, benchmark);
-  const isOverstaffed = staffCostsPct > benchmark.payroll.good;
+  // Agency-specific assessment logic
+  let assessment: 'efficient' | 'typical' | 'elevated' | 'concerning';
+  if (isAgency) {
+    if (staffCostsPct <= 45) assessment = 'efficient';
+    else if (staffCostsPct <= 50) assessment = 'typical';
+    else if (staffCostsPct <= 55) assessment = 'elevated';
+    else assessment = 'concerning';
+  } else {
+    assessment = getPayrollStatus(staffCostsPct, effectiveBenchmark);
+  }
+  
+  const isOverstaffed = staffCostsPct > effectiveBenchmark.payroll.good;
   
   // Build staff costs percent metric
   const staffCostsPercentMetric: CalculatedMetric = {
@@ -109,12 +153,18 @@ export function calculatePayrollMetrics(
     direction: staffCostsPct > benchmark.payroll.good ? 'above' : 
                staffCostsPct < benchmark.payroll.good ? 'below' : 'at',
     phrases: {
-      headline: `Payroll at ${formatPercent(staffCostsPct)} of revenue`,
+      headline: isAgency 
+        ? `Total people costs at ${formatPercent(staffCostsPct)} of revenue (including contractors)`
+        : `Payroll at ${formatPercent(staffCostsPct)} of revenue`,
       impact: isOverstaffed 
-        ? `${formatCurrency(annualExcess)}/year excess - staff costs at ${formatPercent(staffCostsPct)} vs the ${benchmark.payroll.good}% benchmark`
+        ? `${formatCurrency(annualExcess)}/year excess - ${isAgency ? 'total people costs' : 'staff costs'} at ${formatPercent(staffCostsPct)} vs the ${effectiveBenchmark.payroll.good}% benchmark`
+        : isAgency && assessment === 'efficient'
+        ? `Total people costs efficient at ${formatPercent(staffCostsPct)} - well below agency benchmark of 45%`
         : `Staff costs within benchmark at ${formatPercent(staffCostsPct)}`,
-      context: `Staff costs are ${excessPct > 0 ? excessPct.toFixed(1) + '% above' : 'within'} the ${benchmark.payroll.good}% industry benchmark for ${benchmark.name.toLowerCase()}`,
-      comparison: `${formatPercent(staffCostsPct)} vs the ${benchmark.payroll.good}% benchmark for ${benchmark.name.toLowerCase()}`,
+      context: isAgency
+        ? `Total people costs (staff + contractors) are ${excessPct > 0 ? excessPct.toFixed(1) + '% above' : 'within'} the ${effectiveBenchmark.payroll.good}% agency benchmark`
+        : `Staff costs are ${excessPct > 0 ? excessPct.toFixed(1) + '% above' : 'within'} the ${effectiveBenchmark.payroll.good}% industry benchmark for ${effectiveBenchmark.name.toLowerCase()}`,
+      comparison: `${formatPercent(staffCostsPct)} vs the ${effectiveBenchmark.payroll.good}% benchmark for ${effectiveBenchmark.name.toLowerCase()}`,
       monthlyImpact: isOverstaffed ? `${formatCurrency(monthlyExcess)} walks out the door every month` : undefined,
       yearlyImpact: isOverstaffed ? `${formatCurrency(annualExcess)}/year that could be profit or sale price` : undefined,
       twoYearImpact: isOverstaffed ? `${formatCurrency(twoYearExcess)} over the next two years` : undefined,
@@ -285,10 +335,12 @@ export function calculatePayrollMetrics(
       excessPercentage: excessPct,
       assessment,
       benchmark: {
-        good: benchmark.payroll.good,
-        typical: benchmark.payroll.typical,
-        concern: benchmark.payroll.concern,
-        source: `${benchmark.name} industry benchmarks`
+        good: effectiveBenchmark.payroll.good,
+        typical: effectiveBenchmark.payroll.typical,
+        concern: effectiveBenchmark.payroll.concern,
+        source: isAgency 
+          ? 'Agency/Creative Services benchmarks (includes contractors)'
+          : `${effectiveBenchmark.name} industry benchmarks`
       }
     }
   };

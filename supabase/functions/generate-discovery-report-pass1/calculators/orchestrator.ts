@@ -162,12 +162,18 @@ export function orchestratePass1Calculations(
   // Payroll
   let payroll = null;
   if (financials.turnover && financials.totalStaffCosts) {
+    // For agencies, include contractor costs in payroll calculation
+    const consultingCosts = (financials as any).consultancyFees || (financials as any).subcontractorCosts || 0;
+    const contractorCountEstimate = (financials as any).contractorCountEstimate || undefined;
+    
     const payrollResult = calculatePayrollMetrics({
       turnover: financials.turnover,
       staffCosts: financials.totalStaffCosts,
       grossProfit: financials.grossProfit,
       directorSalary: financials.directorSalary,
-      employeeCount: financials.employeeCount
+      employeeCount: financials.employeeCount,
+      consultingCosts: consultingCosts > 0 ? consultingCosts : undefined,
+      contractorCountEstimate
     }, benchmark, clientType, frameworkOverrides);
     
     // Handle status-based return
@@ -198,11 +204,15 @@ export function orchestratePass1Calculations(
   // Productivity
   let productivity = null;
   if (financials.turnover && financials.employeeCount) {
+    // For agencies, pass contractor count estimate
+    const contractorCountEstimate = (financials as any).contractorCountEstimate || undefined;
+    
     const productivityResult = calculateProductivityMetrics({
       revenue: financials.turnover,
       employeeCount: financials.employeeCount,
       operatingProfit: financials.operatingProfit,
-      staffCosts: financials.totalStaffCosts
+      staffCosts: financials.totalStaffCosts,
+      contractorCountEstimate
     }, benchmark, clientType, frameworkOverrides);
     
     // Handle status-based return
@@ -283,12 +293,23 @@ export function orchestratePass1Calculations(
   }
   
   // Cost of Inaction
+  // Extract client revenue concentration from financials if available
+  const clientRevenueConcentration = (financials as any).clientRevenueConcentration || 
+                                     (financials as any).client_revenue_concentration || 
+                                     undefined;
+  
+  // Get admin flags from frameworkOverrides or pass as separate param
+  const adminFlags = (inputs as any).adminFlags || undefined;
+  
   const costOfInaction = calculateCostOfInactionMetrics({
     payroll,
     trajectory,
     valuation,
     exitTimeline: valuationSignals.exitMindset || undefined,
-    turnover: financials.turnover
+    turnover: financials.turnover,
+    responses: inputs.responses,
+    adminFlags,
+    clientRevenueConcentration
   });
   
   console.log('[Orchestrator] Cost of inaction:', {
