@@ -706,6 +706,9 @@ const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
   'wholesale': { typical: 30, good: 28, concern: 32, notes: 'Wholesale' },
   'keys_lockers': { typical: 30, good: 28, concern: 32, notes: 'Keys/lockers wholesale' },
   
+  // Agency/Creative Services (45-55% typical - includes contractors)
+  'agency': { typical: 50, good: 45, concern: 55, notes: 'Agency/Creative Services - includes contractors' },
+  
   // Professional Services (45-60% typical)
   'professional_services': { typical: 52, good: 45, concern: 60, notes: 'People are the product' },
   'consulting': { typical: 52, good: 45, concern: 60, notes: 'Consulting' },
@@ -1964,12 +1967,50 @@ function runLightweightBenchmark(
 function performComprehensiveAnalysis(
   financials: ExtractedFinancials,
   responses: Record<string, any>,
-  industry: string
+  industry: string,
+  clientType?: string
 ): ComprehensiveAnalysis {
   const valuationSignals = extractValuationSignals(responses);
   
   // Run all analyses
-  const payroll = analysePayrollEfficiency(financials, industry);
+  // For agencies, include contractor/consulting costs in payroll analysis
+  let payroll: PayrollAnalysis | null;
+  if (clientType === 'trading_agency') {
+    const consultingCosts = (financials as any).consultingCosts || 
+                            (financials as any).consultancyFees || 
+                            (financials as any).subcontractorCosts || 0;
+    
+    if (consultingCosts > 0) {
+      const originalStaffCosts = financials.totalStaffCosts || 0;
+      const totalPeopleCosts = originalStaffCosts + consultingCosts;
+      
+      console.log('[ComprehensiveAnalysis] Agency mode: Including contractor costs in payroll', {
+        staffCosts: originalStaffCosts,
+        consultingCosts,
+        totalPeopleCosts,
+        asPercentOfRevenue: financials.turnover ? ((totalPeopleCosts / financials.turnover) * 100).toFixed(1) + '%' : 'N/A'
+      });
+      
+      // Create modified financials with combined people costs
+      const agencyFinancials = {
+        ...financials,
+        totalStaffCosts: totalPeopleCosts
+      };
+      
+      // Use 'agency' as industry to trigger agency-specific benchmarks
+      payroll = analysePayrollEfficiency(agencyFinancials, 'agency');
+      
+      if (payroll) {
+        // Override the calculation string to be transparent
+        payroll.calculation = `Staff costs £${originalStaffCosts.toLocaleString()} + Contractor costs £${consultingCosts.toLocaleString()} = Total people costs £${totalPeopleCosts.toLocaleString()} ÷ Turnover £${(financials.turnover || 0).toLocaleString()} = ${payroll.staffCostsPct.toFixed(1)}%. Agency benchmark: 45% (efficient), 50% (typical), 55% (concern). Assessment: ${payroll.assessment}.`;
+      }
+    } else {
+      // Agency but no contractor costs - use standard analysis
+      payroll = analysePayrollEfficiency(financials, 'agency');
+    }
+  } else {
+    payroll = analysePayrollEfficiency(financials, industry);
+  }
   const grossMargin = analyseGrossMargin(financials, industry);
   const hiddenAssets = analyseHiddenAssets(financials);
   const valuation = analyseValuation(financials, valuationSignals, industry, hiddenAssets);
@@ -3063,6 +3104,20 @@ serve(async (req) => {
           amortisation,
         };
         
+        // Add dynamic properties (not in interface but needed)
+        if (contractorCountEstimate) {
+          (extractedFinancials as any).contractorCountEstimate = contractorCountEstimate;
+        }
+        if (clientRevenueConcentration) {
+          (extractedFinancials as any).clientRevenueConcentration = clientRevenueConcentration;
+          (extractedFinancials as any).client_revenue_concentration = clientRevenueConcentration; // Alias
+        }
+        // Add consulting costs for agencies (accessible as consultingCosts or consultancyFees)
+        if (consultingCosts) {
+          (extractedFinancials as any).consultingCosts = consultingCosts;
+          (extractedFinancials as any).consultancyFees = consultingCosts; // Alias
+        }
+        
         // Log what we extracted for debugging
         const extractedFields = Object.entries(extractedFinancials)
           .filter(([_, v]) => v !== undefined && v !== null)
@@ -3138,15 +3193,25 @@ serve(async (req) => {
     console.log('[Pass1] Detected industry:', industry);
     
     // Run analysis (will be filtered based on client type)
-    const comprehensiveAnalysis = performComprehensiveAnalysis(extractedFinancials, discoveryResponses, industry);
+    const comprehensiveAnalysis = performComprehensiveAnalysis(extractedFinancials, discoveryResponses, industry, clientType.type);
+    
+    // Debug: Log consulting costs check
+    console.log('[Pass1] consultingCosts check:', {
+      consultingCosts: (extractedFinancials as any).consultingCosts || (extractedFinancials as any).consultancyFees,
+      totalStaffCosts: extractedFinancials.totalStaffCosts,
+      clientType: clientType.type
+    });
     
     // Override irrelevant analysis based on client type
     if (skipPayrollAnalysis && comprehensiveAnalysis.payroll) {
       comprehensiveAnalysis.payroll = {
         ...comprehensiveAnalysis.payroll,
         isValidated: false,
-        narrative: 'Payroll benchmarking not applicable for this client type (contractor model or investment vehicle)'
+        // Note: narrative property may not exist in PayrollAnalysis interface, but it's used in some contexts
+        ...(comprehensiveAnalysis.payroll as any).narrative ? {} : {}
       };
+      // Set narrative via type assertion if needed
+      (comprehensiveAnalysis.payroll as any).narrative = 'Payroll benchmarking not applicable for this client type (contractor model or investment vehicle)';
     }
     
     if (skipExitReadiness && comprehensiveAnalysis.exitReadiness) {

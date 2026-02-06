@@ -1305,11 +1305,12 @@ No validated financial data available. When discussing financial figures:
     // Fetch engagement to get admin context and exit timeline
     const { data: engagementData } = await supabase
       .from('discovery_engagements')
-      .select('admin_flags, discovery')
+      .select('admin_flags, admin_context_note, discovery')
       .eq('id', engagementId)
       .single();
     
     const adminFlags = engagementData?.admin_flags || null;
+    const adminContextNote = engagementData?.admin_context_note || '';
     const exitTimeline = engagement?.discovery?.responses?.sd_exit_timeline || 
                         engagement?.discovery?.responses?.dd_exit_mindset ||
                         engagementData?.discovery?.responses?.sd_exit_timeline ||
@@ -3080,6 +3081,150 @@ Before returning, verify:
       if (preBuiltPhrases.grossMarginStrength && !narratives.page4_numbers.grossMarginStrength) {
         narratives.page4_numbers.grossMarginStrength = preBuiltPhrases.grossMarginStrength;
         console.log('[Pass2] 📊 Added grossMarginStrength to page4_numbers:', preBuiltPhrases.grossMarginStrength);
+      }
+    }
+    
+    // ========================================================================
+    // FIX 2: ENFORCE INVESTMENT CAP (post-processing)
+    // ========================================================================
+    const maxInvestment = frameworkOverrides?.maxRecommendedInvestment;
+    if (maxInvestment && narratives.page3_journey?.phases) {
+      const phases = narratives.page3_journey.phases;
+      let runningTotal = 0;
+      
+      for (let i = 0; i < phases.length; i++) {
+        const phase = phases[i];
+        // Extract price from various possible fields
+        const phasePriceStr = phase.investmentAmount || phase.price || phase.investment || '';
+        const priceMatch = phasePriceStr.match(/[\d,]+/);
+        const phasePrice = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 0;
+        
+        if (i === 0) {
+          // First phase: keep as-is if within cap
+          if (phasePrice <= maxInvestment) {
+            runningTotal += phasePrice;
+            console.log(`[Pass2] 💰 Phase 1 within cap: £${phasePrice} (cap: £${maxInvestment})`);
+          } else {
+            // Even first phase exceeds cap — flag but keep
+            console.warn(`[Pass2] ⚠️ First phase £${phasePrice} exceeds cap £${maxInvestment}`);
+            runningTotal += phasePrice;
+          }
+        } else {
+          // Subsequent phases: mark as deferred, remove price from commitment
+          phase.deferred = true;
+          phase.deferredReason = 'Phase 2 — when cash flow allows';
+          // Keep the service name but add "(when ready)" to the enabled-by text
+          if (phase.enabledBy && !phase.enabledBy.includes('when ready')) {
+            phase.enabledBy = phase.enabledBy.replace(/\(£[\d,]+\)/, '(when ready)');
+          }
+          // Also update the price field to show "when ready"
+          if (phasePrice > 0) {
+            phase.price = phase.price?.replace(/£[\d,]+/, 'When ready') || 'When ready';
+            phase.investmentAmount = 'When ready';
+          }
+          console.log(`[Pass2] 💰 Deferred phase ${i + 1}: ${phase.title || phase.headline} — exceeds investment cap`);
+        }
+      }
+      
+      // Override the investment summary to show only committed amount
+      if (narratives.page4_numbers) {
+        const firstPhasePriceStr = phases[0]?.investmentAmount || phases[0]?.price || '0';
+        const firstPriceMatch = firstPhasePriceStr.match(/[\d,]+/);
+        const firstPhasePrice = firstPriceMatch ? parseInt(firstPriceMatch[0].replace(/,/g, ''), 10) : 0;
+        
+        narratives.page4_numbers.totalYear1 = `£${firstPhasePrice.toLocaleString()}`;
+        narratives.page4_numbers.toStartTheJourney = `£${firstPhasePrice.toLocaleString()}`;
+        
+        // Fix investment breakdown display
+        if (narratives.page4_numbers.investmentBreakdown) {
+          const breakdownItems: string[] = [];
+          for (let i = 0; i < phases.length; i++) {
+            const phase = phases[i];
+            const priceStr = phase.investmentAmount || phase.price || '';
+            const service = phase.enabledBy || phase.service || `Phase ${i + 1}`;
+            
+            if (i === 0) {
+              const priceMatch = priceStr.match(/[\d,]+/);
+              const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 0;
+              breakdownItems.push(`${service}: £${price.toLocaleString()}`);
+            } else {
+              breakdownItems.push(`${service}: When ready`);
+            }
+          }
+          narratives.page4_numbers.investmentBreakdown = breakdownItems.join('\n');
+        }
+        
+        console.log(`[Pass2] 💰 Investment cap enforced: showing £${firstPhasePrice} (cap: £${maxInvestment})`);
+      }
+    }
+    
+    // ========================================================================
+    // FIX 3: ENFORCE HEADLINE FRAMING (post-processing)
+    // ========================================================================
+    const adminContextLower = String(adminContextNote || '').toLowerCase();
+    const exitTimelineLower = String(exitTimeline || '').toLowerCase();
+    
+    const shouldNotLeadWithExit = 
+      adminContextLower.includes('can exit but don') ||
+      adminContextLower.includes('not actively preparing') ||
+      adminContextLower.includes('growth priority') ||
+      exitTimelineLower.includes('3-5 years') ||
+      exitTimelineLower.includes('5-10 years') ||
+      exitTimelineLower.includes('never');
+    
+    if (shouldNotLeadWithExit) {
+      // Check if headline contains exit-focused language
+      const headline = narratives.meta?.headline || 
+                      narratives.page2_gaps?.openingLine || 
+                      narratives.page1_destination?.headerLine || 
+                      '';
+      const headlineLower = headline.toLowerCase();
+      
+      const exitPatterns = [
+        /building for .* exit/i,
+        /exit.ready/i,
+        /preparing to sell/i,
+        /your exit/i,
+        /£\d+[mk]? exit/i,
+        /exit.*£\d+[mk]?/i
+      ];
+      
+      const isExitFocused = exitPatterns.some(pattern => pattern.test(headline));
+      
+      if (isExitFocused) {
+        console.warn(`[Pass2] ⚠️ Headline leads with exit despite admin context saying otherwise. Original: "${headline}"`);
+        
+        // Check if there's a better headline from the gap analysis or journey
+        // Try to build one from the strongest gap or opportunity
+        const gaps = narratives.page2_gaps?.gaps || [];
+        const strategicGap = gaps.find((g: any) => 
+          g.title?.toLowerCase().includes('relationship') || 
+          g.title?.toLowerCase().includes('revenue') ||
+          g.title?.toLowerCase().includes('growth') ||
+          g.title?.toLowerCase().includes('ceiling') ||
+          g.title?.toLowerCase().includes('scale')
+        );
+        
+        if (strategicGap) {
+          // Use the strategic gap as headline inspiration
+          const newHeadline = strategicGap.title;
+          if (narratives.meta) narratives.meta.headline = newHeadline;
+          if (narratives.page2_gaps) narratives.page2_gaps.openingLine = newHeadline;
+          console.log(`[Pass2] ✅ Replaced exit headline with: "${newHeadline}"`);
+        } else {
+          // Generic replacement: strip "exit" framing, keep the operational tension
+          const cleaned = headline
+            .replace(/building for a £\d+[mk]? exit but/i, 'growing but')
+            .replace(/building for .* exit but/i, 'growing but')
+            .replace(/exit-ready/gi, 'scalable')
+            .replace(/your exit/gi, 'your growth')
+            .replace(/£\d+[mk]? exit/gi, 'growth')
+            .replace(/exit.*£\d+[mk]?/gi, 'growth');
+          
+          if (narratives.meta) narratives.meta.headline = cleaned;
+          if (narratives.page2_gaps) narratives.page2_gaps.openingLine = cleaned;
+          console.log(`[Pass2] ✅ Cleaned exit headline to: "${cleaned}"`);
+        }
       }
     }
     
