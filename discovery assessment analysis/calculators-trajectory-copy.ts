@@ -197,6 +197,8 @@ export function calculateTrajectoryMetrics(
   }
   
   return {
+    status: 'calculated',
+    hasData: true,
     revenueGrowthYoY,
     revenueGrowth3Year,
     profitGrowthYoY,
@@ -334,4 +336,3 @@ export function buildTrajectoryGapPhrase(
     shiftRequired: 'Stabilise or explain the decline before going to market'
   };
 }
-

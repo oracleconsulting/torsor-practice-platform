@@ -12,11 +12,32 @@ import {
 
 import { IndustryBenchmark, getRevenuePerHeadStatus } from '../benchmarks/industry-benchmarks.ts';
 
+type ClientBusinessType = 
+  | 'trading_product'
+  | 'trading_agency'
+  | 'professional_practice'
+  | 'investment_vehicle'
+  | 'funded_startup'
+  | 'lifestyle_business';
+
+interface FrameworkOverrides {
+  useEarningsValuation: boolean;
+  useAssetValuation: boolean;
+  benchmarkAgainst: string | null;
+  exitReadinessRelevant: boolean;
+  payrollBenchmarkRelevant: boolean;
+  appropriateServices: string[];
+  inappropriateServices: string[];
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation';
+  maxRecommendedInvestment: number | null;
+}
+
 export interface ProductivityInputs {
   revenue: number;
   employeeCount: number;
   operatingProfit?: number | null;
   staffCosts?: number;
+  contractorCountEstimate?: number;  // For agencies: estimated contractor count
 }
 
 /**
@@ -24,13 +45,56 @@ export interface ProductivityInputs {
  */
 export function calculateProductivityMetrics(
   inputs: ProductivityInputs,
-  benchmark: IndustryBenchmark
-): ProductivityMetrics {
-  const { revenue, employeeCount, operatingProfit, staffCosts } = inputs;
+  benchmark: IndustryBenchmark,
+  clientType?: ClientBusinessType,
+  frameworkOverrides?: FrameworkOverrides
+): ProductivityMetrics | { status: 'not_applicable'; notApplicableReason: string; hasData: false } | { status: 'no_data'; hasData: false; notApplicableReason: string } {
+  // ========================================================================
+  // APPLICABILITY CHECK
+  // ========================================================================
+  // Productivity benchmarking is not applicable when benchmarks don't apply:
+  // - trading_agency (contractor models break benchmarks) ⚠️
+  // - investment_vehicle (no productivity relevance)
+  // - funded_startup (pre-revenue or early stage, benchmarks don't apply)
+  
+  if (frameworkOverrides && (!frameworkOverrides.benchmarkAgainst || !frameworkOverrides.payrollBenchmarkRelevant)) {
+    const reason = clientType === 'trading_agency' 
+      ? 'Productivity benchmarking not applicable for agency contractor model'
+      : clientType === 'investment_vehicle'
+      ? 'Productivity benchmarking not relevant for investment vehicles'
+      : clientType === 'funded_startup'
+      ? 'Productivity benchmarking not applicable for early-stage funded startups'
+      : 'Productivity benchmarking not applicable for this client type';
+    
+    console.log('[Productivity] Not applicable:', reason);
+    return {
+      status: 'not_applicable',
+      notApplicableReason: reason,
+      hasData: false
+    };
+  }
+  
+  // Check if we have required data
+  if (!inputs.revenue || !inputs.employeeCount) {
+    console.log('[Productivity] No data: Missing revenue or employee count');
+    return {
+      status: 'no_data',
+      hasData: false,
+      notApplicableReason: 'Missing required data: revenue or employee count'
+    };
+  }
+  
+  const { revenue, employeeCount, operatingProfit, staffCosts, contractorCountEstimate } = inputs;
   const now = new Date().toISOString();
   
-  // Calculate revenue per head
-  const revenuePerHead = revenue / employeeCount;
+  // For agencies, adjust headcount to include contractors
+  const isAgency = clientType === 'trading_agency';
+  const productiveHeadcount = isAgency && contractorCountEstimate 
+    ? employeeCount + contractorCountEstimate
+    : employeeCount;
+  
+  // Calculate revenue per head (or per productive head for agencies)
+  const revenuePerHead = revenue / productiveHeadcount;
   const benchmarkLow = benchmark.revenuePerHead.low;
   const benchmarkTypical = benchmark.revenuePerHead.typical;
   const gap = revenuePerHead - benchmarkTypical;
@@ -64,10 +128,16 @@ export function calculateProductivityMetrics(
             status === 'good' ? 'good' :
             status === 'typical' ? 'neutral' : 'concern',
     direction: gap >= 0 ? 'above' : 'below',
-    phrases: buildRevenuePerHeadPhrases(revenuePerHead, benchmarkTypical, gap, benchmark.name),
+    phrases: buildRevenuePerHeadPhrases(
+      revenuePerHead, 
+      benchmarkTypical, 
+      gap, 
+      benchmark.name,
+      isAgency ? ` (per productive head: ${employeeCount} FT + ${contractorCountEstimate || 0} contractors)` : undefined
+    ),
     calculation: {
-      formula: 'revenue / employeeCount',
-      inputs: { revenue, employeeCount },
+      formula: isAgency ? `revenue / (employeeCount + contractorCountEstimate)` : 'revenue / employeeCount',
+      inputs: isAgency ? { revenue, employeeCount, contractorCountEstimate, productiveHeadcount } : { revenue, employeeCount },
       timestamp: now
     }
   };
@@ -163,6 +233,8 @@ export function calculateProductivityMetrics(
   };
   
   return {
+    status: 'calculated',
+    hasData: true,
     revenuePerHead: revenuePerHeadMetric,
     profitPerHead: profitPerHeadMetric,
     revenuePerPayrollPound: revenuePerPayrollPoundMetric,
@@ -177,7 +249,8 @@ function buildRevenuePerHeadPhrases(
   revenuePerHead: number,
   benchmark: number,
   gap: number,
-  industryName: string
+  industryName: string,
+  note?: string
 ): {
   headline: string;
   impact: string;
@@ -188,20 +261,24 @@ function buildRevenuePerHeadPhrases(
   const formatted = formatCurrency(revenuePerHead);
   const benchmarkFormatted = formatCurrency(benchmark);
   
+  const headline = note 
+    ? `Revenue per productive head at ${formatted}${note}`
+    : `Revenue per head at ${formatted}`;
+  
   if (gap >= 0) {
     return {
-      headline: `Revenue per head at ${formatted}`,
+      headline,
       impact: `${formatCurrency(gap)} above the ${benchmarkFormatted} benchmark`,
-      context: `Team productivity is strong for ${industryName.toLowerCase()}`,
-      comparison: `${formatted} vs the ${benchmarkFormatted} benchmark`
+      context: `Team productivity is strong for ${industryName.toLowerCase()}${note ? ' (includes contractors)' : ''}`,
+      comparison: `${formatted} vs the ${benchmarkFormatted} benchmark${note ? note : ''}`
     };
   }
   
   return {
-    headline: `Revenue per head at ${formatted}`,
+    headline,
     impact: `${formatCurrency(Math.abs(gap))} below the ${benchmarkFormatted} benchmark`,
-    context: `The team generates ${formatCurrency(Math.abs(gap))} less per person than industry standard`,
-    comparison: `${formatted} vs the ${benchmarkFormatted} benchmark for ${industryName.toLowerCase()}`,
+    context: `The team generates ${formatCurrency(Math.abs(gap))} less per person than industry standard${note ? ' (includes contractors)' : ''}`,
+    comparison: `${formatted} vs the ${benchmarkFormatted} benchmark for ${industryName.toLowerCase()}${note ? note : ''}`,
     actionRequired: 'Improve productivity or right-size the team'
   };
 }
@@ -264,4 +341,3 @@ export function buildProductivityGapPhrase(
     shiftRequired: productivity.excessHeadcount.phrases.actionRequired || 'Address before exit'
   };
 }
-

@@ -13,6 +13,26 @@ import {
 
 import { IndustryBenchmark } from '../benchmarks/industry-benchmarks.ts';
 
+type ClientBusinessType = 
+  | 'trading_product'
+  | 'trading_agency'
+  | 'professional_practice'
+  | 'investment_vehicle'
+  | 'funded_startup'
+  | 'lifestyle_business';
+
+interface FrameworkOverrides {
+  useEarningsValuation: boolean;
+  useAssetValuation: boolean;
+  benchmarkAgainst: string | null;
+  exitReadinessRelevant: boolean;
+  payrollBenchmarkRelevant: boolean;
+  appropriateServices: string[];
+  inappropriateServices: string[];
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation';
+  maxRecommendedInvestment: number | null;
+}
+
 export interface ValuationInputs {
   operatingProfit: number | null;
   ebitda?: number | null;
@@ -40,8 +60,32 @@ export interface ValuationAdjustment {
  */
 export function calculateValuationMetrics(
   inputs: ValuationInputs,
-  benchmark: IndustryBenchmark
-): ValuationMetrics | null {
+  benchmark: IndustryBenchmark,
+  clientType?: ClientBusinessType,
+  frameworkOverrides?: FrameworkOverrides
+): ValuationMetrics | { status: 'not_applicable'; notApplicableReason: string; hasData: false } | { status: 'no_data'; hasData: false; notApplicableReason: string } | null {
+  // ========================================================================
+  // APPLICABILITY CHECK
+  // ========================================================================
+  // Earnings-based valuation is not applicable for:
+  // - investment_vehicle (uses asset-based valuation instead)
+  // - funded_startup (valued by funding rounds, not earnings)
+  
+  if (frameworkOverrides && !frameworkOverrides.useEarningsValuation) {
+    const reason = clientType === 'investment_vehicle'
+      ? 'Earnings-based valuation not applicable - investment vehicles use asset-based valuation'
+      : clientType === 'funded_startup'
+      ? 'Earnings-based valuation not applicable - funded startups valued by funding rounds'
+      : 'Earnings-based valuation not applicable for this client type';
+    
+    console.log('[Valuation] Not applicable:', reason);
+    return {
+      status: 'not_applicable',
+      notApplicableReason: reason,
+      hasData: false
+    };
+  }
+  
   const { 
     operatingProfit, 
     ebitda, 
@@ -57,7 +101,14 @@ export function calculateValuationMetrics(
   } = inputs;
   
   // Need at least operating profit or EBITDA
-  if (!operatingProfit && !ebitda) return null;
+  if (!operatingProfit && !ebitda) {
+    console.log('[Valuation] No data: Missing operating profit or EBITDA');
+    return {
+      status: 'no_data',
+      hasData: false,
+      notApplicableReason: 'Missing required data: operating profit or EBITDA'
+    };
+  }
   
   const now = new Date().toISOString();
   
@@ -212,6 +263,8 @@ export function calculateValuationMetrics(
   };
   
   return {
+    status: 'calculated',
+    hasData: true,
     adjustedEbitda: adjustedEbitdaMetric,
     operatingProfit: operatingProfitMetric,
     multipleRange,
@@ -284,4 +337,3 @@ export function extractValuationSignals(
                  null
   };
 }
-

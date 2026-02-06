@@ -57,6 +57,26 @@ export interface ExtractedFinancials {
   amortisation?: number;
 }
 
+type ClientBusinessType = 
+  | 'trading_product'
+  | 'trading_agency'
+  | 'professional_practice'
+  | 'investment_vehicle'
+  | 'funded_startup'
+  | 'lifestyle_business';
+
+interface FrameworkOverrides {
+  useEarningsValuation: boolean;
+  useAssetValuation: boolean;
+  benchmarkAgainst: string | null;
+  exitReadinessRelevant: boolean;
+  payrollBenchmarkRelevant: boolean;
+  appropriateServices: string[];
+  inappropriateServices: string[];
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation';
+  maxRecommendedInvestment: number | null;
+}
+
 export interface OrchestratorInputs {
   engagementId: string;
   clientId: string;
@@ -65,6 +85,10 @@ export interface OrchestratorInputs {
   
   financials: ExtractedFinancials;
   responses: Record<string, any>;
+  
+  // Client type classification (from classification result)
+  clientType?: ClientBusinessType;
+  frameworkOverrides?: FrameworkOverrides;
 }
 
 // ============================================================================
@@ -77,10 +101,20 @@ export interface OrchestratorInputs {
 export function orchestratePass1Calculations(
   inputs: OrchestratorInputs
 ): Pass1Output {
-  const { engagementId, clientId, clientName, companyName, financials, responses } = inputs;
+  const { 
+    engagementId, 
+    clientId, 
+    clientName, 
+    companyName, 
+    financials, 
+    responses,
+    clientType,
+    frameworkOverrides
+  } = inputs;
   const now = new Date().toISOString();
   
   console.log('[Orchestrator] Starting Pass 1 calculations for:', companyName);
+  console.log('[Orchestrator] Client type:', clientType, 'Framework overrides:', frameworkOverrides);
   
   // ========================================================================
   // STEP 1: DETECT INDUSTRY & GET BENCHMARKS
@@ -128,19 +162,31 @@ export function orchestratePass1Calculations(
   // Payroll
   let payroll = null;
   if (financials.turnover && financials.totalStaffCosts) {
-    payroll = calculatePayrollMetrics({
+    // For agencies, include contractor costs in payroll calculation
+    const consultingCosts = (financials as any).consultancyFees || (financials as any).subcontractorCosts || 0;
+    const contractorCountEstimate = (financials as any).contractorCountEstimate || undefined;
+    
+    const payrollResult = calculatePayrollMetrics({
       turnover: financials.turnover,
       staffCosts: financials.totalStaffCosts,
       grossProfit: financials.grossProfit,
       directorSalary: financials.directorSalary,
-      employeeCount: financials.employeeCount
-    }, benchmark);
+      employeeCount: financials.employeeCount,
+      consultingCosts: consultingCosts > 0 ? consultingCosts : undefined,
+      contractorCountEstimate
+    }, benchmark, clientType, frameworkOverrides);
     
-    console.log('[Orchestrator] Payroll calculated:', {
-      staffCostsPct: payroll.staffCostsPercent.formatted,
-      annualExcess: payroll.annualExcess.formatted,
-      isOverstaffed: payroll.summary.isOverstaffed
-    });
+    // Handle status-based return
+    if (payrollResult && 'status' in payrollResult && payrollResult.status === 'calculated') {
+      payroll = payrollResult;
+      console.log('[Orchestrator] Payroll calculated:', {
+        staffCostsPct: payroll.staffCostsPercent.formatted,
+        annualExcess: payroll.annualExcess.formatted,
+        isOverstaffed: payroll.summary.isOverstaffed
+      });
+    } else if (payrollResult && 'status' in payrollResult) {
+      console.log('[Orchestrator] Payroll:', payrollResult.status, payrollResult.notApplicableReason || '');
+    }
   }
   
   // Trajectory
@@ -158,17 +204,27 @@ export function orchestratePass1Calculations(
   // Productivity
   let productivity = null;
   if (financials.turnover && financials.employeeCount) {
-    productivity = calculateProductivityMetrics({
+    // For agencies, pass contractor count estimate
+    const contractorCountEstimate = (financials as any).contractorCountEstimate || undefined;
+    
+    const productivityResult = calculateProductivityMetrics({
       revenue: financials.turnover,
       employeeCount: financials.employeeCount,
       operatingProfit: financials.operatingProfit,
-      staffCosts: financials.totalStaffCosts
-    }, benchmark);
+      staffCosts: financials.totalStaffCosts,
+      contractorCountEstimate
+    }, benchmark, clientType, frameworkOverrides);
     
-    console.log('[Orchestrator] Productivity calculated:', {
-      revenuePerHead: productivity.revenuePerHead.formatted,
-      excessHeadcount: productivity.excessHeadcount.formatted
-    });
+    // Handle status-based return
+    if (productivityResult && 'status' in productivityResult && productivityResult.status === 'calculated') {
+      productivity = productivityResult;
+      console.log('[Orchestrator] Productivity calculated:', {
+        revenuePerHead: productivity.revenuePerHead.formatted,
+        excessHeadcount: productivity.excessHeadcount.formatted
+      });
+    } else if (productivityResult && 'status' in productivityResult) {
+      console.log('[Orchestrator] Productivity:', productivityResult.status, productivityResult.notApplicableReason || '');
+    }
   }
   
   // Hidden Assets
@@ -187,7 +243,7 @@ export function orchestratePass1Calculations(
   });
   
   // Valuation
-  const valuation = calculateValuationMetrics({
+  const valuationResult = calculateValuationMetrics({
     operatingProfit: financials.operatingProfit,
     ebitda: financials.ebitda,
     depreciation: financials.depreciation,
@@ -200,36 +256,60 @@ export function orchestratePass1Calculations(
     founderDependencyLow: valuationSignals.founderDependencyLow,
     trajectoryDeclining: trajectory.trend.classification === 'declining',
     hiddenAssetsTotal: hiddenAssets.totalHiddenAssets.value || 0
-  }, benchmark);
+  }, benchmark, clientType, frameworkOverrides);
   
-  if (valuation) {
+  let valuation = null;
+  if (valuationResult && 'status' in valuationResult && valuationResult.status === 'calculated') {
+    valuation = valuationResult;
     console.log('[Orchestrator] Valuation calculated:', {
       adjustedEbitda: valuation.adjustedEbitda.formatted,
       enterpriseValue: valuation.enterpriseValue.formatted
     });
+  } else if (valuationResult && 'status' in valuationResult) {
+    console.log('[Orchestrator] Valuation:', valuationResult.status, valuationResult.notApplicableReason || '');
   }
   
   // Exit Readiness
-  const exitReadiness = calculateExitReadinessMetrics({
+  const exitReadinessResult = calculateExitReadinessMetrics({
     ...exitReadinessSignals,
     trajectoryDeclining: trajectory.trend.classification === 'declining',
     payrollOverstaffed: payroll?.summary.isOverstaffed || false,
     hasValuationBaseline: false // Assume no baseline unless indicated
-  });
+  }, clientType, frameworkOverrides);
   
-  console.log('[Orchestrator] Exit readiness:', {
-    score: exitReadiness.overallScore.formatted,
-    strengths: exitReadiness.strengths.length,
-    blockers: exitReadiness.blockers.length
-  });
+  let exitReadiness: ReturnType<typeof calculateExitReadinessMetrics>;
+  if (exitReadinessResult && 'status' in exitReadinessResult && exitReadinessResult.status === 'calculated') {
+    exitReadiness = exitReadinessResult;
+    console.log('[Orchestrator] Exit readiness:', {
+      score: exitReadiness.overallScore.formatted,
+      strengths: exitReadiness.strengths.length,
+      blockers: exitReadiness.blockers.length
+    });
+  } else if (exitReadinessResult && 'status' in exitReadinessResult) {
+    exitReadiness = exitReadinessResult as any; // Will be handled as not applicable
+    console.log('[Orchestrator] Exit readiness:', exitReadinessResult.status, exitReadinessResult.notApplicableReason || '');
+  } else {
+    exitReadiness = exitReadinessResult;
+  }
   
   // Cost of Inaction
+  // Extract client revenue concentration from financials if available
+  const clientRevenueConcentration = (financials as any).clientRevenueConcentration || 
+                                     (financials as any).client_revenue_concentration || 
+                                     undefined;
+  
+  // Get admin flags from frameworkOverrides or pass as separate param
+  const adminFlags = (inputs as any).adminFlags || undefined;
+  
   const costOfInaction = calculateCostOfInactionMetrics({
     payroll,
     trajectory,
     valuation,
     exitTimeline: valuationSignals.exitMindset || undefined,
-    turnover: financials.turnover
+    turnover: financials.turnover,
+    responses: inputs.responses,
+    adminFlags,
+    clientRevenueConcentration
   });
   
   console.log('[Orchestrator] Cost of inaction:', {
@@ -610,4 +690,3 @@ function createEmptyValuationMetrics(): any {
     pricePerShare: null
   };
 }
-

@@ -53,6 +53,10 @@ export interface CalculatedMetric {
 // =============================================================================
 
 export interface PayrollMetrics {
+  status: 'calculated' | 'no_data' | 'not_applicable';
+  hasData: boolean; // Backward compatibility: true when status is 'calculated', false otherwise
+  notApplicableReason?: string;
+  
   staffCostsPercent: CalculatedMetric;
   annualExcess: CalculatedMetric;
   monthlyExcess: CalculatedMetric;
@@ -79,6 +83,10 @@ export interface PayrollMetrics {
 // =============================================================================
 
 export interface ValuationMetrics {
+  status: 'calculated' | 'no_data' | 'not_applicable';
+  hasData: boolean; // Backward compatibility: true when status is 'calculated', false otherwise
+  notApplicableReason?: string;
+  
   adjustedEbitda: CalculatedMetric;
   operatingProfit: CalculatedMetric | null;
   
@@ -116,6 +124,10 @@ export interface ValuationMetrics {
 // =============================================================================
 
 export interface TrajectoryMetrics {
+  status: 'calculated' | 'no_data' | 'not_applicable';
+  hasData: boolean; // Backward compatibility: true when status is 'calculated', false otherwise
+  notApplicableReason?: string;
+  
   revenueGrowthYoY: CalculatedMetric;
   revenueGrowth3Year: CalculatedMetric | null;
   profitGrowthYoY: CalculatedMetric | null;
@@ -144,6 +156,10 @@ export interface TrajectoryMetrics {
 // =============================================================================
 
 export interface ProductivityMetrics {
+  status: 'calculated' | 'no_data' | 'not_applicable';
+  hasData: boolean; // Backward compatibility: true when status is 'calculated', false otherwise
+  notApplicableReason?: string;
+  
   revenuePerHead: CalculatedMetric;
   profitPerHead: CalculatedMetric | null;
   revenuePerPayrollPound: CalculatedMetric | null;
@@ -155,6 +171,10 @@ export interface ProductivityMetrics {
 // =============================================================================
 
 export interface ProfitabilityMetrics {
+  status: 'calculated' | 'no_data' | 'not_applicable';
+  hasData: boolean; // Backward compatibility: true when status is 'calculated', false otherwise
+  notApplicableReason?: string;
+  
   grossMargin: CalculatedMetric;
   operatingMargin: CalculatedMetric | null;
   netMargin: CalculatedMetric | null;
@@ -222,6 +242,10 @@ export interface HiddenAssetItem {
 }
 
 export interface HiddenAssetsMetrics {
+  status: 'calculated' | 'no_data' | 'not_applicable';
+  hasData: boolean; // Backward compatibility: true when status is 'calculated', false otherwise
+  notApplicableReason?: string;
+  
   freeholdProperty: CalculatedMetric | null;
   excessCash: CalculatedMetric | null;
   undervaluedStock: CalculatedMetric | null;
@@ -243,6 +267,10 @@ export interface ExitReadinessFactor {
 }
 
 export interface ExitReadinessMetrics {
+  status: 'calculated' | 'no_data' | 'not_applicable';
+  hasData: boolean; // Backward compatibility: true when status is 'calculated', false otherwise
+  notApplicableReason?: string;
+  
   overallScore: CalculatedMetric;
   founderDependency: CalculatedMetric;
   documentationScore: CalculatedMetric | null;
@@ -315,10 +343,17 @@ export interface CostComponent {
 }
 
 export interface CostOfInactionMetrics {
+  status: 'calculated' | 'no_data' | 'not_applicable';
+  hasData: boolean; // Backward compatibility: true when status is 'calculated', false otherwise
+  notApplicableReason?: string;
+  
   payrollExcess: CostComponent | null;
   marginLeakage: CostComponent | null;
   efficiencyLoss: CostComponent | null;
   valuationImpact: CostComponent | null;
+  founderTimeOpportunity?: CostComponent | null;  // Founder time opportunity cost
+  concentrationRisk?: CostComponent | null;  // Client concentration risk
+  decisionDelay?: CostComponent | null;  // Decision delay cost
   
   totalCostOfInaction: {
     monthly: number;
@@ -351,6 +386,10 @@ export interface Achievement {
 }
 
 export interface AchievementsMetrics {
+  status: 'calculated' | 'no_data' | 'not_applicable';
+  hasData: boolean; // Backward compatibility: true when status is 'calculated', false otherwise
+  notApplicableReason?: string;
+  
   achievements: Achievement[];
   phrases: {
     topAchievements: string;
@@ -509,4 +548,3 @@ export function getStatus(
   if (variance >= -thresholds.concern) return 'concern';
   return 'critical';
 }
-

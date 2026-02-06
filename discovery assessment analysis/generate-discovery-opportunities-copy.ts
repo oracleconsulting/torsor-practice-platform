@@ -706,20 +706,58 @@ interface ServicePricing {
 
 function deduplicateServiceRecommendations(opportunities: any[], servicePricing: Map<string, ServicePricing>): any[] {
   const seenServices = new Map<string, any>();
+  const seenServiceNames = new Map<string, any>(); // FIX 4: Track by name as fallback
   const deduplicated: any[] = [];
   
   for (const opp of opportunities) {
     const serviceCode = opp.serviceMapping?.existingService?.code;
+    const serviceName = opp.serviceMapping?.existingService?.name || 
+                       opp.serviceMapping?.newConceptNeeded?.suggestedName ||
+                       '';
     
-    if (!serviceCode) {
+    if (!serviceCode && !serviceName) {
       // No service mapped - keep the opportunity
       deduplicated.push(opp);
       continue;
     }
     
-    if (seenServices.has(serviceCode)) {
+    // FIX 4: Check for duplicates by code first, then by name (case-insensitive)
+    let existing: any = null;
+    let matchType = '';
+    
+    if (serviceCode && seenServices.has(serviceCode)) {
+      existing = seenServices.get(serviceCode);
+      matchType = 'code';
+    } else if (serviceName) {
+      // Try matching by name (case-insensitive)
+      const nameLower = serviceName.toLowerCase();
+      for (const [key, value] of seenServiceNames.entries()) {
+        if (key.toLowerCase() === nameLower) {
+          existing = value;
+          matchType = 'name';
+          break;
+        }
+      }
+      
+      // Also check if name contains same root (e.g., both contain "Management Accounts")
+      if (!existing && serviceName) {
+        const nameWords = nameLower.split(/\s+/).filter(w => w.length > 3); // Words longer than 3 chars
+        for (const [key, value] of seenServiceNames.entries()) {
+          const keyWords = key.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+          // Check if they share significant words
+          const sharedWords = nameWords.filter(w => keyWords.includes(w));
+          if (sharedWords.length >= 2) { // At least 2 significant words match
+            existing = value;
+            matchType = 'name-root';
+            console.log(`[Opportunities] Matched by name root: "${serviceName}" matches "${key}" (shared: ${sharedWords.join(', ')})`);
+            break;
+          }
+        }
+      }
+    }
+    
+    if (existing) {
       // Service already recommended - merge the opportunities
-      const existing = seenServices.get(serviceCode);
       
       // Combine the rationales
       if (existing.serviceMapping?.existingService) {
@@ -753,10 +791,10 @@ function deduplicateServiceRecommendations(opportunities: any[], servicePricing:
         existing.financialImpact = opp.financialImpact;
       }
       
-      console.log(`[Opportunities] Merged duplicate service: ${serviceCode} (${opp.title} into ${existing.title})`);
+      console.log(`[Opportunities] Merged duplicate service (matched by ${matchType}): ${serviceCode || serviceName} (${opp.title} into ${existing.title})`);
     } else {
       // First time seeing this service - apply correct pricing
-      const pricing = servicePricing.get(serviceCode);
+      const pricing = servicePricing.get(serviceCode || '');
       if (pricing && opp.serviceMapping?.existingService) {
         opp.serviceMapping.existingService.name = pricing.name;
         opp.serviceMapping.existingService.price = pricing.price;
@@ -764,7 +802,14 @@ function deduplicateServiceRecommendations(opportunities: any[], servicePricing:
         opp.serviceMapping.existingService.pricingModel = pricing.pricingModel;
       }
       
-      seenServices.set(serviceCode, opp);
+      // Track by both code and name
+      if (serviceCode) {
+        seenServices.set(serviceCode, opp);
+      }
+      if (serviceName) {
+        seenServiceNames.set(serviceName, opp);
+      }
+      
       deduplicated.push(opp);
     }
   }

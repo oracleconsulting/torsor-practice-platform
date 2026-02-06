@@ -45,6 +45,370 @@ interface DestinationClarityAnalysis {
 }
 
 // ============================================================================
+// CLIENT TYPE DEFINITIONS (from Pass 1)
+// ============================================================================
+
+type ClientBusinessType = 
+  | 'trading_product'        
+  | 'trading_agency'         
+  | 'professional_practice'  
+  | 'investment_vehicle'     
+  | 'funded_startup'         
+  | 'lifestyle_business';
+
+interface FrameworkOverrides {
+  useEarningsValuation: boolean;
+  useAssetValuation: boolean;
+  benchmarkAgainst: string | null;
+  exitReadinessRelevant: boolean;
+  payrollBenchmarkRelevant: boolean;
+  appropriateServices: string[];
+  inappropriateServices: string[];
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation';
+  maxRecommendedInvestment: number | null;
+}
+
+interface AssetValuation {
+  hasData: boolean;
+  netAssets: number | null;
+  investmentProperty: number | null;
+  freeholdProperty: number | null;
+  totalAssetValue: number | null;
+  narrative: string;
+}
+
+// ============================================================================
+// REPORT FRAMING INSTRUCTIONS
+// ============================================================================
+
+function getReportFramingInstructions(
+  reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation',
+  clientType: ClientBusinessType
+): string {
+  const framingMap: Record<string, string> = {
+    'transformation': `
+============================================================================
+📈 REPORT FRAMING: TRANSFORMATION
+============================================================================
+This is a trading business focused on growth and exit readiness.
+
+NARRATIVE STRUCTURE:
+"Here's where you are → here's where you want to be → here's how we get there."
+
+APPROPRIATE LANGUAGE:
+✅ "transformation journey"
+✅ "unlocking potential"
+✅ "scaling"
+✅ "building value"
+✅ "exit readiness"
+✅ "cost of inaction"
+✅ "leaving money on the table"
+✅ Growth-focused language
+
+TONE:
+- Forward-looking and ambitious
+- Focus on potential and opportunity
+- Emphasize the gap between current state and desired state
+- Frame services as enablers of transformation
+`,
+
+    'wealth_protection': `
+============================================================================
+🛡️ REPORT FRAMING: WEALTH PROTECTION
+============================================================================
+This client has built significant wealth (investment vehicle, property portfolio).
+They're not looking to transform - they're looking to protect and transfer.
+
+NARRATIVE STRUCTURE:
+"You've built significant wealth → here are the risks to it → here's how to protect and transfer it."
+
+APPROPRIATE LANGUAGE:
+✅ "protecting"
+✅ "transferring"
+✅ "structuring"
+✅ "planning ahead"
+✅ "wealth preservation"
+✅ "succession planning"
+✅ "IHT planning"
+✅ "asset protection"
+
+FORBIDDEN LANGUAGE:
+⛔ DO NOT use "transformation journey"
+⛔ DO NOT use "unlocking potential"
+⛔ DO NOT use "scaling"
+⛔ DO NOT use "cost of inaction" (they're not inaction - they're protecting)
+⛔ DO NOT use "leaving money on the table"
+⛔ DO NOT use growth-focused language
+
+TONE:
+- Respectful of what they've built
+- Focus on preservation and transfer
+- Emphasize risks (IHT, succession, structure)
+- Frame services as protection mechanisms
+- Acknowledge they KNOW their value (don't say "you don't know what you're worth")
+`,
+
+    'foundations': `
+============================================================================
+🏗️ REPORT FRAMING: FOUNDATIONS
+============================================================================
+This is a funded startup building something ambitious. They need infrastructure, not transformation.
+
+NARRATIVE STRUCTURE:
+"You're building something ambitious → here's what you need in place → here's how we help you build it right."
+
+APPROPRIATE LANGUAGE:
+✅ "building right from the start"
+✅ "getting the foundations in place"
+✅ "investor-ready"
+✅ "runway management"
+✅ "board reporting"
+✅ "financial foundations"
+✅ "operational infrastructure"
+✅ "building the infrastructure that makes growth possible"
+
+FORBIDDEN LANGUAGE:
+⛔ DO NOT use "you're leaving money on the table"
+⛔ DO NOT use "cost of inaction"
+⛔ DO NOT use "transformation journey" (too heavy for this stage)
+⛔ DO NOT use exit-focused language (5-10 year horizon)
+⛔ DO NOT push heavy transformation services
+
+TONE:
+- Supportive of their ambition
+- Focus on building correctly from the start
+- Emphasize investor-readiness and runway
+- Frame services as foundational infrastructure
+- Respect their 5+ year horizon
+`,
+
+    'optimisation': `
+============================================================================
+⚙️ REPORT FRAMING: OPTIMISATION
+============================================================================
+This is a lifestyle business or professional practice. They've got a good thing - make it better.
+
+NARRATIVE STRUCTURE:
+"You've got a good thing → here's where it could be better → here are targeted improvements."
+
+APPROPRIATE LANGUAGE:
+✅ "making what works, work better"
+✅ "targeted improvements"
+✅ "efficiency gains"
+✅ "optimising"
+✅ "refining"
+✅ "fine-tuning"
+✅ "work-life balance"
+✅ "sustainable operations"
+
+FORBIDDEN LANGUAGE:
+⛔ DO NOT push growth
+⛔ DO NOT use "scaling"
+⛔ DO NOT use "transformation journey"
+⛔ DO NOT use "unlocking potential"
+⛔ DO NOT use exit-focused language (unless they explicitly mentioned it)
+⛔ DO NOT disrespect their choices to prioritize lifestyle
+
+TONE:
+- Respectful of their choices
+- Focus on efficiency, not growth
+- Emphasize work-life balance
+- Frame services as targeted improvements
+- Acknowledge what's already working
+- Don't push transformation if they're content
+`
+  };
+  
+  return framingMap[reportFraming] || framingMap['transformation'];
+}
+
+// ============================================================================
+// CLIENT TYPE PROMPT GUIDANCE
+// ============================================================================
+
+function getClientTypePromptGuidance(
+  clientType: ClientBusinessType,
+  frameworkOverrides: FrameworkOverrides | null,
+  assetValuation: AssetValuation | null
+): string {
+  
+  const guidanceMap: Record<ClientBusinessType, string> = {
+    'investment_vehicle': `
+============================================================================
+⚠️ CRITICAL: THIS IS A PROPERTY INVESTMENT BUSINESS
+============================================================================
+
+This client owns investment properties, NOT a trading business. EVERYTHING changes:
+
+**VALUATION:**
+- ⛔ DO NOT use earnings multiples
+- ⛔ DO NOT say "you don't know what you're worth" - they have £${assetValuation?.netAssets ? (assetValuation.netAssets/1000000).toFixed(1) : '?'}M in net assets
+- ✅ Use asset-based valuation: Net assets ARE the value
+- ✅ Investment property value: £${assetValuation?.investmentProperty || assetValuation?.freeholdProperty ? ((assetValuation.investmentProperty || assetValuation.freeholdProperty || 0)/1000000).toFixed(1) : '?'}M
+
+**SERVICES:**
+- ⛔ DO NOT recommend industry benchmarking (benchmark against what?)
+- ⛔ DO NOT recommend exit readiness scoring (irrelevant)
+- ⛔ DO NOT recommend systems audit (minimal operations)
+- ⛔ DO NOT recommend 365 Method (not a trading business)
+- ✅ Focus on: IHT planning, wealth transfer, succession, property management
+
+**FRAMING:**
+- ⛔ DO NOT frame as "transformation journey"
+- ✅ Frame as "wealth protection" and "succession planning"
+- Use language like "protecting what you've built" not "building what you want"
+
+**GAPS TO IDENTIFY:**
+- IHT exposure (40% on assets above £325k threshold)
+- Succession planning (who manages when they step back?)
+- Property management delegation
+- Will/trust structuring
+`,
+
+    'funded_startup': `
+============================================================================
+⚠️ CRITICAL: THIS IS A FUNDED STARTUP (PRE/EARLY REVENUE)
+============================================================================
+
+This client has raised funding but hasn't hit scale yet. Standard frameworks don't apply:
+
+**VALUATION:**
+- ⛔ DO NOT use earnings multiples (no meaningful earnings)
+- ⛔ DO NOT use asset-based valuation (value is in equity/IP)
+- ✅ Their valuation is their last funding round
+- ✅ Focus on runway, not value
+
+**SERVICES:**
+- ⛔ DO NOT recommend benchmarking (benchmark against what revenue?)
+- ⛔ DO NOT recommend 365 Method (transformation too heavy for this stage)
+- ⛔ DO NOT recommend exit planning (5-10 year horizon)
+- ⛔ DO NOT recommend Fractional CFO/COO (too expensive for stage)
+- ✅ Focus on: runway management, board reporting, financial foundations
+
+**INVESTMENT CAP:**
+- Maximum recommended: £${frameworkOverrides?.maxRecommendedInvestment || 15000}
+- ⛔ DO NOT recommend services totalling more than this
+- Start with Phase 1 foundations only
+
+**FRAMING:**
+- ⛔ DO NOT frame as "transformation" 
+- ✅ Frame as "building foundations"
+- ✅ Use language like "the infrastructure that makes growth possible"
+
+**GAPS TO IDENTIFY:**
+- Runway visibility (how many months?)
+- Board reporting structure
+- Financial literacy for founders
+- Post-launch operational readiness
+`,
+
+    'trading_agency': `
+============================================================================
+⚠️ CRITICAL: THIS IS AN AGENCY/CREATIVE BUSINESS
+============================================================================
+
+This client runs a project-based business with contractors. Standard payroll benchmarks don't apply:
+
+**PAYROLL:**
+- ⛔ DO NOT use standard payroll benchmarks (28-30%)
+- ⛔ Contractors are NOT inefficiency - they're the business model
+- ✅ Analyse contractor vs permanent ratio instead
+- ✅ Focus on utilisation and rate cards, not headcount
+
+**SERVICES:**
+- ⛔ DO NOT recommend generic benchmarking (agency metrics are different)
+- ✅ Management accounts (critical for project profitability)
+- ✅ Cash flow management (lumpy revenue from projects)
+
+**CASH FLOW:**
+- If they mentioned cash anxiety, this is PRIORITY ONE
+- Start with smaller engagement to build trust
+- Maximum initial recommendation: £${frameworkOverrides?.maxRecommendedInvestment || 5000}
+
+**URGENCY:**
+- If they have urgent decisions (e.g., senior hire), address IMMEDIATELY
+- Don't push to "Month 3-12" timeline if decision needed THIS WEEK
+
+**GAPS TO IDENTIFY:**
+- Contractor vs permanent cost structure
+- Project profitability by client
+- Cash flow timing (project billing vs costs)
+- Utilisation rates
+
+**CRITICAL CONTEXT - CLIENT REVENUE CONCENTRATION:**
+If the client's financial data includes client_revenue_concentration data showing a major client with documented growth potential, this MUST feature prominently in the report:
+- In the Gap Analysis: as a strategic opportunity (not just a risk)
+- In the Journey: as the key growth lever
+- In the closing narrative: as the reason for optimism
+
+For example, if Boston Scientific (or any major client) represents 50%+ of revenue with documented potential to expand 10x across multiple departments, this is potentially a £1-2M relationship. The report should frame the growth story around executing on this opportunity — not just generic "build a new business function" advice.
+
+However, also flag the concentration risk: 50%+ of revenue from one client is a vulnerability. The report should acknowledge both sides — the massive opportunity AND the need to diversify.
+`,
+
+    'trading_product': `
+Standard trading business - all frameworks apply normally.
+`,
+
+    'professional_practice': `
+Professional services practice - most frameworks apply.
+Focus on partner compensation, goodwill valuation, succession.
+`,
+
+    'lifestyle_business': `
+Lifestyle business - owner optimises for life, not growth.
+⛔ DO NOT push transformation if they're content
+✅ Focus on efficiency gains, not growth
+✅ Respect their work-life balance choices
+`
+  };
+  
+  return guidanceMap[clientType] || guidanceMap['trading_product'];
+}
+
+// ============================================================================
+// SERVICE APPROPRIATENESS VALIDATION
+// ============================================================================
+
+function validateServiceRecommendations(
+  recommendations: any[],
+  frameworkOverrides: FrameworkOverrides | null
+): { valid: any[]; removed: any[]; warnings: string[] } {
+  if (!frameworkOverrides) return { valid: recommendations, removed: [], warnings: [] };
+  
+  const inappropriate = frameworkOverrides.inappropriateServices || [];
+  const maxInvestment = frameworkOverrides.maxRecommendedInvestment;
+  
+  const valid: any[] = [];
+  const removed: any[] = [];
+  const warnings: string[] = [];
+  
+  let totalInvestment = 0;
+  
+  for (const rec of recommendations) {
+    const serviceCode = rec.code || rec.service_code || rec.serviceCode;
+    
+    if (inappropriate.includes(serviceCode)) {
+      removed.push(rec);
+      warnings.push(`Removed ${serviceCode}: inappropriate for client type`);
+      continue;
+    }
+    
+    const investment = rec.investment || rec.price || 0;
+    if (maxInvestment && (totalInvestment + investment) > maxInvestment) {
+      removed.push(rec);
+      warnings.push(`Removed ${serviceCode}: exceeds investment cap of £${maxInvestment}`);
+      continue;
+    }
+    
+    totalInvestment += investment;
+    valid.push(rec);
+  }
+  
+  return { valid, removed, warnings };
+}
+
+// ============================================================================
 // BUILD MANDATORY DIMENSIONS PROMPT (Injects Pass 1 analysis into LLM prompt)
 // ============================================================================
 
@@ -937,10 +1301,54 @@ No validated financial data available. When discussing financial figures:
       .select('*')
       .eq('engagement_id', engagementId)
       .single();
+    
+    // Fetch engagement to get admin context and exit timeline
+    const { data: engagementData } = await supabase
+      .from('discovery_engagements')
+      .select('admin_flags, discovery')
+      .eq('id', engagementId)
+      .single();
+    
+    const adminFlags = engagementData?.admin_flags || null;
+    const exitTimeline = engagement?.discovery?.responses?.sd_exit_timeline || 
+                        engagement?.discovery?.responses?.dd_exit_mindset ||
+                        engagementData?.discovery?.responses?.sd_exit_timeline ||
+                        engagementData?.discovery?.responses?.dd_exit_mindset ||
+                        '';
 
     if (reportError || !report) {
       throw new Error('Pass 1 must be completed first');
     }
+
+    // ========================================================================
+    // EXTRACT CLIENT TYPE CLASSIFICATION FROM PASS 1
+    // ========================================================================
+    const clientType = (report.client_type || 'trading_product') as ClientBusinessType;
+    const clientTypeConfidence = report.client_type_confidence || 50;
+    const clientTypeSignals = report.client_type_signals || [];
+    const frameworkOverrides = report.framework_overrides as FrameworkOverrides | null;
+    const assetValuation = report.asset_valuation as AssetValuation | null;
+    
+    console.log('[Pass2] 🏷️ Client Type from Pass 1:', {
+      type: clientType,
+      confidence: clientTypeConfidence,
+      signals: clientTypeSignals,
+      framing: frameworkOverrides?.reportFraming,
+      maxInvestment: frameworkOverrides?.maxRecommendedInvestment,
+      useAssetValuation: frameworkOverrides?.useAssetValuation
+    });
+    
+    // Get client-type specific prompt guidance
+    const clientTypeGuidance = getClientTypePromptGuidance(clientType, frameworkOverrides, assetValuation);
+    
+    // Get report framing instructions
+    const reportFraming = frameworkOverrides?.reportFraming || 'transformation';
+    const framingInstructions = getReportFramingInstructions(reportFraming, clientType);
+    
+    console.log('[Pass2] 📝 Report Framing:', {
+      framing: reportFraming,
+      clientType: clientType
+    });
 
     // ========================================================================
     // EXTRACT 7-DIMENSION ANALYSIS FROM PASS 1
@@ -1288,6 +1696,39 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
 ⛔ Reference these achievements to show the foundation is solid. 
    Don't just focus on gaps - acknowledge what's working.
 `;
+    }
+    
+    // ========================================================================
+    // FIX 7: CLIENT REVENUE CONCENTRATION DATA INJECTION
+    // ========================================================================
+    // Extract client revenue concentration from financial context or comprehensive analysis
+    const clientRevenueConcentration = financialContext?.extracted_insights?.client_revenue_concentration ||
+                                      (financialContext?.extracted_insights as any)?.clientRevenueConcentration ||
+                                      comprehensiveAnalysis?.clientRevenueConcentration ||
+                                      (comprehensiveAnalysis as any)?.client_revenue_concentration ||
+                                      undefined;
+    
+    if (clientRevenueConcentration) {
+      financialDataSection += `
+
+============================================================================
+📊 CLIENT REVENUE CONCENTRATION
+============================================================================
+`;
+      for (const [clientName, details] of Object.entries(clientRevenueConcentration)) {
+        const d = details as any;
+        const revenue = d.revenue || 0;
+        const pct = d.pct_of_total || (revenue && validatedPayroll.turnover ? (revenue / validatedPayroll.turnover * 100) : 0);
+        financialDataSection += `- ${clientName}: £${revenue.toLocaleString()} (${pct.toFixed(0)}% of revenue)`;
+        if (d.contract_length) financialDataSection += ` — ${d.contract_length}`;
+        if (d.growth_potential) financialDataSection += ` — Growth potential: ${d.growth_potential}`;
+        financialDataSection += '\n';
+      }
+      financialDataSection += `
+⚠️ If any single client is >40% of revenue, flag BOTH the opportunity AND the risk.
+`;
+      
+      console.log('[Pass2] ✅ Injected client revenue concentration data');
     }
 
     // ========================================================================
@@ -1645,6 +2086,14 @@ IMPORTANT: When generating pages 1-5, you MUST:
     const prompt = `You are writing a Destination-Focused Discovery Report for ${clientName} from ${companyName}.
 
 ============================================================================
+CLIENT TYPE & REPORT FRAMING
+============================================================================
+Client Type: ${clientType}
+Report Framing: ${reportFraming}
+
+${framingInstructions}
+
+============================================================================
 THE FUNDAMENTAL PRINCIPLE
 ============================================================================
 We're travel agents selling holidays, not airlines selling seats.
@@ -1701,6 +2150,7 @@ ${financialDataSection}
 ${mandatoryPhrasesSection}
 ${servicePriceConstraints}
 ${mandatoryDimensionsPrompt}
+${clientTypeGuidance}
 ============================================================================
 DATA COMPLETENESS STATUS
 ============================================================================
@@ -1806,6 +2256,65 @@ DO NOT mention COO as an enabler.
 If the client needs help with redundancies/restructuring, suggest a one-time HR consultant or business advisory support instead.
 The client's issues can be addressed through the OTHER services listed above.
 ` : ''}
+
+============================================================================
+🚨 FIX 5: INVESTMENT CAP ENFORCEMENT
+============================================================================
+${frameworkOverrides?.maxRecommendedInvestment ? `
+CRITICAL: This client is cash-strapped. Maximum initial investment recommendation: £${frameworkOverrides.maxRecommendedInvestment}
+
+RULES:
+1. The transformation journey's FIRST step must cost ≤ £${frameworkOverrides.maxRecommendedInvestment}
+2. The total "to start" investment shown in the Investment Summary must be ≤ £${frameworkOverrides.maxRecommendedInvestment}
+3. Subsequent steps can be presented as "when cash flow allows" or "Phase 2 — when ready" but should NOT be included in the headline investment figure
+4. Present only the first step as the commitment. Any additional services should be positioned as future phases, not upfront commitments.
+
+EXAMPLE: If benchmarking (£2,000) is the first step and fits within a £3,000 cap, present it as the initial commitment. The £4,500 365 programme should be presented as "Phase 2 — when the benchmarking data confirms the path."
+
+⛔ DO NOT show total investment exceeding £${frameworkOverrides.maxRecommendedInvestment} in the headline "to start" figure.
+` : ''}
+
+============================================================================
+🚨 FIX 6: HEADLINE FRAMING RULES (Exit vs Growth)
+============================================================================
+${(() => {
+  const exitTimelineLower = String(exitTimeline || '').toLowerCase();
+  const adminContextLower = String(adminFlags?.admin_context_note || '').toLowerCase();
+  
+  // Check exit timeline
+  const isActivelyExiting = exitTimelineLower.includes('already exploring') || 
+                           exitTimelineLower.includes('1-3 years') ||
+                           exitTimelineLower.includes('actively preparing');
+  const isFutureExit = exitTimelineLower.includes('3-5 years') || 
+                      exitTimelineLower.includes('need to start thinking');
+  const isLongTermOrNever = exitTimelineLower.includes('5-10 years') || 
+                           exitTimelineLower.includes('never');
+  
+  // Check admin context
+  const notActivelyPreparing = adminContextLower.includes('can exit but don\'t want to') ||
+                               adminContextLower.includes('not actively preparing') ||
+                               adminContextLower.includes('growth priority');
+  
+  if (isActivelyExiting && !notActivelyPreparing) {
+    return `✅ EXIT CAN BE THE HEADLINE: Client is actively exploring exit (1-3 years). Exit readiness can be the primary framing.`;
+  } else if (isFutureExit || notActivelyPreparing) {
+    return `⛔ DO NOT LEAD WITH EXIT: 
+- Exit timeline is 3-5 years ("need to start thinking") OR
+- Admin context indicates "can exit but don't want to" / "not actively preparing" / "growth priority"
+
+HEADLINE SHOULD FOCUS ON:
+- Growth/scaling (for growth-stage agencies: "You're sitting on a relationship that could 5x your business — but you can't scale until you solve the people problem.")
+- Unlocking the key client relationship
+- Breaking through the revenue ceiling
+- Immediate operational/growth priorities
+
+Exit should be mentioned as a FUTURE BENEFIT, not the headline theme.`;
+  } else if (isLongTermOrNever) {
+    return `⛔ DO NOT LEAD WITH EXIT: Exit timeline is 5-10 years or never. Focus on immediate operational/growth priorities.`;
+  } else {
+    return `✅ Use standard transformation framing.`;
+  }
+})()}
 
 ${isExitFocused ? `
 ============================================================================

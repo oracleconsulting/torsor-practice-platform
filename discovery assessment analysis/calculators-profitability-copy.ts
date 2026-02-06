@@ -189,6 +189,8 @@ export function calculateProfitabilityMetrics(
   }
   
   return {
+    status: 'calculated',
+    hasData: true,
     grossMargin: grossMarginMetric,
     operatingMargin: operatingMarginMetric,
     netMargin: netMarginMetric,
@@ -251,4 +253,3 @@ function buildGrossMarginPhrases(
     context: 'Pricing or cost issues may be compressing margin'
   };
 }
-

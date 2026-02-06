@@ -1,5 +1,6 @@
 // ============================================================================
 // DISCOVERY REPORT - PASS 1: EXTRACTION & SCORING + 8-DIMENSION ANALYSIS
+// Includes: Business Type Classification, Financial Analysis, Service Scoring
 // ============================================================================
 // Enhanced version with:
 // - Hidden assets extraction (freehold property, excess cash)
@@ -11,7 +12,7 @@
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2.94.1'
 
 // NOTE: Structured calculators are defined inline below (Supabase Edge Functions 
 // don't support relative subdirectory imports). See section at end of file.
@@ -171,6 +172,26 @@ interface ValuationSignals {
   neverHadBreak: boolean;  // NEW: Powerful emotional anchor
 }
 
+// NEW: Lightweight benchmark for ROI grounding in Pass 3
+interface BenchmarkComparison {
+  metric: string;
+  clientValue: number;
+  benchmarkMedian: number;
+  benchmarkTop25: number;
+  gap: number;
+  gapType: 'above' | 'below' | 'at';
+  annualImpact: number | null;
+  calculation: string | null;
+}
+
+interface LightweightBenchmark {
+  hasData: boolean;
+  industry: string;
+  comparisons: BenchmarkComparison[];
+  totalOpportunityValue: number;
+  summaryNarrative: string;
+}
+
 interface ComprehensiveAnalysis {
   dataQuality: 'comprehensive' | 'partial' | 'limited';
   availableMetrics: string[];
@@ -179,12 +200,13 @@ interface ComprehensiveAnalysis {
   trajectory: TrajectoryAnalysis | null;
   payroll: PayrollAnalysis | null;
   productivity: ProductivityAnalysis | null;
-  grossMargin: GrossMarginAnalysis | null;  // NEW
+  grossMargin: GrossMarginAnalysis | null;
   workingCapital: WorkingCapitalAnalysis | null;
-  hiddenAssets: HiddenAssetsAnalysis | null;  // NEW
+  hiddenAssets: HiddenAssetsAnalysis | null;
   exitReadiness: ExitReadinessAnalysis | null;
   costOfInaction: CostOfInactionAnalysis | null;
-  achievements: AchievementAnalysis | null;  // NEW
+  achievements: AchievementAnalysis | null;
+  lightweightBenchmark: LightweightBenchmark | null;  // NEW: For grounded ROI in Pass 3
 }
 
 interface ExtractedFinancials {
@@ -273,12 +295,404 @@ interface ExtractedFinancials {
   // === DEPRECIATION & AMORTISATION ===
   depreciation?: number;
   amortisation?: number;
+  
+  // === INVESTMENT/PROPERTY (for investment vehicles) ===
+  investmentProperty?: number;           // Investment property value
+  rentalIncome?: number;                 // Rental income (if applicable)
+  
+  // === CONTRACTOR COSTS (for agencies) ===
+  consultancyFees?: number;              // Contractor/consultancy costs
+  subcontractorCosts?: number;           // Subcontractor costs
 }
 
 interface DestinationClarityAnalysis {
   score: number;
   reasoning: string;
   factors: string[];
+}
+
+// ============================================================================
+// CLIENT TYPE CLASSIFICATION
+// ============================================================================
+
+type ClientBusinessType = 
+  | 'trading_product'        // Traditional product/service business (default)
+  | 'trading_agency'         // Creative/digital agency with contractor model
+  | 'professional_practice'  // Accountancy, law, consulting
+  | 'investment_vehicle'     // Property investment, holding company
+  | 'funded_startup'         // VC/angel-backed, pre or early revenue
+  | 'lifestyle_business';    // Optimised for owner lifestyle, not growth
+
+interface ClientTypeClassification {
+  type: ClientBusinessType;
+  confidence: number;           // 0-100
+  signals: string[];            // Why we classified this way
+  frameworkOverrides: {
+    useEarningsValuation: boolean;
+    useAssetValuation: boolean;
+    benchmarkAgainst: string | null;   // Industry code or null
+    exitReadinessRelevant: boolean;
+    payrollBenchmarkRelevant: boolean;
+    appropriateServices: string[];
+    inappropriateServices: string[];
+    reportFraming: 'transformation' | 'wealth_protection' | 'foundations' | 'optimisation';
+    maxRecommendedInvestment: number | null;  // Cap for cash-strapped clients
+  };
+}
+
+// Framework overrides by client type
+const CLIENT_TYPE_FRAMEWORKS: Record<ClientBusinessType, ClientTypeClassification['frameworkOverrides']> = {
+  'trading_product': {
+    useEarningsValuation: true,
+    useAssetValuation: false,
+    benchmarkAgainst: 'detected_industry',
+    exitReadinessRelevant: true,
+    payrollBenchmarkRelevant: true,
+    appropriateServices: ['benchmarking', '365_method', 'management_accounts', 'systems_audit', 'fractional_cfo', 'fractional_coo', 'business_advisory'],
+    inappropriateServices: [],
+    reportFraming: 'transformation',
+    maxRecommendedInvestment: null
+  },
+  'trading_agency': {
+    useEarningsValuation: true,
+    useAssetValuation: false,
+    benchmarkAgainst: null,  // Generic benchmarks don't work for agencies
+    exitReadinessRelevant: true,
+    payrollBenchmarkRelevant: false,  // Contractor models break this
+    appropriateServices: ['management_accounts', 'fractional_cfo', 'systems_audit', 'agency_profitability_audit', 'agency_cash_navigator'],
+    inappropriateServices: ['benchmarking'],  // Standard benchmarks misleading
+    reportFraming: 'transformation',
+    maxRecommendedInvestment: null
+  },
+  'professional_practice': {
+    useEarningsValuation: true,
+    useAssetValuation: false,
+    benchmarkAgainst: 'professional_services',
+    exitReadinessRelevant: true,
+    payrollBenchmarkRelevant: true,
+    appropriateServices: ['365_method', 'management_accounts', 'systems_audit', 'benchmarking'],
+    inappropriateServices: [],
+    reportFraming: 'transformation',
+    maxRecommendedInvestment: null
+  },
+  'investment_vehicle': {
+    useEarningsValuation: false,
+    useAssetValuation: true,
+    benchmarkAgainst: null,  // Can't benchmark investment vehicles
+    exitReadinessRelevant: false,
+    payrollBenchmarkRelevant: false,
+    appropriateServices: ['iht_planning', 'property_health_check', 'wealth_transfer_strategy', 'property_management_sourcing'],
+    inappropriateServices: ['benchmarking', 'systems_audit', 'management_accounts', '365_method', 'fractional_coo'],
+    reportFraming: 'wealth_protection',
+    maxRecommendedInvestment: null
+  },
+  'funded_startup': {
+    useEarningsValuation: false,
+    useAssetValuation: false,  // Valued by funding rounds
+    benchmarkAgainst: null,
+    exitReadinessRelevant: false,
+    payrollBenchmarkRelevant: false,
+    appropriateServices: ['founder_financial_foundations', 'post_launch_ops', 'management_accounts'],
+    inappropriateServices: ['benchmarking', '365_method', 'fractional_cfo', 'fractional_coo', 'business_advisory'],
+    reportFraming: 'foundations',
+    maxRecommendedInvestment: 15000  // Cap for early-stage
+  },
+  'lifestyle_business': {
+    useEarningsValuation: true,
+    useAssetValuation: false,
+    benchmarkAgainst: 'detected_industry',
+    exitReadinessRelevant: false,
+    payrollBenchmarkRelevant: true,
+    appropriateServices: ['management_accounts', 'automation'],
+    inappropriateServices: ['365_method', 'business_advisory', 'fractional_coo'],
+    reportFraming: 'optimisation',
+    maxRecommendedInvestment: null
+  }
+};
+
+// ============================================================================
+// CLIENT TYPE CLASSIFICATION FUNCTION
+// ============================================================================
+
+function classifyBusinessType(
+  responses: Record<string, any>,
+  financials: ExtractedFinancials | null,
+  adminBusinessType?: string | null,
+  adminContextNote?: string | null,
+  adminFlags?: Record<string, any> | null,
+  contextNotes: any[] = []
+): ClientTypeClassification {
+  
+  const signals: string[] = [];
+  let type: ClientBusinessType = 'trading_product'; // default
+  let confidence = 50;
+  
+  // ========================================================================
+  // ADMIN OVERRIDE CHECK (Highest Priority)
+  // ========================================================================
+  // If admin has explicitly set a business type, use it with high confidence
+  if (adminBusinessType && ['trading_product', 'trading_agency', 'professional_practice', 'investment_vehicle', 'funded_startup', 'lifestyle_business'].includes(adminBusinessType)) {
+    type = adminBusinessType as ClientBusinessType;
+    confidence = 95;
+    signals.push(`Admin override: ${adminBusinessType}`);
+    
+    // If admin context note provided, add it to signals
+    if (adminContextNote) {
+      signals.push(`Admin context: ${adminContextNote}`);
+    }
+    
+    // Apply admin flags if provided
+    if (adminFlags?.cash_constrained && !CLIENT_TYPE_FRAMEWORKS[type].maxRecommendedInvestment) {
+      // Will be handled below in cash-constrained detection
+    }
+  }
+  
+  // Convert contextNotes array to text strings for classification
+  const contextNoteTexts = Array.isArray(contextNotes) 
+    ? contextNotes.filter((n: any) => n && (typeof n === 'string' ? n.trim() : true))
+    : [];
+  
+  const allText = JSON.stringify({ ...responses, contextNotes: contextNoteTexts, adminContextNote }).toLowerCase();
+  const financialText = JSON.stringify(financials || {}).toLowerCase();
+
+  // ========================================================================
+  // INVESTMENT VEHICLE DETECTION (Claude's case)
+  // ========================================================================
+  // Only run classification if admin override not set
+  if (confidence < 95) {
+    
+    const hasInvestmentProperty = financials?.investmentProperty && financials.investmentProperty > 100000;
+    const hasHighNetAssets = financials?.netAssets && financials.netAssets > 1000000;
+    const hasRentalIncome = financials?.turnover && financials?.grossProfit && 
+                            financials.turnover > 0 &&
+                            (financials.grossProfit / financials.turnover) > 0.85;  // ~85%+ margin = rental-like
+    const mentionsProperty = allText.includes('property') || allText.includes('rental') || 
+                             allText.includes('landlord') || allText.includes('tenant') ||
+                             allText.includes('investment propert') || allText.includes('portfolio');
+    const mentionsIHT = allText.includes('inheritance') || allText.includes('iht') || 
+                        allText.includes('pass on') || allText.includes('wealth transfer') ||
+                        allText.includes('estate planning');
+    const lowEmployeeCount = !financials?.employeeCount || financials.employeeCount <= 2;
+    const hasFreeholdProperty = financials?.freeholdProperty && financials.freeholdProperty > 500000;
+    
+    if (hasInvestmentProperty) {
+      type = 'investment_vehicle';
+      confidence = 95;
+      signals.push(`Investment property: £${(financials!.investmentProperty!/1000000).toFixed(1)}M on balance sheet`);
+    } else if (hasFreeholdProperty && hasHighNetAssets && lowEmployeeCount) {
+      type = 'investment_vehicle';
+      confidence = 90;
+      signals.push(`High freehold property (£${(financials!.freeholdProperty!/1000000).toFixed(1)}M) + high net assets + minimal staff`);
+    } else if (hasHighNetAssets && hasRentalIncome && lowEmployeeCount) {
+      type = 'investment_vehicle';
+      confidence = 85;
+      signals.push('High net assets with rental-like margins and minimal staff');
+    } else if (mentionsProperty && mentionsIHT && hasHighNetAssets) {
+      type = 'investment_vehicle';
+      confidence = 75;
+      signals.push('Property investment language + IHT concerns + high net assets');
+    }
+
+    // ========================================================================
+    // FUNDED STARTUP DETECTION (Ben's case)
+    // ========================================================================
+    
+    if (type === 'trading_product') {  // Only check if not already classified
+      const mentionsFunding = allText.includes('raised') || allText.includes('funding') || 
+                              allText.includes('investor') || allText.includes('seed') || 
+                              allText.includes('series') || allText.includes('angel') ||
+                              allText.includes('vc') || allText.includes('venture') || 
+                              allText.includes('runway');
+      const mentionsLaunch = allText.includes('launch') || allText.includes('mvp') || 
+                             allText.includes('product-market') || allText.includes('pilot') ||
+                             allText.includes('beta') || allText.includes('pre-revenue');
+      const isPreRevenue = !financials?.turnover || financials.turnover < 50000;
+      const hasLongExitTimeline = responses.sd_exit_timeline?.includes('5-10') ||
+                                   responses.sd_exit_timeline?.includes('No plans') ||
+                                   responses.sd_exit_timeline?.includes('10+');
+      
+      if (mentionsFunding && isPreRevenue) {
+        type = 'funded_startup';
+        confidence = 90;
+        signals.push('Funding language + pre-revenue');
+        if (mentionsLaunch) signals.push('Launch/MVP language detected');
+      } else if (mentionsFunding && mentionsLaunch) {
+        type = 'funded_startup';
+        confidence = 80;
+        signals.push('Funding language + launch phase');
+      } else if (isPreRevenue && hasLongExitTimeline && mentionsLaunch) {
+        type = 'funded_startup';
+        confidence = 70;
+        signals.push('Pre-revenue with long horizon and launch language');
+      }
+    }
+
+    // ========================================================================
+    // AGENCY DETECTION (Alex's case)
+    // ========================================================================
+    
+    if (type === 'trading_product') {
+      // Check for high contractor/consultancy costs
+      const consultancyCosts = financials?.consultancyFees || financials?.subcontractorCosts || 0;
+      const turnover = financials?.turnover || 1;
+      const consultancyRatio = consultancyCosts / turnover;
+      
+      const mentionsAgency = allText.includes('agency') || allText.includes('creative') || 
+                             allText.includes('digital agency') || allText.includes('advertising') ||
+                             allText.includes('design agency') || allText.includes('marketing agency');
+      const mentionsFreelance = allText.includes('freelance') || allText.includes('contractor') ||
+                                allText.includes('subcontract');
+      const hasProjectStructure = allText.includes('project') || allText.includes('retainer') ||
+                                  allText.includes('client work') || allText.includes('campaign');
+      
+      if (consultancyRatio > 0.3) {
+        type = 'trading_agency';
+        confidence = 85;
+        signals.push(`High contractor costs: ${(consultancyRatio * 100).toFixed(0)}% of revenue`);
+      } else if (mentionsAgency && (mentionsFreelance || hasProjectStructure)) {
+        type = 'trading_agency';
+        confidence = 75;
+        signals.push('Agency language + contractor/project structure');
+      } else if (mentionsAgency) {
+        type = 'trading_agency';
+        confidence = 60;
+        signals.push('Agency mentioned in responses');
+      }
+    }
+
+    // ========================================================================
+    // PROFESSIONAL PRACTICE DETECTION
+    // ========================================================================
+    
+    if (type === 'trading_product') {
+      const isProfessional = allText.includes('accountan') || allText.includes('solicitor') ||
+                             allText.includes('law firm') || allText.includes('practice') ||
+                             allText.includes('partner') || allText.includes('barrister');
+      
+      if (isProfessional) {
+        type = 'professional_practice';
+        confidence = 75;
+        signals.push('Professional services indicators');
+      }
+    }
+
+    // ========================================================================
+    // LIFESTYLE BUSINESS DETECTION
+    // ========================================================================
+    
+    if (type === 'trading_product') {
+      const lowHours = responses.dd_weekly_hours?.includes('Under 30') ||
+                       responses.dd_owner_hours?.includes('Under 30');
+      const noExitPlans = responses.sd_exit_timeline?.includes('No plans');
+      const happyRelationship = responses.dd_business_relationship?.includes('rewarding') ||
+                                responses.dd_business_relationship?.includes('partnership') ||
+                                responses.dd_business_relationship?.includes('love');
+      
+      if (lowHours && noExitPlans && happyRelationship) {
+        type = 'lifestyle_business';
+        confidence = 70;
+        signals.push('Low hours + no exit plans + positive relationship');
+      }
+    }
+  
+  } // End of classification block (if not admin override)
+
+  // ========================================================================
+  // CASH-CONSTRAINED DETECTION (for any type - runs after classification)
+  // ========================================================================
+  
+  let maxInvestment: number | null = CLIENT_TYPE_FRAMEWORKS[type].maxRecommendedInvestment;
+  
+  // Check admin flags first
+  if (adminFlags?.cash_constrained) {
+    signals.push('Admin flag: cash constrained');
+    if (!maxInvestment || maxInvestment > 5000) {
+      maxInvestment = 5000;
+    }
+  }
+  
+  const cashAnxiety = allText.includes('cash flow') && (
+    allText.includes('keeps me awake') || 
+    allText.includes('worry') || 
+    allText.includes('anxiety') ||
+    allText.includes('tight') ||
+    allText.includes('sleep')
+  );
+  const mentionsCashStruggle = responses.dd_sleep_thief?.toLowerCase()?.includes('cash') ||
+                                responses.dd_core_frustration?.toLowerCase()?.includes('cash');
+  
+  if (cashAnxiety || mentionsCashStruggle) {
+    signals.push('Cash flow anxiety detected - recommend starting small');
+    if (!maxInvestment || maxInvestment > 5000) {
+      maxInvestment = 5000;  // Start small with cash-strapped clients
+    }
+  }
+
+  // ========================================================================
+  // BUILD FINAL CLASSIFICATION
+  // ========================================================================
+  
+  const frameworkOverrides = {
+    ...CLIENT_TYPE_FRAMEWORKS[type],
+    maxRecommendedInvestment: maxInvestment
+  };
+
+  console.log('[Pass1] 🏷️ Client Type Classification:', {
+    type,
+    confidence,
+    signals,
+    maxInvestment
+  });
+
+  return { type, confidence, signals, frameworkOverrides };
+}
+
+// ============================================================================
+// ASSET-BASED VALUATION (for investment vehicles)
+// ============================================================================
+
+interface AssetValuationAnalysis {
+  hasData: boolean;
+  netAssets: number | null;
+  investmentProperty: number | null;
+  freeholdProperty: number | null;
+  totalAssetValue: number | null;
+  narrative: string;
+}
+
+function calculateAssetBasedValuation(
+  financials: ExtractedFinancials
+): AssetValuationAnalysis {
+  const netAssets = financials.netAssets || null;
+  const investmentProperty = financials.investmentProperty || null;
+  const freeholdProperty = financials.freeholdProperty || null;
+  
+  if (!netAssets && !investmentProperty && !freeholdProperty) {
+    return {
+      hasData: false,
+      netAssets: null,
+      investmentProperty: null,
+      freeholdProperty: null,
+      totalAssetValue: null,
+      narrative: 'Insufficient data for asset-based valuation'
+    };
+  }
+  
+  const totalAssetValue = netAssets || (investmentProperty || 0) + (freeholdProperty || 0);
+  
+  const propertyValue = investmentProperty || freeholdProperty;
+  const propertyText = propertyValue 
+    ? ` including £${(propertyValue/1000000).toFixed(1)}M in property` 
+    : '';
+  
+  return {
+    hasData: true,
+    netAssets,
+    investmentProperty,
+    freeholdProperty,
+    totalAssetValue,
+    narrative: `Asset-based valuation: £${(totalAssetValue!/1000000).toFixed(1)}M net assets${propertyText}`
+  };
 }
 
 // ============================================================================
@@ -1405,6 +1819,148 @@ function calculateDestinationClarity(responses: Record<string, any>): Destinatio
 // MASTER ORCHESTRATOR
 // ============================================================================
 
+// ============================================================================
+// LIGHTWEIGHT BENCHMARK FOR ROI GROUNDING (Pass 3 uses this)
+// ============================================================================
+
+function runLightweightBenchmark(
+  financials: ExtractedFinancials,
+  payroll: PayrollAnalysis | null,
+  grossMargin: GrossMarginAnalysis | null,
+  productivity: ProductivityAnalysis | null,
+  industry: string
+): LightweightBenchmark {
+  const comparisons: BenchmarkComparison[] = [];
+  let totalOpportunity = 0;
+  const turnover = financials.turnover || 0;
+  
+  if (!turnover) {
+    return {
+      hasData: false,
+      industry,
+      comparisons: [],
+      totalOpportunityValue: 0,
+      summaryNarrative: 'Insufficient revenue data for benchmarking'
+    };
+  }
+  
+  // 1. Gross Margin Comparison
+  if (grossMargin?.hasData && grossMargin.grossMarginPct !== null) {
+    const clientGrossMargin = grossMargin.grossMarginPct;
+    const benchmarkMedian = grossMargin.industryBenchmark?.low || 50;
+    const benchmarkTop25 = grossMargin.industryBenchmark?.high || 60;
+    const gap = benchmarkMedian - clientGrossMargin;
+    
+    let annualImpact: number | null = null;
+    let calculation: string | null = null;
+    
+    if (gap > 2) {
+      // Below median - opportunity to improve
+      annualImpact = (gap / 100) * turnover;
+      calculation = `${gap.toFixed(1)}% margin improvement on £${(turnover/1000).toFixed(0)}k = £${(annualImpact/1000).toFixed(0)}k`;
+      totalOpportunity += annualImpact;
+    }
+    
+    comparisons.push({
+      metric: 'Gross Margin',
+      clientValue: clientGrossMargin,
+      benchmarkMedian,
+      benchmarkTop25,
+      gap,
+      gapType: gap > 2 ? 'below' : gap < -2 ? 'above' : 'at',
+      annualImpact,
+      calculation
+    });
+  }
+  
+  // 2. Operating Margin / Payroll Efficiency
+  if (payroll && payroll.staffCostsPct > 0) {
+    const clientStaffPct = payroll.staffCostsPct;
+    const benchmarkMedian = payroll.benchmark?.typical || 30;
+    const benchmarkTop25 = payroll.benchmark?.good || 25;
+    const gap = clientStaffPct - benchmarkMedian; // Positive = overspending
+    
+    let annualImpact: number | null = null;
+    let calculation: string | null = null;
+    
+    if (gap > 3 && payroll.annualExcess > 0) {
+      annualImpact = payroll.annualExcess;
+      calculation = `${gap.toFixed(1)}% excess staff cost on £${(turnover/1000).toFixed(0)}k = £${(annualImpact/1000).toFixed(0)}k`;
+      totalOpportunity += annualImpact;
+    }
+    
+    comparisons.push({
+      metric: 'Staff Costs (% Revenue)',
+      clientValue: clientStaffPct,
+      benchmarkMedian,
+      benchmarkTop25,
+      gap,
+      gapType: gap > 3 ? 'below' : gap < -3 ? 'above' : 'at',
+      annualImpact,
+      calculation
+    });
+  }
+  
+  // 3. Revenue per Employee (Productivity)
+  if (productivity?.hasData && productivity.revenuePerHead > 0) {
+    const clientRevPerHead = productivity.revenuePerHead;
+    const benchmarkMedian = productivity.benchmarkLow || 80000;
+    const benchmarkTop25 = productivity.benchmarkHigh || 120000;
+    const gap = benchmarkMedian - clientRevPerHead;
+    
+    let annualImpact: number | null = null;
+    let calculation: string | null = null;
+    
+    if (gap > 10000 && productivity.excessHeadcount && productivity.excessHeadcount > 0) {
+      // Below median productivity - implies excess headcount
+      const avgSalary = (financials.totalStaffCosts || 50000) / (productivity.employeeCount || 1);
+      annualImpact = productivity.excessHeadcount * avgSalary;
+      calculation = `£${(gap/1000).toFixed(0)}k below median × ${productivity.employeeCount} heads = £${(annualImpact/1000).toFixed(0)}k opportunity`;
+      totalOpportunity += annualImpact;
+    }
+    
+    comparisons.push({
+      metric: 'Revenue per Employee',
+      clientValue: clientRevPerHead,
+      benchmarkMedian,
+      benchmarkTop25,
+      gap,
+      gapType: gap > 10000 ? 'below' : gap < -10000 ? 'above' : 'at',
+      annualImpact,
+      calculation
+    });
+  }
+  
+  // Build narrative
+  const belowBenchmarks = comparisons.filter(c => c.gapType === 'below' && c.annualImpact);
+  const aboveBenchmarks = comparisons.filter(c => c.gapType === 'above');
+  
+  let narrative = '';
+  if (belowBenchmarks.length > 0) {
+    narrative = `Benchmarking shows potential improvements in: ${belowBenchmarks.map(b => b.metric).join(', ')}. `;
+    narrative += `Total quantified opportunity: £${(totalOpportunity/1000).toFixed(0)}k/year.`;
+  } else if (aboveBenchmarks.length > 0) {
+    narrative = `Performing above industry median on: ${aboveBenchmarks.map(b => b.metric).join(', ')}. Focus on scaling/founder dependency.`;
+  } else {
+    narrative = 'Performance broadly in line with industry benchmarks.';
+  }
+  
+  console.log('[Pass1] Lightweight Benchmark:', { 
+    comparisons: comparisons.length, 
+    totalOpportunity, 
+    aboveBenchmarks: aboveBenchmarks.length,
+    belowBenchmarks: belowBenchmarks.length
+  });
+  
+  return {
+    hasData: comparisons.length > 0,
+    industry,
+    comparisons,
+    totalOpportunityValue: totalOpportunity,
+    summaryNarrative: narrative
+  };
+}
+
 function performComprehensiveAnalysis(
   financials: ExtractedFinancials,
   responses: Record<string, any>,
@@ -1424,6 +1980,9 @@ function performComprehensiveAnalysis(
   const costOfInaction = calculateCostOfInaction(payroll, trajectory, valuation, responses);
   const achievements = analyseAchievements(responses, financials, payroll, grossMargin, exitReadiness);
   
+  // NEW: Run lightweight benchmark for Pass 3 ROI grounding
+  const lightweightBenchmark = runLightweightBenchmark(financials, payroll, grossMargin, productivity, industry);
+  
   // Track data quality
   const availableMetrics: string[] = [];
   const missingMetrics: string[] = [];
@@ -1436,6 +1995,7 @@ function performComprehensiveAnalysis(
   if (workingCapital?.hasData) availableMetrics.push('workingCapital'); else missingMetrics.push('workingCapital');
   if (hiddenAssets?.hasData) availableMetrics.push('hiddenAssets'); else missingMetrics.push('hiddenAssets');
   if (exitReadiness) availableMetrics.push('exitReadiness');
+  if (lightweightBenchmark?.hasData) availableMetrics.push('lightweightBenchmark');
   
   const dataQuality = availableMetrics.length >= 6 ? 'comprehensive' :
                       availableMetrics.length >= 4 ? 'partial' : 'limited';
@@ -1443,13 +2003,15 @@ function performComprehensiveAnalysis(
   console.log('[Pass1] Comprehensive Analysis complete:', { 
     dataQuality, 
     availableMetrics,
-    achievements: achievements.achievements.length
+    achievements: achievements.achievements.length,
+    benchmarkOpportunity: lightweightBenchmark?.totalOpportunityValue || 0
   });
   
   return {
     dataQuality, availableMetrics, missingMetrics,
     valuation, trajectory, payroll, productivity, grossMargin, 
-    workingCapital, hiddenAssets, exitReadiness, costOfInaction, achievements
+    workingCapital, hiddenAssets, exitReadiness, costOfInaction, achievements,
+    lightweightBenchmark
   };
 }
 
@@ -2150,6 +2712,19 @@ serve(async (req) => {
     }
 
     // ========================================================================
+    // FETCH CONTEXT NOTES
+    // ========================================================================
+    // Fetch context notes from client_context_notes table for classification
+    const { data: contextNotesData } = await supabase
+      .from('client_context_notes')
+      .select('content')
+      .eq('client_id', engagement.client_id);
+    
+    const contextNoteTexts = (contextNotesData || []).map((n: any) => n.content || '').filter((text: string) => text.trim().length > 0);
+    
+    console.log('[Pass1] Loaded context notes:', contextNoteTexts.length, 'notes');
+
+    // ========================================================================
     // FETCH FINANCIAL CONTEXT
     // ========================================================================
     
@@ -2233,22 +2808,32 @@ serve(async (req) => {
       }
       
       // === CORE P&L ===
-      const turnover = financialContext.turnover || financialContext.revenue || insights.turnover || insights.revenue;
+      // Support both snake_case and camelCase field names
+      const turnover = financialContext.turnover || financialContext.revenue || 
+                       insights.turnover || insights.revenue ||
+                       (insights as any).turnover || (insights as any).revenue;
       const turnoverPriorYear = priorYearContext?.turnover || priorYearContext?.revenue || 
                                 insights.turnover_prior_year || insights.prior_year_turnover ||
+                                (insights as any).turnoverPriorYear || (insights as any).priorYearTurnover ||
                                 priorInsights.turnover;
       
-      const grossProfit = financialContext.gross_profit || insights.gross_profit;
-      const grossProfitPriorYear = priorYearContext?.gross_profit || insights.gross_profit_prior_year || priorInsights.gross_profit;
+      const grossProfit = financialContext.gross_profit || insights.gross_profit || (insights as any).grossProfit;
+      const grossProfitPriorYear = priorYearContext?.gross_profit || insights.gross_profit_prior_year || 
+                                   (insights as any).grossProfitPriorYear || priorInsights.gross_profit;
       
-      const operatingProfit = financialContext.operating_profit || insights.operating_profit;
-      const operatingProfitPriorYear = priorYearContext?.operating_profit || insights.operating_profit_prior_year || priorInsights.operating_profit;
+      const operatingProfit = financialContext.operating_profit || insights.operating_profit || (insights as any).operatingProfit;
+      const operatingProfitPriorYear = priorYearContext?.operating_profit || insights.operating_profit_prior_year || 
+                                      (insights as any).operatingProfitPriorYear || priorInsights.operating_profit;
       
-      const netProfit = financialContext.net_profit || insights.net_profit || insights.profit_after_tax;
-      const netProfitPriorYear = priorYearContext?.net_profit || insights.net_profit_prior_year || priorInsights.net_profit;
+      const netProfit = financialContext.net_profit || insights.net_profit || insights.profit_after_tax ||
+                       (insights as any).netProfit || (insights as any).profitAfterTax;
+      const netProfitPriorYear = priorYearContext?.net_profit || insights.net_profit_prior_year || 
+                                 (insights as any).netProfitPriorYear || priorInsights.net_profit;
       
-      const costOfSales = insights.cost_of_sales || insights.cost_of_goods_sold;
-      const costOfSalesPriorYear = insights.cost_of_sales_prior_year || priorInsights.cost_of_sales;
+      const costOfSales = insights.cost_of_sales || insights.cost_of_goods_sold ||
+                          (insights as any).costOfSales || (insights as any).costOfGoodsSold;
+      const costOfSalesPriorYear = insights.cost_of_sales_prior_year || (insights as any).costOfSalesPriorYear || 
+                                   priorInsights.cost_of_sales;
       
       // === STAFF COSTS (Detailed breakdown) ===
       // Total staff costs from multiple possible sources
@@ -2269,14 +2854,24 @@ serve(async (req) => {
       const costOfSalesWages = insights.cost_of_sales_wages || insights.production_wages || 
                                insights.direct_labour;
       
+      // Contractor/consulting costs (for agencies)
+      const consultingCosts = insights.consulting_costs || insights.consultancy_costs || 
+                             insights.contractor_costs || insights.subcontractor_costs ||
+                             (insights as any).consultingCosts || (insights as any).consultancyCosts;
+      const contractorCountEstimate = insights.contractor_count_estimate || 
+                                     insights.contractor_count ||
+                                     (insights as any).contractorCountEstimate || 
+                                     (insights as any).contractorCount;
+      
       const employeeCount = financialContext.staff_count || insights.employee_count || 
                             insights.average_employees || insights.staff_count;
       const employeeCountPriorYear = priorYearContext?.staff_count || insights.employee_count_prior_year || 
                                      priorInsights.employee_count;
       
       // === BALANCE SHEET ASSETS ===
-      const netAssets = financialContext.net_assets || insights.net_assets || insights.total_equity;
-      const totalAssets = financialContext.total_assets || insights.total_assets;
+      const netAssets = financialContext.net_assets || insights.net_assets || insights.total_equity ||
+                        (insights as any).netAssets || (insights as any).totalEquity;
+      const totalAssets = financialContext.total_assets || insights.total_assets || (insights as any).totalAssets;
       
       // Fixed assets breakdown
       const fixedAssets = insights.fixed_assets || insights.total_fixed_assets;
@@ -2284,9 +2879,14 @@ serve(async (req) => {
       const intangibleAssets = insights.intangible_assets || insights.intangible_fixed_assets;
       
       // Property (critical for hidden assets)
+      // Support both snake_case and camelCase, plus investment_property and rental_income
       const freeholdProperty = insights.freehold_property || insights.freehold_land_buildings || 
-                               insights.land_and_buildings_freehold;
-      const leaseholdProperty = insights.leasehold_property || insights.leasehold_improvements;
+                               insights.land_and_buildings_freehold ||
+                               (insights as any).freeholdProperty || (insights as any).freeholdLandBuildings;
+      const leaseholdProperty = insights.leasehold_property || insights.leasehold_improvements ||
+                                (insights as any).leaseholdProperty || (insights as any).leaseholdImprovements;
+      const investmentProperty = insights.investment_property || (insights as any).investmentProperty;
+      const rentalIncome = insights.rental_income || (insights as any).rentalIncome;
       
       // Other fixed assets
       const plantAndMachinery = insights.plant_and_machinery || insights.plant_machinery;
@@ -2342,6 +2942,11 @@ serve(async (req) => {
       const depreciation = insights.depreciation || insights.depreciation_charge;
       const amortisation = insights.amortisation || insights.amortisation_charge;
       
+      // === CLIENT REVENUE CONCENTRATION (for cost of inaction) ===
+      const clientRevenueConcentration = insights.client_revenue_concentration || 
+                                         (insights as any).clientRevenueConcentration || 
+                                         undefined;
+      
       // Calculate derived values
       const grossMarginPct = financialContext.gross_margin_pct || 
                              (grossProfit && turnover ? (grossProfit / turnover) * 100 : undefined);
@@ -2352,8 +2957,20 @@ serve(async (req) => {
       const turnoverGrowth = turnover && turnoverPriorYear ? 
                              ((turnover - turnoverPriorYear) / turnoverPriorYear) * 100 : 
                              financialContext.revenue_growth_pct;
-      const revenuePerEmployee = employeeCount && turnover ? turnover / employeeCount : 
-                                 financialContext.revenue_per_head;
+      
+      // For agencies, adjust revenue per employee to include contractors
+      let revenuePerEmployee: number | undefined;
+      if (employeeCount && turnover) {
+        if (contractorCountEstimate) {
+          // Agency: use productive headcount (FT + contractors)
+          const productiveHeadcount = employeeCount + contractorCountEstimate;
+          revenuePerEmployee = turnover / productiveHeadcount;
+        } else {
+          revenuePerEmployee = turnover / employeeCount;
+        }
+      } else {
+        revenuePerEmployee = financialContext.revenue_per_head;
+      }
       
       if (turnover) {
         extractedFinancials = {
@@ -2397,6 +3014,8 @@ serve(async (req) => {
           intangibleAssets,
           freeholdProperty,
           leaseholdProperty,
+          investmentProperty,
+          rentalIncome,
           plantAndMachinery,
           fixturesAndFittings,
           motorVehicles,
@@ -2473,13 +3092,83 @@ serve(async (req) => {
     }
     
     // ========================================================================
+    // CLASSIFY BUSINESS TYPE FIRST (BEFORE CALCULATORS)
+    // ========================================================================
+    // This must run BEFORE performComprehensiveAnalysis so calculators can adapt
+    // based on client type (e.g., skip payroll for investment vehicles)
+    
+    // Ensure admin fields are properly read from engagement
+    const adminBusinessType = engagement.admin_business_type || null;
+    const adminContextNote = engagement.admin_context_note || null;
+    const adminFlags = engagement.admin_flags || null;
+    
+    console.log('[Pass1] Admin overrides:', {
+      adminBusinessType,
+      hasAdminContextNote: !!adminContextNote,
+      hasAdminFlags: !!adminFlags
+    });
+    
+    const clientType = classifyBusinessType(
+      discoveryResponses, 
+      extractedFinancials,
+      adminBusinessType,
+      adminContextNote,
+      adminFlags,
+      contextNoteTexts
+    );
+
+    console.log('[Pass1] 🏷️ Client Type:', {
+      type: clientType.type,
+      confidence: clientType.confidence,
+      signals: clientType.signals,
+      maxInvestment: clientType.frameworkOverrides.maxRecommendedInvestment,
+      reportFraming: clientType.frameworkOverrides.reportFraming
+    });
+
+    // Determine what analysis to skip based on client type
+    const skipPayrollAnalysis = !clientType.frameworkOverrides.payrollBenchmarkRelevant;
+    const skipExitReadiness = !clientType.frameworkOverrides.exitReadinessRelevant;
+    const useAssetValuation = clientType.frameworkOverrides.useAssetValuation;
+    
+    // ========================================================================
     // RUN 8-DIMENSION COMPREHENSIVE ANALYSIS
     // ========================================================================
     
     const industry = detectIndustry(discoveryResponses, engagement.client?.client_company);
     console.log('[Pass1] Detected industry:', industry);
     
+    // Run analysis (will be filtered based on client type)
     const comprehensiveAnalysis = performComprehensiveAnalysis(extractedFinancials, discoveryResponses, industry);
+    
+    // Override irrelevant analysis based on client type
+    if (skipPayrollAnalysis && comprehensiveAnalysis.payroll) {
+      comprehensiveAnalysis.payroll = {
+        ...comprehensiveAnalysis.payroll,
+        isValidated: false,
+        narrative: 'Payroll benchmarking not applicable for this client type (contractor model or investment vehicle)'
+      };
+    }
+    
+    if (skipExitReadiness && comprehensiveAnalysis.exitReadiness) {
+      comprehensiveAnalysis.exitReadiness = {
+        ...comprehensiveAnalysis.exitReadiness,
+        narrative: 'Exit readiness scoring not applicable for this client type'
+      };
+    }
+    
+    // Calculate asset-based valuation for investment vehicles
+    const assetValuation = useAssetValuation 
+      ? calculateAssetBasedValuation(extractedFinancials)
+      : null;
+    
+    if (assetValuation?.hasData) {
+      console.log('[Pass1] 📊 Asset Valuation:', {
+        netAssets: assetValuation.netAssets,
+        investmentProperty: assetValuation.investmentProperty,
+        totalValue: assetValuation.totalAssetValue
+      });
+    }
+    
     const destinationClarity = calculateDestinationClarity(discoveryResponses);
     
     console.log('[Pass1] Analysis Results:', {
@@ -2545,6 +3234,13 @@ serve(async (req) => {
       change_readiness: discoveryResponses.dd_change_readiness || engagement.discovery?.dd_change_readiness,
       primary_recommendations: primaryRecommendations,
       secondary_recommendations: secondaryRecommendations,
+      
+      // CLIENT TYPE CLASSIFICATION
+      client_type: clientType.type,
+      client_type_confidence: clientType.confidence,
+      client_type_signals: clientType.signals,
+      framework_overrides: clientType.frameworkOverrides,
+      asset_valuation: assetValuation,
       
       // 8-Dimension Analysis Results
       comprehensive_analysis: comprehensiveAnalysis,

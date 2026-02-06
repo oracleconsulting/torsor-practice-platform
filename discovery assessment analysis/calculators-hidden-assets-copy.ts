@@ -146,6 +146,8 @@ export function calculateHiddenAssetsMetrics(
   };
   
   return {
+    status: 'calculated',
+    hasData: true,
     freeholdProperty: freeholdPropertyMetric,
     excessCash: excessCashMetric,
     undervaluedStock: null, // Could add stock analysis
@@ -212,4 +214,3 @@ export function extractPropertySignals(
   
   return { propertyIndicated, propertyDescription };
 }
-
