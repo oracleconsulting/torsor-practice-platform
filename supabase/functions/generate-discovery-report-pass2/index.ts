@@ -2817,6 +2817,74 @@ Before returning, verify:
     }
     
     // ========================================================================
+    // POST-PROCESSING: ENFORCE HEADLINE FRAMING (Exit vs Growth)
+    // ========================================================================
+    {
+      const adminCtxNote = engagement?.admin_context_note || engagementData?.admin_context_note || '';
+      const adminCtxLower = adminCtxNote.toLowerCase();
+      const exitTimelineStr = String(exitTimeline || '').toLowerCase();
+      
+      const shouldNotLeadWithExit = 
+        adminCtxLower.includes('can exit but don') ||
+        adminCtxLower.includes('not actively preparing') ||
+        adminCtxLower.includes('growth priority') ||
+        exitTimelineStr.includes('3-5 years') ||
+        exitTimelineStr.includes('5-10 years') ||
+        exitTimelineStr.includes('never');
+      
+      const headline = narratives.meta?.headline || '';
+      
+      console.log('[Pass2] 🏷️ Headline framing check:', {
+        shouldNotLeadWithExit,
+        headline: headline.substring(0, 80),
+        adminCtxSnippet: adminCtxLower.substring(0, 60),
+        exitTimeline: exitTimelineStr.substring(0, 40)
+      });
+      
+      if (shouldNotLeadWithExit && headline) {
+        // Check if headline contains exit-focused language
+        const isExitFocused = /exit/i.test(headline) || 
+                              /building for.*£\d/i.test(headline) ||
+                              /preparing to sell/i.test(headline);
+        
+        if (isExitFocused) {
+          console.warn('[Pass2] ⚠️ Headline leads with exit despite context. Replacing.');
+          
+          // Try to find a better headline from the gaps
+          const gaps = narratives.page2_gaps?.gaps || [];
+          const growthGap = gaps.find((g: any) => {
+            const title = (g.title || '').toLowerCase();
+            return title.includes('relationship') || 
+                   title.includes('revenue') ||
+                   title.includes('growth') ||
+                   title.includes('£1m') ||
+                   title.includes('ceiling') ||
+                   title.includes('engine');
+          });
+          
+          if (growthGap?.title) {
+            narratives.meta.headline = growthGap.title;
+            console.log('[Pass2] ✅ Replaced headline with gap title:', growthGap.title);
+          } else {
+            // Fallback: rewrite to remove exit framing
+            let newHeadline = headline
+              .replace(/You're building for a £\d+[MmKk]? exit but/i, "You're growing but")
+              .replace(/building for .* exit/i, 'building something significant')
+              .replace(/exit-ready/gi, 'scalable');
+            
+            // If it still mentions exit, use a generic growth headline
+            if (/exit/i.test(newHeadline)) {
+              newHeadline = "You're stuck at half a million with the growth opportunity of a lifetime sitting right in front of you.";
+            }
+            
+            narratives.meta.headline = newHeadline;
+            console.log('[Pass2] ✅ Rewrote headline to:', newHeadline);
+          }
+        }
+      }
+    }
+    
+    // ========================================================================
     // CRITICAL: Enforce Pass 1 service prices in LLM output
     // The LLM might have ignored our constraints, so we fix them here
     // ========================================================================
