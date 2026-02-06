@@ -107,6 +107,13 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   // Document upload
   const [uploading, setUploading] = useState(false);
   
+  // Admin context fields
+  const [adminBusinessType, setAdminBusinessType] = useState<string>('auto-detect');
+  const [adminContextNote, setAdminContextNote] = useState<string>('');
+  const [cashConstrained, setCashConstrained] = useState<boolean>(false);
+  const [urgentDecision, setUrgentDecision] = useState<boolean>(false);
+  const [urgentDecisionDetail, setUrgentDecisionDetail] = useState<string>('');
+  
   // Analysis comments (for learning system)
   const { 
     comments: analysisComments, 
@@ -148,6 +155,14 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
 
       if (engagementData) {
         setEngagement(engagementData);
+        
+        // Load admin context values
+        setAdminBusinessType(engagementData.admin_business_type || 'auto-detect');
+        setAdminContextNote(engagementData.admin_context_note || '');
+        const flags = engagementData.admin_flags || {};
+        setCashConstrained(flags.cash_constrained || false);
+        setUrgentDecision(flags.urgent_decision || false);
+        setUrgentDecisionDetail(flags.urgent_decision_detail || '');
 
         // Fetch discovery responses
         if (engagementData.discovery_id) {
@@ -201,6 +216,40 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     setGeneratingPass(1);
     
     try {
+      // Save admin context values before triggering Pass 1
+      const adminFlags: Record<string, any> = {};
+      if (cashConstrained) {
+        adminFlags.cash_constrained = true;
+      }
+      if (urgentDecision) {
+        adminFlags.urgent_decision = true;
+        if (urgentDecisionDetail) {
+          adminFlags.urgent_decision_detail = urgentDecisionDetail;
+        }
+      }
+      
+      const updateData: any = {
+        admin_context_note: adminContextNote || null,
+        admin_flags: Object.keys(adminFlags).length > 0 ? adminFlags : null
+      };
+      
+      // Only set admin_business_type if not auto-detect
+      if (adminBusinessType !== 'auto-detect') {
+        updateData.admin_business_type = adminBusinessType;
+      } else {
+        updateData.admin_business_type = null;
+      }
+      
+      const { error: updateError } = await supabase
+        .from('discovery_engagements')
+        .update(updateData)
+        .eq('id', engagement.id);
+      
+      if (updateError) {
+        console.error('Error saving admin context:', updateError);
+        // Continue anyway - non-fatal
+      }
+      
       const { data, error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
         body: { engagementId: engagement.id }
       });
@@ -1712,6 +1761,100 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
             {/* Report Tab */}
             {activeTab === 'report' && (
               <div className="space-y-6">
+                {/* Client Context Section */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-6">
+                  <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-4 flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Client Context
+                  </h3>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mb-4">
+                    Provide context to guide classification and recommendations. These settings are saved before generating the report.
+                  </p>
+                  
+                  <div className="space-y-4">
+                    {/* Business Type Dropdown */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Business Type
+                      </label>
+                      <select
+                        value={adminBusinessType}
+                        onChange={(e) => setAdminBusinessType(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      >
+                        <option value="auto-detect">Auto-detect (default)</option>
+                        <option value="trading_product">Trading (Product/Manufacturing)</option>
+                        <option value="trading_agency">Agency/Creative Services</option>
+                        <option value="investment_vehicle">Property/Investment Portfolio</option>
+                        <option value="funded_startup">Funded Startup</option>
+                        <option value="professional_practice">Professional Practice</option>
+                        <option value="lifestyle_business">Lifestyle Business</option>
+                      </select>
+                      {adminBusinessType !== 'auto-detect' && (
+                        <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                          This will override auto-detection with 95% confidence
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Adviser Context Text Field */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Adviser Context
+                      </label>
+                      <textarea
+                        value={adminContextNote}
+                        onChange={(e) => setAdminContextNote(e.target.value)}
+                        placeholder="Brief context about this client..."
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 h-24 resize-none"
+                      />
+                    </div>
+                    
+                    {/* Checkbox Flags */}
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cashConstrained}
+                          onChange={(e) => setCashConstrained(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          Cash-strapped (cap investment recommendations)
+                        </span>
+                      </label>
+                      
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={urgentDecision}
+                          onChange={(e) => setUrgentDecision(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          Urgent decision pending
+                        </span>
+                      </label>
+                      
+                      {/* Urgent Decision Detail (conditional) */}
+                      {urgentDecision && (
+                        <div className="ml-6">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Urgent Decision Detail
+                          </label>
+                          <input
+                            type="text"
+                            value={urgentDecisionDetail}
+                            onChange={(e) => setUrgentDecisionDetail(e.target.value)}
+                            placeholder="e.g., Senior hire decision needed this week"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
                 {/* Actions Bar */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
