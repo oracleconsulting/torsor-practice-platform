@@ -2280,7 +2280,8 @@ EXAMPLE: If benchmarking (£2,000) is the first step and fits within a £3,000 c
 ============================================================================
 ${(() => {
   const exitTimelineLower = String(exitTimeline || '').toLowerCase();
-  const adminContextLower = String(adminFlags?.admin_context_note || '').toLowerCase();
+  const adminContextForFraming = engagement?.admin_context_note || engagementData?.admin_context_note || '';
+  const adminContextLower = adminContextForFraming.toLowerCase();
   
   // Check exit timeline
   const isActivelyExiting = exitTimelineLower.includes('already exploring') || 
