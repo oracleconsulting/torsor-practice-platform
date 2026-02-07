@@ -2721,8 +2721,23 @@ function DiscoveryClientModal({
 
   const parsePriceFromConcept = (suggestedPricing: string | undefined): string => {
     if (!suggestedPricing) return '';
-    const match = suggestedPricing.match(/£\s*([\d,]+)/);
-    return match ? match[1].replace(/,/g, '') : '';
+    const match = suggestedPricing.match(/[\d,]+/);
+    return match ? match[0].replace(/,/g, '') : '';
+  };
+
+  const handleCreateServiceFromConcept = (opportunity: any) => {
+    const concept = opportunity.concept || opportunity.service_concept;
+    const parsedPrice = parsePriceFromConcept(concept?.suggested_pricing);
+    setCreateServiceData({
+      opportunityId: opportunity.id,
+      conceptId: concept?.id || '',
+      name: concept?.suggested_name || opportunity.title || '',
+      description: concept?.problem_it_solves || opportunity.description || '',
+      suggestedPricing: parsedPrice,
+      pricingModel: 'fixed',
+      category: opportunity.category || 'financial',
+    });
+    setShowCreateServiceModal(true);
   };
 
   const formatPriceDisplay = (amount: number, model: string): string => {
@@ -6168,21 +6183,7 @@ function DiscoveryClientModal({
                                                     </div>
                                                     <button
                                                       type="button"
-                                                      onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (opp.concept) {
-                                                          setCreateServiceData({
-                                                            opportunityId: opp.id,
-                                                            conceptId: opp.concept.id,
-                                                            name: opp.concept.suggested_name,
-                                                            category: opp.category || 'strategic',
-                                                            description: opp.concept.problem_it_solves,
-                                                            suggestedPricing: parsePriceFromConcept(opp.concept.suggested_pricing),
-                                                            pricingModel: 'fixed',
-                                                          });
-                                                          setShowCreateServiceModal(true);
-                                                        }
-                                                      }}
+                                                      onClick={(e) => { e.stopPropagation(); handleCreateServiceFromConcept(opp); }}
                                                       className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1 flex-shrink-0"
                                                     >
                                                       <Plus className="w-4 h-4" />
@@ -6236,54 +6237,54 @@ function DiscoveryClientModal({
                       {/* Create Service from Concept Modal */}
                       {showCreateServiceModal && createServiceData && (
                         <div
-                          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
                           onClick={() => { setShowCreateServiceModal(false); setCreateServiceData(null); }}
                         >
-                          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-                            <h3 className="text-lg font-semibold mb-4">Create New Service</h3>
-                            <p className="text-sm text-gray-500 mb-4">
-                              This will add the service to your catalogue and make it available for all future client assessments.
+                          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md p-6 mx-4" onClick={(e) => e.stopPropagation()}>
+                            <h3 className="text-lg font-semibold mb-1">Create New Service</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                              Adds to your service catalogue for all future assessments.
                             </p>
                             <div className="space-y-4">
                               <div>
-                                <label htmlFor="create-service-name" className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
+                                <label htmlFor="create-service-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Service Name</label>
                                 <input
                                   id="create-service-name"
                                   type="text"
                                   value={createServiceData.name}
                                   onChange={(e) => setCreateServiceData({ ...createServiceData, name: e.target.value })}
-                                  className="w-full px-3 py-2 border rounded-lg"
+                                  className="w-full px-3 py-2 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 />
                               </div>
                               <div>
-                                <label htmlFor="create-service-desc" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <label htmlFor="create-service-desc" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
                                 <textarea
                                   id="create-service-desc"
                                   value={createServiceData.description}
                                   onChange={(e) => setCreateServiceData({ ...createServiceData, description: e.target.value })}
                                   rows={3}
-                                  className="w-full px-3 py-2 border rounded-lg"
+                                  className="w-full px-3 py-2 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 />
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                  <label htmlFor="create-service-price" className="block text-sm font-medium text-gray-700 mb-1">Price (£)</label>
+                                  <label htmlFor="create-service-price" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Price (£)</label>
                                   <input
                                     id="create-service-price"
                                     type="number"
                                     value={createServiceData.suggestedPricing}
                                     onChange={(e) => setCreateServiceData({ ...createServiceData, suggestedPricing: e.target.value })}
-                                    className="w-full px-3 py-2 border rounded-lg"
                                     placeholder="e.g. 3000"
+                                    className="w-full px-3 py-2 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                   />
                                 </div>
                                 <div>
-                                  <label htmlFor="create-service-model" className="block text-sm font-medium text-gray-700 mb-1">Pricing Model</label>
+                                  <label htmlFor="create-service-model" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pricing Model</label>
                                   <select
                                     id="create-service-model"
                                     value={createServiceData.pricingModel}
                                     onChange={(e) => setCreateServiceData({ ...createServiceData, pricingModel: e.target.value })}
-                                    className="w-full px-3 py-2 border rounded-lg"
+                                    className="w-full px-3 py-2 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                   >
                                     <option value="fixed">One-off</option>
                                     <option value="monthly">Monthly</option>
@@ -6292,12 +6293,12 @@ function DiscoveryClientModal({
                                 </div>
                               </div>
                               <div>
-                                <label htmlFor="create-service-category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                <label htmlFor="create-service-category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
                                 <select
                                   id="create-service-category"
                                   value={createServiceData.category}
                                   onChange={(e) => setCreateServiceData({ ...createServiceData, category: e.target.value })}
-                                  className="w-full px-3 py-2 border rounded-lg"
+                                  className="w-full px-3 py-2 border dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                 >
                                   <option value="financial">Financial</option>
                                   <option value="operational">Operational</option>
@@ -6307,12 +6308,17 @@ function DiscoveryClientModal({
                                   <option value="governance">Governance</option>
                                 </select>
                               </div>
+                              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                                <p className="text-xs text-blue-700 dark:text-blue-300">
+                                  ℹ️ This will add the service to your catalogue and make it available for all future client assessments. The opportunity will be auto-approved for client view.
+                                </p>
+                              </div>
                             </div>
                             <div className="flex justify-end gap-3 mt-6">
                               <button
                                 type="button"
                                 onClick={() => { setShowCreateServiceModal(false); setCreateServiceData(null); }}
-                                className="px-4 py-2 text-gray-700 border rounded-lg hover:bg-gray-50"
+                                className="px-4 py-2 text-gray-700 dark:text-gray-300 border dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
                               >
                                 Cancel
                               </button>
@@ -6320,10 +6326,16 @@ function DiscoveryClientModal({
                                 type="button"
                                 onClick={handleConfirmCreateService}
                                 disabled={creatingService || !createServiceData.name}
-                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
                               >
-                                {creatingService ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                                Create Service
+                                {creatingService ? (
+                                  <>
+                                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    Creating...
+                                  </>
+                                ) : (
+                                  <>+ Create Service</>
+                                )}
                               </button>
                             </div>
                           </div>

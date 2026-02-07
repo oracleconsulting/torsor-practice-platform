@@ -1454,7 +1454,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
     
-    // Fetch report data (bm_reports keyed by engagement_id)
+    // Fetch report from correct table using engagement_id as primary key
     const { data: report, error: reportError } = await supabase
       .from('bm_reports')
       .select('*')
@@ -1465,7 +1465,7 @@ serve(async (req) => {
       throw new Error(`Report not found: ${reportError?.message}`);
     }
     
-    // Fetch client name via engagement
+    // Fetch client name via engagement -> practice_members
     let clientName = 'Client';
     const { data: engagement } = await supabase
       .from('bm_engagements')
@@ -1520,35 +1520,28 @@ serve(async (req) => {
       clientName,
       overallPercentile: report.overall_percentile || 50,
       totalOpportunity: parseFloat(report.total_annual_opportunity) || 0,
-
       surplusCash: report.surplus_cash?.surplusCash || report.pass1_data?.surplus_cash?.surplusCash || 0,
       freeWorkingCapital: report.surplus_cash?.components?.netWorkingCapital || report.pass1_data?.surplus_cash?.components?.netWorkingCapital || 0,
       freeholdProperty: report.balance_sheet?.freehold_property || report.pass1_data?.balance_sheet?.freeholdProperty || 0,
-
       executiveSummary: report.executive_summary || '',
       positionNarrative: report.position_narrative || '',
       strengthsNarrative: report.strength_narrative || '',
       gapsNarrative: report.gap_narrative || '',
       opportunityNarrative: report.opportunity_narrative || '',
       closingSummary: report.opportunity_narrative?.split('.').slice(-2).join('.') || '',
-
       gapCount: report.gap_count || 0,
       strengthCount: report.strength_count || 0,
-
       metrics: report.metrics_comparison || [],
       recommendations: report.recommendations || [],
-
       valuation: report.value_analysis || {},
       suppressors: report.enhanced_suppressors || [],
       exitReadiness: report.exit_readiness_breakdown || {},
       twoPaths: (report as any).two_paths_narrative ?? null,
-
       scenarios: report.value_analysis ? [
         { id: 'do_nothing', title: 'If You Do Nothing', description: 'Current trajectory without intervention' },
         { id: 'diversify', title: 'If You Actively Diversify', description: 'Use surplus cash to build broader client base' },
         { id: 'exit_prep', title: 'If You Prepare for Exit', description: 'Systematic value unlock program' },
       ] : [],
-
       services: [] as any[],
       dataSources: report.data_sources || [],
       tier: 2,
@@ -1608,6 +1601,7 @@ serve(async (req) => {
     
     const pdfBuffer = await pdfResponse.arrayBuffer();
 
+    // Note: last_pdf_generated_at column may not exist yet - use updated_at and wrap in try/catch
     try {
       await supabase
         .from('bm_reports')
