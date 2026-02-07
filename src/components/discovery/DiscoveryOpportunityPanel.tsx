@@ -177,7 +177,7 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
     }
   };
 
-  const handleCreateService = async (opportunityId: string, conceptId?: string) => {
+  const handleCreateService = async (opportunityId: string, _conceptId?: string) => {
     const opp = opportunities.find(o => o.id === opportunityId);
     if (!opp) return;
 
