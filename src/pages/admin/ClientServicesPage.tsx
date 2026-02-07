@@ -2294,6 +2294,17 @@ function DiscoveryClientModal({
   const [expandedSpecialistOppId, setExpandedSpecialistOppId] = useState<string | null>(null);
   const [copiedSpecialistOppId, setCopiedSpecialistOppId] = useState<string | null>(null);
   const [updatingSpecialistOppId, setUpdatingSpecialistOppId] = useState<string | null>(null);
+  const [showCreateServiceModal, setShowCreateServiceModal] = useState(false);
+  const [createServiceData, setCreateServiceData] = useState<{
+    opportunityId: string;
+    conceptId: string;
+    name: string;
+    category: string;
+    description: string;
+    suggestedPricing: string;
+    pricingModel: string;
+  } | null>(null);
+  const [creatingService, setCreatingService] = useState(false);
   
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -2558,7 +2569,7 @@ function DiscoveryClientModal({
           .select(`
             *,
             service:services(id, code, name, short_description, price_amount, price_period),
-            concept:service_concepts(id, suggested_name, problem_it_solves, times_identified)
+            concept:service_concepts(id, suggested_name, problem_it_solves, suggested_pricing, times_identified)
           `)
           .eq('engagement_id', discoveryEngagementData.id)
           .order('severity', { ascending: true });
@@ -2647,6 +2658,99 @@ function DiscoveryClientModal({
       alert('Failed to update opportunity visibility');
     } finally {
       setUpdatingSpecialistOppId(null);
+    }
+  };
+
+  const refetchSpecialistOpportunities = async () => {
+    if (!discoveryEngagement?.id) return;
+    const { data } = await supabase
+      .from('discovery_opportunities')
+      .select(`
+        *,
+        service:services(id, code, name, short_description, price_amount, price_period),
+        concept:service_concepts(id, suggested_name, problem_it_solves, suggested_pricing, times_identified)
+      `)
+      .eq('engagement_id', discoveryEngagement.id)
+      .order('severity', { ascending: true });
+    if (data) setSpecialistOpportunities(data);
+  };
+
+  const parsePriceFromConcept = (suggestedPricing: string | undefined): string => {
+    if (!suggestedPricing) return '';
+    const match = suggestedPricing.match(/£\s*([\d,]+)/);
+    return match ? match[1].replace(/,/g, '') : '';
+  };
+
+  const formatPriceDisplay = (amount: number, model: string): string => {
+    if (!amount) return 'Price on request';
+    const formatted = `£${amount.toLocaleString()}`;
+    switch (model) {
+      case 'monthly': return `${formatted}/mo`;
+      case 'annual': return `${formatted}/year`;
+      default: return `${formatted} one-off`;
+    }
+  };
+
+  const handleConfirmCreateService = async () => {
+    if (!createServiceData || !currentMember?.practice_id) {
+      alert('Practice is required to create services');
+      return;
+    }
+    setCreatingService(true);
+    try {
+      const code = createServiceData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
+      const priceAmount = Number.parseFloat(createServiceData.suggestedPricing) || null;
+      const pricingModel = createServiceData.pricingModel || 'fixed';
+      const priceDisplay = priceAmount != null ? formatPriceDisplay(priceAmount, pricingModel) : null;
+      const pricePeriod = pricingModel === 'monthly' ? 'month' : pricingModel === 'annual' ? 'year' : 'one-off';
+
+      const { data: newService, error: serviceError } = await supabase
+        .from('services')
+        .insert({
+          code,
+          name: createServiceData.name,
+          short_description: createServiceData.description,
+          category: createServiceData.category,
+          price_amount: priceAmount,
+          price_period: pricePeriod,
+          price_display: priceDisplay,
+          status: 'active',
+          practice_id: currentMember.practice_id,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      if (serviceError) throw serviceError;
+
+      await supabase
+        .from('service_concepts')
+        .update({
+          review_status: 'approved',
+          created_service_id: newService.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', createServiceData.conceptId);
+
+      await supabase
+        .from('discovery_opportunities')
+        .update({
+          recommended_service_id: newService.id,
+          suggested_concept_id: null,
+          show_in_client_view: true,
+        })
+        .eq('id', createServiceData.opportunityId);
+
+      setShowCreateServiceModal(false);
+      setCreateServiceData(null);
+      await refetchSpecialistOpportunities();
+    } catch (err) {
+      console.error('Failed to create service:', err);
+      alert(`Failed to create service: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setCreatingService(false);
     }
   };
 
@@ -3033,7 +3137,7 @@ function DiscoveryClientModal({
                   .select(`
                     *,
                     service:services(id, code, name, short_description, price_amount, price_period),
-                    concept:service_concepts(id, suggested_name, problem_it_solves, times_identified)
+                    concept:service_concepts(id, suggested_name, problem_it_solves, suggested_pricing, times_identified)
                   `)
                   .eq('engagement_id', engagementId)
                   .order('severity', { ascending: true });
@@ -5951,7 +6055,21 @@ function DiscoveryClientModal({
                                                     </div>
                                                     <button
                                                       type="button"
-                                                      onClick={(e) => { e.stopPropagation(); alert('Use Discovery tab > Opportunities to create a service from this concept.'); }}
+                                                      onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (opp.concept) {
+                                                          setCreateServiceData({
+                                                            opportunityId: opp.id,
+                                                            conceptId: opp.concept.id,
+                                                            name: opp.concept.suggested_name,
+                                                            category: opp.category || 'strategic',
+                                                            description: opp.concept.problem_it_solves,
+                                                            suggestedPricing: parsePriceFromConcept(opp.concept.suggested_pricing),
+                                                            pricingModel: 'fixed',
+                                                          });
+                                                          setShowCreateServiceModal(true);
+                                                        }
+                                                      }}
                                                       className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1 flex-shrink-0"
                                                     >
                                                       <Plus className="w-4 h-4" />
@@ -6000,6 +6118,100 @@ function DiscoveryClientModal({
                             )}
                           </div>
                         </section>
+                      )}
+
+                      {/* Create Service from Concept Modal */}
+                      {showCreateServiceModal && createServiceData && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                            <h3 className="text-lg font-semibold mb-4">Create New Service</h3>
+                            <p className="text-sm text-gray-500 mb-4">
+                              This will add the service to your catalogue and make it available for all future client assessments.
+                            </p>
+                            <div className="space-y-4">
+                              <div>
+                                <label htmlFor="create-service-name" className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
+                                <input
+                                  id="create-service-name"
+                                  type="text"
+                                  value={createServiceData.name}
+                                  onChange={(e) => setCreateServiceData({ ...createServiceData, name: e.target.value })}
+                                  className="w-full px-3 py-2 border rounded-lg"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor="create-service-desc" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                <textarea
+                                  id="create-service-desc"
+                                  value={createServiceData.description}
+                                  onChange={(e) => setCreateServiceData({ ...createServiceData, description: e.target.value })}
+                                  rows={3}
+                                  className="w-full px-3 py-2 border rounded-lg"
+                                />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label htmlFor="create-service-price" className="block text-sm font-medium text-gray-700 mb-1">Price (£)</label>
+                                  <input
+                                    id="create-service-price"
+                                    type="number"
+                                    value={createServiceData.suggestedPricing}
+                                    onChange={(e) => setCreateServiceData({ ...createServiceData, suggestedPricing: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                    placeholder="e.g. 3000"
+                                  />
+                                </div>
+                                <div>
+                                  <label htmlFor="create-service-model" className="block text-sm font-medium text-gray-700 mb-1">Pricing Model</label>
+                                  <select
+                                    id="create-service-model"
+                                    value={createServiceData.pricingModel}
+                                    onChange={(e) => setCreateServiceData({ ...createServiceData, pricingModel: e.target.value })}
+                                    className="w-full px-3 py-2 border rounded-lg"
+                                  >
+                                    <option value="fixed">One-off</option>
+                                    <option value="monthly">Monthly</option>
+                                    <option value="annual">Annual</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label htmlFor="create-service-category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                                <select
+                                  id="create-service-category"
+                                  value={createServiceData.category}
+                                  onChange={(e) => setCreateServiceData({ ...createServiceData, category: e.target.value })}
+                                  className="w-full px-3 py-2 border rounded-lg"
+                                >
+                                  <option value="financial">Financial</option>
+                                  <option value="operational">Operational</option>
+                                  <option value="strategic">Strategic</option>
+                                  <option value="personal">Personal</option>
+                                  <option value="wealth">Wealth</option>
+                                  <option value="governance">Governance</option>
+                                </select>
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-3 mt-6">
+                              <button
+                                type="button"
+                                onClick={() => { setShowCreateServiceModal(false); setCreateServiceData(null); }}
+                                className="px-4 py-2 text-gray-700 border rounded-lg hover:bg-gray-50"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleConfirmCreateService}
+                                disabled={creatingService || !createServiceData.name}
+                                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                              >
+                                {creatingService ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                Create Service
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       )}
 
                       {/* Gap Analysis - Use destinationReport (Pass 1/2) as primary source */}

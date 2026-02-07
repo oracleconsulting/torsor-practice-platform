@@ -42,6 +42,7 @@ interface Concept {
   id: string;
   suggested_name: string;
   problem_it_solves: string;
+  suggested_pricing?: string;
   times_identified: number;
   review_status: string;
 }
@@ -114,7 +115,7 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
         .select(`
           *,
           service:services(id, code, name, price_amount, price_period),
-          concept:service_concepts(id, suggested_name, problem_it_solves, times_identified, review_status)
+          concept:service_concepts(id, suggested_name, problem_it_solves, suggested_pricing, times_identified, review_status)
         `)
         .eq('engagement_id', engagementId)
         .order('generated_at', { ascending: false });
@@ -164,26 +165,43 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
     }
   };
 
+  const parsePriceFromConcept = (suggestedPricing: string | undefined): string => {
+    if (!suggestedPricing) return '';
+    const match = suggestedPricing.match(/£\s*([\d,]+)/);
+    return match ? match[1].replace(/,/g, '') : '';
+  };
+
   const handleCreateService = async (opportunityId: string, conceptId?: string) => {
     // Find the opportunity
     const opp = opportunities.find(o => o.id === opportunityId);
     if (!opp) return;
     
     if (conceptId && opp.concept) {
-      // New concept → pre-fill modal
+      // New concept → pre-fill modal (parse suggested_pricing e.g. "£3,000-£5,000 project")
       setCreateServiceData({
         opportunityId,
         conceptId,
         name: opp.concept.suggested_name,
-        category: opp.category,
+        category: opp.category || 'strategic',
         description: opp.concept.problem_it_solves,
-        suggestedPricing: '',
+        suggestedPricing: parsePriceFromConcept(opp.concept.suggested_pricing),
         pricingModel: 'fixed',
       });
       setShowCreateModal(true);
     } else if (opp.service) {
       // Existing service → just toggle visibility
       await handleToggleClientView(opportunityId, true);
+    }
+  };
+
+  const formatPriceDisplay = (amount: number, model: string): string => {
+    if (!amount) return 'Price on request';
+    const formatted = `£${amount.toLocaleString()}`;
+    switch (model) {
+      case 'monthly': return `${formatted}/mo`;
+      case 'annual': return `${formatted}/year`;
+      case 'fixed':
+      default: return `${formatted} one-off`;
     }
   };
 
@@ -195,11 +213,13 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
     setCreating(true);
     
     try {
-      // 1. Create the service
       const code = createServiceData.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_|_$/g, '');
+      const priceAmount = Number.parseFloat(createServiceData.suggestedPricing) || null;
+      const pricingModel = createServiceData.pricingModel || 'fixed';
+      const priceDisplay = priceAmount != null ? formatPriceDisplay(priceAmount, pricingModel) : null;
       
       const { data: newService, error: serviceError } = await supabase
         .from('services')
@@ -208,8 +228,9 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
           name: createServiceData.name,
           short_description: createServiceData.description,
           category: createServiceData.category,
-          price_amount: parseFloat(createServiceData.suggestedPricing) || null,
-          price_period: createServiceData.pricingModel,
+          price_amount: priceAmount,
+          price_period: pricingModel === 'monthly' ? 'month' : pricingModel === 'annual' ? 'year' : 'one-off',
+          price_display: priceDisplay,
           status: 'active',
           practice_id: practiceId,
           created_at: new Date().toISOString(),
@@ -227,7 +248,7 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
           .from('service_concepts')
           .update({
             review_status: 'approved',
-            promoted_to_service_id: newService.id,
+            created_service_id: newService.id,
             updated_at: new Date().toISOString()
           })
           .eq('id', createServiceData.conceptId);

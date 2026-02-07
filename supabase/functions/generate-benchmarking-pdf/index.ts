@@ -1465,8 +1465,8 @@ serve(async (req) => {
       throw new Error(`Report not found: ${reportError?.message}`);
     }
     
-    // Resolve client name from engagement -> practice_members
-    let clientName = report.headline || 'Client';
+    // Fetch client name via engagement
+    let clientName = 'Client';
     const { data: engagement } = await supabase
       .from('bm_engagements')
       .select('client_id')
@@ -1475,10 +1475,10 @@ serve(async (req) => {
     if (engagement?.client_id) {
       const { data: client } = await supabase
         .from('practice_members')
-        .select('name, client_company')
+        .select('name')
         .eq('id', engagement.client_id)
         .single();
-      clientName = client?.client_company || client?.name || clientName;
+      clientName = client?.name || 'Client';
     }
     
     // Get PDF config (use provided, or fall back to report's config, or default)
@@ -1524,7 +1524,7 @@ serve(async (req) => {
       strengthsNarrative: report.strength_narrative || '',
       gapsNarrative: report.gap_narrative || '',
       opportunityNarrative: report.opportunity_narrative || '',
-      closingSummary: (report as any).closing_summary || '',
+      closingSummary: '', // No closing_summary column - generate from opportunity_narrative
 
       gapCount: report.gap_count || 0,
       strengthCount: report.strength_count || 0,

@@ -99,8 +99,8 @@ serve(async (req) => {
     
     console.log(`[Discovery Pass 3] Opus 4.5 identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
     
-    // 4a. POST-PROCESSING: Filter inappropriate services, deduplicate, and apply correct pricing
-    analysis = postProcessOpportunities(analysis, clientData, servicePricing);
+    // 4a. POST-PROCESSING: Filter inappropriate services, deduplicate, apply pin/block, and correct pricing
+    analysis = postProcessOpportunities(analysis, clientData, servicePricing, services || []);
     
     console.log(`[Discovery Pass 3] After post-processing: ${analysis.opportunities?.length || 0} opportunities (deduplicated)`);
 
