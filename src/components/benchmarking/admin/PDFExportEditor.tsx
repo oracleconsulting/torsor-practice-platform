@@ -5,12 +5,12 @@
  * and settings before generating PDF export.
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   X, Download, Eye, EyeOff, Settings2, ChevronUp, ChevronDown,
   FileText, BarChart3, Target, TrendingUp, AlertTriangle, 
-  DollarSign, CheckCircle, Layers, Layout, Save, RotateCcw,
-  Loader2, ExternalLink, GripVertical
+  DollarSign, CheckCircle, Layers, Layout, RotateCcw,
+  Loader2, ExternalLink
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
@@ -30,13 +30,6 @@ interface PdfSettings {
   headerFooter: boolean;
   coverPage: boolean;
   density: 'compact' | 'comfortable' | 'spacious';
-}
-
-interface PdfConfig {
-  sections: SectionConfig[];
-  pdfSettings: PdfSettings;
-  tier: 1 | 2;
-  templateName?: string;
 }
 
 interface Template {
