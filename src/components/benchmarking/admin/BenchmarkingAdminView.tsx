@@ -393,7 +393,7 @@ export function BenchmarkingAdminView({
                   />
                   <button
                     onClick={() => {
-                      setSelectedReportForExport({ ...data, id: engagementId, client: { name: clientName } });
+                      setSelectedReportForExport({ ...data, id: engagementId, engagement_id: engagementId, client: { name: clientName } });
                       setShowPdfEditor(true);
                     }}
                     className="px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 bg-slate-800 text-white hover:bg-slate-700"
@@ -809,7 +809,7 @@ export function BenchmarkingAdminView({
       <PDFExportEditor
         isOpen={showPdfEditor}
         onClose={() => { setShowPdfEditor(false); setSelectedReportForExport(null); }}
-        reportId={selectedReportForExport?.id || ''}
+        reportId={selectedReportForExport?.engagement_id ?? selectedReportForExport?.id ?? ''}
         reportData={selectedReportForExport}
       />
     </div>

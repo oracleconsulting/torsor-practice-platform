@@ -1509,35 +1509,39 @@ serve(async (req) => {
       };
     }
     
-    // Build report data object
+    // Build report data object (column names match bm_reports / top-level)
     const reportData = {
       clientName,
       overallPercentile: report.overall_percentile || 50,
       totalOpportunity: parseFloat(report.total_annual_opportunity) || 0,
-      surplusCash: report.surplus_cash?.surplusCash || 0,
-      freeWorkingCapital: report.surplus_cash?.freeWorkingCapital || 0,
-      freeholdProperty: report.balance_sheet?.freehold_property || 0,
-      
+
+      surplusCash: report.surplus_cash?.surplusCash ?? report.pass1_data?.surplus_cash?.surplusCash ?? 0,
+      freeWorkingCapital: report.surplus_cash?.components?.netWorkingCapital ?? report.surplus_cash?.freeWorkingCapital ?? 0,
+      freeholdProperty: report.balance_sheet?.freehold_property ?? report.pass1_data?.balance_sheet?.freeholdProperty ?? 0,
+
       executiveSummary: report.executive_summary || '',
       positionNarrative: report.position_narrative || '',
       strengthsNarrative: report.strength_narrative || '',
       gapsNarrative: report.gap_narrative || '',
       opportunityNarrative: report.opportunity_narrative || '',
-      closingSummary: report.closing_summary || '',
-      
+      closingSummary: (report as any).closing_summary || '',
+
       gapCount: report.gap_count || 0,
       strengthCount: report.strength_count || 0,
-      
+
       metrics: report.metrics_comparison || [],
       recommendations: report.recommendations || [],
-      
+
       valuation: report.value_analysis || {},
-      suppressors: report.pass1_data?.enhanced_suppressors || [],
-      exitReadiness: report.pass1_data?.exit_readiness_breakdown || {},
-      scenarios: report.scenarios || [],
-      services: report.service_recommendations || [],
-      
+      suppressors: report.enhanced_suppressors || [],
+      exitReadiness: report.exit_readiness_breakdown || {},
+      twoPaths: (report as any).two_paths_narrative || {},
+
+      scenarios: [] as any[],
+      services: [] as any[],
+
       dataSources: report.data_sources || [],
+      tier: 2 as const,
     };
     
     // Generate HTML
