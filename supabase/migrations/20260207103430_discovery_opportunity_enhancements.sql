@@ -26,11 +26,12 @@ COMMENT ON COLUMN discovery_reports.not_recommended_services IS 'Services explic
 COMMENT ON COLUMN discovery_reports.opportunity_assessment IS 'Overall opportunity metrics (count, value, severity distribution)';
 
 -- ============================================================================
--- 3. Ensure description column exists on discovery_opportunities
+-- 3. Ensure required columns exist on discovery_opportunities
 -- ============================================================================
 
 DO $$ 
 BEGIN
+  -- Add description column if missing
   IF NOT EXISTS (
     SELECT 1 FROM information_schema.columns 
     WHERE table_name = 'discovery_opportunities' 
@@ -38,6 +39,16 @@ BEGIN
   ) THEN
     ALTER TABLE discovery_opportunities ADD COLUMN description TEXT;
     COMMENT ON COLUMN discovery_opportunities.description IS 'Detailed description of the opportunity';
+  END IF;
+  
+  -- Add show_in_client_view column if missing
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'discovery_opportunities' 
+    AND column_name = 'show_in_client_view'
+  ) THEN
+    ALTER TABLE discovery_opportunities ADD COLUMN show_in_client_view BOOLEAN DEFAULT false;
+    COMMENT ON COLUMN discovery_opportunities.show_in_client_view IS 'Whether this opportunity should be visible to the client';
   END IF;
 END $$;
 
