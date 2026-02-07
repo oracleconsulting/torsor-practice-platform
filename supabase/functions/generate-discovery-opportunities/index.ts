@@ -107,11 +107,25 @@ serve(async (req) => {
     // 5. Store results
     await storeOpportunities(supabase, engagementId, clientData.clientId, analysis);
     
-    // 6. Update report with opportunity assessment
+    // 5b. PHASE 3e: Generate AUTHORITATIVE recommended services
+    // This is the SINGLE SOURCE OF TRUTH - frontend should ONLY display these
+    const recommendedServices = generateRecommendedServices(
+      analysis.opportunities || [],
+      services || [],
+      analysis.blockedServices || [],
+      clientData
+    );
+    
+    console.log(`[Discovery Pass 3] Generated ${recommendedServices.length} authoritative service recommendations`);
+    console.log(`[Discovery Pass 3] Recommended: ${recommendedServices.map((r: any) => r.serviceCode).join(', ')}`);
+    
+    // 6. Update report with opportunity assessment AND recommended services
     await supabase
       .from('discovery_reports')
       .update({
         opportunity_assessment: analysis.overallAssessment,
+        recommended_services: recommendedServices,
+        not_recommended_services: analysis.blockedServices || [],
         opportunities_generated_at: new Date().toISOString(),
         opportunity_count: analysis.opportunities?.length || 0,
       })
@@ -166,6 +180,8 @@ interface ClientData {
   detectedIndustry: string;
   contextNotes: any[];
   financials: any;
+  pinnedServices: string[];
+  blockedServices: string[];
 }
 
 async function gatherAllClientData(supabase: any, engagementId: string): Promise<ClientData> {
@@ -239,6 +255,8 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
     detectedIndustry: report?.detected_industry || 'general_business',
     contextNotes: contextNotes?.map((n: any) => n.notes) || [],
     financials: financialContext?.extracted_insights || {},
+    pinnedServices: engagement.pinned_services || [],
+    blockedServices: engagement.blocked_services || [],
   };
 }
 
@@ -404,6 +422,22 @@ ${formatAnalysis(analysis)}
 ## CONTEXT NOTES (from adviser)
 
 ${clientData.contextNotes.length > 0 ? clientData.contextNotes.join('\n\n') : 'No adviser notes'}
+
+## ADVISOR SERVICE PREFERENCES
+
+${clientData.pinnedServices.length > 0 
+  ? `⭐ MUST INCLUDE these services (advisor has specifically requested them):
+${clientData.pinnedServices.map(s => `- ${s}`).join('\n')}
+
+Create an opportunity for each pinned service even if the data doesn't strongly support it. The advisor has context we don't.`
+  : 'No pinned services.'}
+
+${clientData.blockedServices.length > 0 
+  ? `🚫 DO NOT RECOMMEND these services (advisor has specifically excluded them):
+${clientData.blockedServices.map(s => `- ${s}`).join('\n')}
+
+If the data suggests these services, create the opportunity but map it to an alternative service or flag as a new concept.`
+  : 'No blocked services.'}
 
 ## OUR EXISTING SERVICES (with correct pricing)
 
@@ -859,13 +893,38 @@ async function loadServicePricing(supabase: any): Promise<Map<string, ServicePri
 // POST-PROCESSING
 // ============================================================================
 
-function postProcessOpportunities(analysis: any, clientData: ClientData, servicePricing: Map<string, ServicePricing>): any {
+function postProcessOpportunities(analysis: any, clientData: ClientData, servicePricing: Map<string, ServicePricing>, services: any[] = []): any {
   const inappropriateServices = clientData.frameworkOverrides?.inappropriateServices || [];
   const maxInvestment = clientData.frameworkOverrides?.maxRecommendedInvestment;
   
   // Filter out opportunities that recommend inappropriate services
   let opportunities = analysis.opportunities || [];
   const blockedServices: any[] = analysis.blockedServices || [];
+  
+  // PHASE 3d: Remove manually blocked services
+  if (clientData.blockedServices.length > 0) {
+    for (const opp of opportunities) {
+      const serviceCode = opp.serviceMapping?.existingService?.code;
+      if (serviceCode && clientData.blockedServices.includes(serviceCode)) {
+        console.log(`[Pass 3] Blocked service ${serviceCode} from opportunity: ${opp.title}`);
+        blockedServices.push({
+          code: serviceCode,
+          reason: 'Manually blocked by advisor',
+          opportunityCode: opp.code
+        });
+        // Remap to new concept instead
+        opp.serviceMapping.newConceptNeeded = {
+          suggestedName: opp.serviceMapping.existingService.name + ' (Alternative)',
+          problemItSolves: opp.title,
+          suggestedDeliverables: [],
+          suggestedPricing: opp.serviceMapping.existingService.displayPrice,
+          marketSize: 'moderate',
+          triggeredBy: 'Service blocked by advisor'
+        };
+        opp.serviceMapping.existingService = null;
+      }
+    }
+  }
   
   opportunities = opportunities.filter((opp: any) => {
     const serviceCode = opp.serviceMapping?.existingService?.code;
@@ -914,11 +973,157 @@ function postProcessOpportunities(analysis: any, clientData: ClientData, service
     return sevA - sevB;
   });
   
+  // PHASE 3d: Ensure pinned services appear
+  if (clientData.pinnedServices.length > 0 && services.length > 0) {
+    for (const pinnedCode of clientData.pinnedServices) {
+      const alreadyPresent = opportunities.some(
+        (o: any) => o.serviceMapping?.existingService?.code === pinnedCode
+      );
+      
+      if (!alreadyPresent) {
+        console.log(`[Pass 3] Adding pinned service: ${pinnedCode}`);
+        // Look up service details from the catalogue
+        const serviceInfo = services.find((s: any) => s.code === pinnedCode);
+        if (serviceInfo) {
+          const pricing = servicePricing.get(pinnedCode);
+          opportunities.push({
+            code: `pinned_${pinnedCode}`,
+            title: `${serviceInfo.name} — Advisor Recommended`,
+            category: 'strategic',
+            severity: 'high',
+            priority: 'next_3_months',
+            priorityRationale: 'Specifically recommended by advisor based on conversation context',
+            dataEvidence: 'Advisor recommendation based on discovery conversation',
+            financialImpact: { type: 'unknown', amount: 0, confidence: 'low', calculation: 'To be determined during engagement' },
+            lifeImpact: 'Identified by your advisor as relevant to your situation',
+            serviceMapping: {
+              existingService: {
+                code: pinnedCode,
+                name: serviceInfo.name,
+                displayPrice: pricing?.displayPrice || `£${serviceInfo.price_amount || 'varies'}`,
+                pricingModel: pricing?.pricingModel || 'fixed',
+                fitScore: 70,
+                rationale: 'Advisor recommendation',
+                limitation: null,
+                alsoAddresses: []
+              },
+              newConceptNeeded: null
+            },
+            adviserTools: {
+              talkingPoint: `We think ${serviceInfo.name} could help here based on our conversation.`,
+              questionToAsk: 'Would this kind of support be useful?',
+              quickWin: null
+            }
+          });
+        }
+      }
+    }
+  }
+  
   return {
     ...analysis,
     opportunities,
     blockedServices
   };
+}
+
+// ============================================================================
+// RECOMMENDED SERVICES SYNTHESIS
+// ============================================================================
+
+function generateRecommendedServices(
+  opportunities: any[],
+  services: any[],
+  blockedServices: any[],
+  clientData: ClientData
+): any[] {
+  const blockedCodes = blockedServices.map((b: any) => b.code || b.serviceCode);
+  
+  // Group opportunities by service code
+  const serviceGroups = new Map<string, any[]>();
+  
+  for (const opp of opportunities) {
+    const serviceCode = opp.serviceMapping?.existingService?.code;
+    if (serviceCode && !blockedCodes.includes(serviceCode)) {
+      if (!serviceGroups.has(serviceCode)) {
+        serviceGroups.set(serviceCode, []);
+      }
+      serviceGroups.get(serviceCode)!.push(opp);
+    }
+  }
+  
+  // Build recommended services array
+  const recommended: any[] = [];
+  
+  for (const [serviceCode, opps] of serviceGroups) {
+    const primaryOpp = opps[0]; // Highest severity (already sorted)
+    const service = services.find((s: any) => s.code === serviceCode);
+    
+    if (!service) {
+      console.log(`[GenerateRecommendedServices] Service not found: ${serviceCode}`);
+      continue;
+    }
+    
+    // Calculate total value at stake
+    const totalValue = opps.reduce((sum: number, o: any) => {
+      const amount = o.financialImpact?.amount || o.financial_impact_amount || 0;
+      return sum + amount;
+    }, 0);
+    
+    // Build "Why This Matters" from life impacts and data evidence
+    const lifeImpacts = opps
+      .map((o: any) => o.lifeImpact || o.life_impact)
+      .filter(Boolean);
+    
+    const dataEvidence = opps
+      .map((o: any) => o.dataEvidence || o.data_evidence)
+      .filter(Boolean);
+    
+    const whyThisMatters = lifeImpacts.length > 0 
+      ? lifeImpacts[0]  // Use primary life impact
+      : dataEvidence.length > 0 
+        ? dataEvidence.join(' ')
+        : 'Addresses key challenges identified in your assessment';
+    
+    // Build "What It Addresses" from opportunity titles
+    const addresses = opps.map((o: any) => o.title);
+    
+    // Get display price
+    const displayPrice = primaryOpp.serviceMapping?.existingService?.displayPrice || 
+                        `£${service.price_amount?.toLocaleString() || 'varies'}`;
+    
+    const pricingModel = primaryOpp.serviceMapping?.existingService?.pricingModel || 
+                         service.price_period || 'fixed';
+    
+    recommended.push({
+      serviceCode,
+      serviceName: service.name,
+      displayPrice,
+      pricingModel,
+      totalValueAtStake: totalValue,
+      whyThisMatters,
+      addresses,
+      primaryOpportunityTitle: primaryOpp.title,
+      severity: primaryOpp.severity,
+      priority: primaryOpp.priority,
+      fitScore: primaryOpp.serviceMapping?.existingService?.fitScore || 50,
+      opportunityIds: opps.map((o: any) => o.id || o.code)
+    });
+  }
+  
+  // Sort by priority, then total value
+  const priorityOrder: Record<string, number> = { 
+    'must_address_now': 0, 'next_3_months': 1, 'next_12_months': 2, 'when_ready': 3 
+  };
+  
+  recommended.sort((a, b) => {
+    const pDiff = (priorityOrder[a.priority] || 4) - (priorityOrder[b.priority] || 4);
+    if (pDiff !== 0) return pDiff;
+    return b.totalValueAtStake - a.totalValueAtStake;
+  });
+  
+  console.log(`[GenerateRecommendedServices] Created ${recommended.length} synthesised recommendations`);
+  return recommended;
 }
 
 // ============================================================================
