@@ -85,7 +85,7 @@ interface Props {
 // Component
 // ============================================================================
 
-export function DiscoveryOpportunityPanel({ engagementId, clientId, practiceId, onVisibilityChange }: Props) {
+export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, practiceId, onVisibilityChange }: Props) {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -513,95 +513,94 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId, practiceId, 
           })}
         </div>
       ))}
-    </div>
 
-    {/* Create Service Modal */}
-    {showCreateModal && createServiceData && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-          <h3 className="text-lg font-semibold mb-4">Create New Service</h3>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
-              <input
-                type="text"
-                value={createServiceData.name}
-                onChange={(e) => setCreateServiceData({ ...createServiceData, name: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
+      {/* Create Service Modal */}
+      {showCreateModal && createServiceData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-4">Create New Service</h3>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-              <textarea
-                value={createServiceData.description}
-                onChange={(e) => setCreateServiceData({ ...createServiceData, description: e.target.value })}
-                rows={3}
-                className="w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price (£)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
                 <input
-                  type="number"
-                  value={createServiceData.suggestedPricing}
-                  onChange={(e) => setCreateServiceData({ ...createServiceData, suggestedPricing: e.target.value })}
+                  type="text"
+                  value={createServiceData.name}
+                  onChange={(e) => setCreateServiceData({ ...createServiceData, name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="e.g. 2000"
                 />
               </div>
+              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Model</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={createServiceData.description}
+                  onChange={(e) => setCreateServiceData({ ...createServiceData, description: e.target.value })}
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price (£)</label>
+                  <input
+                    type="number"
+                    value={createServiceData.suggestedPricing}
+                    onChange={(e) => setCreateServiceData({ ...createServiceData, suggestedPricing: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="e.g. 2000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Model</label>
+                  <select
+                    value={createServiceData.pricingModel}
+                    onChange={(e) => setCreateServiceData({ ...createServiceData, pricingModel: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  >
+                    <option value="fixed">One-off</option>
+                    <option value="month">Monthly</option>
+                    <option value="annual">Annual</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                 <select
-                  value={createServiceData.pricingModel}
-                  onChange={(e) => setCreateServiceData({ ...createServiceData, pricingModel: e.target.value })}
+                  value={createServiceData.category}
+                  onChange={(e) => setCreateServiceData({ ...createServiceData, category: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
-                  <option value="fixed">One-off</option>
-                  <option value="month">Monthly</option>
-                  <option value="annual">Annual</option>
+                  <option value="financial">Financial</option>
+                  <option value="operational">Operational</option>
+                  <option value="strategic">Strategic</option>
+                  <option value="personal">Personal</option>
+                  <option value="wealth">Wealth</option>
                 </select>
               </div>
             </div>
             
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <select
-                value={createServiceData.category}
-                onChange={(e) => setCreateServiceData({ ...createServiceData, category: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg"
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => { setShowCreateModal(false); setCreateServiceData(null); }}
+                className="px-4 py-2 text-gray-700 border rounded-lg hover:bg-gray-50"
               >
-                <option value="financial">Financial</option>
-                <option value="operational">Operational</option>
-                <option value="strategic">Strategic</option>
-                <option value="personal">Personal</option>
-                <option value="wealth">Wealth</option>
-              </select>
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmCreateService}
+                disabled={creating || !createServiceData.name}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Create Service
+              </button>
             </div>
           </div>
-          
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              onClick={() => { setShowCreateModal(false); setCreateServiceData(null); }}
-              className="px-4 py-2 text-gray-700 border rounded-lg hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirmCreateService}
-              disabled={creating || !createServiceData.name}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-              Create Service
-            </button>
-          </div>
         </div>
-      </div>
-    )}
-  </div>
+      )}
+    </div>
   );
 }

@@ -5213,95 +5213,6 @@ function DiscoveryClientModal({
                               )}
 
                               {/* ============================================= */}
-                              {/* SPECIALIST SERVICES (from Pass 3 opportunities) */}
-                              {/* ============================================= */}
-                              {specialistOpportunities.length > 0 && (
-                                <section className="bg-white rounded-xl shadow-sm overflow-hidden">
-                                  <div className="bg-gradient-to-r from-violet-50 to-purple-50 p-6 border-b border-violet-200">
-                                    <span className="text-xs font-medium text-violet-600 uppercase tracking-widest">
-                                      Deep Dive Recommendations
-                                    </span>
-                                    <h2 className="text-2xl font-serif text-violet-800 mt-2">
-                                      Specialist Services For Your Situation
-                                    </h2>
-                                    <p className="text-sm text-violet-600 mt-1">
-                                      Based on your specific needs, these specialist services may accelerate your journey
-                                    </p>
-                                    <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
-                                      <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                      <p className="text-xs text-amber-800">
-                                        <strong>For internal use only.</strong> These recommendations will NOT appear in the client's report unless individually approved and built out.
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div className="p-6 space-y-4">
-                                    {specialistOpportunities
-                                      .filter(opp => opp.service || opp.concept) // Show those with services OR concepts
-                                      .slice(0, 6) // Show top 6
-                                      .map((opp: any) => (
-                                      <div key={opp.id} className="border border-gray-200 rounded-lg p-4 hover:border-violet-300 transition-colors">
-                                        <div className="flex items-start justify-between">
-                                          <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                              <span className="text-xs font-medium text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">
-                                                {opp.category}
-                                              </span>
-                                              {opp.severity === 'critical' && (
-                                                <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
-                                                  High Priority
-                                                </span>
-                                              )}
-                                            </div>
-                                            <h4 className="font-semibold text-gray-900">{opp.title}</h4>
-                                            <p className="text-sm text-gray-600 mt-1">{opp.description}</p>
-                                            {opp.life_impact && (
-                                              <p className="text-sm text-amber-700 mt-2 italic">
-                                                "{opp.life_impact}"
-                                              </p>
-                                            )}
-                                          </div>
-                                          {opp.service ? (
-                                            <div className="ml-4 text-right">
-                                              <p className="font-semibold text-gray-900">{opp.service.name}</p>
-                                              {opp.service.price_amount && (
-                                                <p className="text-sm text-emerald-600 font-medium">
-                                                  £{Number(opp.service.price_amount).toLocaleString()}
-                                                  {opp.service.price_period === 'month' ? '/mo' : ''}
-                                                </p>
-                                              )}
-                                            </div>
-                                          ) : opp.concept ? (
-                                            <div className="ml-4 text-right">
-                                              <p className="font-semibold text-purple-700">{opp.concept.suggested_name}</p>
-                                              <p className="text-xs text-purple-600">New Service Concept</p>
-                                            </div>
-                                          ) : null}
-                                        </div>
-                                        {opp.financial_impact_amount && (
-                                          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
-                                            <TrendingUp className="w-4 h-4 text-emerald-500" />
-                                            <span className="text-sm text-gray-600">
-                                              Potential impact: <strong className="text-emerald-600">£{Number(opp.financial_impact_amount).toLocaleString()}</strong>
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    ))}
-                                    {specialistOpportunities.filter(o => !o.service && !o.concept).length > 0 && (
-                                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                        <p className="text-sm text-amber-800">
-                                          <strong>{specialistOpportunities.filter(o => !o.service && !o.concept).length} additional opportunities</strong> identified 
-                                          that your advisor will discuss with you.
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </section>
-                              )}
-
-                              {/* ============================================= */}
                               {/* PAGE 4: THE NUMBERS */}
                               {/* ============================================= */}
                               {page4 && (
@@ -5831,6 +5742,93 @@ function DiscoveryClientModal({
                           </div>
                         </div>
                       </div>
+
+                      {/* Deep Dive Recommendations (admin only – from Pass 3 opportunities) */}
+                      {specialistOpportunities.length > 0 && (
+                        <section className="bg-white rounded-xl shadow-sm overflow-hidden border border-violet-200">
+                          <div className="bg-gradient-to-r from-violet-50 to-purple-50 p-6 border-b border-violet-200">
+                            <span className="text-xs font-medium text-violet-600 uppercase tracking-widest">
+                              Deep Dive Recommendations
+                            </span>
+                            <h2 className="text-2xl font-serif text-violet-800 mt-2">
+                              Specialist Services For Your Situation
+                            </h2>
+                            <p className="text-sm text-violet-600 mt-1">
+                              Based on your specific needs, these specialist services may accelerate your journey
+                            </p>
+                            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                              <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <p className="text-xs text-amber-800">
+                                <strong>For internal use only.</strong> These recommendations will NOT appear in the client&apos;s report unless individually approved and built out.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="p-6 space-y-4">
+                            {specialistOpportunities
+                              .filter(opp => opp.service || opp.concept)
+                              .slice(0, 6)
+                              .map((opp: any) => (
+                              <div key={opp.id} className="border border-gray-200 rounded-lg p-4 hover:border-violet-300 transition-colors">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-xs font-medium text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">
+                                        {opp.category}
+                                      </span>
+                                      {opp.severity === 'critical' && (
+                                        <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
+                                          High Priority
+                                        </span>
+                                      )}
+                                    </div>
+                                    <h4 className="font-semibold text-gray-900">{opp.title}</h4>
+                                    <p className="text-sm text-gray-600 mt-1">{opp.description}</p>
+                                    {opp.life_impact && (
+                                      <p className="text-sm text-amber-700 mt-2 italic">
+                                        &quot;{opp.life_impact}&quot;
+                                      </p>
+                                    )}
+                                  </div>
+                                  {opp.service ? (
+                                    <div className="ml-4 text-right">
+                                      <p className="font-semibold text-gray-900">{opp.service.name}</p>
+                                      {opp.service.price_amount && (
+                                        <p className="text-sm text-emerald-600 font-medium">
+                                          £{Number(opp.service.price_amount).toLocaleString()}
+                                          {opp.service.price_period === 'month' ? '/mo' : ''}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : opp.concept ? (
+                                    <div className="ml-4 text-right">
+                                      <p className="font-semibold text-purple-700">{opp.concept.suggested_name}</p>
+                                      <p className="text-xs text-purple-600">New Service Concept</p>
+                                    </div>
+                                  ) : null}
+                                </div>
+                                {opp.financial_impact_amount && (
+                                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+                                    <TrendingUp className="w-4 h-4 text-emerald-500" />
+                                    <span className="text-sm text-gray-600">
+                                      Potential impact: <strong className="text-emerald-600">£{Number(opp.financial_impact_amount).toLocaleString()}</strong>
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {specialistOpportunities.filter(o => !o.service && !o.concept).length > 0 && (
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                <p className="text-sm text-amber-800">
+                                  <strong>{specialistOpportunities.filter(o => !o.service && !o.concept).length} additional opportunities</strong> identified
+                                  that your advisor will discuss with you.
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </section>
+                      )}
 
                       {/* Gap Analysis - Use destinationReport (Pass 1/2) as primary source */}
                       {(() => {

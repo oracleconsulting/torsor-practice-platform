@@ -5598,7 +5598,7 @@ When writing narratives:
       }
       // Always set to deterministic value
       if (!pass1Data.opportunitySizing) pass1Data.opportunitySizing = {};
-      pass1Data.opportunitySizing.totalAnnualOpportunity = deterministicTotal;
+        pass1Data.opportunitySizing.totalAnnualOpportunity = deterministicTotal;
     }
     
     // Fallback: If deterministic override didn't fire, calculate inline

@@ -13,7 +13,8 @@ import { ServiceSelectionPanel } from './ServiceSelectionPanel';
 import { OpportunityPanel } from './OpportunityPanel';
 import { ValueAnalysisPanel } from './ValueAnalysisPanel';
 import { ExportAnalysisButton } from './ExportAnalysisButton';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign, Share2, EyeOff, Loader2, Pin } from 'lucide-react';
+import { PDFExportEditor } from './PDFExportEditor';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign, Share2, EyeOff, Loader2, Pin, Download } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
@@ -233,6 +234,10 @@ export function BenchmarkingAdminView({
 }: BenchmarkingAdminViewProps) {
   const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'pin_services' | 'opportunities' | 'valuation' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
   
+  // PDF Export Editor
+  const [showPdfEditor, setShowPdfEditor] = useState(false);
+  const [selectedReportForExport, setSelectedReportForExport] = useState<any>(null);
+  
   // Accounts upload state
   const [accountUploads, setAccountUploads] = useState<AccountUpload[]>([]);
   const [financialData, setFinancialData] = useState<FinancialData[]>([]);
@@ -374,17 +379,29 @@ export function BenchmarkingAdminView({
             </div>
             <div className="flex items-center gap-3">
               {engagementId && clientId && (
-                <ExportAnalysisButton
-                  engagementId={engagementId}
-                  clientId={clientId}
-                  clientName={clientName || 'Client'}
-                  reportData={data}
-                  clientData={clientData}
-                  founderRisk={founderRisk}
-                  industryMapping={industryMapping}
-                  hvaData={hvaData}
-                  supplementaryData={supplementaryData}
-                />
+                <>
+                  <ExportAnalysisButton
+                    engagementId={engagementId}
+                    clientId={clientId}
+                    clientName={clientName || 'Client'}
+                    reportData={data}
+                    clientData={clientData}
+                    founderRisk={founderRisk}
+                    industryMapping={industryMapping}
+                    hvaData={hvaData}
+                    supplementaryData={supplementaryData}
+                  />
+                  <button
+                    onClick={() => {
+                      setSelectedReportForExport({ ...data, id: engagementId, client: { name: clientName } });
+                      setShowPdfEditor(true);
+                    }}
+                    className="px-4 py-2 text-sm font-medium rounded-lg flex items-center gap-2 bg-slate-800 text-white hover:bg-slate-700"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export PDF
+                  </button>
+                </>
               )}
               
               {/* Share with Client Portal button */}
@@ -788,6 +805,13 @@ export function BenchmarkingAdminView({
           }}
         />
       )}
+
+      <PDFExportEditor
+        isOpen={showPdfEditor}
+        onClose={() => { setShowPdfEditor(false); setSelectedReportForExport(null); }}
+        reportId={selectedReportForExport?.id || ''}
+        reportData={selectedReportForExport}
+      />
     </div>
   );
 }
