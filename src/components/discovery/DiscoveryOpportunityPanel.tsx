@@ -14,19 +14,14 @@
 
 import { useState, useEffect } from 'react';
 import { 
-  Lightbulb, 
   ChevronDown,
-  ChevronRight,
   Copy,
   Check,
   Sparkles,
-  Target,
-  DollarSign,
   Plus,
   Loader2,
   Eye,
   EyeOff,
-  Settings,
   RefreshCw
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -64,6 +59,7 @@ interface Opportunity {
   recommended_service_id?: string;
   service_fit_score?: number;
   service_fit_rationale?: string;
+  service_fit_limitation?: string;
   suggested_concept_id?: string;
   talking_point?: string;
   question_to_ask?: string;
@@ -72,6 +68,12 @@ interface Opportunity {
   service?: Service;
   concept?: Concept;
   generated_at?: string;
+  // Rich fields (match benchmarking)
+  priority?: 'must_address_now' | 'next_3_months' | 'next_12_months' | 'when_ready';
+  data_evidence?: string;
+  data_values?: { benchmarkComparison?: string; priorityRationale?: string; [k: string]: unknown };
+  impact_calculation?: string;
+  financial_impact_confidence?: string;
 }
 
 interface Props {
@@ -282,235 +284,215 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
     );
   }
 
-  const groupedByCategory = opportunities.reduce((acc, opp) => {
-    const cat = opp.category || 'Other';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(opp);
-    return acc;
-  }, {} as Record<string, Opportunity[]>);
+  const priorityGroups = [
+    { key: 'must_address_now' as const, label: '🚨 Must Address Now', subtitle: 'These block your stated goal', bgClass: 'bg-red-50 border-red-200', textClass: 'text-red-900' },
+    { key: 'next_3_months' as const, label: '⚠️ Address Within 3 Months', subtitle: 'Important but not blocking', bgClass: 'bg-amber-50 border-amber-200', textClass: 'text-amber-900' },
+    { key: 'next_12_months' as const, label: '📋 Next 12 Months', subtitle: 'Important but not blocking', bgClass: 'bg-blue-50 border-blue-200', textClass: 'text-blue-900' },
+    { key: 'when_ready' as const, label: '💡 When Ready', subtitle: 'Optimisation opportunities', bgClass: 'bg-gray-50 border-gray-200', textClass: 'text-gray-900' },
+  ];
+
+  const groupedByPriority = priorityGroups
+    .map(group => ({
+      ...group,
+      opportunities: opportunities.filter(o => (o.priority || 'when_ready') === group.key),
+    }))
+    .filter(group => group.opportunities.length > 0);
+
+  const totalValue = opportunities.reduce((s, o) => s + (o.financial_impact_amount || 0), 0);
 
   return (
-    <div className="space-y-6">
-      {/* Summary */}
+    <div className="space-y-8">
+      {/* Summary bar */}
       <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-indigo-900">Opportunities Identified</h3>
             <p className="text-sm text-indigo-700 mt-1">
               {opportunities.length} total • {opportunities.filter(o => o.show_in_client_view).length} shown to client
+              • £{totalValue.toLocaleString()} total value
             </p>
           </div>
-          <button
-            onClick={loadOpportunities}
-            className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2"
-          >
+          <button onClick={loadOpportunities} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2">
             <RefreshCw className="w-4 h-4" />
             Refresh
           </button>
         </div>
       </div>
 
-      {/* Opportunities by Category */}
-      {Object.entries(groupedByCategory).map(([category, categoryOpps]) => (
-        <div key={category} className="space-y-3">
-          <h4 className="font-semibold text-gray-900 flex items-center gap-2">
-            <Target className="w-4 h-4 text-indigo-600" />
-            {category}
-          </h4>
-          
-          {categoryOpps.map((opp) => {
-            const isExpanded = expandedId === opp.id;
-            const isCopied = copiedId === opp.id;
-            const hasService = !!opp.service;
-            const hasConcept = !!opp.concept;
-            
-            return (
-              <div
-                key={opp.id}
-                className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:border-indigo-300 transition-colors"
-              >
-                {/* Header */}
-                <div className="p-4">
-                  <div className="flex items-start justify-between">
+      {/* Priority Groups */}
+      {groupedByPriority.map(group => (
+        <div key={group.key} className="space-y-3">
+          <div className={`p-3 rounded-lg border ${group.bgClass}`}>
+            <h4 className={`font-semibold ${group.textClass}`}>{group.label}</h4>
+            <p className={`text-xs ${group.textClass} opacity-70`}>{group.subtitle}</p>
+          </div>
+          <div className="space-y-3 pl-2">
+            {group.opportunities.map((opp) => {
+              const isExpanded = expandedId === opp.id;
+              return (
+                <div key={opp.id} className="border rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
+                  {/* Collapsed Header */}
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="p-4 cursor-pointer flex items-start justify-between"
+                    onClick={() => setExpandedId(isExpanded ? null : opp.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(isExpanded ? null : opp.id); } }}
+                  >
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h5 className="font-semibold text-gray-900">{opp.title}</h5>
-                        {opp.show_in_client_view && (
-                          <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-xs rounded-full flex items-center gap-1">
-                            <Eye className="w-3 h-3" />
-                            Client View
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className={`px-2 py-0.5 text-xs font-bold rounded ${
+                          opp.severity === 'critical' ? 'bg-red-100 text-red-700' :
+                          opp.severity === 'high' ? 'bg-orange-100 text-orange-700' :
+                          opp.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {(opp.severity || 'medium').toUpperCase()}
+                        </span>
+                        <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded flex items-center gap-1">
+                          📁 {opp.category || 'General'}
+                        </span>
+                        {opp.data_values?.priorityRationale && (
+                          <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                            ⚡ Priority adjusted
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600 line-clamp-2">{opp.description}</p>
+                      <h4 className="font-semibold text-gray-900">{opp.title}</h4>
                     </div>
-                    
-                    <div className="flex items-center gap-2 ml-4">
-                      {/* Toggle Client View */}
+                    <div className="flex items-center gap-3 ml-4">
+                      {opp.financial_impact_amount != null && (
+                        <span className="text-lg font-semibold text-emerald-700">
+                          £{opp.financial_impact_amount >= 1000000
+                            ? `${(opp.financial_impact_amount / 1000000).toFixed(1)}M`
+                            : opp.financial_impact_amount >= 1000
+                            ? `${(opp.financial_impact_amount / 1000).toFixed(0)}k`
+                            : opp.financial_impact_amount.toLocaleString()}
+                        </span>
+                      )}
                       <button
-                        onClick={() => handleToggleClientView(opp.id, opp.show_in_client_view || false)}
+                        onClick={(e) => { e.stopPropagation(); handleToggleClientView(opp.id, opp.show_in_client_view || false); }}
                         disabled={updating === opp.id}
-                        className={`p-2 rounded-lg transition-colors ${
+                        className={`p-1.5 rounded-lg transition-colors ${
                           opp.show_in_client_view
                             ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
-                        title={opp.show_in_client_view ? 'Hide from client' : 'Show to client'}
+                        title={opp.show_in_client_view ? 'Visible to client' : 'Hidden from client'}
                       >
-                        {updating === opp.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : opp.show_in_client_view ? (
-                          <Eye className="w-4 h-4" />
-                        ) : (
-                          <EyeOff className="w-4 h-4" />
-                        )}
+                        {updating === opp.id ? <Loader2 className="w-4 h-4 animate-spin" /> : opp.show_in_client_view ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                       </button>
-                      
-                      {/* Expand/Collapse */}
-                      <button
-                        onClick={() => setExpandedId(isExpanded ? null : opp.id)}
-                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                      >
-                        {isExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-gray-600" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-gray-600" />
-                        )}
-                      </button>
+                      <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
                     </div>
                   </div>
-                  
-                  {/* Quick Info */}
-                  <div className="flex items-center gap-4 mt-3 text-sm">
-                    {opp.financial_impact_amount && (
-                      <div className="flex items-center gap-1 text-emerald-700">
-                        <DollarSign className="w-4 h-4" />
-                        <span>£{opp.financial_impact_amount.toLocaleString()}</span>
-                      </div>
-                    )}
-                    {hasService && (
-                      <div className="flex items-center gap-1 text-blue-700">
-                        <Target className="w-4 h-4" />
-                        <span>{opp.service?.name}</span>
-                      </div>
-                    )}
-                    {hasConcept && (
-                      <div className="flex items-center gap-1 text-purple-700">
-                        <Lightbulb className="w-4 h-4" />
-                        <span>New Concept: {opp.concept?.suggested_name}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Expanded Details */}
-                {isExpanded && (
-                  <div className="border-t border-gray-200 p-4 space-y-4 bg-gray-50">
-                    {/* Service Recommendation */}
-                    {hasService && (
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h6 className="font-semibold text-blue-900 mb-1">Recommended Service</h6>
-                            <p className="text-sm text-blue-800">{opp.service?.name}</p>
-                            {opp.service?.price_amount && (
-                              <p className="text-sm text-blue-700 mt-1">
-                                £{opp.service.price_amount.toLocaleString()}{opp.service.price_period === 'month' ? '/mo' : opp.service.price_period === 'one-off' ? ' one-off' : ''}
-                              </p>
-                            )}
-                            {opp.service_fit_rationale && (
-                              <p className="text-xs text-blue-600 mt-2">{opp.service_fit_rationale}</p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => handleCreateService(opp.id)}
-                            className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm flex items-center gap-1"
-                          >
-                            <Settings className="w-4 h-4" />
-                            Configure
-                          </button>
+
+                  {/* Expanded Body */}
+                  {isExpanded && (
+                    <div className="border-t px-4 pb-4 space-y-4 bg-gray-50/50">
+                      {opp.data_evidence && (
+                        <div className="pt-4">
+                          <p className="text-sm text-gray-800 leading-relaxed">{opp.data_evidence}</p>
                         </div>
-                      </div>
-                    )}
-                    
-                    {/* New Service Concept */}
-                    {hasConcept && (
-                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h6 className="font-semibold text-purple-900 mb-1">New Service Concept</h6>
-                            <p className="text-sm text-purple-800 font-medium">{opp.concept?.suggested_name}</p>
-                            <p className="text-xs text-purple-700 mt-1">{opp.concept?.problem_it_solves}</p>
-                            <p className="text-xs text-purple-600 mt-1">
-                              Identified {opp.concept?.times_identified || 0} time(s)
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleCreateService(opp.id, opp.concept?.id)}
-                            className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1"
-                          >
-                            <Plus className="w-4 h-4" />
-                            Create Service
-                          </button>
+                      )}
+                      {opp.data_values?.benchmarkComparison && (
+                        <p className="text-sm text-gray-600 italic">{opp.data_values.benchmarkComparison}</p>
+                      )}
+                      {opp.impact_calculation && (
+                        <p className="text-xs text-gray-500 leading-relaxed">Impact calculation: {opp.impact_calculation}</p>
+                      )}
+                      {opp.life_impact && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                          <p className="text-sm">
+                            <span className="font-bold text-red-700">FOR THE OWNER: </span>
+                            <span className="text-red-800">{opp.life_impact}</span>
+                          </p>
                         </div>
-                      </div>
-                    )}
-                    
-                    {/* Adviser Tools */}
-                    {(opp.talking_point || opp.question_to_ask || opp.quick_win) && (
-                      <div className="space-y-2">
-                        <h6 className="font-semibold text-gray-900 text-sm">Adviser Tools</h6>
-                        
-                        {opp.talking_point && (
-                          <div className="bg-white border border-gray-200 rounded p-2">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <p className="text-xs text-gray-500 mb-1">Talking Point</p>
-                                <p className="text-sm text-gray-800">{opp.talking_point}</p>
-                              </div>
-                              <button
-                                onClick={() => handleCopyTalkingPoint(opp.talking_point!, opp.id)}
-                                className="ml-2 p-1.5 rounded hover:bg-gray-100 transition-colors"
-                                title="Copy to clipboard"
-                              >
-                                {isCopied ? (
-                                  <Check className="w-4 h-4 text-emerald-600" />
-                                ) : (
-                                  <Copy className="w-4 h-4 text-gray-600" />
-                                )}
-                              </button>
+                      )}
+                      {opp.talking_point && (
+                        <div className="bg-white border border-gray-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <p className="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1.5">💬 SAY THIS:</p>
+                              <p className="text-sm text-gray-800 italic leading-relaxed">&quot;{opp.talking_point}&quot;</p>
                             </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCopyTalkingPoint(opp.talking_point!, opp.id); }}
+                              className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
+                              title="Copy to clipboard"
+                            >
+                              {copiedId === opp.id ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                            </button>
                           </div>
-                        )}
-                        
-                        {opp.question_to_ask && (
-                          <div className="bg-white border border-gray-200 rounded p-2">
-                            <p className="text-xs text-gray-500 mb-1">Question to Ask</p>
-                            <p className="text-sm text-gray-800">{opp.question_to_ask}</p>
+                        </div>
+                      )}
+                      {opp.question_to_ask && (
+                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                          <p className="text-sm">
+                            <span className="font-bold text-indigo-700">ASK: </span>
+                            <span className="text-indigo-800">&quot;{opp.question_to_ask}&quot;</span>
+                          </p>
+                        </div>
+                      )}
+                      {opp.quick_win && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                          <p className="text-sm">
+                            <span className="font-bold text-amber-700">⚡ QUICK WIN: </span>
+                            <span className="text-amber-800">{opp.quick_win}</span>
+                          </p>
+                        </div>
+                      )}
+                      {opp.concept && (
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-xs font-bold text-purple-700 flex items-center gap-1">✨ NEW SERVICE CONCEPT</span>
+                                {opp.concept.times_identified != null && opp.concept.times_identified > 1 && (
+                                  <span className="px-2 py-0.5 text-xs bg-purple-200 text-purple-700 rounded-full">
+                                    Seen {opp.concept.times_identified}× across clients
+                                  </span>
+                                )}
+                              </div>
+                              <h5 className="font-semibold text-purple-900">{opp.concept.suggested_name}</h5>
+                              <p className="text-sm text-purple-700 mt-1">{opp.concept.problem_it_solves}</p>
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleCreateService(opp.id, opp.concept?.id); }}
+                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1 flex-shrink-0"
+                            >
+                              <Plus className="w-4 h-4" />
+                              Create Service
+                            </button>
                           </div>
-                        )}
-                        
-                        {opp.quick_win && (
-                          <div className="bg-white border border-gray-200 rounded p-2">
-                            <p className="text-xs text-gray-500 mb-1">Quick Win</p>
-                            <p className="text-sm text-gray-800">{opp.quick_win}</p>
+                        </div>
+                      )}
+                      {opp.service && !opp.concept && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <p className="text-xs font-bold text-blue-600 mb-1">RECOMMENDED SERVICE</p>
+                              <h5 className="font-semibold text-blue-900">{opp.service.name}</h5>
+                              {opp.service.price_amount != null && (
+                                <p className="text-sm text-blue-700 mt-1">
+                                  £{opp.service.price_amount.toLocaleString()}
+                                  {opp.service.price_period === 'month' ? '/mo' : ''}
+                                </p>
+                              )}
+                              {opp.service_fit_rationale && <p className="text-xs text-blue-600 mt-2">{opp.service_fit_rationale}</p>}
+                              {opp.service_fit_limitation && <p className="text-xs text-blue-500 mt-1 italic">Limitation: {opp.service_fit_limitation}</p>}
+                            </div>
+                            {opp.service_fit_score != null && (
+                              <span className="px-2 py-1 bg-blue-200 text-blue-800 text-xs font-bold rounded">{opp.service_fit_score}% fit</span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Life Impact */}
-                    {opp.life_impact && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                        <h6 className="font-semibold text-amber-900 text-sm mb-1">Life Impact</h6>
-                        <p className="text-sm text-amber-800">{opp.life_impact}</p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       ))}
 
