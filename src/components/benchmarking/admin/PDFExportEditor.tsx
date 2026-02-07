@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   X, Download, Eye, EyeOff, Settings2, ChevronUp, ChevronDown,
-  FileText, BarChart3, Target, TrendingUp, AlertTriangle, 
+  FileText, BarChart3, Target, TrendingUp, TrendingDown, AlertTriangle, 
   DollarSign, CheckCircle, Layers, Layout, RotateCcw,
   Loader2, ExternalLink
 } from 'lucide-react';
@@ -232,6 +232,33 @@ const SECTION_LIBRARY: Record<string, {
       { key: 'showPathTo70', label: 'Show path to 70/100', type: 'checkbox', default: true },
     ],
   },
+  valueProtectors: {
+    id: 'valueProtectors',
+    name: 'Value Protectors',
+    description: 'Factors adding to or protecting business value',
+    icon: TrendingUp,
+    category: 'analysis',
+    required: false,
+    tier2Only: true,
+  },
+  pathToValue: {
+    id: 'pathToValue',
+    name: 'Path to Full Value',
+    description: 'Action steps and potential future value',
+    icon: Target,
+    category: 'strategy',
+    required: false,
+    tier2Only: true,
+  },
+  valueWaterfall: {
+    id: 'valueWaterfall',
+    name: 'Value Waterfall',
+    description: 'Visual flow from baseline value through suppressors to current value',
+    icon: TrendingDown,
+    category: 'analysis',
+    required: false,
+    tier2Only: true,
+  },
   twoPaths: {
     id: 'twoPaths',
     name: 'Two Paths',
@@ -331,7 +358,10 @@ const DEFAULT_TIER2_SECTIONS: SectionConfig[] = [
   { id: 'recommendations', enabled: true, config: { detailLevel: 'full', showImplementationSteps: true, showStartThisWeek: true } },
   { id: 'scenarioExplorer', enabled: true, config: {} },
   { id: 'valuationAnalysis', enabled: true, config: { showSurplusCashAdd: true } },
-  { id: 'valueSuppressors', enabled: true, config: { layout: 'cards', showRecoveryTimelines: true } },
+  { id: 'valueWaterfall', enabled: true, config: {} },
+  { id: 'valueSuppressors', enabled: true, config: { layout: 'cards', showRecoveryTimelines: true, showTargetStates: true } },
+  { id: 'valueProtectors', enabled: true, config: {} },
+  { id: 'pathToValue', enabled: true, config: {} },
   { id: 'exitReadiness', enabled: true, config: { showComponentBreakdown: true, showPathTo70: true } },
   { id: 'twoPaths', enabled: true, config: {} },
   { id: 'scenarioPlanning', enabled: true, config: { layout: 'sequential', showRequirements: true } },

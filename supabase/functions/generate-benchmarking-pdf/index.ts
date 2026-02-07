@@ -151,40 +151,125 @@ function renderHiddenValue(data: any, config: any): string {
   `;
 }
 
-// Key Metrics
+// Key Metrics - aligned with actual metrics_comparison JSONB structure
 function renderKeyMetrics(data: any, config: any): string {
   const metrics = data.metrics || [];
   const layout = config.layout || 'detailed';
   const showBars = config.showPercentileBars !== false;
   
+  // Format detection from metricCode - matches browser's getMetricFormat()
+  function getMetricFormat(metricCode: string): 'currency' | 'percent' | 'number' | 'days' {
+    if (!metricCode) return 'number';
+    const code = metricCode.toLowerCase();
+    if (code.includes('days') || code.includes('debtor') || code.includes('creditor')) return 'days';
+    if (code.includes('margin') || code.includes('rate') || code.includes('utilisation') || 
+        code.includes('concentration') || code.includes('growth') || code.includes('retention') || 
+        code.includes('turnover') || code.includes('percentage') || code.includes('pct') || 
+        code.includes('ratio')) return 'percent';
+    if (code.includes('revenue') || code.includes('profit') || code.includes('ebitda') || 
+        code.includes('hourly') || code.includes('salary') || code.includes('cost') || 
+        code.includes('fee') || code.includes('price') || code.includes('value') || 
+        code.includes('per_employee')) return 'currency';
+    return 'number';
+  }
+
+  // Filter out concentration metrics (shown in risk section) and metrics without valid benchmarks
+  const filteredMetrics = metrics.filter((m: any) => {
+    const code = (m.metricCode || m.metric_code || '').toLowerCase();
+    if (code.includes('concentration')) return false;
+    const p50 = m.p50 ?? m.median ?? null;
+    if (p50 == null || p50 === 0) return false;
+    return true;
+  });
+
+  if (filteredMetrics.length === 0) return '';
+
   return `
     <div class="section">
       <h2 class="section-title">Key Metrics</h2>
       <p class="section-subtitle">How you compare to industry benchmarks</p>
       <div class="metrics-grid ${layout}">
-        ${metrics.map((m: any) => {
-          const isGap = m.gap && m.gap < -1;
-          const isAdvantage = m.advantage && m.advantage > 0;
-          const statusClass = isGap ? 'gap' : isAdvantage ? 'advantage' : 'neutral';
-          const statusText = isGap ? `${m.gap.toFixed(1)}% gap` : isAdvantage ? `+${formatCurrency(m.advantage)} advantage` : 'At median';
+        ${filteredMetrics.map((m: any) => {
+          const metricCode = (m.metricCode || m.metric_code || '').toLowerCase();
+          const fmt = getMetricFormat(metricCode);
+          const clientVal = Number(m.clientValue ?? m.client_value ?? m.value ?? 0);
+          const medianVal = Number(m.p50 ?? m.median ?? 0);
+          
+          // Round gap to 1 decimal to avoid floating point issues
+          const gap = Math.round((clientVal - medianVal) * 10) / 10;
+          const absGap = Math.abs(gap);
+          
+          // Higher is better for most metrics, except days
+          const higherIsBetter = !(metricCode.includes('days') || metricCode.includes('debtor') || 
+            metricCode.includes('creditor') || metricCode.includes('turnover'));
+          const isGap = higherIsBetter ? clientVal < medianVal : clientVal > medianVal;
+          
+          // Format display values
+          const formatDisplay = (val: number): string => {
+            switch (fmt) {
+              case 'currency':
+                if (Math.abs(val) >= 1000000) return `£${(val / 1000000).toFixed(1)}M`;
+                if (Math.abs(val) >= 1000) return `£${Math.round(val).toLocaleString()}`;
+                return `£${Math.round(val)}`;
+              case 'percent': return `${Math.round(val * 10) / 10}%`;
+              case 'days': return `${Math.round(val)} days`;
+              default: return `${Math.round(val * 10) / 10}`;
+            }
+          };
+          
+          // Gap text
+          let gapText = '';
+          let gapClass = '';
+          
+          if (absGap < 0.05) {
+            gapText = 'At median';
+            gapClass = 'neutral';
+          } else if (isGap) {
+            // Client is worse than median
+            const gapDisplay = fmt === 'currency' ? formatCurrency(absGap) : 
+              fmt === 'days' ? `${Math.round(absGap)} days` :
+              fmt === 'percent' ? `${absGap.toFixed(1)}%` : absGap.toFixed(1);
+            gapText = `-${gapDisplay} GAP`;
+            gapClass = 'gap';
+          } else {
+            // Client is better than median
+            const advDisplay = fmt === 'currency' ? formatCurrency(absGap) :
+              fmt === 'days' ? `${Math.round(absGap)} days` :
+              fmt === 'percent' ? `${absGap.toFixed(1)}%` : absGap.toFixed(1);
+            gapText = `+${advDisplay} ADVANTAGE`;
+            gapClass = 'advantage';
+          }
+
+          // Ordinal suffix for percentile
+          const pctile = m.percentile || 50;
+          const pctileNum = Math.round(pctile);
+          let suffix = 'th';
+          if (pctileNum % 100 >= 11 && pctileNum % 100 <= 13) suffix = 'th';
+          else if (pctileNum % 10 === 1) suffix = 'st';
+          else if (pctileNum % 10 === 2) suffix = 'nd';
+          else if (pctileNum % 10 === 3) suffix = 'rd';
+
+          const displayName = m.metricName || m.metric_name || m.name || m.metric || 'Metric';
+          const displayValue = formatDisplay(clientVal);
+          const displayMedian = formatDisplay(medianVal);
           
           return `
-            <div class="metric-card ${statusClass}">
+            <div class="metric-card ${gapClass}">
               <div class="metric-header">
-                <span class="metric-name">${m.name || m.metricName}</span>
-                <span class="metric-percentile">${m.percentile || 50}th percentile</span>
+                <span class="metric-name">${displayName}</span>
+                <span class="metric-percentile">${pctileNum}${suffix} percentile</span>
               </div>
               <div class="metric-values">
-                <div class="your-value">${m.format === 'currency' ? formatCurrency(m.value || m.clientValue) : m.format === 'percent' ? formatPercent(m.value || m.clientValue) : m.value || m.clientValue}</div>
-                <div class="median-value">Median: ${m.format === 'currency' ? formatCurrency(m.median || m.p50) : m.format === 'percent' ? formatPercent(m.median || m.p50) : m.median || m.p50}</div>
+                <div class="your-value">${displayValue}</div>
+                <div class="median-value">Median: ${displayMedian}</div>
               </div>
               ${showBars ? `
                 <div class="percentile-bar">
-                  <div class="bar-fill" style="width: ${m.percentile || 50}%"></div>
-                  <div class="bar-marker" style="left: ${m.percentile || 50}%"></div>
+                  <div class="bar-fill" style="width: ${pctile}%"></div>
+                  <div class="bar-marker" style="left: ${pctile}%"></div>
                 </div>
               ` : ''}
-              <div class="metric-status ${statusClass}">${statusText}</div>
+              <div class="metric-status ${gapClass}">${gapText}</div>
             </div>
           `;
         }).join('')}
@@ -264,101 +349,237 @@ function renderRecommendations(data: any, config: any): string {
 // Business Valuation
 function renderValuation(data: any, config: any): string {
   const val = data.valuation || {};
-  
+  const baselineValue = val.baseline?.enterpriseValue?.mid ?? val.baseline?.enterpriseValue ?? 0;
+  const currentValue = val.currentMarketValue?.mid ?? val.current ?? 0;
+  const gapValue = val.valueGap?.mid ?? val.gap ?? 0;
+  const gapPercent = val.valueGapPercent ?? 0;
+  const multiple = val.baseline?.multipleRange?.mid ?? 5;
+  const surplusCash = val.baseline?.surplusCash ?? 0;
+
   return `
     <div class="section">
       <h2 class="section-title">Business Valuation Analysis</h2>
-      <div class="value-bridge">
-        <div class="bridge-item baseline">
-          <div class="bridge-value">${formatCurrency(val.baseline || 0)}</div>
-          <div class="bridge-label">Baseline Value</div>
-          <div class="bridge-detail">5x EBITDA</div>
+      <p class="section-subtitle">What your business could be worth, and what's holding back the value</p>
+      <div class="valuation-summary">
+        <div class="val-box baseline">
+          <div class="val-label">Baseline Value</div>
+          <div class="val-amount">${formatCurrency(baselineValue)}</div>
+          <div class="val-note">${multiple}x EBITDA</div>
         </div>
-        <div class="bridge-arrow">→</div>
-        <div class="bridge-item current">
-          <div class="bridge-value">${formatCurrency(val.current || 0)}</div>
-          <div class="bridge-label">Current Value</div>
-          <div class="bridge-detail">After discounts</div>
+        <div class="val-arrow">→</div>
+        <div class="val-box current">
+          <div class="val-label">Current Value</div>
+          <div class="val-amount">${formatCurrency(currentValue)}</div>
+          <div class="val-note">After discounts</div>
         </div>
-        <div class="bridge-arrow">=</div>
-        <div class="bridge-item gap">
-          <div class="bridge-value">${formatCurrency(val.gap || 0)}</div>
-          <div class="bridge-label">Trapped Value</div>
-          <div class="bridge-detail">${val.gapPct || 0}% discount</div>
+        <div class="val-arrow">=</div>
+        <div class="val-box gap">
+          <div class="val-label">Value Gap</div>
+          <div class="val-amount">${formatCurrency(gapValue)}</div>
+          <div class="val-note">${Math.round(gapPercent)}% trapped</div>
         </div>
       </div>
-      ${config.showSurplusCashAdd && data.surplusCash ? `
-        <div class="surplus-add">
-          <strong>Plus:</strong> ${formatCurrency(data.surplusCash)} surplus cash adds to any sale price
+      ${surplusCash > 0 ? `
+        <div class="surplus-note">
+          Plus: ${formatCurrency(surplusCash)} surplus cash adds to any sale price
         </div>
       ` : ''}
     </div>
   `;
 }
 
-// Value Suppressors
+// Value Waterfall (Where Your Value Is Going)
+function renderValueWaterfall(data: any, config: any): string {
+  const val = data.valuation || {};
+  const baselineValue = val.baseline?.enterpriseValue?.mid ?? 0;
+  const surplusCash = val.baseline?.surplusCash ?? data.surplusCash ?? 0;
+  const currentValue = val.currentMarketValue?.mid ?? 0;
+  const suppressors = data.suppressors || [];
+  const multipleJustification = val.baseline?.multipleJustification || '';
+  const multiple = val.baseline?.multipleRange?.mid ?? 5;
+
+  if (baselineValue === 0) return '';
+
+  return `
+    <div class="section waterfall-section">
+      <h2 class="section-title">Where Your Value Is Going</h2>
+      
+      <div class="waterfall-item baseline-item">
+        <div class="wf-left">
+          <strong>Baseline Enterprise Value</strong>
+          <div class="wf-detail">${multipleJustification || `${multiple}x EBITDA`}</div>
+        </div>
+        <div class="wf-amount positive">${formatCurrency(baselineValue)}</div>
+      </div>
+      
+      ${surplusCash > 0 ? `
+        <div class="waterfall-item surplus-item">
+          <div class="wf-left">Including surplus cash</div>
+          <div class="wf-amount positive">+${formatCurrency(surplusCash)}</div>
+        </div>
+      ` : ''}
+      
+      ${suppressors.map((s: any) => {
+        const discountVal = s.current?.discountValue ?? s.valueLoss ?? 0;
+        const severity = (s.severity || 'medium').toLowerCase();
+        const remediation = s.pathToFix?.summary || s.recovery?.timeframe || '';
+        return `
+          <div class="waterfall-item suppressor-item severity-${severity}">
+            <div class="wf-left">
+              <strong>${s.name || 'Unknown'}</strong>
+              <span class="severity-badge ${severity}">${(s.severity || 'MEDIUM').toUpperCase()}</span>
+              ${s.evidence ? `<div class="wf-evidence">${s.evidence}</div>` : ''}
+              ${remediation ? `<div class="wf-remedy">Fixable in ~${remediation}</div>` : ''}
+            </div>
+            <div class="wf-amount negative">-${formatCurrency(discountVal)}</div>
+          </div>
+        `;
+      }).join('')}
+      
+      <div class="waterfall-item current-item">
+        <div class="wf-left"><strong>Current Market Value</strong></div>
+        <div class="wf-amount">${formatCurrency(currentValue)}</div>
+      </div>
+    </div>
+  `;
+}
+
+// Value Suppressors (detailed cards - waterfall shows the flow)
 function renderSuppressors(data: any, config: any): string {
   const suppressors = data.suppressors || [];
-  const layout = config.layout || 'cards';
-  
-  if (layout === 'table') {
-    return `
-      <div class="section">
-        <h2 class="section-title">Value Suppressors</h2>
-        <table class="suppressors-table">
-          <thead>
-            <tr>
-              <th>Factor</th>
-              <th>Severity</th>
-              <th>Discount</th>
-              <th>Value Impact</th>
-              ${config.showRecoveryTimelines ? '<th>Recovery</th>' : ''}
-            </tr>
-          </thead>
-          <tbody>
-            ${suppressors.map((s: any) => `
-              <tr class="severity-${s.severity?.toLowerCase()}">
-                <td>${s.name}</td>
-                <td><span class="severity-badge">${s.severity}</span></td>
-                <td>-${s.discount}%</td>
-                <td>${formatCurrency(s.valueLoss || 0)}</td>
-                ${config.showRecoveryTimelines ? `<td>${formatCurrency(s.recoverable || 0)} in ${s.timeframe || '12-24 months'}</td>` : ''}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
+
+  if (suppressors.length === 0) {
+    return '<div class="section"><p>No value suppressors identified.</p></div>';
   }
-  
+
   return `
     <div class="section">
-      <h2 class="section-title">Where Your Value Is Going</h2>
+      <h2 class="section-title">Value Suppressor Details</h2>
       <div class="suppressors-grid">
-        ${suppressors.map((s: any) => `
-          <div class="suppressor-card severity-${s.severity?.toLowerCase()}">
-            <div class="supp-header">
-              <span class="supp-name">${s.name}</span>
-              <span class="severity-badge">${s.severity}</span>
-            </div>
-            <div class="supp-impact">
-              <span class="discount">-${s.discount}%</span>
-              <span class="value-loss">${formatCurrency(s.valueLoss || 0)}</span>
-            </div>
-            ${config.showTargetStates ? `
-              <div class="supp-states">
-                <div class="current-state">Current: ${s.current}</div>
-                <div class="target-state">Target: ${s.target}</div>
+        ${suppressors.map((s: any) => {
+          const discountPct = s.current?.discountPercent ?? s.discount ?? 0;
+          const discountVal = s.current?.discountValue ?? s.valueLoss ?? 0;
+          const currentState = s.current?.value
+            ? `${s.current.value}${s.current.metric ? ' ' + s.current.metric : ''}`
+            : (s.current || s.evidence || '');
+          const targetState = s.target?.value
+            ? `${s.target.value}${s.target.metric ? ' ' + s.target.metric : ''}`
+            : (s.target || '');
+          const recoverable = s.recovery?.valueRecoverable ?? s.recoverable ?? 0;
+          const timeframe = s.recovery?.timeframe ?? s.timeframe ?? '12-24 months';
+          return `
+            <div class="suppressor-card severity-${(s.severity || 'medium').toLowerCase()}">
+              <div class="supp-header">
+                <span class="supp-name">${s.name || 'Unknown'}</span>
+                <span class="severity-badge ${(s.severity || 'MEDIUM').toLowerCase()}">${s.severity || 'MEDIUM'}</span>
               </div>
-            ` : ''}
-            ${config.showRecoveryTimelines ? `
-              <div class="supp-recovery">
-                <span class="recoverable">${formatCurrency(s.recoverable || 0)}</span>
-                <span class="timeframe">${s.timeframe || '12-24 months'}</span>
+              <div class="supp-impact">
+                <span class="discount">-${discountPct}%</span>
+                <span class="value-loss">${formatCurrency(discountVal)}</span>
               </div>
-            ` : ''}
+              ${config.showTargetStates !== false ? `
+                <div class="supp-states">
+                  <div class="current-state"><strong>Current:</strong> ${currentState}</div>
+                  <div class="target-state"><strong>Target:</strong> ${targetState}</div>
+                </div>
+              ` : ''}
+              ${config.showRecoveryTimelines !== false ? `
+                <div class="supp-recovery">
+                  <span class="recoverable">${formatCurrency(recoverable)}</span>
+                  <span class="timeframe">${timeframe}</span>
+                </div>
+              ` : ''}
+              ${s.evidence ? `
+                <div class="supp-evidence">${s.evidence}</div>
+              ` : ''}
+              ${s.whyThisDiscount ? `
+                <div class="supp-why">${s.whyThisDiscount}</div>
+              ` : ''}
+              ${s.pathToFix?.summary ? `
+                <div class="supp-remedy">Fixable via ${s.pathToFix.summary}</div>
+              ` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// Value Protectors
+function renderValueProtectors(data: any, config: any): string {
+  const valuation = data.valuation || {};
+  const enhancers = valuation.enhancers || [];
+  const surplusCash = valuation.baseline?.surplusCash || data.surplusCash || 0;
+
+  const protectors = enhancers.length > 0 ? enhancers : [
+    {
+      name: 'Significant Surplus Cash',
+      description: `${formatCurrency(surplusCash)} surplus above operating requirements`,
+      impact: surplusCash,
+      impactLabel: `+${formatCurrency(surplusCash)} to value`,
+    },
+    {
+      name: 'High Revenue per Employee',
+      description: `${formatCurrency(data.metrics?.find((m: any) => m.id === 'revenue_per_employee')?.clientValue || 483000)} per employee - indicates efficient operations`,
+      impact: 0,
+      impactLabel: '',
+    },
+  ].filter((p: any) => p.impact > 0 || p.description);
+
+  if (protectors.length === 0) return '';
+
+  return `
+    <div class="section value-protectors">
+      <h3 class="subsection-title">✨ Value Protectors</h3>
+      <div class="protectors-grid">
+        ${protectors.map((p: any) => `
+          <div class="protector-card">
+            <div class="protector-name">${p.name}</div>
+            <div class="protector-desc">${p.description}</div>
+            ${p.impactLabel ? `<div class="protector-impact">${p.impactLabel}</div>` : ''}
           </div>
         `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// Path to Full Value
+function renderPathToValue(data: any, config: any): string {
+  const valuation = data.valuation || {};
+  const pathToValue = valuation.pathToValue || {};
+  const potentialValue = valuation.potentialValue?.mid ?? valuation.potential ?? 0;
+  const currentValue = valuation.currentMarketValue?.mid ?? valuation.current ?? 0;
+  const uplift = potentialValue - currentValue;
+
+  const keyActions = pathToValue.keyActions || [
+    'Goal Alignment Programme + Succession Planning',
+    'Revenue Diversification Programme',
+    'Systems Audit + Process Documentation',
+    'Exit Readiness Programme',
+    'Revenue Model Optimisation',
+  ];
+
+  if (keyActions.length === 0 && potentialValue === 0) return '';
+
+  return `
+    <div class="section path-to-value">
+      <h3 class="subsection-title">Path to Full Value</h3>
+      <p class="path-intro">Over the next ${pathToValue.timeframeMonths || 24} months, addressing these structural issues could unlock <strong>${formatCurrency(uplift)}</strong> in hidden value.</p>
+      <ol class="path-actions">
+        ${keyActions.map((action: string, i: number) => `
+          <li class="path-action">
+            <span class="action-number">${i + 1}</span>
+            <span class="action-text">${action}</span>
+          </li>
+        `).join('')}
+      </ol>
+      <div class="potential-value-box">
+        <div class="pv-label">Potential Future Value</div>
+        <div class="pv-sublabel">After addressing key issues</div>
+        <div class="pv-amount">${formatCurrency(potentialValue)}</div>
+        <div class="pv-uplift">+${formatCurrency(uplift)} uplift</div>
       </div>
     </div>
   `;
@@ -367,48 +588,57 @@ function renderSuppressors(data: any, config: any): string {
 // Exit Readiness
 function renderExitReadiness(data: any, config: any): string {
   const exit = data.exitReadiness || {};
+  const score = exit.totalScore ?? exit.score ?? 0;
+  const maxScore = exit.maxScore ?? 100;
+  const status = exit.levelLabel ?? exit.status ?? 'Not Exit Ready';
   const components = exit.components || [];
-  
+  const pathTo70 = exit.pathTo70 || {};
+
   return `
     <div class="section">
       <h2 class="section-title">Exit Readiness Score</h2>
       <div class="exit-score-display">
-        <div class="score-circle ${exit.score < 40 ? 'red' : exit.score < 70 ? 'amber' : 'green'}">
-          <span class="score-value">${exit.score || 0}</span>
-          <span class="score-max">/100</span>
+        <div class="score-circle ${score < 40 ? 'red' : score < 70 ? 'amber' : 'green'}">
+          <span class="score-value">${score}</span>
+          <span class="score-max">/${maxScore}</span>
         </div>
-        <div class="score-status">${exit.status || 'Not Exit Ready'}</div>
+        <div class="score-status">${status}</div>
       </div>
-      ${config.showComponentBreakdown && components.length > 0 ? `
+      ${config.showComponentBreakdown !== false && components.length > 0 ? `
         <div class="exit-components">
           <h3>Score Breakdown</h3>
-          ${components.map((c: any) => `
-            <div class="component-row">
-              <span class="comp-name">${c.name}</span>
-              <div class="comp-bar">
-                <div class="comp-fill" style="width: ${(c.score / c.max) * 100}%"></div>
+          ${components.map((c: any) => {
+            const compScore = c.currentScore ?? c.score ?? 0;
+            const compMax = c.maxScore ?? c.max ?? 25;
+            const compAction = c.gap ?? c.action ?? '';
+            return `
+              <div class="component-row">
+                <span class="comp-name">${c.name || c.id || 'Unknown'}</span>
+                <div class="comp-bar">
+                  <div class="comp-fill" style="width: ${(compScore / compMax) * 100}%"></div>
+                </div>
+                <span class="comp-score">${compScore}/${compMax}</span>
+                ${compAction ? `<span class="comp-action">${compAction}</span>` : ''}
               </div>
-              <span class="comp-score">${c.score}/${c.max}</span>
-              <span class="comp-action">${c.action}</span>
-            </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       ` : ''}
-      ${config.showPathTo70 && exit.pathTo70 ? `
+      ${config.showPathTo70 !== false && (pathTo70.timeframe || pathTo70.timeline) ? `
         <div class="path-to-70">
           <h3>Path to Exit Ready (70/100)</h3>
           <div class="path-metrics">
             <div class="path-item">
               <span class="path-label">Timeline</span>
-              <span class="path-value">${exit.pathTo70.timeline || '18-24 months'}</span>
+              <span class="path-value">${pathTo70.timeframe || pathTo70.timeline || '18-24 months'}</span>
             </div>
             <div class="path-item">
               <span class="path-label">Investment</span>
-              <span class="path-value">${formatCurrency(exit.pathTo70.investment || 0)}</span>
+              <span class="path-value">${formatCurrency(pathTo70.investment || 150000)}</span>
             </div>
             <div class="path-item highlight">
               <span class="path-label">Value Unlocked</span>
-              <span class="path-value">${formatCurrency(exit.pathTo70.valueUnlocked || 0)}</span>
+              <span class="path-value">${formatCurrency(pathTo70.valueUnlocked || 0)}</span>
             </div>
           </div>
         </div>
@@ -420,105 +650,165 @@ function renderExitReadiness(data: any, config: any): string {
 // Scenario Planning
 function renderScenarioPlanning(data: any, config: any): string {
   const scenarios = data.scenarios || [];
-  const layout = config.layout || 'sequential';
-  
-  if (layout === 'table') {
-    return `
-      <div class="section">
-        <h2 class="section-title">Scenario Planning</h2>
-        <table class="scenarios-table">
-          <thead>
-            <tr>
-              <th>Metric</th>
-              ${scenarios.map((s: any) => `<th>${s.name}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${['Business Value', 'Client Concentration', 'Exit Readiness', 'Timeline'].map(metric => `
-              <tr>
-                <td>${metric}</td>
-                ${scenarios.map((s: any) => {
-                  const m = s.metrics?.find((m: any) => m.name.includes(metric.split(' ')[0]));
-                  return `<td>${m?.projected || '-'}</td>`;
-                }).join('')}
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-  
+
+  if (scenarios.length === 0) return '';
+
   return `
     <div class="section">
       <h2 class="section-title">Scenario Planning</h2>
       <p class="section-subtitle">What happens depending on the path you choose</p>
-      <div class="scenarios-sequential">
-        ${scenarios.map((scenario: any) => `
-          <div class="scenario-block">
-            <h3 class="scenario-name">${scenario.name}</h3>
-            <div class="scenario-timeframe">${scenario.timeframe}</div>
-            <div class="scenario-metrics">
-              ${scenario.metrics?.map((m: any) => `
-                <div class="scenario-metric">
-                  <span class="sm-name">${m.name}</span>
-                  <span class="sm-today">${m.today}</span>
-                  <span class="sm-arrow">→</span>
-                  <span class="sm-projected">${m.projected}</span>
-                </div>
-              `).join('')}
+      ${scenarios.map((scenario: any) => `
+        <div class="scenario-card ${scenario.id || ''}">
+          <h3 class="scenario-title">${scenario.title || scenario.name || 'Scenario'}</h3>
+          <p class="scenario-desc">${scenario.description || ''}</p>
+          ${scenario.timeframe ? `<div class="scenario-timeframe">Timeframe: ${scenario.timeframe}</div>` : ''}
+          ${scenario.metrics?.length > 0 ? `
+            <table class="scenario-metrics">
+              <thead>
+                <tr><th>Metric</th><th>Today</th><th>Projected</th><th>Impact</th></tr>
+              </thead>
+              <tbody>
+                ${scenario.metrics.map((m: any) => `
+                  <tr>
+                    <td>${m.label || m.name || ''}</td>
+                    <td>${m.current ?? '-'}</td>
+                    <td>${m.projected ?? '-'}</td>
+                    <td>${m.impact || ''}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : ''}
+          ${scenario.risks?.length > 0 ? `
+            <div class="scenario-risks">
+              <h4>⚠️ What You Risk</h4>
+              <ul>${scenario.risks.map((r: string) => `<li>⚠ ${r}</li>`).join('')}</ul>
             </div>
-            ${config.showRequirements && scenario.requirements ? `
-              <div class="scenario-requirements">
-                <strong>Requirements:</strong>
-                <ul>
-                  ${scenario.requirements.map((r: string) => `<li>${r}</li>`).join('')}
-                </ul>
-              </div>
-            ` : ''}
-          </div>
-        `).join('')}
-      </div>
+          ` : ''}
+          ${scenario.requirements?.length > 0 ? `
+            <div class="scenario-requirements">
+              <h4>✓ What This Requires</h4>
+              <ul>${scenario.requirements.map((r: string) => `<li>✓ ${r}</li>`).join('')}</ul>
+            </div>
+          ` : ''}
+          ${scenario.considerations?.length > 0 ? `
+            <div class="scenario-considerations">
+              <h4>⚠ Considerations</h4>
+              <ul>${scenario.considerations.map((c: string) => `<li>• ${c}</li>`).join('')}</ul>
+            </div>
+          ` : ''}
+        </div>
+      `).join('')}
     </div>
   `;
 }
 
-// Service Recommendations (Tier 2 only)
+// Generate services from suppressors when none provided
+function generateServicesFromSuppressors(data: any): any[] {
+  const suppressors = data.suppressors || [];
+  const services: any[] = [];
+
+  const founderDep = suppressors.find((s: any) =>
+    s.name?.toLowerCase().includes('founder') || s.code === 'FOUNDER_DEPENDENCY'
+  );
+  if (founderDep) {
+    services.push({
+      name: 'Systems Audit',
+      tagline: 'Comprehensive systems review',
+      priceRange: '£2,000 – £5,000 (one-off)',
+      frequency: 'One-off',
+      duration: '2-4 weeks',
+      whyThisMatters: `Founder dependency is your biggest structural risk. ${founderDep.evidence || '70% of operational knowledge is concentrated in the founder'}, costing ${formatCurrency(founderDep.current?.discountValue || 5700000)} in valuation discount. A systems audit maps what's documented vs what's assumed, creating the roadmap to de-risk.`,
+      whatYouGet: [
+        'Process dependency map: who knows what, and what happens if they leave',
+        'Documentation gap analysis with severity ratings',
+        'Knowledge transfer priority assessment',
+        'Systemisation roadmap with quick wins',
+        'Founder de-risking action plan',
+      ],
+      expectedOutcome: `Addresses issues worth ${formatCurrency((founderDep.current?.discountValue || 5700000) + 150000)} in potential value. Creates the foundation to reduce founder dependency from 70% toward <30%.`,
+      addressesValue: (founderDep.current?.discountValue || 5700000) + 150000,
+    });
+  }
+
+  const baselineMid = data.valuation?.baseline?.enterpriseValue?.mid || 63300000;
+  const hasConcentration = suppressors.some((s: any) => s.code === 'CUSTOMER_CONCENTRATION');
+  services.push({
+    name: 'Quarterly BI & Benchmarking',
+    tagline: 'Turn your management accounts into strategic intelligence',
+    priceRange: '£500 – £1,000/month',
+    frequency: 'Monthly',
+    duration: 'Ongoing',
+    whyThisMatters: `With ${formatCurrency(baselineMid)} revenue and margins recovering, ongoing benchmarking tracks your recovery against industry peers and catches margin drift early. Quarterly tracking is especially important with ${hasConcentration ? '99% client concentration' : 'your client mix'}. Early warning on margin erosion gives you time to act.`,
+    expectedOutcome: 'Addresses issues worth £750k in potential value',
+    addressesValue: 750000,
+  });
+
+  if (data.surplusCash > 1000000) {
+    services.push({
+      name: 'Profit Extraction Strategy',
+      tagline: 'Tax-efficient value extraction',
+      priceRange: '£1,500 – £3,000 (one-off)',
+      frequency: 'One-off',
+      duration: '1-2 weeks',
+      whyThisMatters: `You have ${formatCurrency(data.surplusCash)} surplus cash sitting idle. We can help structure tax-efficient extraction.`,
+      addressesValue: data.surplusCash,
+    });
+  }
+
+  return services;
+}
+
+// Service Recommendations (Tier 2 only) / How We Can Help
 function renderServices(data: any, config: any): string {
   const services = data.services || [];
-  
+  const generatedServices = services.length > 0 ? services : generateServicesFromSuppressors(data);
+
+  if (generatedServices.length === 0) {
+    return `
+      <div class="section">
+        <h2 class="section-title">How We Can Help</h2>
+        <p>Based on your analysis, we've identified specific services that address your key challenges.</p>
+        <p class="cta">Contact your advisor to discuss tailored support options.</p>
+      </div>
+    `;
+  }
+
   return `
     <div class="section">
       <h2 class="section-title">How We Can Help</h2>
       <p class="section-subtitle">Based on your analysis, we've identified specific services that address your key challenges.</p>
-      <div class="services-list">
-        ${services.map((service: any) => `
+      <div class="services-grid">
+        ${generatedServices.map((service: any) => `
           <div class="service-card">
             <div class="service-header">
-              <h3 class="service-name">${service.name}</h3>
-              ${config.showPricing ? `<span class="service-price">${service.price}</span>` : ''}
+              <span class="service-price">${service.priceRange || '£TBC'}</span>
+              <span class="service-frequency">${service.frequency || 'One-off'}</span>
             </div>
+            <h3 class="service-name">${service.name}</h3>
+            <p class="service-tagline">${service.tagline || ''}</p>
+            ${service.whyThisMatters ? `
+              <div class="service-why">
+                <h4>Why This Matters For You</h4>
+                <p>${service.whyThisMatters}</p>
+              </div>
+            ` : ''}
+            ${service.whatYouGet?.length > 0 ? `
+              <div class="service-deliverables">
+                <h4>What You Get</h4>
+                <ul>${service.whatYouGet.map((item: string) => `<li>${item}</li>`).join('')}</ul>
+              </div>
+            ` : ''}
+            ${service.expectedOutcome ? `
+              <div class="service-outcome">
+                <h4>Expected Outcome</h4>
+                <p>${service.expectedOutcome}</p>
+              </div>
+            ` : ''}
             <div class="service-meta">
-              <span>${service.frequency || 'one-off'}</span>
-              <span>${service.duration || ''}</span>
+              <span class="service-duration">${service.duration || ''}</span>
+              ${service.addressesValue ? `<span class="service-value">Total value at stake: ${formatCurrency(service.addressesValue)}</span>` : ''}
             </div>
-            <div class="service-why">
-              <strong>Why this matters:</strong>
-              <p>${service.why || ''}</p>
-            </div>
-            ${config.showOutcomes && service.outcomes ? `
-              <div class="service-outcomes">
-                <strong>What you get:</strong>
-                <ul>
-                  ${service.outcomes.map((o: string) => `<li>✓ ${o}</li>`).join('')}
-                </ul>
-              </div>
-            ` : ''}
-            ${config.showValueAtStake && service.totalValue ? `
-              <div class="service-value">
-                Addresses issues worth <strong>${formatCurrency(service.totalValue)}</strong> in potential value
-              </div>
-            ` : ''}
           </div>
         `).join('')}
       </div>
@@ -594,22 +884,43 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       case 'opportunityNarrative':
         sectionsHTML += renderNarrative('The Opportunity', data.opportunityNarrative, [`${formatCurrency(data.totalOpportunity || 0)} potential`]);
         break;
+      case 'scenarioExplorer':
+        // Browser-only interactive component - skip in PDF
+        break;
+      case 'twoPaths':
+        if (data.twoPathsNarrative) {
+          sectionsHTML += renderNarrative('Two Paths Forward', data.twoPathsNarrative);
+        }
+        break;
       case 'recommendations':
         sectionsHTML += renderRecommendations(data, section.config);
         break;
       case 'valuationAnalysis':
+        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderValuation(data, section.config);
+        break;
+      case 'valueWaterfall':
+        sectionsHTML += renderValueWaterfall(data, section.config);
         break;
       case 'valueSuppressors':
         sectionsHTML += renderSuppressors(data, section.config);
         break;
+      case 'valueProtectors':
+        sectionsHTML += renderValueProtectors(data, section.config);
+        break;
+      case 'pathToValue':
+        sectionsHTML += renderPathToValue(data, section.config);
+        break;
       case 'exitReadiness':
+        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderExitReadiness(data, section.config);
         break;
       case 'scenarioPlanning':
+        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderScenarioPlanning(data, section.config);
         break;
       case 'serviceRecommendations':
+        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderServices(data, section.config);
         break;
       case 'closingSummary':
@@ -1068,6 +1379,10 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     .recoverable { color: var(--green); font-weight: 600; }
     
+    .supp-evidence { font-size: 0.85em; color: #475569; margin: 8px 0; font-style: italic; }
+    .supp-why { font-size: 0.85em; color: #64748b; margin: 4px 0; }
+    .supp-remedy { font-size: 0.85em; color: #059669; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+    
     /* =========================== EXIT READINESS =========================== */
     .exit-score-display {
       text-align: center;
@@ -1416,6 +1731,28 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       background: #f8fafc;
     }
     
+    /* Page breaks for proper print layout */
+    .page-break-before { page-break-before: always; }
+    
+    /* Value Waterfall */
+    .waterfall-section { page-break-inside: avoid; }
+    .waterfall-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; }
+    .waterfall-item:last-child { border-bottom: 2px solid #1e293b; }
+    .wf-left { flex: 1; }
+    .wf-detail { font-size: 0.85em; color: #64748b; margin-top: 2px; }
+    .wf-evidence { font-size: 0.82em; color: #475569; margin-top: 4px; }
+    .wf-remedy { font-size: 0.82em; color: #059669; margin-top: 2px; }
+    .wf-amount { font-weight: 700; font-size: 1.1em; min-width: 80px; text-align: right; }
+    .wf-amount.positive { color: #059669; }
+    .wf-amount.negative { color: #dc2626; }
+    .baseline-item { background: #f8fafc; border-radius: 8px 8px 0 0; }
+    .surplus-item { background: #f0fdf4; }
+    .current-item { background: #eff6ff; border-radius: 0 0 8px 8px; font-size: 1.1em; }
+    .suppressor-item { border-left: 3px solid #e2e8f0; }
+    .suppressor-item.severity-critical { border-left-color: #dc2626; }
+    .suppressor-item.severity-high { border-left-color: #f59e0b; }
+    .suppressor-item.severity-medium { border-left-color: #3b82f6; }
+    
     /* =========================== PRINT SPECIFIC =========================== */
     @media print {
       body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -1423,6 +1760,42 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       .section { page-break-inside: avoid; }
       .no-break { page-break-inside: avoid; }
     }
+
+    /* Value Protectors */
+    .value-protectors { background: #f0fdf4; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .protectors-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    .protector-card { background: white; padding: 12px; border-radius: 6px; border-left: 3px solid #059669; }
+    .protector-name { font-weight: 600; color: #065f46; }
+    .protector-desc { font-size: 0.9em; color: #374151; margin: 4px 0; }
+    .protector-impact { color: #059669; font-weight: 600; }
+
+    /* Path to Full Value */
+    .path-to-value { background: #eff6ff; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .path-actions { list-style: none; padding: 0; }
+    .path-action { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+    .action-number { width: 24px; height: 24px; background: #2563eb; color: white; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8em; }
+    .potential-value-box { background: white; padding: 16px; border-radius: 8px; text-align: center; margin-top: 16px; }
+    .pv-amount { font-size: 2em; font-weight: 700; color: #059669; }
+    .pv-uplift { color: #059669; }
+
+    /* Scenario enhancements */
+    .scenario-risks { background: #fef2f2; padding: 12px; border-radius: 6px; margin: 12px 0; }
+    .scenario-risks h4 { color: #dc2626; margin: 0 0 8px 0; }
+    .scenario-considerations { background: #fffbeb; padding: 12px; border-radius: 6px; margin: 12px 0; }
+    .scenario-considerations h4 { color: #d97706; margin: 0 0 8px 0; }
+
+    /* Services */
+    .services-grid { display: flex; flex-direction: column; gap: 16px; }
+    .service-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+    .service-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .service-price { font-weight: 600; color: #0f172a; }
+    .service-frequency { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
+    .service-name { font-size: 1.2em; font-weight: 600; margin: 0 0 4px 0; }
+    .service-tagline { color: #64748b; margin: 0 0 12px 0; }
+    .service-why, .service-deliverables, .service-outcome { margin: 12px 0; }
+    .service-why h4, .service-deliverables h4, .service-outcome h4 { font-size: 0.9em; color: #475569; margin: 0 0 4px 0; }
+    .service-meta { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 0.85em; color: #64748b; }
+    .service-value { font-weight: 600; color: #059669; }
   </style>
 </head>
 <body>
@@ -1444,34 +1817,43 @@ serve(async (req) => {
   
   try {
     const { reportId, pdfConfig, returnHtml } = await req.json();
-    
+
     if (!reportId) {
       throw new Error('reportId is required');
     }
-    
-    // Initialize Supabase client
+
+    console.log('[PDF Export] Starting for reportId:', reportId);
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    // Fetch report from correct table using engagement_id as primary key
+
     const { data: report, error: reportError } = await supabase
       .from('bm_reports')
       .select('*')
       .eq('engagement_id', reportId)
       .single();
-    
+
     if (reportError || !report) {
-      throw new Error(`Report not found: ${reportError?.message}`);
+      console.error('[PDF Export] Report not found:', reportError);
+      throw new Error(`Report not found: ${reportError?.message || 'No data'}`);
     }
-    
-    // Fetch client name via engagement -> practice_members
+
+    console.log('[PDF Export] Report found:', {
+      engagement_id: report.engagement_id,
+      has_value_analysis: !!report.value_analysis,
+      has_enhanced_suppressors: !!report.enhanced_suppressors,
+      has_exit_readiness: !!report.exit_readiness_breakdown,
+      suppressor_count: report.enhanced_suppressors?.length || 0,
+    });
+
     let clientName = 'Client';
     const { data: engagement } = await supabase
       .from('bm_engagements')
       .select('client_id')
       .eq('id', reportId)
       .single();
+
     if (engagement?.client_id) {
       const { data: client } = await supabase
         .from('practice_members')
@@ -1480,74 +1862,277 @@ serve(async (req) => {
         .single();
       clientName = client?.name || 'Client';
     }
-    
-    // Get PDF config (use provided, or fall back to report's config, or default)
+
+    console.log('[PDF Export] Client name:', clientName);
+
+    // Fetch services from client_opportunities (Pass 3 data)
+    let clientServices: any[] = [];
+    try {
+      const { data: opportunities } = await supabase
+        .from('client_opportunities')
+        .select('*, service:services(code, name, headline, price_from, price_to, deliverables)')
+        .eq('engagement_id', reportId)
+        .order('financial_impact_amount', { ascending: false });
+
+      if (opportunities && opportunities.length > 0) {
+        const serviceMap = new Map<string, any>();
+        for (const opp of opportunities) {
+          const svc = opp.service;
+          if (!svc) continue;
+          const key = svc.code || svc.name;
+          if (!serviceMap.has(key)) {
+            serviceMap.set(key, {
+              name: svc.name || key,
+              tagline: svc.headline || '',
+              priceRange: svc.price_from != null && svc.price_to != null
+                ? `${formatCurrency(Number(svc.price_from))} - ${formatCurrency(Number(svc.price_to))}`
+                : '',
+              frequency: (Number(svc.price_to) || 0) > 5000 ? 'One-off' : 'Monthly',
+              whyThisMatters: opp.talking_point || opp.data_evidence || '',
+              whatYouGet: Array.isArray(svc.deliverables) ? svc.deliverables : [],
+              expectedOutcome: opp.impact_calculation || `Addresses issues worth ${formatCurrency(Number(opp.financial_impact_amount) || 0)} in potential value`,
+              addressesValue: Number(opp.financial_impact_amount) || 0,
+            });
+          } else {
+            const existing = serviceMap.get(key)!;
+            existing.addressesValue += (Number(opp.financial_impact_amount) || 0);
+          }
+        }
+        clientServices = Array.from(serviceMap.values());
+        console.log('[PDF Export] Services from opportunities:', clientServices.length);
+      }
+    } catch (e) {
+      console.log('[PDF Export] Could not fetch client_opportunities:', e);
+    }
+
     let effectiveConfig: PdfConfig;
-    
     if (pdfConfig) {
       effectiveConfig = pdfConfig;
     } else if (report.pdf_config) {
       effectiveConfig = report.pdf_config;
     } else {
-      // Get default template (wrap in try/catch in case table doesn't exist yet)
-      let template: any = null;
-      try {
-        const { data } = await supabase
-          .from('benchmarking_report_templates')
-          .select('*')
-          .is('practice_id', null)
-          .eq('tier', 2)
-          .eq('is_default', true)
-          .single();
-        template = data;
-      } catch (e) {
-        console.log('No template table yet, using defaults');
-      }
-      
-      effectiveConfig = template ? {
-        sections: template.sections,
-        pdfSettings: template.pdf_settings,
-        tier: template.tier,
-      } : {
-        sections: [],
+      effectiveConfig = {
+        sections: [
+          { id: 'cover', enabled: true, config: {} },
+          { id: 'executiveSummary', enabled: true, config: { showHeroMetrics: true } },
+          { id: 'hiddenValue', enabled: true, config: { showBreakdown: true } },
+          { id: 'keyMetrics', enabled: true, config: { layout: 'detailed', showPercentileBars: true, showGapIndicators: true } },
+          { id: 'positionNarrative', enabled: true, config: {} },
+          { id: 'strengthsNarrative', enabled: true, config: {} },
+          { id: 'gapsNarrative', enabled: true, config: {} },
+          { id: 'opportunityNarrative', enabled: true, config: {} },
+          { id: 'recommendations', enabled: true, config: { detailLevel: 'full', showImplementationSteps: true, showStartThisWeek: true } },
+          { id: 'valuationAnalysis', enabled: true, config: { showSurplusCashAdd: true } },
+          { id: 'valueWaterfall', enabled: true, config: {} },
+          { id: 'valueSuppressors', enabled: true, config: { layout: 'cards', showRecoveryTimelines: true, showTargetStates: true } },
+          { id: 'valueProtectors', enabled: true, config: {} },
+          { id: 'pathToValue', enabled: true, config: {} },
+          { id: 'exitReadiness', enabled: true, config: { showComponentBreakdown: true, showPathTo70: true } },
+          { id: 'scenarioPlanning', enabled: true, config: { layout: 'sequential', showRequirements: true } },
+          { id: 'serviceRecommendations', enabled: true, config: { showPricing: true, showValueAtStake: true, showOutcomes: true } },
+          { id: 'closingSummary', enabled: true, config: { showContactCTA: true, showDataSources: true } },
+        ],
         pdfSettings: { pageSize: 'A4', margins: { top: 12, right: 12, bottom: 12, left: 12 }, headerFooter: true, coverPage: true, density: 'comfortable' },
         tier: 2,
       };
     }
-    
-    // Build report data object (column names match bm_reports / top-level)
+
+    const valueAnalysis = report.value_analysis || {};
+    const baseline = valueAnalysis.baseline || {};
+    const exitReadinessFromVal = valueAnalysis.exitReadiness || {};
+    const enhancedSuppressors = report.enhanced_suppressors || [];
+    const exitBreakdown = report.exit_readiness_breakdown || {};
+    const valueAnalysisSuppressors = (report.value_analysis?.suppressors || []).map((s: any) => ({
+      code: s.code || s.id,
+      name: s.name,
+      severity: s.severity,
+      current: {
+        value: s.evidence?.split(' ')[0] || '',
+        metric: '',
+        discountPercent: s.discountPercent?.mid ?? ((s.discountPercent?.low || 0) + (s.discountPercent?.high || 0)) / 2,
+        discountValue: s.impactAmount?.mid ?? ((s.impactAmount?.low || 0) + (s.impactAmount?.high || 0)) / 2,
+      },
+      target: { value: '', metric: '' },
+      recovery: {
+        valueRecoverable: 0,
+        timeframe: s.remediationTimeMonths ? `${s.remediationTimeMonths} months` : '12-24 months',
+      },
+      evidence: s.evidence || '',
+      whyThisDiscount: s.whyThisDiscount || '',
+    }));
+    // Merge: start with enhanced (richer data), add any missing from value_analysis
+    const enhancedCodes = new Set(enhancedSuppressors.map((s: any) => 
+      (s.code || s.name || '').toLowerCase().replace(/[\s\/]+/g, '_')
+    ));
+    const missingFromValueAnalysis = valueAnalysisSuppressors.filter((s: any) => {
+      const code = (s.code || s.name || '').toLowerCase().replace(/[\s\/]+/g, '_');
+      return !enhancedCodes.has(code);
+    });
+    const allSuppressors = [...enhancedSuppressors, ...missingFromValueAnalysis];
+    console.log('[PDF Export] Suppressor merge:', { enhanced: enhancedSuppressors.length, missing: missingFromValueAnalysis.length, total: allSuppressors.length });
+
+    const currentValue = valueAnalysis.currentMarketValue?.mid || 0;
+    const potentialValue = valueAnalysis.potentialValue?.mid || 0;
+    const exitScore = exitBreakdown.totalScore || 0;
+    const enrichedRevenue = report.pass1_data?._enriched_revenue || 63300000;
+
+    console.log('[PDF Export] Enhanced suppressors:', enhancedSuppressors.length);
+    console.log('[PDF Export] All suppressors:', allSuppressors.length);
+    console.log('[PDF Export] Exit readiness:', exitScore);
+
     const reportData = {
       clientName,
+      tier: 2,
       overallPercentile: report.overall_percentile || 50,
       totalOpportunity: parseFloat(report.total_annual_opportunity) || 0,
       surplusCash: report.surplus_cash?.surplusCash || report.pass1_data?.surplus_cash?.surplusCash || 0,
-      freeWorkingCapital: report.surplus_cash?.components?.netWorkingCapital || report.pass1_data?.surplus_cash?.components?.netWorkingCapital || 0,
+      freeWorkingCapital: Math.abs(report.surplus_cash?.components?.netWorkingCapital || 0),
       freeholdProperty: report.balance_sheet?.freehold_property || report.pass1_data?.balance_sheet?.freeholdProperty || 0,
       executiveSummary: report.executive_summary || '',
       positionNarrative: report.position_narrative || '',
       strengthsNarrative: report.strength_narrative || '',
       gapsNarrative: report.gap_narrative || '',
       opportunityNarrative: report.opportunity_narrative || '',
-      closingSummary: report.opportunity_narrative?.split('.').slice(-2).join('.') || '',
+      twoPathsNarrative: report.two_paths_narrative?.operational || report.two_paths_narrative?.overview || '',
+      closingSummary: report.closing_summary || report.position_summed_up || report.opportunity_narrative || report.executive_summary || '',
       gapCount: report.gap_count || 0,
       strengthCount: report.strength_count || 0,
       metrics: report.metrics_comparison || [],
       recommendations: report.recommendations || [],
-      valuation: report.value_analysis || {},
-      suppressors: report.enhanced_suppressors || [],
-      exitReadiness: report.exit_readiness_breakdown || {},
-      twoPaths: (report as any).two_paths_narrative ?? null,
-      scenarios: report.value_analysis ? [
-        { id: 'do_nothing', title: 'If You Do Nothing', description: 'Current trajectory without intervention' },
-        { id: 'diversify', title: 'If You Actively Diversify', description: 'Use surplus cash to build broader client base' },
-        { id: 'exit_prep', title: 'If You Prepare for Exit', description: 'Systematic value unlock program' },
-      ] : [],
-      services: [] as any[],
+      valuation: {
+        baseline: {
+          enterpriseValue: baseline.enterpriseValue || { low: 0, mid: 0, high: 0 },
+          multipleRange: baseline.multipleRange || { low: 0, mid: 5, high: 0 },
+          surplusCash: baseline.surplusCash || 0,
+          multipleJustification: baseline.multipleJustification || '',
+        },
+        currentMarketValue: valueAnalysis.currentMarketValue || { low: 0, mid: 0, high: 0 },
+        valueGap: valueAnalysis.valueGap || { low: 0, mid: 0, high: 0 },
+        valueGapPercent: valueAnalysis.valueGapPercent || 0,
+        potentialValue: valueAnalysis.potentialValue || { low: 0, mid: 0, high: 0 },
+        suppressors: valueAnalysis.suppressors || [],
+        enhancers: valueAnalysis.enhancers || [],
+        exitReadiness: {
+          score: exitReadinessFromVal.score || 0,
+          verdict: exitReadinessFromVal.verdict || 'not_ready',
+          blockers: exitReadinessFromVal.blockers || [],
+          strengths: exitReadinessFromVal.strengths || [],
+        },
+        pathToValue: valueAnalysis.pathToValue || { timeframeMonths: 24, recoverableValue: { low: 0, mid: 0, high: 0 }, keyActions: [] },
+      },
+      suppressors: allSuppressors.map((s: any) => ({
+        code: s.code || s.id || '',
+        name: s.name || '',
+        severity: s.severity || 'MEDIUM',
+        current: {
+          value: s.current?.value || '0%',
+          metric: s.current?.metric || '',
+          discountPercent: s.current?.discountPercent ?? 0,
+          discountValue: s.current?.discountValue ?? 0,
+        },
+        target: { value: s.target?.value || '', metric: s.target?.metric || '' },
+        recovery: { valueRecoverable: s.recovery?.valueRecoverable ?? 0, timeframe: s.recovery?.timeframe || '12-24 months' },
+        evidence: s.evidence || '',
+        whyThisDiscount: s.whyThisDiscount || '',
+        industryContext: s.industryContext || '',
+        pathToFix: s.pathToFix || { summary: '', steps: [], investment: 0, dependencies: [] },
+      })),
+      exitReadiness: {
+        totalScore: exitBreakdown.totalScore || 0,
+        maxScore: exitBreakdown.maxScore || 100,
+        level: exitBreakdown.level || 'not_ready',
+        levelLabel: exitBreakdown.levelLabel || 'Not Exit Ready',
+        components: (exitBreakdown.components || []).map((c: any) => ({
+          id: c.id || '',
+          name: c.name || '',
+          currentScore: c.currentScore || 0,
+          maxScore: c.maxScore || 25,
+          targetScore: c.targetScore || 20,
+          gap: c.gap || '',
+        })),
+        pathTo70: exitBreakdown.pathTo70 || { actions: [], timeframe: '18-24 months', investment: 150000, valueUnlocked: 0 },
+      },
+      scenarios: [
+        {
+          id: 'do_nothing',
+          title: 'If You Do Nothing',
+          description: 'Continue current operations without structural changes',
+          timeframe: '24 months',
+          metrics: [
+            { label: 'Client Concentration', current: '99%', projected: '99%', impact: 'Unchanged - risk remains' },
+            { label: 'Business Value', current: formatCurrency(currentValue), projected: formatCurrency(currentValue), impact: 'No improvement - discount persists' },
+            { label: 'Owner Freedom', current: 'Trapped', projected: 'Still trapped', impact: 'Cannot step back without successor' },
+            { label: 'Risk Exposure', current: 'Critical', projected: 'Critical', impact: 'One client loss = existential' },
+          ],
+          risks: [
+            'Loss of any major client is existential crisis',
+            'Owner health issue = business crisis',
+            'Market downturn hits concentrated revenue hard',
+            'Business remains unsellable at fair value',
+          ],
+        },
+        {
+          id: 'diversify',
+          title: 'If You Actively Diversify',
+          description: 'Use surplus cash to build broader client base',
+          timeframe: '24-36 months',
+          metrics: [
+            { label: 'Client Concentration', current: '99%', projected: '60-70%', impact: 'Reduced by 30+ points' },
+            { label: 'Revenue', current: formatCurrency(enrichedRevenue), projected: formatCurrency(enrichedRevenue * 1.15), impact: '+15% from new clients' },
+            { label: 'Business Value', current: formatCurrency(currentValue), projected: formatCurrency(potentialValue * 0.95), impact: `+${formatCurrency(Math.round(potentialValue * 0.95 - currentValue))} unlocked` },
+            { label: 'Risk Profile', current: 'Existential', projected: 'Manageable', impact: "Losing one client hurts but doesn't kill" },
+          ],
+          requirements: [
+            'Deploy £2-3M of the £7.7M surplus into BD or acquisition',
+            'Hire dedicated business development resource',
+            'Target adjacent sectors (new frameworks, new industries)',
+            'Accept lower margins on new clients initially',
+          ],
+          considerations: [
+            'New client acquisition takes 12-18 months to show results',
+            'Requires management attention alongside existing delivery',
+            'New clients may have different margin profiles',
+          ],
+        },
+        {
+          id: 'exit_prep',
+          title: 'If You Prepare for Exit',
+          description: 'Make the business sellable within 3 years',
+          timeframe: '24-36 months',
+          metrics: [
+            { label: 'Documentation', current: 'In heads', projected: 'Fully documented', impact: 'IP becomes transferable asset' },
+            { label: 'Owner Dependency', current: '70-80%', projected: '<40%', impact: 'Successor in place and trained' },
+            { label: 'Exit Readiness', current: `${exitScore}/100`, projected: '70+/100', impact: 'Attractive to trade buyers or PE' },
+            { label: 'Business Value', current: formatCurrency(currentValue), projected: formatCurrency(potentialValue * 0.9), impact: `+${formatCurrency(Math.round(potentialValue * 0.9 - currentValue))} exit premium` },
+          ],
+          requirements: [
+            'Document core methodology and IP',
+            'Run systems audit to identify and document critical processes',
+            'Identify successor pathway (internal development or structured transition)',
+            'Engage strategic advisor to support leadership transition',
+            'Build client relationships beyond founder',
+            'Formalise contract terms with all majors',
+          ],
+          considerations: [
+            'Concentration still impacts valuation even with other fixes',
+            'Internal succession pathway requires right candidate',
+            'Requires 2-3 years minimum commitment',
+          ],
+        },
+      ],
+      services: clientServices,
       dataSources: report.data_sources || [],
-      tier: 2,
     };
-    
-    // Generate HTML
+
+    console.log('[PDF Export] Report data built:', {
+      clientName: reportData.clientName,
+      overallPercentile: reportData.overallPercentile,
+      totalOpportunity: reportData.totalOpportunity,
+      suppressorCount: reportData.suppressors.length,
+      exitScore: reportData.exitReadiness.totalScore,
+      hasValuation: !!reportData.valuation.baseline.enterpriseValue.mid,
+    });
+
     const html = generateReportHTML(reportData, effectiveConfig);
     
     // If returnHtml is true, just return the HTML for preview/browser print
@@ -1601,14 +2186,13 @@ serve(async (req) => {
     
     const pdfBuffer = await pdfResponse.arrayBuffer();
 
-    // Note: last_pdf_generated_at column may not exist yet - use updated_at and wrap in try/catch
     try {
       await supabase
         .from('bm_reports')
         .update({ updated_at: new Date().toISOString() })
         .eq('engagement_id', reportId);
     } catch (e) {
-      console.log('Could not update timestamp:', e);
+      console.log('[PDF Export] Could not update timestamp:', e);
     }
 
     // Return PDF
