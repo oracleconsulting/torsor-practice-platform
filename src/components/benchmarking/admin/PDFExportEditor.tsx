@@ -100,6 +100,15 @@ const SECTION_LIBRARY: Record<string, {
       { key: 'showBreakdown', label: 'Show component breakdown', type: 'checkbox', default: true },
     ],
   },
+  surplusCashBreakdown: {
+    id: 'surplusCashBreakdown',
+    name: 'Surplus Cash Breakdown',
+    description: 'Detailed cash waterfall showing how surplus is calculated',
+    icon: DollarSign,
+    category: 'analysis',
+    required: false,
+    tier2Only: true,
+  },
   keyMetrics: {
     id: 'keyMetrics',
     name: 'Key Metrics',
@@ -350,6 +359,7 @@ const DEFAULT_TIER2_SECTIONS: SectionConfig[] = [
   { id: 'cover', enabled: true, config: {} },
   { id: 'executiveSummary', enabled: true, config: { showHeroMetrics: true } },
   { id: 'hiddenValue', enabled: true, config: { showBreakdown: true } },
+  { id: 'surplusCashBreakdown', enabled: true, config: {} },
   { id: 'keyMetrics', enabled: true, config: { layout: 'full', showPercentileBars: true, showGapIndicators: true } },
   { id: 'positionNarrative', enabled: true, config: {} },
   { id: 'strengthsNarrative', enabled: true, config: {} },

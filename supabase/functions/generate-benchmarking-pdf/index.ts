@@ -62,6 +62,60 @@ function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
 
+// Normalize any suppressor to a common display format (handles enhanced + value_analysis structures)
+function normalizeSuppressor(s: any): { name: string; severity: string; evidence: string; whyThisDiscount: string; currentLabel: string; targetLabel: string; discountPercent: number; discountValue: number; recoveryValue: number; recoveryTimeframe: string; pathToFixSummary: string } {
+  // Already in enhanced format
+  if (s.current && typeof s.current === 'object' && (s.current.value !== undefined || s.current.discountValue !== undefined)) {
+    const currVal = s.current.value;
+    const currMetric = s.current.metric || '';
+    const targVal = s.target?.value;
+    const targMetric = s.target?.metric || '';
+    return {
+      name: s.name || 'Unknown',
+      severity: (s.severity || 'medium').toUpperCase(),
+      evidence: s.evidence || '',
+      whyThisDiscount: s.whyThisDiscount || '',
+      currentLabel: (typeof currVal === 'string' || typeof currVal === 'number' ? `${currVal} ${currMetric}`.trim() : currMetric || '—') || '—',
+      targetLabel: (targVal !== undefined && targVal !== null && typeof targVal !== 'object' ? `${targVal} ${targMetric}`.trim() : targMetric || '') || 'Improved',
+      discountPercent: s.current.discountPercent || 0,
+      discountValue: s.current.discountValue || 0,
+      recoveryValue: s.recovery?.valueRecoverable || 0,
+      recoveryTimeframe: s.recovery?.timeframe || '',
+      pathToFixSummary: s.pathToFix?.summary || '',
+    };
+  }
+  // Value analysis format
+  const midDiscount = s.discountPercent
+    ? (typeof s.discountPercent === 'object' ? ((s.discountPercent.low || 0) + (s.discountPercent.high || 0)) / 2 : s.discountPercent)
+    : 0;
+  const midImpact = s.impactAmount
+    ? (typeof s.impactAmount === 'object' ? ((s.impactAmount.low || 0) + (s.impactAmount.high || 0)) / 2 : s.impactAmount)
+    : 0;
+  return {
+    name: s.name || 'Unknown',
+    severity: (s.severity || 'medium').toUpperCase(),
+    evidence: s.evidence || '',
+    whyThisDiscount: s.whyThisDiscount || s.talkingPoint || '',
+    currentLabel: s.evidence || s.hvaValue || '—',
+    targetLabel: s.remediationService ? `Fixable via ${s.remediationService}` : '',
+    discountPercent: Math.round(midDiscount),
+    discountValue: Math.round(midImpact),
+    recoveryValue: 0,
+    recoveryTimeframe: s.remediationTimeMonths ? `${s.remediationTimeMonths} months` : '',
+    pathToFixSummary: s.remediationService || '',
+  };
+}
+
+function normalizeSuppressorKey(s: any): string {
+  const raw = (s.code || s.id || s.category || s.name || '').toLowerCase();
+  if (raw.includes('concentrat') || raw.includes('customer')) return 'concentration';
+  if (raw.includes('founder') || raw.includes('knowledge') || raw.includes('dependency')) return 'founder';
+  if (raw.includes('succession')) return 'succession';
+  if (raw.includes('predictab') || raw.includes('recurring') || raw.includes('revenue_predict')) return 'revenue_predictability';
+  if (raw.includes('document') || raw.includes('undocumented') || raw.includes('ip_process')) return 'documentation';
+  return raw.replace(/[\s\/&]+/g, '_');
+}
+
 // Cover Page
 function renderCover(data: any, config: any): string {
   return `
@@ -112,6 +166,61 @@ function renderExecutiveSummary(data: any, config: any): string {
         </div>
       ` : ''}
       <div class="narrative-text">${data.executiveSummary || ''}</div>
+    </div>
+  `;
+}
+
+// Surplus Cash Breakdown
+function renderSurplusCashBreakdown(data: any, config: any): string {
+  const sc = data.surplusCashBreakdown;
+  if (!sc || sc.actualCash == null) return '';
+
+  const c = sc.components || {};
+  const netWC = c.netWorkingCapital ?? 0;
+  const isNegativeWC = netWC < 0;
+
+  return `
+    <div class="section surplus-cash-section">
+      <div class="surplus-hero">
+        <h2>Surplus Cash Identified</h2>
+        <p class="surplus-subtitle">Cash above operating requirements</p>
+        <div class="surplus-amount">${formatCurrency(sc.surplusCash || 0)}</div>
+        <span class="surplus-pct">(${(sc.surplusAsPercentOfRevenue || 0).toFixed(1)}% of revenue)</span>
+        ${isNegativeWC ? `<div class="surplus-bonus">Bonus: Suppliers fund ${formatCurrency(Math.abs(netWC))} of your working capital</div>` : ''}
+      </div>
+
+      <table class="surplus-table">
+        <tbody>
+          <tr><td>Cash at bank</td><td class="amount">${formatCurrency(sc.actualCash)}</td></tr>
+          <tr><td>Less: 3-month operating buffer</td><td class="amount negative">(${formatCurrency(c.operatingBuffer || 0)})</td></tr>
+          <tr><td>Less: Working capital requirement</td><td class="amount negative">(${formatCurrency(c.workingCapitalRequirement || 0)})</td></tr>
+          <tr class="surplus-total"><td><strong>Surplus available</strong></td><td class="amount positive"><strong>${formatCurrency(sc.surplusCash || 0)}</strong></td></tr>
+        </tbody>
+      </table>
+
+      ${(c.debtors || c.creditors) ? `
+        <div class="wc-breakdown">
+          <h4>Working Capital Components</h4>
+          <table class="surplus-table small">
+            <tbody>
+              <tr><td>Debtors (cash owed to you)</td><td class="amount">+${formatCurrency(c.debtors || 0)}</td></tr>
+              <tr><td>Stock</td><td class="amount">+${formatCurrency(c.stock || 0)}</td></tr>
+              <tr><td>Creditors (you owe them)</td><td class="amount negative">-${formatCurrency(c.creditors || 0)}</td></tr>
+              <tr class="wc-total"><td>Net working capital</td><td class="amount ${netWC < 0 ? 'negative' : ''}">${netWC < 0 ? '-' : '+'}${formatCurrency(Math.abs(netWC))}</td></tr>
+            </tbody>
+          </table>
+          ${isNegativeWC ? `
+            <div class="wc-explanation">
+              <strong>Why negative is good:</strong> Your creditors (suppliers) are funding your operations. You collect from customers faster than you pay suppliers. This is free working capital.
+            </div>
+          ` : ''}
+        </div>
+      ` : ''}
+
+      <div class="surplus-methodology">
+        <strong>Methodology:</strong> ${sc.methodology || ''}<br>
+        <strong>Confidence:</strong> ${sc.confidence || 'medium'}
+      </div>
     </div>
   `;
 }
@@ -299,8 +408,8 @@ function renderNarrative(title: string, content: string, highlights?: string[]):
 function renderRecommendations(data: any, config: any): string {
   const recommendations = data.recommendations || [];
   const detailLevel = config.detailLevel || 'standard';
-  const showSteps = config.showImplementationSteps && detailLevel === 'full';
-  const showStartWeek = config.showStartThisWeek && detailLevel === 'full';
+  const showSteps = config.showImplementationSteps !== false && detailLevel === 'full';
+  const showStartWeek = config.showStartThisWeek !== false && detailLevel === 'full';
   
   return `
     <div class="section">
@@ -309,38 +418,48 @@ function renderRecommendations(data: any, config: any): string {
         Total Opportunity: <strong>${formatCurrency(data.totalOpportunity || 0)}</strong>
       </div>
       <div class="recommendations-list">
-        ${recommendations.map((rec: any, i: number) => `
+        ${recommendations.map((rec: any, i: number) => {
+          const steps = rec.implementationSteps || rec.howTo || [];
+          const quickWins = rec.quickWins || rec.startThisWeek || [];
+          const annualVal = rec.annualValue ?? rec.value;
+          return `
           <div class="recommendation-card">
             <div class="rec-header">
               <span class="rec-number">${i + 1}</span>
               <div class="rec-title">${rec.title}</div>
-              ${rec.value ? `<span class="rec-value">${formatCurrency(rec.value)}/yr</span>` : ''}
+              ${annualVal ? `<span class="rec-value">${formatCurrency(Number(annualVal))} <span class="rec-value-label">annual value</span></span>` : ''}
             </div>
             ${detailLevel !== 'summary' ? `
               <div class="rec-description">${rec.description || ''}</div>
               <div class="rec-meta">
-                <span class="effort-badge ${rec.effort?.toLowerCase()}">${rec.effort || 'Medium'}</span>
+                <span class="effort-badge ${(rec.effort || 'medium').toLowerCase()}">${rec.effort || 'Medium'}</span>
                 <span class="timeframe">${rec.timeframe || '12 months'}</span>
               </div>
             ` : ''}
-            ${showSteps && rec.howTo ? `
-              <div class="rec-steps">
+            ${steps.length > 0 ? `
+              <div class="rec-implementation">
                 <strong>How to implement:</strong>
-                <ul>
-                  ${rec.howTo.map((step: string) => `<li>${step}</li>`).join('')}
-                </ul>
+                <ol>
+                  ${steps.map((step: string) => `<li>${step}</li>`).join('')}
+                </ol>
               </div>
             ` : ''}
-            ${showStartWeek && rec.startThisWeek ? `
-              <div class="rec-immediate">
-                <strong>Start this week:</strong>
-                <ul>
-                  ${rec.startThisWeek.map((action: string) => `<li>→ ${action}</li>`).join('')}
-                </ul>
+            ${quickWins.length > 0 ? `
+              <div class="rec-quickwins">
+                <strong>⚡ START THIS WEEK</strong>
+                ${quickWins.map((w: string) => `<div class="quickwin-item">→ ${w}</div>`).join('')}
               </div>
+            ` : ''}
+            ${rec.whatWeCanHelp ? `
+              <div class="rec-help">
+                <strong>How we can help:</strong> ${rec.whatWeCanHelp}
+              </div>
+            ` : ''}
+            ${rec.linkedService ? `
+              <div class="rec-service">→ ${rec.linkedService}</div>
             ` : ''}
           </div>
-        `).join('')}
+        `; }).join('')}
       </div>
     </div>
   `;
@@ -420,18 +539,17 @@ function renderValueWaterfall(data: any, config: any): string {
       ` : ''}
       
       ${suppressors.map((s: any) => {
-        const discountVal = s.current?.discountValue ?? s.valueLoss ?? 0;
-        const severity = (s.severity || 'medium').toLowerCase();
-        const remediation = s.pathToFix?.summary || s.recovery?.timeframe || '';
+        const n = normalizeSuppressor(s);
+        const severity = n.severity.toLowerCase();
         return `
           <div class="waterfall-item suppressor-item severity-${severity}">
             <div class="wf-left">
-              <strong>${s.name || 'Unknown'}</strong>
-              <span class="severity-badge ${severity}">${(s.severity || 'MEDIUM').toUpperCase()}</span>
-              ${s.evidence ? `<div class="wf-evidence">${s.evidence}</div>` : ''}
-              ${remediation ? `<div class="wf-remedy">Fixable in ~${remediation}</div>` : ''}
+              <strong>${n.name}</strong>
+              <span class="severity-badge ${severity}">${n.severity}</span>
+              ${n.evidence ? `<div class="wf-evidence">${n.evidence}</div>` : ''}
+              ${n.pathToFixSummary ? `<div class="wf-remedy">Fixable via ${n.pathToFixSummary}</div>` : n.recoveryTimeframe ? `<div class="wf-remedy">Fixable in ~${n.recoveryTimeframe}</div>` : ''}
             </div>
-            <div class="wf-amount negative">-${formatCurrency(discountVal)}</div>
+            <div class="wf-amount negative">-${formatCurrency(n.discountValue)}</div>
           </div>
         `;
       }).join('')}
@@ -457,46 +575,38 @@ function renderSuppressors(data: any, config: any): string {
       <h2 class="section-title">Value Suppressor Details</h2>
       <div class="suppressors-grid">
         ${suppressors.map((s: any) => {
-          const discountPct = s.current?.discountPercent ?? s.discount ?? 0;
-          const discountVal = s.current?.discountValue ?? s.valueLoss ?? 0;
-          const currentState = s.current?.value
-            ? `${s.current.value}${s.current.metric ? ' ' + s.current.metric : ''}`
-            : (s.current || s.evidence || '');
-          const targetState = s.target?.value
-            ? `${s.target.value}${s.target.metric ? ' ' + s.target.metric : ''}`
-            : (s.target || '');
-          const recoverable = s.recovery?.valueRecoverable ?? s.recoverable ?? 0;
-          const timeframe = s.recovery?.timeframe ?? s.timeframe ?? '12-24 months';
+          const n = normalizeSuppressor(s);
+          const severity = n.severity.toLowerCase();
           return `
-            <div class="suppressor-card severity-${(s.severity || 'medium').toLowerCase()}">
+            <div class="suppressor-card severity-${severity}">
               <div class="supp-header">
-                <span class="supp-name">${s.name || 'Unknown'}</span>
-                <span class="severity-badge ${(s.severity || 'MEDIUM').toLowerCase()}">${s.severity || 'MEDIUM'}</span>
+                <span class="supp-name">${n.name}</span>
+                <span class="severity-badge ${severity}">${n.severity}</span>
               </div>
               <div class="supp-impact">
-                <span class="discount">-${discountPct}%</span>
-                <span class="value-loss">${formatCurrency(discountVal)}</span>
+                <span class="discount">-${n.discountPercent}%</span>
+                <span class="value-loss">${formatCurrency(n.discountValue)}</span>
               </div>
               ${config.showTargetStates !== false ? `
                 <div class="supp-states">
-                  <div class="current-state"><strong>Current:</strong> ${currentState}</div>
-                  <div class="target-state"><strong>Target:</strong> ${targetState}</div>
+                  <div class="current-state"><strong>Current:</strong> ${n.currentLabel}</div>
+                  ${n.targetLabel ? `<div class="target-state"><strong>Target:</strong> ${n.targetLabel}</div>` : ''}
                 </div>
               ` : ''}
-              ${config.showRecoveryTimelines !== false ? `
+              ${config.showRecoveryTimelines !== false && (n.recoveryValue > 0 || n.recoveryTimeframe) ? `
                 <div class="supp-recovery">
-                  <span class="recoverable">${formatCurrency(recoverable)}</span>
-                  <span class="timeframe">${timeframe}</span>
+                  <span class="recoverable">${n.recoveryValue > 0 ? formatCurrency(n.recoveryValue) : ''}</span>
+                  <span class="timeframe">${n.recoveryTimeframe || ''}</span>
                 </div>
               ` : ''}
-              ${s.evidence ? `
-                <div class="supp-evidence">${s.evidence}</div>
+              ${n.evidence ? `
+                <div class="supp-evidence">${n.evidence}</div>
               ` : ''}
-              ${s.whyThisDiscount ? `
-                <div class="supp-why">${s.whyThisDiscount}</div>
+              ${n.whyThisDiscount ? `
+                <div class="supp-why">${n.whyThisDiscount}</div>
               ` : ''}
-              ${s.pathToFix?.summary ? `
-                <div class="supp-remedy">Fixable via ${s.pathToFix.summary}</div>
+              ${n.pathToFixSummary ? `
+                <div class="supp-remedy">Fixable via ${n.pathToFixSummary}</div>
               ` : ''}
             </div>
           `;
@@ -515,17 +625,14 @@ function renderValueProtectors(data: any, config: any): string {
   const protectors = enhancers.length > 0 ? enhancers : [
     {
       name: 'Significant Surplus Cash',
-      description: `${formatCurrency(surplusCash)} surplus above operating requirements`,
-      impact: surplusCash,
-      impactLabel: `+${formatCurrency(surplusCash)} to value`,
+      evidence: `${formatCurrency(surplusCash)} surplus above operating requirements`,
+      value: surplusCash,
     },
     {
       name: 'High Revenue per Employee',
-      description: `${formatCurrency(data.metrics?.find((m: any) => m.id === 'revenue_per_employee')?.clientValue || 483000)} per employee - indicates efficient operations`,
-      impact: 0,
-      impactLabel: '',
+      evidence: `${formatCurrency(data.metrics?.find((m: any) => (m.metricCode || m.metric_code || m.id) === 'revenue_per_employee')?.clientValue || data.metrics?.find((m: any) => (m.metricCode || m.metric_code || '').includes('revenue'))?.clientValue || 483000)} per employee - indicates efficient operations`,
     },
-  ].filter((p: any) => p.impact > 0 || p.description);
+  ].filter((p: any) => (p.value || 0) > 0 || (p.evidence || p.description));
 
   if (protectors.length === 0) return '';
 
@@ -536,8 +643,8 @@ function renderValueProtectors(data: any, config: any): string {
         ${protectors.map((p: any) => `
           <div class="protector-card">
             <div class="protector-name">${p.name}</div>
-            <div class="protector-desc">${p.description}</div>
-            ${p.impactLabel ? `<div class="protector-impact">${p.impactLabel}</div>` : ''}
+            <div class="protector-desc">${p.evidence || p.description || ''}</div>
+            ${(p.value && p.value > 0) ? `<div class="protector-impact">+${formatCurrency(p.value)} to value</div>` : p.impactLabel ? `<div class="protector-impact">${p.impactLabel}</div>` : ''}
           </div>
         `).join('')}
       </div>
@@ -643,6 +750,77 @@ function renderExitReadiness(data: any, config: any): string {
           </div>
         </div>
       ` : ''}
+    </div>
+  `;
+}
+
+// Margin Impact (static Scenario Explorer for PDF)
+function renderMarginImpact(data: any, config: any): string {
+  const metrics = data.metrics || [];
+  const gmMetric = metrics.find((m: any) => {
+    const code = (m.metricCode || m.metric_code || '').toLowerCase();
+    return code.includes('gross_margin');
+  });
+
+  if (!gmMetric) return '';
+
+  const currentGM = Number(gmMetric.clientValue ?? gmMetric.client_value ?? 0);
+  const medianGM = Number(gmMetric.p50 ?? gmMetric.median ?? 18);
+  if (currentGM >= medianGM) return ''; // No gap to show
+
+  const revenue = data.revenue || 63328519;
+  const marginGap = medianGM - currentGM;
+  const additionalGrossProfit = revenue * (marginGap / 100);
+  const flowThrough = 0.45;
+  const netProfitImpact = additionalGrossProfit * flowThrough;
+  const ebitdaMultiple = data.valuation?.baseline?.multipleRange?.mid || 5;
+  const businessValueImpact = netProfitImpact * ebitdaMultiple;
+
+  return `
+    <div class="section margin-impact-section">
+      <h2 class="section-title">Explore Improvement Scenarios</h2>
+      <p class="section-subtitle">Use your actual data to see the impact of potential improvements</p>
+
+      <div class="margin-scenario">
+        <div class="scenario-left">
+          <h3>What if you improved gross margin?</h3>
+          <div class="scenario-target">
+            <span>Target Gross Margin</span>
+            <strong>${medianGM.toFixed(1)}%</strong>
+          </div>
+          <div class="scenario-current">Current: ${currentGM.toFixed(1)}% · Industry median: ${medianGM.toFixed(1)}%</div>
+        </div>
+        <div class="scenario-right">
+          <h3>Projected Impact</h3>
+          <div class="impact-hero">
+            <div class="impact-label">Additional Gross Profit</div>
+            <div class="impact-value">${formatCurrency(additionalGrossProfit)} <span>additional annually</span></div>
+          </div>
+          <div class="impact-row">
+            <span>Net Profit Impact</span>
+            <span class="impact-detail">At ${Math.round(flowThrough * 100)}% flow-through after overheads</span>
+            <strong>${formatCurrency(netProfitImpact)}</strong>
+          </div>
+          <div class="impact-row">
+            <span>Business Value Impact</span>
+            <span class="impact-detail">At ${ebitdaMultiple}x EBITDA multiple</span>
+            <strong>${formatCurrency(businessValueImpact)}</strong>
+          </div>
+          <div class="impact-row">
+            <span>Margin Improvement</span>
+            <span class="impact-detail">From ${currentGM.toFixed(1)}% to ${medianGM.toFixed(1)}%</span>
+            <strong>${marginGap.toFixed(1)}%</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="how-to-achieve">
+        <strong>How to achieve this</strong>
+        <div>→ Review pricing structure: when did you last increase rates?</div>
+        <div>→ Analyse project profitability by client and service type</div>
+        <div>→ Identify and eliminate margin-diluting work</div>
+        <div>→ Negotiate better terms with suppliers and subcontractors</div>
+      </div>
     </div>
   `;
 }
@@ -807,7 +985,7 @@ function renderServices(data: any, config: any): string {
             ` : ''}
             <div class="service-meta">
               <span class="service-duration">${service.duration || ''}</span>
-              ${service.addressesValue ? `<span class="service-value">Total value at stake: ${formatCurrency(service.addressesValue)}</span>` : ''}
+              ${service.addressesValue ? `<span class="service-value">Total value at stake: ${service.addressesValue >= 1000 ? formatCurrency(service.addressesValue) : service.addressesValue > 0 ? formatCurrency(service.addressesValue * 1000) + ' (est.)' : ''}</span>` : ''}
             </div>
           </div>
         `).join('')}
@@ -869,6 +1047,9 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       case 'hiddenValue':
         sectionsHTML += renderHiddenValue(data, section.config);
         break;
+      case 'surplusCashBreakdown':
+        sectionsHTML += renderSurplusCashBreakdown(data, section.config);
+        break;
       case 'keyMetrics':
         sectionsHTML += renderKeyMetrics(data, section.config);
         break;
@@ -885,7 +1066,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderNarrative('The Opportunity', data.opportunityNarrative, [`${formatCurrency(data.totalOpportunity || 0)} potential`]);
         break;
       case 'scenarioExplorer':
-        // Browser-only interactive component - skip in PDF
+        sectionsHTML += renderMarginImpact(data, section.config);
         break;
       case 'twoPaths':
         if (data.twoPathsNarrative) {
@@ -1264,6 +1445,17 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .rec-steps li, .rec-immediate li {
       margin-bottom: 4px;
     }
+    
+    .rec-value { font-size: 1.2em; font-weight: 700; color: #0f766e; text-align: right; }
+    .rec-value-label { font-size: 0.7em; font-weight: 400; color: #64748b; }
+    .rec-implementation { margin-top: 12px; }
+    .rec-implementation ol { padding-left: 20px; margin: 8px 0; }
+    .rec-implementation li { margin: 4px 0; font-size: 0.9em; color: #334155; }
+    .rec-quickwins { background: #ecfdf5; border-radius: 8px; padding: 12px 16px; margin-top: 12px; }
+    .rec-quickwins strong { color: #059669; font-size: 0.85em; text-transform: uppercase; }
+    .quickwin-item { color: #047857; font-size: 0.9em; margin: 4px 0; }
+    .rec-help { background: #eff6ff; border-radius: 8px; padding: 12px 16px; margin-top: 8px; font-size: 0.9em; color: #1e40af; }
+    .rec-service { font-size: 0.85em; color: #6366f1; margin-top: 8px; }
     
     /* =========================== VALUE BRIDGE =========================== */
     .value-bridge {
@@ -1752,7 +1944,41 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .suppressor-item.severity-critical { border-left-color: #dc2626; }
     .suppressor-item.severity-high { border-left-color: #f59e0b; }
     .suppressor-item.severity-medium { border-left-color: #3b82f6; }
-    
+
+    /* Surplus Cash Breakdown */
+    .surplus-hero { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .surplus-amount { font-size: 2em; font-weight: 800; color: #059669; }
+    .surplus-pct { font-size: 0.9em; color: #64748b; }
+    .surplus-bonus { background: #065f46; color: white; border-radius: 8px; padding: 8px 16px; margin-top: 12px; font-size: 0.9em; }
+    .surplus-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    .surplus-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+    .surplus-table .amount { text-align: right; font-weight: 600; }
+    .surplus-table .amount.negative { color: #dc2626; }
+    .surplus-table .amount.positive { color: #059669; }
+    .surplus-total { background: #f0fdf4; }
+    .surplus-total td { border-top: 2px solid #059669; font-size: 1.1em; }
+    .wc-breakdown { margin-top: 16px; }
+    .wc-breakdown h4 { font-size: 0.85em; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; }
+    .surplus-table.small td { padding: 4px 12px; font-size: 0.9em; }
+    .wc-total td { border-top: 1px solid #94a3b8; }
+    .wc-explanation { background: #ecfdf5; padding: 10px 14px; border-radius: 8px; margin-top: 8px; font-size: 0.85em; color: #047857; }
+    .surplus-methodology { font-size: 0.8em; color: #94a3b8; margin-top: 16px; padding-top: 12px; border-top: 1px dashed #e2e8f0; }
+
+    /* Margin Impact / Scenario Explorer */
+    .margin-impact-section { page-break-inside: avoid; }
+    .margin-scenario { display: flex; gap: 24px; margin: 16px 0; }
+    .scenario-left, .scenario-right { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+    .scenario-target { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; }
+    .scenario-target strong { font-size: 1.3em; color: #059669; }
+    .scenario-current { font-size: 0.85em; color: #64748b; }
+    .impact-hero { background: #059669; color: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+    .impact-hero .impact-value { font-size: 1.5em; font-weight: 800; }
+    .impact-hero .impact-value span { font-size: 0.5em; font-weight: 400; }
+    .impact-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+    .impact-detail { font-size: 0.8em; color: #94a3b8; }
+    .how-to-achieve { margin-top: 16px; font-size: 0.9em; }
+    .how-to-achieve div { color: #334155; margin: 4px 0; }
+
     /* =========================== PRINT SPECIFIC =========================== */
     @media print {
       body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -1870,7 +2096,7 @@ serve(async (req) => {
     try {
       const { data: opportunities } = await supabase
         .from('client_opportunities')
-        .select('*, service:services(code, name, headline, price_from, price_to, deliverables)')
+        .select('*, service:services(code, name, headline, price_from, price_to, price_period, price_unit, price_display, deliverables)')
         .eq('engagement_id', reportId)
         .order('financial_impact_amount', { ascending: false });
 
@@ -1885,9 +2111,15 @@ serve(async (req) => {
               name: svc.name || key,
               tagline: svc.headline || '',
               priceRange: svc.price_from != null && svc.price_to != null
-                ? `${formatCurrency(Number(svc.price_from))} - ${formatCurrency(Number(svc.price_to))}`
-                : '',
-              frequency: (Number(svc.price_to) || 0) > 5000 ? 'One-off' : 'Monthly',
+                ? `${formatCurrency(Number(svc.price_from))} – ${formatCurrency(Number(svc.price_to))}`
+                : svc.price_from != null
+                ? `From ${formatCurrency(Number(svc.price_from))}`
+                : svc.price_display || 'Price on application',
+              frequency: svc.price_period === 'one-off' ? 'One-off' :
+                svc.price_period === 'quarterly' ? 'Quarterly' :
+                svc.price_period === 'monthly' ? 'Monthly' :
+                (svc.price_unit || '').includes('month') ? 'Monthly' :
+                (svc.price_unit || '').includes('project') ? 'One-off' : 'Monthly',
               whyThisMatters: opp.talking_point || opp.data_evidence || '',
               whatYouGet: Array.isArray(svc.deliverables) ? svc.deliverables : [],
               expectedOutcome: opp.impact_calculation || `Addresses issues worth ${formatCurrency(Number(opp.financial_impact_amount) || 0)} in potential value`,
@@ -1916,6 +2148,7 @@ serve(async (req) => {
           { id: 'cover', enabled: true, config: {} },
           { id: 'executiveSummary', enabled: true, config: { showHeroMetrics: true } },
           { id: 'hiddenValue', enabled: true, config: { showBreakdown: true } },
+          { id: 'surplusCashBreakdown', enabled: true, config: {} },
           { id: 'keyMetrics', enabled: true, config: { layout: 'detailed', showPercentileBars: true, showGapIndicators: true } },
           { id: 'positionNarrative', enabled: true, config: {} },
           { id: 'strengthsNarrative', enabled: true, config: {} },
@@ -1959,17 +2192,27 @@ serve(async (req) => {
       },
       evidence: s.evidence || '',
       whyThisDiscount: s.whyThisDiscount || '',
+      pathToFix: { summary: s.remediationService || '', steps: [], investment: 0, dependencies: [] },
+      impactAmount: s.impactAmount,
+      discountPercent: s.discountPercent,
+      remediationService: s.remediationService,
+      remediationTimeMonths: s.remediationTimeMonths,
     }));
-    // Merge: start with enhanced (richer data), add any missing from value_analysis
-    const enhancedCodes = new Set(enhancedSuppressors.map((s: any) => 
-      (s.code || s.name || '').toLowerCase().replace(/[\s\/]+/g, '_')
-    ));
+
+    // Merge suppressors: enhanced are richer, add only genuinely missing items from value_analysis
+    const enhancedKeys = new Set(enhancedSuppressors.map((s: any) => normalizeSuppressorKey(s)));
     const missingFromValueAnalysis = valueAnalysisSuppressors.filter((s: any) => {
-      const code = (s.code || s.name || '').toLowerCase().replace(/[\s\/]+/g, '_');
-      return !enhancedCodes.has(code);
+      const key = normalizeSuppressorKey(s);
+      return !enhancedKeys.has(key);
     });
     const allSuppressors = [...enhancedSuppressors, ...missingFromValueAnalysis];
-    console.log('[PDF Export] Suppressor merge:', { enhanced: enhancedSuppressors.length, missing: missingFromValueAnalysis.length, total: allSuppressors.length });
+    console.log('[PDF Export] Suppressor merge:', {
+      enhancedKeys: Array.from(enhancedKeys),
+      enhancedCount: enhancedSuppressors.length,
+      missingCount: missingFromValueAnalysis.length,
+      missingNames: missingFromValueAnalysis.map((s: any) => s.name),
+      totalCount: allSuppressors.length,
+    });
 
     const currentValue = valueAnalysis.currentMarketValue?.mid || 0;
     const potentialValue = valueAnalysis.potentialValue?.mid || 0;
@@ -1998,7 +2241,9 @@ serve(async (req) => {
       gapCount: report.gap_count || 0,
       strengthCount: report.strength_count || 0,
       metrics: report.metrics_comparison || [],
-      recommendations: report.recommendations || [],
+      recommendations: Array.isArray(report.recommendations) ? report.recommendations : (typeof report.recommendations === 'string' ? JSON.parse(report.recommendations || '[]') : []),
+      surplusCashBreakdown: report.surplus_cash_breakdown || report.surplus_cash || report.pass1_data?.surplus_cash_breakdown || report.pass1_data?.surplus_cash || null,
+      revenue: report.pass1_data?.revenue || report.pass1_data?.financials?.revenue || report.pass1_data?._enriched_revenue || 63328519,
       valuation: {
         baseline: {
           enterpriseValue: baseline.enterpriseValue || { low: 0, mid: 0, high: 0 },
