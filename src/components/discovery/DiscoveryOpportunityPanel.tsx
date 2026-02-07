@@ -172,26 +172,31 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
   };
 
   const handleCreateService = async (opportunityId: string, conceptId?: string) => {
-    // Find the opportunity
+    // Find the opportunity to pre-fill from
     const opp = opportunities.find(o => o.id === opportunityId);
     if (!opp) return;
     
-    if (conceptId && opp.concept) {
-      // New concept → pre-fill modal (parse suggested_pricing e.g. "£3,000-£5,000 project")
-      setCreateServiceData({
-        opportunityId,
-        conceptId,
-        name: opp.concept.suggested_name,
-        category: opp.category || 'strategic',
-        description: opp.concept.problem_it_solves,
-        suggestedPricing: parsePriceFromConcept(opp.concept.suggested_pricing),
-        pricingModel: 'fixed',
-      });
-      setShowCreateModal(true);
-    } else if (opp.service) {
-      // Existing service → just toggle visibility
+    if (opp.service && !opp.concept) {
+      // Already has a recommended service → just toggle visibility
       await handleToggleClientView(opportunityId, true);
+      return;
     }
+    
+    // New concept or opportunity without concept → open modal (pre-fill from concept or opportunity data)
+    const concept = opp.concept;
+    const name = concept?.suggested_name || opp.title;
+    const desc = concept?.problem_it_solves || opp.service_fit_rationale || '';
+    const suggestedPrice = concept?.suggested_pricing ? parsePriceFromConcept(concept.suggested_pricing) : (opp.data_values as any)?.suggestedPricing || '';
+    setCreateServiceData({
+      opportunityId,
+      conceptId: concept?.id ?? conceptId,
+      name,
+      category: opp.category || 'advisory',
+      description: desc,
+      suggestedPricing: suggestedPrice,
+      pricingModel: 'fixed',
+    });
+    setShowCreateModal(true);
   };
 
   const formatPriceDisplay = (amount: number, model: string): string => {
@@ -579,8 +584,10 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
                   <option value="financial">Financial</option>
                   <option value="operational">Operational</option>
                   <option value="strategic">Strategic</option>
+                  <option value="advisory">Advisory</option>
                   <option value="personal">Personal</option>
                   <option value="wealth">Wealth</option>
+                  <option value="compliance">Compliance</option>
                 </select>
               </div>
             </div>
@@ -597,8 +604,17 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
                 disabled={creating || !createServiceData.name}
                 className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
               >
-                {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Create Service
+                {creating ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    Create Service
+                  </>
+                )}
               </button>
             </div>
           </div>

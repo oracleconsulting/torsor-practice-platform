@@ -1516,8 +1516,8 @@ function calculateCostOfInaction(
   else if (exitResponse.includes('3-5')) timeHorizon = 4;
   else if (exitResponse.includes('5+') || exitResponse.includes('never')) timeHorizon = 5;
   
-  // 1. Payroll excess
-  if (payrollAnalysis?.annualExcess && payrollAnalysis.annualExcess > 0) {
+  // 1. Payroll excess (skip if payroll not validated, e.g. agency/contractor model)
+  if (payrollAnalysis?.annualExcess && payrollAnalysis.annualExcess > 0 && (payrollAnalysis as any).isValidated !== false) {
     components.push({
       category: 'Payroll Excess',
       annualCost: payrollAnalysis.annualExcess,
@@ -2450,8 +2450,8 @@ function buildPrebuiltPhrases(
     closing: null
   };
   
-  // Payroll phrases
-  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0) {
+  // Payroll phrases (only use validated payroll — agencies/contractors have isValidated: false)
+  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0 && analysis.payroll.isValidated !== false) {
     const p = analysis.payroll;
     const annualK = Math.round(p.annualExcess / 1000);
     const monthlyK = Math.round(p.annualExcess / 12 / 1000);
@@ -2559,8 +2559,8 @@ DO NOT calculate your own figures. USE THESE EXACT NUMBERS.
 
 `;
 
-  // Payroll section
-  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0) {
+  // Payroll section (only use validated payroll — agencies/contractors have isValidated: false)
+  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0 && analysis.payroll.isValidated !== false) {
     const p = analysis.payroll;
     const annualK = Math.round(p.annualExcess / 1000);
     const monthlyK = Math.round(p.annualExcess / 12 / 1000);
@@ -3231,15 +3231,16 @@ serve(async (req) => {
       clientType: clientType.type
     });
     
-    // Override irrelevant analysis based on client type
+    // Override irrelevant analysis based on client type (zero out numbers so they don't propagate)
     if (skipPayrollAnalysis && comprehensiveAnalysis.payroll) {
       comprehensiveAnalysis.payroll = {
         ...comprehensiveAnalysis.payroll,
         isValidated: false,
-        // Note: narrative property may not exist in PayrollAnalysis interface, but it's used in some contexts
-        ...(comprehensiveAnalysis.payroll as any).narrative ? {} : {}
+        annualExcess: 0,
+        excessPercentage: 0,
+        isOverstaffed: false,
+        assessment: 'typical' as const
       };
-      // Set narrative via type assertion if needed
       (comprehensiveAnalysis.payroll as any).narrative = 'Payroll benchmarking not applicable for this client type (contractor model or investment vehicle)';
     }
     

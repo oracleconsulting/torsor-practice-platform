@@ -46,14 +46,15 @@ export function ServicePinBlockControl({
   };
   
   const togglePin = async (code: string) => {
+    const normalizedCode = code.toLowerCase();
     setUpdating(code);
     try {
-      const newPinned = pinnedServices.includes(code)
-        ? pinnedServices.filter(c => c !== code)
-        : [...pinnedServices, code];
+      const newPinned = pinnedServices.some(p => p.toLowerCase() === normalizedCode)
+        ? pinnedServices.filter(c => c.toLowerCase() !== normalizedCode)
+        : [...pinnedServices.filter(c => c.toLowerCase() !== normalizedCode), normalizedCode];
       
       // Can't be both pinned and blocked
-      const newBlocked = blockedServices.filter(c => c !== code);
+      const newBlocked = blockedServices.filter(c => c.toLowerCase() !== normalizedCode);
       
       const { error } = await supabase
         .from('discovery_engagements')
@@ -75,14 +76,15 @@ export function ServicePinBlockControl({
   };
   
   const toggleBlock = async (code: string) => {
+    const normalizedCode = code.toLowerCase();
     setUpdating(code);
     try {
-      const newBlocked = blockedServices.includes(code)
-        ? blockedServices.filter(c => c !== code)
-        : [...blockedServices, code];
+      const newBlocked = blockedServices.some(b => b.toLowerCase() === normalizedCode)
+        ? blockedServices.filter(c => c.toLowerCase() !== normalizedCode)
+        : [...blockedServices.filter(c => c.toLowerCase() !== normalizedCode), normalizedCode];
       
       // Can't be both pinned and blocked
-      const newPinned = pinnedServices.filter(c => c !== code);
+      const newPinned = pinnedServices.filter(c => c.toLowerCase() !== normalizedCode);
       
       const { error } = await supabase
         .from('discovery_engagements')
@@ -121,8 +123,8 @@ export function ServicePinBlockControl({
   return (
     <div className="space-y-2 max-h-96 overflow-y-auto">
       {services.map(service => {
-        const isPinned = pinnedServices.includes(service.code);
-        const isBlocked = blockedServices.includes(service.code);
+        const isPinned = pinnedServices.some(p => p.toLowerCase() === (service.code || '').toLowerCase());
+        const isBlocked = blockedServices.some(b => b.toLowerCase() === (service.code || '').toLowerCase());
         const isUpdating = updating === service.code;
         
         return (

@@ -255,8 +255,9 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
     detectedIndustry: report?.detected_industry || 'general_business',
     contextNotes: contextNotes?.map((n: any) => n.notes) || [],
     financials: financialContext?.extracted_insights || {},
-    pinnedServices: engagement.pinned_services || [],
-    blockedServices: engagement.blocked_services || [],
+    // Pin/block preferences (normalise to lowercase to match services table)
+    pinnedServices: (engagement.pinned_services || []).map((s: string) => (s || '').toLowerCase()),
+    blockedServices: (engagement.blocked_services || []).map((s: string) => (s || '').toLowerCase()),
   };
 }
 
@@ -904,7 +905,7 @@ function postProcessOpportunities(analysis: any, clientData: ClientData, service
   // PHASE 3d: Remove manually blocked services
   if (clientData.blockedServices.length > 0) {
     for (const opp of opportunities) {
-      const serviceCode = opp.serviceMapping?.existingService?.code;
+      const serviceCode = (opp.serviceMapping?.existingService?.code || '').toLowerCase();
       if (serviceCode && clientData.blockedServices.includes(serviceCode)) {
         console.log(`[Pass 3] Blocked service ${serviceCode} from opportunity: ${opp.title}`);
         blockedServices.push({
@@ -927,8 +928,8 @@ function postProcessOpportunities(analysis: any, clientData: ClientData, service
   }
   
   opportunities = opportunities.filter((opp: any) => {
-    const serviceCode = opp.serviceMapping?.existingService?.code;
-    if (serviceCode && inappropriateServices.includes(serviceCode)) {
+    const serviceCode = (opp.serviceMapping?.existingService?.code || '').toLowerCase();
+    if (serviceCode && inappropriateServices.some((s: string) => s.toLowerCase() === serviceCode)) {
       blockedServices.push({
         code: serviceCode,
         reason: `Inappropriate for ${clientData.clientType} client type`,
@@ -977,13 +978,13 @@ function postProcessOpportunities(analysis: any, clientData: ClientData, service
   if (clientData.pinnedServices.length > 0 && services.length > 0) {
     for (const pinnedCode of clientData.pinnedServices) {
       const alreadyPresent = opportunities.some(
-        (o: any) => o.serviceMapping?.existingService?.code === pinnedCode
+        (o: any) => (o.serviceMapping?.existingService?.code || '').toLowerCase() === pinnedCode
       );
       
       if (!alreadyPresent) {
         console.log(`[Pass 3] Adding pinned service: ${pinnedCode}`);
-        // Look up service details from the catalogue
-        const serviceInfo = services.find((s: any) => s.code === pinnedCode);
+        // Look up service details from the catalogue (codes are lowercase)
+        const serviceInfo = services.find((s: any) => (s.code || '').toLowerCase() === pinnedCode);
         if (serviceInfo) {
           const pricing = servicePricing.get(pinnedCode);
           opportunities.push({
@@ -1140,17 +1141,18 @@ async function storeOpportunities(
   
   console.log(`[Discovery Pass 3] Storing ${opportunities.length} opportunities...`);
   
-  // CRITICAL: Clear old opportunities before inserting new ones
-  // This prevents stale entries from previous runs appearing alongside new ones
+  // CRITICAL: Clear stale opportunities before inserting new ones
+  // This prevents duplicates across regenerations (Opus generates different codes each run)
   const { error: deleteError } = await supabase
     .from('discovery_opportunities')
     .delete()
     .eq('engagement_id', engagementId);
   
   if (deleteError) {
-    console.error('[Discovery Pass 3] Warning: Failed to clear old opportunities:', deleteError);
+    console.error('[Discovery Pass 3] Error clearing stale opportunities:', deleteError);
+    // Continue anyway — insert will still work for new codes
   } else {
-    console.log('[Discovery Pass 3] Cleared previous opportunities for clean insert');
+    console.log('[Discovery Pass 3] Cleared existing opportunities for engagement');
   }
   
   for (const opp of opportunities) {
@@ -1217,10 +1219,10 @@ async function storeOpportunities(
       }
     }
     
-    // Store opportunity
+    // Store opportunity (plain insert — stale opportunities already deleted above)
     const { error: oppError } = await supabase
       .from('discovery_opportunities')
-      .upsert({
+      .insert({
         engagement_id: engagementId,
         client_id: clientId,
         opportunity_code: opp.code,
@@ -1246,8 +1248,6 @@ async function storeOpportunities(
         question_to_ask: opp.adviserTools?.questionToAsk,
         quick_win: opp.adviserTools?.quickWin,
         generated_at: new Date().toISOString()
-      }, {
-        onConflict: 'engagement_id,opportunity_code'
       });
     
     if (oppError) {
