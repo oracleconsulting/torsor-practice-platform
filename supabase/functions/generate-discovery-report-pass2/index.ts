@@ -3579,14 +3579,14 @@ Before returning, verify:
 
     // ========================================================================
     // POST-SAVE: Fix Stage 3 headline if it leads with exit inappropriately
+    // (reuses exitTimelineLower from FIX 3 above)
     // ========================================================================
-    const exitTimelineLower = String(exitTimeline || '').toLowerCase();
-    const shouldNotLeadWithExit = 
+    const shouldNotLeadWithExitPostSave =
       exitTimelineLower.includes('3-5 years') ||
       exitTimelineLower.includes('5-10 years') ||
       exitTimelineLower.includes('never');
 
-    if (shouldNotLeadWithExit) {
+    if (shouldNotLeadWithExitPostSave) {
       // Check discovery_reports.headline (set by Stage 3)
       const { data: savedReport } = await supabase
         .from('discovery_reports')

@@ -1,7 +1,7 @@
 /**
  * Generate Discovery Opportunities (Pass 3)
  * 
- * Uses Claude Opus 4.5 to analyse all discovery data and identify opportunities.
+ * Uses Claude Sonnet 4 to analyse discovery data and identify opportunities.
  * Maps to existing services or surfaces new service concepts.
  * Respects client type classification from Pass 1.
  * 
@@ -16,9 +16,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Model configuration for Opus 4.5
+// Model configuration — Sonnet for speed (20-30s); Opus would be 150+ and risk timeout
 const MODEL_CONFIG = {
-  model: 'anthropic/claude-opus-4-20250514',
+  model: 'anthropic/claude-sonnet-4.5',
   max_tokens: 12000,
   temperature: 0.3,
 };
@@ -97,7 +97,7 @@ serve(async (req) => {
     let analysis = await analyseWithLLM(clientData, services || [], existingConcepts || [], servicePricing);
     const analysisTime = Date.now() - startTime;
     
-    console.log(`[Discovery Pass 3] Opus 4.5 identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
+    console.log(`[Discovery Pass 3] LLM identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
     
     // 4a. POST-PROCESSING: Filter inappropriate services, deduplicate, apply pin/block, and correct pricing
     analysis = postProcessOpportunities(analysis, clientData, servicePricing, services || []);
@@ -1014,7 +1014,8 @@ function postProcessOpportunities(analysis: any, clientData: ClientData, service
               talkingPoint: `We think ${serviceInfo.name} could help here based on our conversation.`,
               questionToAsk: 'Would this kind of support be useful?',
               quickWin: null
-            }
+            },
+            show_in_client_view: true // Pinned = advisor wants client to see it
           });
         }
       }
@@ -1247,6 +1248,7 @@ async function storeOpportunities(
         talking_point: opp.adviserTools?.talkingPoint,
         question_to_ask: opp.adviserTools?.questionToAsk,
         quick_win: opp.adviserTools?.quickWin,
+        show_in_client_view: opp.show_in_client_view || false,
         generated_at: new Date().toISOString()
       });
     
