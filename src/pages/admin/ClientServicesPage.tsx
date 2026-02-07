@@ -15,9 +15,11 @@ import {
   Users, 
   CheckCircle,
   Check,
+  Copy,
   Clock, 
   AlertCircle,
   ChevronRight,
+  ChevronDown,
   Target,
   TrendingUp,
   Briefcase,
@@ -34,6 +36,8 @@ import {
   FileText,
   Upload,
   Download,
+  Eye,
+  EyeOff,
   MessageSquare,
   Sparkles,
   Share2,
@@ -2287,6 +2291,9 @@ function DiscoveryClientModal({
   
   // Specialist service opportunities (from Pass 3)
   const [specialistOpportunities, setSpecialistOpportunities] = useState<any[]>([]);
+  const [expandedSpecialistOppId, setExpandedSpecialistOppId] = useState<string | null>(null);
+  const [copiedSpecialistOppId, setCopiedSpecialistOppId] = useState<string | null>(null);
+  const [updatingSpecialistOppId, setUpdatingSpecialistOppId] = useState<string | null>(null);
   
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -2551,7 +2558,7 @@ function DiscoveryClientModal({
           .select(`
             *,
             service:services(id, code, name, short_description, price_amount, price_period),
-            concept:service_concepts(id, suggested_name, problem_it_solves)
+            concept:service_concepts(id, suggested_name, problem_it_solves, times_identified)
           `)
           .eq('engagement_id', discoveryEngagementData.id)
           .order('severity', { ascending: true });
@@ -2611,6 +2618,35 @@ function DiscoveryClientModal({
       console.error('Error fetching client:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCopySpecialistTalkingPoint = async (text: string, oppId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedSpecialistOppId(oppId);
+      setTimeout(() => setCopiedSpecialistOppId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const handleToggleSpecialistClientView = async (oppId: string, currentValue: boolean) => {
+    setUpdatingSpecialistOppId(oppId);
+    try {
+      const { error } = await supabase
+        .from('discovery_opportunities')
+        .update({ show_in_client_view: !currentValue })
+        .eq('id', oppId);
+      if (error) throw error;
+      setSpecialistOpportunities(prev => prev.map(o =>
+        o.id === oppId ? { ...o, show_in_client_view: !currentValue } : o
+      ));
+    } catch (err) {
+      console.error('Failed to update opportunity visibility:', err);
+      alert('Failed to update opportunity visibility');
+    } finally {
+      setUpdatingSpecialistOppId(null);
     }
   };
 
@@ -2997,7 +3033,7 @@ function DiscoveryClientModal({
                   .select(`
                     *,
                     service:services(id, code, name, short_description, price_amount, price_period),
-                    concept:service_concepts(id, suggested_name, problem_it_solves)
+                    concept:service_concepts(id, suggested_name, problem_it_solves, times_identified)
                   `)
                   .eq('engagement_id', engagementId)
                   .order('severity', { ascending: true });
@@ -5765,63 +5801,199 @@ function DiscoveryClientModal({
                               </p>
                             </div>
                           </div>
-                          <div className="p-6 space-y-4">
-                            {specialistOpportunities
-                              .filter(opp => opp.service || opp.concept)
-                              .slice(0, 6)
-                              .map((opp: any) => (
-                              <div key={opp.id} className="border border-gray-200 rounded-lg p-4 hover:border-violet-300 transition-colors">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-xs font-medium text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">
-                                        {opp.category}
-                                      </span>
-                                      {opp.severity === 'critical' && (
-                                        <span className="text-xs font-medium text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
-                                          High Priority
-                                        </span>
-                                      )}
-                                    </div>
-                                    <h4 className="font-semibold text-gray-900">{opp.title}</h4>
-                                    <p className="text-sm text-gray-600 mt-1">{opp.description}</p>
-                                    {opp.life_impact && (
-                                      <p className="text-sm text-amber-700 mt-2 italic">
-                                        &quot;{opp.life_impact}&quot;
-                                      </p>
-                                    )}
+                          <div className="p-6 space-y-6">
+                            {(() => {
+                              const priorityGroups = [
+                                { key: 'must_address_now', label: '🚨 Must Address Now', subtitle: 'These block your stated goal', bgClass: 'bg-red-50 border-red-200', textClass: 'text-red-900' },
+                                { key: 'next_3_months', label: '⚠️ Address Within 3 Months', subtitle: 'Important but not blocking', bgClass: 'bg-amber-50 border-amber-200', textClass: 'text-amber-900' },
+                                { key: 'next_12_months', label: '📋 Next 12 Months', subtitle: 'Important but not blocking', bgClass: 'bg-blue-50 border-blue-200', textClass: 'text-blue-900' },
+                                { key: 'when_ready', label: '💡 When Ready', subtitle: 'Optimisation opportunities', bgClass: 'bg-gray-50 border-gray-200', textClass: 'text-gray-900' },
+                              ];
+                              const groupedByPriority = priorityGroups
+                                .map((group: { key: string }) => ({
+                                  ...group,
+                                  opportunities: specialistOpportunities.filter((o: any) => (o.priority || 'when_ready') === group.key),
+                                }))
+                                .filter((group: { opportunities: any[] }) => group.opportunities.length > 0);
+                              return groupedByPriority.map((group: any) => (
+                                <div key={group.key} className="space-y-3">
+                                  <div className={`p-3 rounded-lg border ${group.bgClass}`}>
+                                    <h4 className={`font-semibold ${group.textClass}`}>{group.label}</h4>
+                                    <p className={`text-xs ${group.textClass} opacity-70`}>{group.subtitle}</p>
                                   </div>
-                                  {opp.service ? (
-                                    <div className="ml-4 text-right">
-                                      <p className="font-semibold text-gray-900">{opp.service.name}</p>
-                                      {opp.service.price_amount && (
-                                        <p className="text-sm text-emerald-600 font-medium">
-                                          £{Number(opp.service.price_amount).toLocaleString()}
-                                          {opp.service.price_period === 'month' ? '/mo' : ''}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ) : opp.concept ? (
-                                    <div className="ml-4 text-right">
-                                      <p className="font-semibold text-purple-700">{opp.concept.suggested_name}</p>
-                                      <p className="text-xs text-purple-600">New Service Concept</p>
-                                    </div>
-                                  ) : null}
+                                  <div className="space-y-3 pl-2">
+                                    {group.opportunities.map((opp: any) => {
+                                      const isExpanded = expandedSpecialistOppId === opp.id;
+                                      return (
+                                        <div key={opp.id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white">
+                                          <div
+                                            role="button"
+                                            tabIndex={0}
+                                            className="p-4 cursor-pointer flex items-start justify-between"
+                                            onClick={() => setExpandedSpecialistOppId(isExpanded ? null : opp.id)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedSpecialistOppId(isExpanded ? null : opp.id); } }}
+                                          >
+                                            <div className="flex-1">
+                                              <div className="flex items-center gap-2 mb-1.5">
+                                                <span className={`px-2 py-0.5 text-xs font-bold rounded ${
+                                                  opp.severity === 'critical' ? 'bg-red-100 text-red-700' :
+                                                  opp.severity === 'high' ? 'bg-orange-100 text-orange-700' :
+                                                  opp.severity === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                                                  'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                  {(opp.severity || 'medium').toUpperCase()}
+                                                </span>
+                                                <span className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded">
+                                                  📁 {opp.category || 'General'}
+                                                </span>
+                                                {opp.data_values?.priorityRationale && (
+                                                  <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">⚡ Priority adjusted</span>
+                                                )}
+                                              </div>
+                                              <h4 className="font-semibold text-gray-900">{opp.title}</h4>
+                                            </div>
+                                            <div className="flex items-center gap-3 ml-4">
+                                              {opp.financial_impact_amount != null && (
+                                                <span className="text-lg font-semibold text-emerald-700">
+                                                  £{opp.financial_impact_amount >= 1000000
+                                                    ? `${(opp.financial_impact_amount / 1000000).toFixed(1)}M`
+                                                    : opp.financial_impact_amount >= 1000
+                                                    ? `${(opp.financial_impact_amount / 1000).toFixed(0)}k`
+                                                    : Number(opp.financial_impact_amount).toLocaleString()}
+                                                </span>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); handleToggleSpecialistClientView(opp.id, !!opp.show_in_client_view); }}
+                                                disabled={updatingSpecialistOppId === opp.id}
+                                                className={`p-1.5 rounded-lg transition-colors ${
+                                                  opp.show_in_client_view ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                                }`}
+                                                title={opp.show_in_client_view ? 'Visible to client' : 'Hidden from client'}
+                                              >
+                                                {updatingSpecialistOppId === opp.id ? <Loader2 className="w-4 h-4 animate-spin" /> : opp.show_in_client_view ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                              </button>
+                                              <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                                            </div>
+                                          </div>
+                                          {isExpanded && (
+                                            <div className="border-t px-4 pb-4 space-y-4 bg-gray-50/50">
+                                              {opp.data_evidence && (
+                                                <div className="pt-4">
+                                                  <p className="text-sm text-gray-800 leading-relaxed">{opp.data_evidence}</p>
+                                                </div>
+                                              )}
+                                              {opp.data_values?.benchmarkComparison && (
+                                                <p className="text-sm text-gray-600 italic">{opp.data_values.benchmarkComparison}</p>
+                                              )}
+                                              {opp.impact_calculation && (
+                                                <p className="text-xs text-gray-500 leading-relaxed">Impact calculation: {opp.impact_calculation}</p>
+                                              )}
+                                              {opp.description && (
+                                                <p className="text-sm text-gray-700">{opp.description}</p>
+                                              )}
+                                              {opp.life_impact && (
+                                                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                                  <p className="text-sm">
+                                                    <span className="font-bold text-red-700">FOR THE OWNER: </span>
+                                                    <span className="text-red-800">{opp.life_impact}</span>
+                                                  </p>
+                                                </div>
+                                              )}
+                                              {opp.talking_point && (
+                                                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                                                  <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex-1">
+                                                      <p className="text-xs font-bold text-gray-500 mb-2">💬 SAY THIS:</p>
+                                                      <p className="text-sm text-gray-800 italic leading-relaxed">&quot;{opp.talking_point}&quot;</p>
+                                                    </div>
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => { e.stopPropagation(); handleCopySpecialistTalkingPoint(opp.talking_point, opp.id); }}
+                                                      className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
+                                                      title="Copy to clipboard"
+                                                    >
+                                                      {copiedSpecialistOppId === opp.id ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              )}
+                                              {opp.question_to_ask && (
+                                                <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                                                  <p className="text-sm">
+                                                    <span className="font-bold text-indigo-700">ASK: </span>
+                                                    <span className="text-indigo-800">&quot;{opp.question_to_ask}&quot;</span>
+                                                  </p>
+                                                </div>
+                                              )}
+                                              {opp.quick_win && (
+                                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                                                  <p className="text-sm">
+                                                    <span className="font-bold text-amber-700">⚡ QUICK WIN: </span>
+                                                    <span className="text-amber-800">{opp.quick_win}</span>
+                                                  </p>
+                                                </div>
+                                              )}
+                                              {opp.concept && (
+                                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                                  <div className="flex items-start justify-between">
+                                                    <div>
+                                                      <div className="flex items-center gap-2 mb-2">
+                                                        <span className="text-xs font-bold text-purple-700">✨ NEW SERVICE CONCEPT</span>
+                                                        {opp.concept.times_identified != null && opp.concept.times_identified > 1 && (
+                                                          <span className="px-2 py-0.5 text-xs bg-purple-200 text-purple-700 rounded-full">
+                                                            Seen {opp.concept.times_identified}× across clients
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                      <h5 className="font-semibold text-purple-900">{opp.concept.suggested_name}</h5>
+                                                      <p className="text-sm text-purple-700 mt-1">{opp.concept.problem_it_solves}</p>
+                                                    </div>
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => { e.stopPropagation(); alert('Use Discovery tab > Opportunities to create a service from this concept.'); }}
+                                                      className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1 flex-shrink-0"
+                                                    >
+                                                      <Plus className="w-4 h-4" />
+                                                      Create Service
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              )}
+                                              {opp.service && !opp.concept && (
+                                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                                  <div className="flex items-start justify-between">
+                                                    <div>
+                                                      <p className="text-xs font-bold text-blue-600 mb-1">RECOMMENDED SERVICE</p>
+                                                      <h5 className="font-semibold text-blue-900">{opp.service.name}</h5>
+                                                      {opp.service.price_amount != null && (
+                                                        <p className="text-sm text-blue-700 mt-1">
+                                                          £{Number(opp.service.price_amount).toLocaleString()}
+                                                          {opp.service.price_period === 'month' ? '/mo' : ''}
+                                                        </p>
+                                                      )}
+                                                      {opp.service_fit_rationale && <p className="text-xs text-blue-600 mt-2">{opp.service_fit_rationale}</p>}
+                                                      {opp.service_fit_limitation && <p className="text-xs text-blue-500 mt-1 italic">Limitation: {opp.service_fit_limitation}</p>}
+                                                    </div>
+                                                    {opp.service_fit_score != null && (
+                                                      <span className="px-2 py-1 bg-blue-200 text-blue-800 text-xs font-bold rounded">{opp.service_fit_score}% fit</span>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                                {opp.financial_impact_amount && (
-                                  <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
-                                    <TrendingUp className="w-4 h-4 text-emerald-500" />
-                                    <span className="text-sm text-gray-600">
-                                      Potential impact: <strong className="text-emerald-600">£{Number(opp.financial_impact_amount).toLocaleString()}</strong>
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                            {specialistOpportunities.filter(o => !o.service && !o.concept).length > 0 && (
+                              ));
+                            })()}
+                            {specialistOpportunities.filter((o: any) => !o.service && !o.concept).length > 0 && (
                               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                                 <p className="text-sm text-amber-800">
-                                  <strong>{specialistOpportunities.filter(o => !o.service && !o.concept).length} additional opportunities</strong> identified
+                                  <strong>{specialistOpportunities.filter((o: any) => !o.service && !o.concept).length} additional opportunities</strong> identified
                                   that your advisor will discuss with you.
                                 </p>
                               </div>
