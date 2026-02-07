@@ -1220,8 +1220,8 @@ export default function DiscoveryReportPage() {
           </section>
         )}
 
-        {/* Recommended Path Forward (Legacy - Keep for backward compatibility if no transformationJourney) */}
-        {(!analysis.transformationJourney || !analysis.transformationJourney.phases || analysis.transformationJourney.phases.length === 0) && investments.length > 0 && (
+        {/* Legacy recommendedInvestments section removed - new 5-page format supersedes it */}
+        {false && (
         <section className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">

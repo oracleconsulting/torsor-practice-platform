@@ -163,7 +163,7 @@ export function orchestratePass1Calculations(
   let payroll = null;
   if (financials.turnover && financials.totalStaffCosts) {
     // For agencies, include contractor costs in payroll calculation
-    const consultingCosts = (financials as any).consultancyFees || (financials as any).subcontractorCosts || 0;
+    const consultingCosts = (financials as any).consultingCosts || (financials as any).consultancyFees || (financials as any).subcontractorCosts || 0;
     const contractorCountEstimate = (financials as any).contractorCountEstimate || undefined;
     
     const payrollResult = calculatePayrollMetrics({
