@@ -1489,14 +1489,20 @@ serve(async (req) => {
     } else if (report.pdf_config) {
       effectiveConfig = report.pdf_config;
     } else {
-      // Get default template
-      const { data: template } = await supabase
-        .from('benchmarking_report_templates')
-        .select('*')
-        .is('practice_id', null)
-        .eq('tier', 2)
-        .eq('is_default', true)
-        .single();
+      // Get default template (wrap in try/catch in case table doesn't exist yet)
+      let template: any = null;
+      try {
+        const { data } = await supabase
+          .from('benchmarking_report_templates')
+          .select('*')
+          .is('practice_id', null)
+          .eq('tier', 2)
+          .eq('is_default', true)
+          .single();
+        template = data;
+      } catch (e) {
+        console.log('No template table yet, using defaults');
+      }
       
       effectiveConfig = template ? {
         sections: template.sections,
@@ -1515,16 +1521,16 @@ serve(async (req) => {
       overallPercentile: report.overall_percentile || 50,
       totalOpportunity: parseFloat(report.total_annual_opportunity) || 0,
 
-      surplusCash: report.surplus_cash?.surplusCash ?? report.pass1_data?.surplus_cash?.surplusCash ?? 0,
-      freeWorkingCapital: report.surplus_cash?.components?.netWorkingCapital ?? report.surplus_cash?.freeWorkingCapital ?? 0,
-      freeholdProperty: report.balance_sheet?.freehold_property ?? report.pass1_data?.balance_sheet?.freeholdProperty ?? 0,
+      surplusCash: report.surplus_cash?.surplusCash || report.pass1_data?.surplus_cash?.surplusCash || 0,
+      freeWorkingCapital: report.surplus_cash?.components?.netWorkingCapital || report.pass1_data?.surplus_cash?.components?.netWorkingCapital || 0,
+      freeholdProperty: report.balance_sheet?.freehold_property || report.pass1_data?.balance_sheet?.freeholdProperty || 0,
 
       executiveSummary: report.executive_summary || '',
       positionNarrative: report.position_narrative || '',
       strengthsNarrative: report.strength_narrative || '',
       gapsNarrative: report.gap_narrative || '',
       opportunityNarrative: report.opportunity_narrative || '',
-      closingSummary: '', // No closing_summary column - generate from opportunity_narrative
+      closingSummary: report.opportunity_narrative?.split('.').slice(-2).join('.') || '',
 
       gapCount: report.gap_count || 0,
       strengthCount: report.strength_count || 0,
@@ -1535,13 +1541,17 @@ serve(async (req) => {
       valuation: report.value_analysis || {},
       suppressors: report.enhanced_suppressors || [],
       exitReadiness: report.exit_readiness_breakdown || {},
-      twoPaths: (report as any).two_paths_narrative || {},
+      twoPaths: (report as any).two_paths_narrative ?? null,
 
-      scenarios: [] as any[],
+      scenarios: report.value_analysis ? [
+        { id: 'do_nothing', title: 'If You Do Nothing', description: 'Current trajectory without intervention' },
+        { id: 'diversify', title: 'If You Actively Diversify', description: 'Use surplus cash to build broader client base' },
+        { id: 'exit_prep', title: 'If You Prepare for Exit', description: 'Systematic value unlock program' },
+      ] : [],
+
       services: [] as any[],
-
       dataSources: report.data_sources || [],
-      tier: 2 as const,
+      tier: 2,
     };
     
     // Generate HTML
@@ -1597,13 +1607,16 @@ serve(async (req) => {
     }
     
     const pdfBuffer = await pdfResponse.arrayBuffer();
-    
-    // Update report with generation timestamp
-    await supabase
-      .from('bm_reports')
-      .update({ last_pdf_generated_at: new Date().toISOString() })
-      .eq('engagement_id', reportId);
-    
+
+    try {
+      await supabase
+        .from('bm_reports')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('engagement_id', reportId);
+    } catch (e) {
+      console.log('Could not update timestamp:', e);
+    }
+
     // Return PDF
     return new Response(pdfBuffer, {
       headers: {

@@ -2306,6 +2306,12 @@ function DiscoveryClientModal({
   } | null>(null);
   const [creatingService, setCreatingService] = useState(false);
   
+  // Service Preferences (Pin/Block) for discovery Pass 3
+  const [pinnedServices, setPinnedServices] = useState<string[]>([]);
+  const [blockedServices, setBlockedServices] = useState<string[]>([]);
+  const [allServices, setAllServices] = useState<any[]>([]);
+  const [showServicePrefs, setShowServicePrefs] = useState(false);
+  
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [assigningServices, setAssigningServices] = useState(false);
@@ -2538,7 +2544,17 @@ function DiscoveryClientModal({
 
       if (discoveryEngagementData) {
         setDiscoveryEngagement(discoveryEngagementData);
-        
+        setPinnedServices(discoveryEngagementData.pinned_services || []);
+        setBlockedServices(discoveryEngagementData.blocked_services || []);
+
+        // Load all active services for Pin/Block grid
+        const { data: svcList } = await supabase
+          .from('services')
+          .select('code, name, category')
+          .eq('status', 'active')
+          .order('name');
+        setAllServices(svcList || []);
+
         // Fetch the destination report
         const { data: destReportData } = await supabase
           .from('discovery_reports')
@@ -2659,6 +2675,34 @@ function DiscoveryClientModal({
     } finally {
       setUpdatingSpecialistOppId(null);
     }
+  };
+
+  const togglePinService = async (code: string) => {
+    if (!discoveryEngagement?.id) return;
+    const newPinned = pinnedServices.includes(code)
+      ? pinnedServices.filter(c => c !== code)
+      : [...pinnedServices, code];
+    const newBlocked = blockedServices.filter(c => c !== code);
+    setPinnedServices(newPinned);
+    setBlockedServices(newBlocked);
+    await supabase
+      .from('discovery_engagements')
+      .update({ pinned_services: newPinned, blocked_services: newBlocked })
+      .eq('id', discoveryEngagement.id);
+  };
+
+  const toggleBlockService = async (code: string) => {
+    if (!discoveryEngagement?.id) return;
+    const newBlocked = blockedServices.includes(code)
+      ? blockedServices.filter(c => c !== code)
+      : [...blockedServices, code];
+    const newPinned = pinnedServices.filter(c => c !== code);
+    setPinnedServices(newPinned);
+    setBlockedServices(newBlocked);
+    await supabase
+      .from('discovery_engagements')
+      .update({ pinned_services: newPinned, blocked_services: newBlocked })
+      .eq('id', discoveryEngagement.id);
   };
 
   const refetchSpecialistOpportunities = async () => {
@@ -5883,6 +5927,75 @@ function DiscoveryClientModal({
                         </div>
                       </div>
 
+                      {/* Service Preferences - Pin/Block (affects next Regenerate) */}
+                      <div className="mb-6">
+                        <button
+                          type="button"
+                          onClick={() => setShowServicePrefs(!showServicePrefs)}
+                          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+                        >
+                          <ChevronRight className={`w-4 h-4 transition-transform ${showServicePrefs ? 'rotate-90' : ''}`} />
+                          🎯 Service Preferences
+                          {(pinnedServices.length > 0 || blockedServices.length > 0) && (
+                            <span className="text-xs text-gray-500">
+                              ({pinnedServices.length} pinned, {blockedServices.length} blocked)
+                            </span>
+                          )}
+                        </button>
+                        {showServicePrefs && (
+                          <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                            <p className="text-xs text-gray-500 mb-3">
+                              Pin services to always include in recommendations. Block to always exclude.
+                              Changes take effect when you click <strong>Regenerate</strong>.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+                              {allServices.map((svc: any) => {
+                                const isPinned = pinnedServices.includes(svc.code);
+                                const isBlocked = blockedServices.includes(svc.code);
+                                return (
+                                  <div
+                                    key={svc.code}
+                                    className={`flex items-center justify-between p-2.5 rounded-lg border transition-colors ${
+                                      isPinned ? 'border-emerald-300 bg-emerald-50' :
+                                      isBlocked ? 'border-red-300 bg-red-50' :
+                                      'border-gray-200'
+                                    }`}
+                                  >
+                                    <span className="text-sm font-medium truncate mr-2">{svc.name}</span>
+                                    <div className="flex gap-1 flex-shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => togglePinService(svc.code)}
+                                        className={`w-8 h-8 flex items-center justify-center rounded-md text-sm transition-colors ${
+                                          isPinned
+                                            ? 'bg-emerald-600 text-white'
+                                            : 'bg-white border border-gray-300 text-gray-400 hover:border-emerald-400 hover:text-emerald-600'
+                                        }`}
+                                        title={isPinned ? 'Unpin' : 'Pin (always include)'}
+                                      >
+                                        📌
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleBlockService(svc.code)}
+                                        className={`w-8 h-8 flex items-center justify-center rounded-md text-sm transition-colors ${
+                                          isBlocked
+                                            ? 'bg-red-600 text-white'
+                                            : 'bg-white border border-gray-300 text-gray-400 hover:border-red-400 hover:text-red-600'
+                                        }`}
+                                        title={isBlocked ? 'Unblock' : 'Block (always exclude)'}
+                                      >
+                                        🚫
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Deep Dive Recommendations (admin only – from Pass 3 opportunities) */}
                       {specialistOpportunities.length > 0 && (
                         <section className="bg-white rounded-xl shadow-sm overflow-hidden border border-violet-200">
@@ -6122,8 +6235,11 @@ function DiscoveryClientModal({
 
                       {/* Create Service from Concept Modal */}
                       {showCreateServiceModal && createServiceData && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+                        <div
+                          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+                          onClick={() => { setShowCreateServiceModal(false); setCreateServiceData(null); }}
+                        >
+                          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
                             <h3 className="text-lg font-semibold mb-4">Create New Service</h3>
                             <p className="text-sm text-gray-500 mb-4">
                               This will add the service to your catalogue and make it available for all future client assessments.
