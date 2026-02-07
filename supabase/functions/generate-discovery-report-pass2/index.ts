@@ -3577,6 +3577,73 @@ Before returning, verify:
     }
     console.log('[Pass2] ✅ Database update successful');
 
+    // ========================================================================
+    // POST-SAVE: Fix Stage 3 headline if it leads with exit inappropriately
+    // ========================================================================
+    const exitTimelineLower = String(exitTimeline || '').toLowerCase();
+    const shouldNotLeadWithExit = 
+      exitTimelineLower.includes('3-5 years') ||
+      exitTimelineLower.includes('5-10 years') ||
+      exitTimelineLower.includes('never');
+
+    if (shouldNotLeadWithExit) {
+      // Check discovery_reports.headline (set by Stage 3)
+      const { data: savedReport } = await supabase
+        .from('discovery_reports')
+        .select('headline')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+      
+      const savedHeadline = savedReport?.headline || '';
+      const exitPatterns = [/exit/i, /building for.*£\d/i, /preparing to sell/i];
+      
+      if (savedHeadline && exitPatterns.some(p => p.test(savedHeadline))) {
+        // Try to use a gap title as the replacement
+        const gaps = narratives.page2_gaps?.gaps || [];
+        const betterGap = gaps.find((g: any) => {
+          const t = (g.title || '').toLowerCase();
+          return t.includes('relationship') || t.includes('revenue') || 
+                 t.includes('growth') || t.includes('engine') || t.includes('ceiling');
+        });
+        
+        const newHeadline = betterGap?.title || 
+          savedHeadline
+            .replace(/building for a? ?£\d+[mk]?\s*exit/i, 'growing')
+            .replace(/£\d+[mk]?\s*exit/gi, 'growth');
+        
+        await supabase
+          .from('discovery_reports')
+          .update({ headline: newHeadline })
+          .eq('engagement_id', engagementId);
+        
+        console.log(`[Pass2] ✅ Fixed Stage 3 headline: "${savedHeadline}" → "${newHeadline}"`);
+      }
+      
+      // Also check client_reports (where Stage 3 stores its analysis)
+      const { data: clientReport } = await supabase
+        .from('client_reports')
+        .select('id, report_data')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+      
+      if (clientReport?.report_data?.analysis?.executiveSummary?.headline) {
+        const stg3Headline = clientReport.report_data.analysis.executiveSummary.headline;
+        if (exitPatterns.some(p => p.test(stg3Headline))) {
+          const fixedData = JSON.parse(JSON.stringify(clientReport.report_data));
+          fixedData.analysis.executiveSummary.headline = newHeadline || stg3Headline
+            .replace(/building for a? ?£\d+[mk]?\s*exit/i, 'growing')
+            .replace(/£\d+[mk]?\s*exit/gi, 'growth');
+          
+          await supabase
+            .from('client_reports')
+            .update({ report_data: fixedData })
+            .eq('id', clientReport.id);
+          
+          console.log(`[Pass2] ✅ Also fixed client_reports headline`);
+        }
+      }
+    }
+
     // Update engagement status
     await supabase
       .from('discovery_engagements')

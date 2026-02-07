@@ -935,6 +935,19 @@ async function storeOpportunities(
   
   console.log(`[Discovery Pass 3] Storing ${opportunities.length} opportunities...`);
   
+  // CRITICAL: Clear old opportunities before inserting new ones
+  // This prevents stale entries from previous runs appearing alongside new ones
+  const { error: deleteError } = await supabase
+    .from('discovery_opportunities')
+    .delete()
+    .eq('engagement_id', engagementId);
+  
+  if (deleteError) {
+    console.error('[Discovery Pass 3] Warning: Failed to clear old opportunities:', deleteError);
+  } else {
+    console.log('[Discovery Pass 3] Cleared previous opportunities for clean insert');
+  }
+  
   for (const opp of opportunities) {
     // Check if it maps to existing service
     let serviceId: string | null = null;

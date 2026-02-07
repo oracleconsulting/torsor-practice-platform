@@ -2013,7 +2013,10 @@ function performComprehensiveAnalysis(
       // Create modified financials with combined people costs
       const agencyFinancials = {
         ...financials,
-        totalStaffCosts: totalPeopleCosts
+        totalStaffCosts: totalPeopleCosts,
+        consultingCosts: 0,  // Already included in totalStaffCosts — prevent double-counting
+        consultancyFees: 0,
+        subcontractorCosts: 0
       };
       
       // Use 'agency' as industry to trigger agency-specific benchmarks
