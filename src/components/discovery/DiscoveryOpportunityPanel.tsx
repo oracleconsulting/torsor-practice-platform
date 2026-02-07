@@ -78,19 +78,23 @@ interface Props {
   engagementId: string;
   clientId?: string;
   practiceId?: string;
+  onVisibilityChange?: () => void;  // Callback when visibility changes
 }
 
 // ============================================================================
 // Component
 // ============================================================================
 
-export function DiscoveryOpportunityPanel({ engagementId }: Props) {
+export function DiscoveryOpportunityPanel({ engagementId, clientId, practiceId, onVisibilityChange }: Props) {
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createServiceData, setCreateServiceData] = useState<any>(null);
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     if (engagementId) {
@@ -159,8 +163,96 @@ export function DiscoveryOpportunityPanel({ engagementId }: Props) {
   };
 
   const handleCreateService = async (opportunityId: string, conceptId?: string) => {
-    // TODO: Open service creation modal
-    alert(`Create service from opportunity ${opportunityId}${conceptId ? ` (concept: ${conceptId})` : ''}`);
+    // Find the opportunity
+    const opp = opportunities.find(o => o.id === opportunityId);
+    if (!opp) return;
+    
+    if (conceptId && opp.concept) {
+      // New concept → pre-fill modal
+      setCreateServiceData({
+        opportunityId,
+        conceptId,
+        name: opp.concept.suggested_name,
+        category: opp.category,
+        description: opp.concept.problem_it_solves,
+        suggestedPricing: '',
+        pricingModel: 'fixed',
+      });
+      setShowCreateModal(true);
+    } else if (opp.service) {
+      // Existing service → just toggle visibility
+      await handleToggleClientView(opportunityId, true);
+    }
+  };
+
+  const handleConfirmCreateService = async () => {
+    if (!createServiceData || !practiceId) {
+      alert('Practice ID is required to create services');
+      return;
+    }
+    setCreating(true);
+    
+    try {
+      // 1. Create the service
+      const code = createServiceData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '');
+      
+      const { data: newService, error: serviceError } = await supabase
+        .from('services')
+        .insert({
+          code,
+          name: createServiceData.name,
+          short_description: createServiceData.description,
+          category: createServiceData.category,
+          price_amount: parseFloat(createServiceData.suggestedPricing) || null,
+          price_period: createServiceData.pricingModel,
+          status: 'active',
+          practice_id: practiceId,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      
+      if (serviceError) throw serviceError;
+      
+      console.log('[DiscoveryOpportunityPanel] Created new service:', newService);
+      
+      // 2. Update the concept status
+      if (createServiceData.conceptId) {
+        await supabase
+          .from('service_concepts')
+          .update({
+            review_status: 'approved',
+            promoted_to_service_id: newService.id,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', createServiceData.conceptId);
+      }
+      
+      // 3. Link the opportunity to the new service
+      await supabase
+        .from('discovery_opportunities')
+        .update({
+          recommended_service_id: newService.id,
+          suggested_concept_id: null,
+          show_in_client_view: true
+        })
+        .eq('id', createServiceData.opportunityId);
+      
+      // 4. Refresh
+      setShowCreateModal(false);
+      setCreateServiceData(null);
+      await loadOpportunities();
+      if (onVisibilityChange) onVisibilityChange();
+      
+    } catch (err) {
+      console.error('Failed to create service:', err);
+      alert(`Failed to create service: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setCreating(false);
+    }
   };
 
   if (loading) {
@@ -422,5 +514,94 @@ export function DiscoveryOpportunityPanel({ engagementId }: Props) {
         </div>
       ))}
     </div>
+
+    {/* Create Service Modal */}
+    {showCreateModal && createServiceData && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+          <h3 className="text-lg font-semibold mb-4">Create New Service</h3>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
+              <input
+                type="text"
+                value={createServiceData.name}
+                onChange={(e) => setCreateServiceData({ ...createServiceData, name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <textarea
+                value={createServiceData.description}
+                onChange={(e) => setCreateServiceData({ ...createServiceData, description: e.target.value })}
+                rows={3}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Price (£)</label>
+                <input
+                  type="number"
+                  value={createServiceData.suggestedPricing}
+                  onChange={(e) => setCreateServiceData({ ...createServiceData, suggestedPricing: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="e.g. 2000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Model</label>
+                <select
+                  value={createServiceData.pricingModel}
+                  onChange={(e) => setCreateServiceData({ ...createServiceData, pricingModel: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="fixed">One-off</option>
+                  <option value="month">Monthly</option>
+                  <option value="annual">Annual</option>
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+              <select
+                value={createServiceData.category}
+                onChange={(e) => setCreateServiceData({ ...createServiceData, category: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+              >
+                <option value="financial">Financial</option>
+                <option value="operational">Operational</option>
+                <option value="strategic">Strategic</option>
+                <option value="personal">Personal</option>
+                <option value="wealth">Wealth</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              onClick={() => { setShowCreateModal(false); setCreateServiceData(null); }}
+              className="px-4 py-2 text-gray-700 border rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmCreateService}
+              disabled={creating || !createServiceData.name}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+            >
+              {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Create Service
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
   );
 }

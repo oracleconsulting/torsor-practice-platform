@@ -46,6 +46,7 @@ import {
   useAnalysisComments 
 } from './AnalysisCommentSystem';
 import { DiscoveryOpportunityPanel } from './DiscoveryOpportunityPanel';
+import { ServicePinBlockControl } from './ServicePinBlockControl';
 
 interface DiscoveryAdminModalProps {
   clientId: string;
@@ -1411,6 +1412,71 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
         )}
 
         {/* ================================================================ */}
+        {/* HOW WE CAN HELP — Synthesised from Pass 3 */}
+        {/* ================================================================ */}
+        {report?.recommended_services && report.recommended_services.length > 0 && (
+          <section className="mb-16">
+            <div className="mb-8">
+              <p className="text-sm font-medium text-amber-600 uppercase tracking-widest mb-2">
+                How We Can Help
+              </p>
+              <h2 className="text-2xl font-serif font-light text-slate-800">
+                Services Matched To Your Situation
+              </h2>
+              <p className="text-slate-500 mt-2">
+                Based on everything you've shared, here's where we can make the biggest difference
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              {report.recommended_services.map((rec: any, idx: number) => (
+                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-slate-800">{rec.serviceName}</h3>
+                      <p className="text-slate-600 mt-2 leading-relaxed">{rec.whyThisMatters}</p>
+                      
+                      {rec.addresses && rec.addresses.length > 1 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                            What this addresses:
+                          </p>
+                          <div className="space-y-1">
+                            {rec.addresses.map((a: string, i: number) => (
+                              <p key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                                <span className="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                                {a}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-right ml-6 flex-shrink-0">
+                      <p className="text-lg font-semibold text-amber-600">{rec.displayPrice}</p>
+                      {rec.totalValueAtStake > 0 && (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          ↗ £{rec.totalValueAtStake.toLocaleString()} potential
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Hidden count */}
+            {report?.opportunity_assessment?.totalOpportunities > report.recommended_services.length && (
+              <p className="text-center text-sm text-slate-500 mt-6 italic">
+                {report.opportunity_assessment.totalOpportunities - report.recommended_services.length} additional 
+                opportunities identified that your advisor will discuss with you.
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* ================================================================ */}
         {/* PAGE 5: NEXT STEPS */}
         {/* ================================================================ */}
         {page5 && (
@@ -1485,6 +1551,71 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   </p>
                 )}
               </div>
+            )}
+          </section>
+        )}
+
+        {/* ================================================================ */}
+        {/* HOW WE CAN HELP — Synthesised from Pass 3 */}
+        {/* ================================================================ */}
+        {report?.recommended_services && report.recommended_services.length > 0 && (
+          <section className="mb-16">
+            <div className="mb-8">
+              <p className="text-sm font-medium text-amber-600 uppercase tracking-widest mb-2">
+                How We Can Help
+              </p>
+              <h2 className="text-2xl font-serif font-light text-slate-800">
+                Services Matched To Your Situation
+              </h2>
+              <p className="text-slate-500 mt-2">
+                Based on everything you've shared, here's where we can make the biggest difference
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              {report.recommended_services.map((rec: any, idx: number) => (
+                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-slate-800">{rec.serviceName}</h3>
+                      <p className="text-slate-600 mt-2 leading-relaxed">{rec.whyThisMatters}</p>
+                      
+                      {rec.addresses && rec.addresses.length > 1 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                            What this addresses:
+                          </p>
+                          <div className="space-y-1">
+                            {rec.addresses.map((a: string, i: number) => (
+                              <p key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                                <span className="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                                {a}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-right ml-6 flex-shrink-0">
+                      <p className="text-lg font-semibold text-amber-600">{rec.displayPrice}</p>
+                      {rec.totalValueAtStake > 0 && (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          ↗ £{rec.totalValueAtStake.toLocaleString()} potential
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Hidden count */}
+            {report?.opportunity_assessment?.totalOpportunities > report.recommended_services.length && (
+              <p className="text-center text-sm text-slate-500 mt-6 italic">
+                {report.opportunity_assessment.totalOpportunities - report.recommended_services.length} additional 
+                opportunities identified that your advisor will discuss with you.
+              </p>
             )}
           </section>
         )}
@@ -1743,6 +1874,24 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                     ))}
                   </div>
                 )}
+
+                {/* Service Preferences for Pass 3 */}
+                <div className="mt-8 border-t pt-6">
+                  <h4 className="text-md font-semibold mb-3 flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-blue-600" />
+                    Service Preferences (affects Pass 3)
+                  </h4>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Pin services you want included, or block services you want excluded from opportunity analysis.
+                  </p>
+                  
+                  <ServicePinBlockControl
+                    engagementId={engagement?.id || ''}
+                    pinnedServices={engagement?.pinned_services || []}
+                    blockedServices={engagement?.blocked_services || []}
+                    onUpdate={fetchData}
+                  />
+                </div>
 
                 {/* Add Context Modal */}
                 {showAddContext && (

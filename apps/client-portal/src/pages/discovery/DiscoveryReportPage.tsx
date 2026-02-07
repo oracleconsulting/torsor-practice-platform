@@ -102,6 +102,7 @@ export default function DiscoveryReportPage() {
   const [expandedPhase, setExpandedPhase] = useState<number>(0);
   const [selectedService, setSelectedService] = useState<{ code: string; name: string } | null>(null);
   const [comprehensiveAnalysis, setComprehensiveAnalysis] = useState<any>(null);
+  const [recommendedServices, setRecommendedServices] = useState<any[]>([]);
 
   useEffect(() => {
     loadReport();
@@ -190,6 +191,10 @@ export default function DiscoveryReportPage() {
           // Also store comprehensive_analysis separately for use across formats
           if (discoveryReport.comprehensive_analysis) {
             setComprehensiveAnalysis(discoveryReport.comprehensive_analysis);
+          }
+          // Load recommended services for "How We Can Help" section
+          if (discoveryReport.recommended_services) {
+            setRecommendedServices(discoveryReport.recommended_services);
           }
           setLoading(false);
           return;
@@ -567,6 +572,65 @@ export default function DiscoveryReportPage() {
                         )}
                       </div>
                     )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ================================================================ */}
+          {/* HOW WE CAN HELP — Synthesised from Pass 3 */}
+          {/* ================================================================ */}
+          {recommendedServices.length > 0 && (
+            <section className="mb-16">
+              <div className="mb-8">
+                <p className="text-sm font-medium text-amber-600 uppercase tracking-widest mb-2">
+                  How We Can Help
+                </p>
+                <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+                  Services Matched To Your Situation
+                </h2>
+              </div>
+              
+              <div className="space-y-4">
+                {recommendedServices.map((rec: any, idx: number) => (
+                  <div key={idx} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-slate-800">{rec.serviceName}</h3>
+                        <p className="text-slate-600 mt-2 leading-relaxed">{rec.whyThisMatters}</p>
+                        
+                        {rec.addresses && rec.addresses.length > 1 && (
+                          <div className="mt-4">
+                            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                              What this addresses:
+                            </p>
+                            <div className="space-y-1">
+                              {rec.addresses.map((a: string, i: number) => (
+                                <p key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                                  <span className="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                                  {a}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="text-right ml-6 flex-shrink-0">
+                        <button
+                          onClick={() => setSelectedService({ code: rec.serviceCode, name: rec.serviceName })}
+                          className="text-lg font-semibold text-amber-600 hover:text-amber-700 transition-colors hover:underline"
+                        >
+                          {rec.displayPrice}
+                        </button>
+                        {rec.totalValueAtStake > 0 && (
+                          <p className="text-xs text-emerald-600 mt-1">
+                            ↗ £{rec.totalValueAtStake.toLocaleString()} potential impact
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
