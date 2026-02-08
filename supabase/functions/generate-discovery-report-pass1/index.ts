@@ -2937,9 +2937,21 @@ serve(async (req) => {
     console.log('[Pass1] Loaded context notes:', contextNoteTexts.length, 'notes');
 
     // ========================================================================
-    // FETCH FINANCIAL CONTEXT
+    // FETCH FINANCIAL DATA — Check BOTH sources
     // ========================================================================
-    
+    // Source 1: client_financial_data — multi-year structured data from CSV upload
+    //   Written by: process-accounts-upload
+    //   Contains: 4+ years of revenue, costs, margins, balance sheet per fiscal year
+    // Source 2: client_financial_context — single-period LLM extraction from documents
+    //   Written by: process-client-context
+    // ========================================================================
+
+    const { data: accountsYears } = await supabase
+      .from('client_financial_data')
+      .select('*')
+      .eq('client_id', engagement.client_id)
+      .order('fiscal_year', { ascending: false });
+
     const { data: financialContext } = await supabase
       .from('client_financial_context')
       .select('*')
@@ -2948,14 +2960,147 @@ serve(async (req) => {
       .limit(1)
       .single();
 
+    console.log('[Pass1] 📊 Financial data sources:', {
+      accountsYears: accountsYears?.length || 0,
+      latestAccountsYear: accountsYears?.[0]?.fiscal_year || 'none',
+      latestAccountsRevenue: accountsYears?.[0]?.revenue ?? 'none',
+      hasFinancialContext: !!financialContext,
+      financialContextRevenue: financialContext?.revenue ?? financialContext?.turnover ?? 'none',
+    });
+
     // ========================================================================
-    // EXTRACT FINANCIALS - COMPREHENSIVE EXTRACTION
-    // Pulls from both table columns AND extracted_insights JSONB
+    // EXTRACT FINANCIALS — Prefer client_financial_data, fall back to client_financial_context
     // ========================================================================
-    
+
     let extractedFinancials: ExtractedFinancials = { source: 'none' };
-    
-    if (financialContext) {
+
+    if (accountsYears && accountsYears.length > 0) {
+      const latest = accountsYears[0];
+      const prior = accountsYears.length > 1 ? accountsYears[1] : null;
+
+      console.log('[Pass1] 📊 Using client_financial_data (primary source)');
+      console.log('[Pass1]   Latest year:', latest.fiscal_year, '| Revenue:', latest.revenue);
+      if (prior) console.log('[Pass1]   Prior year:', prior.fiscal_year, '| Revenue:', prior.revenue);
+
+      const multiYearEarnings = accountsYears
+        .map((y: any) => ({
+          year: y.fiscal_year,
+          earnings: y.net_profit ?? y.ebitda ?? 0,
+          revenue: y.revenue ?? null
+        }))
+        .sort((a: any, b: any) => a.year - b.year);
+
+      let earningsTrend: string | undefined;
+      if (multiYearEarnings.length >= 2) {
+        const recentRevenues = multiYearEarnings.slice(-3).map((y: any) => y.revenue).filter(Boolean) as number[];
+        if (recentRevenues.length >= 2) {
+          const first = recentRevenues[0];
+          const last = recentRevenues[recentRevenues.length - 1];
+          const growth = ((last - first) / first) * 100;
+          if (growth > 10) earningsTrend = 'growing';
+          else if (growth < -10) earningsTrend = 'declining';
+          else earningsTrend = 'stable';
+        }
+      }
+
+      const turnover = Number(latest.revenue) || 0;
+      const turnoverPriorYear = prior ? Number(prior.revenue) : undefined;
+      const grossProfit = latest.gross_profit != null ? Number(latest.gross_profit) : undefined;
+      const grossProfitPriorYear = prior?.gross_profit != null ? Number(prior.gross_profit) : undefined;
+      const operatingProfit = latest.ebitda != null ? Number(latest.ebitda) : undefined;
+      const netProfit = latest.net_profit != null ? Number(latest.net_profit) : undefined;
+      const netProfitPriorYear = prior?.net_profit != null ? Number(prior.net_profit) : undefined;
+      const totalStaffCosts = (latest as any).staff_costs != null ? Number((latest as any).staff_costs) : undefined;
+      const employeeCount = latest.employee_count != null ? Number(latest.employee_count) : undefined;
+      const employeeCountPriorYear = prior?.employee_count != null ? Number(prior.employee_count) : undefined;
+
+      const grossMarginPct = turnover && grossProfit ? (grossProfit / turnover) * 100 : (latest.gross_margin_pct != null ? Number(latest.gross_margin_pct) : undefined);
+      const netMarginPct = turnover && netProfit ? (netProfit / turnover) * 100 : (latest.net_margin_pct != null ? Number(latest.net_margin_pct) : undefined);
+      const staffCostsPercentOfRevenue = totalStaffCosts && turnover ? (totalStaffCosts / turnover) * 100 : undefined;
+      const turnoverGrowth = turnover && turnoverPriorYear ? ((turnover - turnoverPriorYear) / turnoverPriorYear) * 100 : undefined;
+      const revenuePerEmployee = employeeCount && turnover ? turnover / employeeCount : (latest.revenue_per_employee != null ? Number(latest.revenue_per_employee) : undefined);
+
+      extractedFinancials = {
+        source: 'client_financial_data',
+        turnover,
+        turnoverPriorYear,
+        turnoverGrowth,
+        grossProfit,
+        grossProfitPriorYear,
+        grossMarginPct,
+        operatingProfit,
+        operatingProfitPriorYear: prior?.ebitda != null ? Number(prior.ebitda) : undefined,
+        operatingMarginPct: turnover && operatingProfit ? (operatingProfit / turnover) * 100 : undefined,
+        netProfit,
+        netProfitPriorYear,
+        netMarginPct,
+        ebitda: latest.ebitda != null ? Number(latest.ebitda) : undefined,
+        costOfSales: latest.cost_of_sales != null ? Number(latest.cost_of_sales) : undefined,
+        costOfSalesPriorYear: prior?.cost_of_sales != null ? Number(prior.cost_of_sales) : undefined,
+        totalStaffCosts,
+        staffCostsPercentOfRevenue,
+        employeeCount,
+        employeeCountPriorYear,
+        revenuePerEmployee,
+        netAssets: latest.net_assets != null ? Number(latest.net_assets) : undefined,
+        totalAssets: latest.total_assets != null ? Number(latest.total_assets) : undefined,
+        fixedAssets: latest.fixed_assets != null ? Number(latest.fixed_assets) : undefined,
+        cash: latest.cash != null ? Number(latest.cash) : undefined,
+        cashPriorYear: prior?.cash != null ? Number(prior.cash) : undefined,
+        debtors: latest.debtors != null ? Number(latest.debtors) : undefined,
+        debtorsPriorYear: prior?.debtors != null ? Number(prior.debtors) : undefined,
+        stock: latest.stock != null ? Number(latest.stock) : undefined,
+        stockPriorYear: prior?.stock != null ? Number(prior.stock) : undefined,
+        creditors: latest.creditors != null ? Number(latest.creditors) : undefined,
+        creditorsPriorYear: prior?.creditors != null ? Number(prior.creditors) : undefined,
+        totalLiabilities: latest.total_liabilities != null ? Number(latest.total_liabilities) : undefined,
+        currentLiabilities: latest.current_liabilities != null ? Number(latest.current_liabilities) : undefined,
+        longTermLiabilities: latest.long_term_liabilities != null ? Number(latest.long_term_liabilities) : undefined,
+        debtorDays: latest.debtor_days != null ? Number(latest.debtor_days) : undefined,
+        creditorDays: latest.creditor_days != null ? Number(latest.creditor_days) : undefined,
+        depreciation: latest.depreciation != null ? Number(latest.depreciation) : undefined,
+        amortisation: latest.amortisation != null ? Number(latest.amortisation) : undefined,
+        investments: (latest as any).investments != null ? Number((latest as any).investments) : undefined,
+        freeholdProperty: (latest as any).freehold_property != null ? Number((latest as any).freehold_property) : undefined,
+        multiYearEarnings,
+        earningsTrend,
+        earningsTrendNarrative: earningsTrend ? `Revenue trend over ${multiYearEarnings.length} years: ${earningsTrend}. Latest: £${turnover?.toLocaleString()}, Prior: £${turnoverPriorYear?.toLocaleString() ?? 'N/A'}` : undefined,
+      };
+
+      if (financialContext) {
+        let insights: Record<string, any> = {};
+        const rawInsights = financialContext.extracted_insights;
+        if (rawInsights) {
+          if (typeof rawInsights === 'object' && rawInsights !== null) insights = rawInsights;
+          else if (typeof rawInsights === 'string') {
+            try {
+              let parsed = JSON.parse(rawInsights);
+              if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+              insights = parsed || {};
+            } catch (_) { insights = {}; }
+          }
+        }
+        if (!extractedFinancials.directorsRemuneration) extractedFinancials.directorsRemuneration = insights.directors_remuneration ?? insights.directors_fees;
+        if (!extractedFinancials.staffWages) extractedFinancials.staffWages = insights.wages_salaries ?? insights.staff_wages;
+        if (!extractedFinancials.consultingCosts) extractedFinancials.consultingCosts = insights.consulting_costs ?? insights.consultancy_costs ?? insights.contractor_costs;
+        if (!extractedFinancials.contractorCountEstimate) extractedFinancials.contractorCountEstimate = insights.contractor_count_estimate ?? insights.contractor_count;
+        if (!extractedFinancials.freeholdProperty) extractedFinancials.freeholdProperty = insights.freehold_property ?? insights.freehold_land_buildings;
+        if (!extractedFinancials.clientRevenueConcentration) extractedFinancials.clientRevenueConcentration = insights.client_revenue_concentration;
+        console.log('[Pass1] 📊 Enriched from client_financial_context');
+      }
+
+      console.log('[Pass1] ✅ Loaded financials from client_financial_data:', {
+        turnover: extractedFinancials.turnover,
+        turnoverPriorYear: extractedFinancials.turnoverPriorYear,
+        grossProfit: extractedFinancials.grossProfit,
+        operatingProfit: extractedFinancials.operatingProfit,
+        totalStaffCosts: extractedFinancials.totalStaffCosts,
+        employeeCount: extractedFinancials.employeeCount,
+        netAssets: extractedFinancials.netAssets,
+        multiYearCount: multiYearEarnings.length,
+        earningsTrend,
+      });
+    } else if (financialContext) {
       // ========================================================================
       // PARSE extracted_insights - Handle double-encoded JSON strings
       // The field can be: an object, a JSON string, or a double-encoded string

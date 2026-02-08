@@ -769,7 +769,76 @@ serve(async (req) => {
       }
     };
 
-    function cleanJourneyPhases(journeyData: any, clientTurnover?: number): any {
+    // ========================================================================
+    // CLEAN JOURNEY PHASES — hardcoded enabled-by strings
+    // The LLM cannot be trusted to format these consistently.
+    // We detect the service by keyword and overwrite the ENTIRE string.
+    // Then we strip any remaining stutter patterns as a safety net.
+    // ========================================================================
+
+    // Canonical enabled-by strings — the ONLY acceptable output
+    const CANONICAL_ENABLED_BY: Record<string, { phase1: string; deferred: string }> = {
+      'benchmarking':        { phase1: 'Industry Benchmarking (Full Package) (£2,000)',              deferred: 'Industry Benchmarking (Full Package) (£2,000 — when ready)' },
+      'systems_audit':       { phase1: 'Systems & Process Audit (£2,000)',                           deferred: 'Systems & Process Audit (£2,000 — when ready)' },
+      'goal_alignment':      { phase1: 'Goal Alignment Programme (Growth) (£4,500/year)',            deferred: 'Goal Alignment Programme (Growth) (£4,500/year — when ready)' },
+      'management_accounts': { phase1: 'Management Accounts (£650/month)',                           deferred: 'Management Accounts (£650/month — when ready)' },
+      'business_intelligence': { phase1: 'Business Intelligence (Clarity) (from £2,000/month)',       deferred: 'Business Intelligence (Clarity) (from £2,000/month — when ready)' },
+      'fractional_cfo':      { phase1: 'Fractional CFO (£4,000/month)',                              deferred: 'Fractional CFO (£4,000/month — when ready)' },
+      'fractional_coo':      { phase1: 'Fractional COO (£3,750/month)',                              deferred: 'Fractional COO (£3,750/month — when ready)' },
+      'business_advisory':   { phase1: 'Business Advisory & Exit Planning (£2,000)',                 deferred: 'Business Advisory & Exit Planning (£2,000 — when ready)' },
+      'automation':          { phase1: 'Automation Services (£5,000)',                                deferred: 'Automation Services (£5,000 — when ready)' },
+    };
+
+    function detectServiceFromText(text: string): string | null {
+      if (!text) return null;
+      const lower = text.toLowerCase();
+
+      if (lower.includes('benchmark'))                                    return 'benchmarking';
+      if (lower.includes('system') && (lower.includes('audit') || lower.includes('process'))) return 'systems_audit';
+      if (lower.includes('goal') || lower.includes('alignment') || lower.includes('365')) return 'goal_alignment';
+      if (lower.includes('management account'))                           return 'management_accounts';
+      if (lower.includes('business intelligence'))                        return 'business_intelligence';
+      if (lower.includes('fractional cfo') || (lower.includes('cfo') && !lower.includes('coo'))) return 'fractional_cfo';
+      if (lower.includes('fractional coo') || (lower.includes('coo') && !lower.includes('cfo'))) return 'fractional_coo';
+      if (lower.includes('business advisory') || lower.includes('exit planning')) return 'business_advisory';
+      if (lower.includes('automation'))                                   return 'automation';
+
+      return null;
+    }
+
+    /**
+     * Strip stutter patterns from any string — safety net
+     * Catches: "(£2,000) (£2,000)", "(£2,000 — when ready) (£2,000 — when ready — when ready)",
+     *          "(Tier 1)", "(Tier 2)", doubled "when ready", etc.
+     */
+    function stripStutter(text: string): string {
+      if (!text) return text;
+
+      let result = text;
+
+      // Remove "(Tier N)" — not client-facing
+      result = result.replace(/\s*\(Tier\s*\d+\)\s*/gi, ' ');
+
+      // Remove duplicate price brackets: "(£X,XXX) (£X,XXX)" → "(£X,XXX)"
+      result = result.replace(/(\(£[\d,]+(?:\/\w+)?\))\s*\(£[\d,]+(?:\/\w+)?\)/g, '$1');
+
+      // Remove duplicate "when ready" patterns:
+      // "(£X — when ready) (£X — when ready — when ready)" → "(£X — when ready)"
+      result = result.replace(/(\(£[\d,]+(?:\/\w+)?\s*—\s*when ready\))\s*\(£[\d,]+(?:\s*—\s*when ready)*(?:\/\w+)?(?:\s*—\s*when ready)*\)/gi, '$1');
+
+      // Clean up any remaining "— when ready — when ready" to just "— when ready"
+      result = result.replace(/(—\s*when ready)\s*—\s*when ready/gi, '$1');
+
+      // Clean up "when ready/year — when ready" → just use the canonical
+      result = result.replace(/when ready\/year\s*—\s*when ready/gi, 'when ready');
+
+      // Clean up double spaces
+      result = result.replace(/\s{2,}/g, ' ').trim();
+
+      return result;
+    }
+
+    function cleanJourneyPhases(journeyData: any, _clientTurnover?: number): any {
       if (!journeyData) return journeyData;
 
       const phases = journeyData.phases ||
@@ -783,6 +852,7 @@ serve(async (req) => {
       console.log(`[Pass2] cleanJourneyPhases: processing ${phases.length} phases`);
 
       phases.forEach((phase: any, index: number) => {
+        // Find the enabled-by field
         const fieldNames = ['enabledBy', 'enabled_by', 'service', 'serviceLine', 'enabledByService'];
         let fieldName: string | null = null;
         let currentValue = '';
@@ -795,28 +865,29 @@ serve(async (req) => {
           }
         }
 
-        if (!fieldName) return;
+        if (!fieldName) {
+          console.log(`[Pass2] Phase ${index}: no enabled-by field found`);
+          return;
+        }
 
-        console.log(`[Pass2] Phase ${index} BEFORE: ${currentValue}`);
+        console.log(`[Pass2] Phase ${index} BEFORE: "${currentValue}"`);
 
-        const rawCode = phase.enabledByCode || detectServiceCode(currentValue);
-        const code = rawCode ? resolveServiceCode(rawCode) : null;
+        // Step 1: Try to detect service and hardcode the correct string
+        const detectedCode = phase.enabledByCode || detectServiceFromText(currentValue);
 
-        if (code && SERVICE_REGISTRY[code]) {
-          const isDeferred = index > 0;
-          const tierName = phase.tier || phase.tierName || undefined;
+        if (detectedCode && CANONICAL_ENABLED_BY[detectedCode]) {
+          const isDeferred = index > 0; // Phase 0 = firm price, Phase 1+ = "when ready"
+          const canonical = isDeferred
+            ? CANONICAL_ENABLED_BY[detectedCode].deferred
+            : CANONICAL_ENABLED_BY[detectedCode].phase1;
 
-          const replacement = getEnabledByString(code, {
-            tierName,
-            turnover: clientTurnover,
-            deferred: isDeferred,
-          });
-
-          phase[fieldName] = replacement;
-          phase.enabledByCode = code;
-          console.log(`[Pass2] Phase ${index} AFTER: ${replacement}`);
+          phase[fieldName] = canonical;
+          phase.enabledByCode = detectedCode;
+          console.log(`[Pass2] Phase ${index} AFTER (canonical): "${canonical}"`);
         } else {
-          console.log(`[Pass2] Phase ${index}: could not detect service from "${currentValue}"`);
+          // Step 2: Couldn't detect service — apply stutter stripping as fallback
+          phase[fieldName] = stripStutter(currentValue);
+          console.log(`[Pass2] Phase ${index} AFTER (stripped): "${phase[fieldName]}"`);
         }
       });
 
@@ -1274,7 +1345,15 @@ No validated financial data available. When discussing financial figures:
       hasPrebuiltPhrases: !!prebuiltPhrases,
       hasPromptInjection: !!pass2PromptInjection
     });
-    
+
+    console.log('[Pass2] 🔍 CoI data from Pass 1:', JSON.stringify({
+      hasCoI: !!comprehensiveAnalysis?.costOfInaction,
+      totalAnnual: comprehensiveAnalysis?.costOfInaction?.totalAnnual,
+      totalOverHorizon: comprehensiveAnalysis?.costOfInaction?.totalOverHorizon,
+      componentCount: comprehensiveAnalysis?.costOfInaction?.components?.length,
+      components: comprehensiveAnalysis?.costOfInaction?.components?.map((c: any) => `${c.category}: £${Math.round(c.annualCost / 1000)}k`)
+    }, null, 2));
+
     // If we have pre-built prompt injection from structured calculations, log it
     if (pass2PromptInjection) {
       console.log('[Pass2] ✅ Using structured pre-built phrases from Pass 1 v3.0');
@@ -1652,6 +1731,25 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
     console.log(`  - Clarity Score: ${pass1ClarityScore}`);
     console.log(`  - Gap Score: ${pass1GapScore}`);
     
+    /**
+     * Strip stutter from price strings.
+     * "£2,000 — when ready — when ready — when ready" → "£2,000"
+     * "£4,500 — when ready/year — when ready" → "£4,500/year"
+     * Returns ONLY the raw price and period.
+     */
+    function cleanPrice(raw: string): string {
+      if (!raw) return '';
+      const priceMatch = raw.match(/£[\d,]+(?:\s*\/\s*(?:month|year|quarter))?/);
+      if (priceMatch) {
+        return priceMatch[0].replace(/\s+/g, '');
+      }
+      let price = raw;
+      price = price.replace(/\s*—\s*when ready/gi, '');
+      price = price.replace(/\s*when ready/gi, '');
+      price = price.replace(/\s*—\s*$/g, '');
+      return price.trim();
+    }
+
     // Build a map of service -> exact price from Pass 1
     const pass1ServicePrices: Record<string, { service: string; tier: string; price: string }> = {};
     
@@ -1664,7 +1762,7 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
         pass1ServicePrices[code] = {
           service: inv.service || inv.serviceName || code,
           tier: inv.recommendedTier || inv.tier || '',
-          price: inv.investment || inv.price || ''
+          price: cleanPrice(inv.investment || inv.price || '')
         };
       }
     }
@@ -1676,7 +1774,7 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
         pass1ServicePrices[code] = {
           service: phase.enabledBy || code,
           tier: phase.tier || '',
-          price: phase.price || phase.investment || ''
+          price: cleanPrice(phase.price || phase.investment || '')
         };
       }
     }
@@ -3095,7 +3193,128 @@ Before returning, verify:
       
       console.log('[Pass2] ✅ Pass 1 service prices enforced');
     }
-    
+
+    // ========================================================================
+    // FINAL SAFETY NET: strip stutter from ALL enabled-by fields
+    // This catches anything that cleanJourneyPhases missed
+    // ========================================================================
+    if (narratives.page3_journey?.phases) {
+      for (const phase of narratives.page3_journey.phases) {
+        for (const field of ['enabledBy', 'enabled_by', 'service', 'serviceLine']) {
+          if (phase[field] && typeof phase[field] === 'string') {
+            const before = phase[field];
+            phase[field] = stripStutter(phase[field]);
+            if (before !== phase[field]) {
+              console.log(`[Pass2] 🧹 Final stutter strip: "${before}" → "${phase[field]}"`);
+            }
+          }
+        }
+      }
+    }
+
+    // ========================================================================
+    // MECHANICAL RETURNS CALCULATION
+    // The LLM cannot reliably calculate returns. We compute from Pass 1 CoI.
+    // ========================================================================
+
+    const coiData = comprehensiveAnalysis?.costOfInaction;
+    const totalInvestmentYear1 = (() => {
+      // Parse the total year 1 investment from Pass 1
+      const totalStr = pass1Total || narratives.page4_numbers?.totalYear1 || '';
+      const match = totalStr.replace(/[,£]/g, '').match(/(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    })();
+
+    if (coiData && coiData.totalAnnual > 0 && totalInvestmentYear1 > 0 && narratives.page4_numbers) {
+      const coiAnnual = coiData.totalAnnual;
+      const coiComponents = coiData.components || [];
+      const timeHorizon = coiData.timeHorizon || 3;
+
+      // Conservative: 30% of estimated annual CoI recovered in Year 1
+      // Realistic: 60% of estimated annual CoI recovered in Year 1
+      const conservativeRecovery = Math.round(coiAnnual * 0.3);
+      const realisticRecovery = Math.round(coiAnnual * 0.6);
+
+      // Build component breakdown
+      const founderTime = coiComponents.find((c: any) => c.category?.includes('Founder'));
+      const concentration = coiComponents.find((c: any) => c.category?.includes('Concentration'));
+      const growth = coiComponents.find((c: any) => c.category?.includes('Growth') || c.category?.includes('Delayed'));
+      const payrollExcess = coiComponents.find((c: any) => c.category?.includes('Payroll'));
+
+      const conservativeReturn = {
+        labourGains: payrollExcess ? `£${Math.round(payrollExcess.annualCost * 0.3 / 1000)}k` : null,
+        marginRecovery: (founderTime || concentration)
+          ? `£${Math.round(((founderTime?.annualCost || 0) + (concentration?.annualCost || 0)) * 0.3 / 1000)}k`
+          : null,
+        timeReclaimed: founderTime ? `${Math.round(8 * 0.3)} hours/week freed up` : null,
+        total: `£${Math.round(conservativeRecovery / 1000)}k`
+      };
+
+      const realisticReturn = {
+        labourGains: payrollExcess ? `£${Math.round(payrollExcess.annualCost * 0.6 / 1000)}k` : null,
+        marginRecovery: (founderTime || concentration || growth)
+          ? `£${Math.round(((founderTime?.annualCost || 0) + (concentration?.annualCost || 0) + (growth?.annualCost || 0)) * 0.6 / 1000)}k`
+          : null,
+        timeReclaimed: founderTime ? `${Math.round(8 * 0.6)} hours/week freed up` : null,
+        total: `£${Math.round(realisticRecovery / 1000)}k`
+      };
+
+      // Calculate payback period
+      const monthsToPayback = totalInvestmentYear1 > 0
+        ? Math.ceil(totalInvestmentYear1 / (realisticRecovery / 12))
+        : null;
+      const paybackStr = monthsToPayback
+        ? `${monthsToPayback}-${Math.min(monthsToPayback + 2, 12)} months`
+        : null;
+
+      // Only override if LLM left returns empty or set canCalculate: false
+      const existingReturns = narratives.page4_numbers.returns;
+      const isReturnEmpty = !existingReturns
+        || existingReturns.canCalculate === false
+        || !existingReturns.conservative?.total
+        || existingReturns.conservative?.total === 'null'
+        || existingReturns.conservative?.total === '';
+
+      if (isReturnEmpty) {
+        narratives.page4_numbers.returns = {
+          canCalculate: true,
+          conservative: conservativeReturn,
+          realistic: realisticReturn
+        };
+
+        if (!narratives.page4_numbers.paybackPeriod || narratives.page4_numbers.paybackPeriod.includes('confirm')) {
+          narratives.page4_numbers.paybackPeriod = paybackStr || 'Within first year';
+        }
+
+        console.log(`[Pass2] 📊 Mechanical returns computed from CoI data:`);
+        console.log(`  - CoI annual: £${Math.round(coiAnnual / 1000)}k (${coiComponents.length} components)`);
+        console.log(`  - Investment Year 1: £${Math.round(totalInvestmentYear1 / 1000)}k`);
+        console.log(`  - Conservative: ${conservativeReturn.total}`);
+        console.log(`  - Realistic: ${realisticReturn.total}`);
+        console.log(`  - Payback: ${paybackStr || 'TBC'}`);
+      } else {
+        console.log(`[Pass2] Returns already populated by LLM — skipping mechanical override`);
+      }
+    } else {
+      console.log(`[Pass2] ⚠️ Cannot compute returns: coiAnnual=${coiData?.totalAnnual || 0}, investment=${totalInvestmentYear1}`);
+
+      if (narratives.page4_numbers) {
+        const r = narratives.page4_numbers.returns;
+        const hasLLMReturns = r?.conservative?.total &&
+                              r.conservative.total !== 'null' &&
+                              r.conservative.total !== '' &&
+                              !r.conservative.total.toLowerCase().includes('confirm');
+
+        if (!hasLLMReturns) {
+          narratives.page4_numbers.returns = null;
+          if (narratives.page4_numbers.paybackPeriod?.toLowerCase().includes('confirm')) {
+            narratives.page4_numbers.paybackPeriod = null;
+          }
+          console.log(`[Pass2] Removed empty returns and TBC payback to prevent blank UI`);
+        }
+      }
+    }
+
     // ========================================================================
     // CRITICAL: Override LLM scores with Pass 1's calculated scores
     // The LLM should NOT recalculate these - they're data, not narrative
@@ -3127,6 +3346,12 @@ Before returning, verify:
     if (narratives.page3_journey?.phases) {
       console.log('[Pass2] 🔧 Normalising journey phases from registry...');
       narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey, clientTurnover ?? undefined);
+      // Clean price/investment fields on journey phases to prevent stutter accumulation
+      for (const phase of narratives.page3_journey.phases) {
+        if (phase.price) phase.price = cleanPrice(phase.price);
+        if (phase.investment) phase.investment = cleanPrice(phase.investment);
+      }
+      console.log('[Pass2] 🧹 Cleaned price/investment fields on journey phases');
       // Total Year 1 = Phase 1 commitment only (phases 2+ are "when ready")
       const firstPhase = narratives.page3_journey.phases[0];
       const firstPriceStr = firstPhase?.price || firstPhase?.investmentAmount || '';

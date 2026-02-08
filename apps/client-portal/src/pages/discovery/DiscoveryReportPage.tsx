@@ -549,7 +549,6 @@ export default function DiscoveryReportPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // Extract service code from enabledBy or use common mapping
                                 const serviceCodeMap: Record<string, string> = {
                                   'Benchmarking & Hidden Value Analysis': 'benchmarking',
                                   'Industry Benchmarking': 'benchmarking',
@@ -559,15 +558,19 @@ export default function DiscoveryReportPage() {
                                   'Hidden Value Audit': 'hidden_value_audit',
                                   'Fractional CFO': 'fractional_cfo',
                                   'Systems Audit': 'systems_audit',
+                                  'Systems & Process Audit': 'systems_audit',
+                                  'Business Intelligence': 'business_intelligence',
+                                  'Management Accounts': 'management_accounts',
                                 };
-                                const code = phase.enabledByCode || serviceCodeMap[phase.enabledBy] || 'benchmarking';
-                                setSelectedService({ code, name: phase.enabledBy });
+                                // Strip price from enabledBy for serviceCodeMap lookup
+                                const cleanName = phase.enabledBy.replace(/\s*\(£[\d,]+.*$/, '').trim();
+                                const code = phase.enabledByCode || serviceCodeMap[cleanName] || serviceCodeMap[phase.enabledBy] || 'benchmarking';
+                                setSelectedService({ code, name: cleanName });
                               }}
                               className="text-teal-600 hover:text-teal-700 underline underline-offset-2 hover:no-underline transition-colors"
                             >
                               {phase.enabledBy}
                             </button>
-                            {' '}({phase.price})
                           </p>
                         )}
                       </div>

@@ -365,7 +365,7 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
                     {/* Service Footnote */}
                     {phase.enabledBy && (
                       <p className="mt-4 text-sm text-slate-400">
-                        Enabled by: {phase.enabledBy} ({phase.price})
+                        Enabled by: {phase.enabledBy}
                       </p>
                     )}
                   </div>
