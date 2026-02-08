@@ -1,7 +1,9 @@
-/* COPY - Do not edit. Reference only. Source: src/components/discovery/ServicePinBlockControl.tsx */
+/* COPY - Do not edit. Source: src/components/discovery/ServicePinBlockControl.tsx */
 /**
  * Service Pin/Block Control
+ * 
  * Allows advisors to pin services (must include in Pass 3) or block services (exclude from Pass 3).
+ * Influences opportunity analysis for targeted recommendations.
  */
 
 import { useState, useEffect } from 'react';
@@ -15,26 +17,27 @@ interface ServicePinBlockControlProps {
   onUpdate: () => void;
 }
 
-export function ServicePinBlockControl({
-  engagementId,
-  pinnedServices = [],
-  blockedServices = [],
-  onUpdate
+export function ServicePinBlockControl({ 
+  engagementId, 
+  pinnedServices = [], 
+  blockedServices = [], 
+  onUpdate 
 }: ServicePinBlockControlProps) {
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
-
+  
   useEffect(() => {
     loadServices();
   }, []);
-
+  
   const loadServices = async () => {
     const { data, error } = await supabase
       .from('services')
       .select('code, name, category')
       .eq('status', 'active')
       .order('name');
+    
     if (error) {
       console.error('Failed to load services:', error);
     } else {
@@ -42,22 +45,27 @@ export function ServicePinBlockControl({
     }
     setLoading(false);
   };
-
+  
   const togglePin = async (code: string) => {
+    const normalizedCode = code.toLowerCase();
     setUpdating(code);
     try {
-      const newPinned = pinnedServices.includes(code)
-        ? pinnedServices.filter(c => c !== code)
-        : [...pinnedServices, code];
-      const newBlocked = blockedServices.filter(c => c !== code);
+      const newPinned = pinnedServices.some(p => p.toLowerCase() === normalizedCode)
+        ? pinnedServices.filter(c => c.toLowerCase() !== normalizedCode)
+        : [...pinnedServices.filter(c => c.toLowerCase() !== normalizedCode), normalizedCode];
+      
+      // Can't be both pinned and blocked
+      const newBlocked = blockedServices.filter(c => c.toLowerCase() !== normalizedCode);
+      
       const { error } = await supabase
         .from('discovery_engagements')
-        .update({
-          pinned_services: newPinned,
+        .update({ 
+          pinned_services: newPinned, 
           blocked_services: newBlocked,
           updated_at: new Date().toISOString()
         })
         .eq('id', engagementId);
+      
       if (error) throw error;
       onUpdate();
     } catch (err) {
@@ -67,22 +75,27 @@ export function ServicePinBlockControl({
       setUpdating(null);
     }
   };
-
+  
   const toggleBlock = async (code: string) => {
+    const normalizedCode = code.toLowerCase();
     setUpdating(code);
     try {
-      const newBlocked = blockedServices.includes(code)
-        ? blockedServices.filter(c => c !== code)
-        : [...blockedServices, code];
-      const newPinned = pinnedServices.filter(c => c !== code);
+      const newBlocked = blockedServices.some(b => b.toLowerCase() === normalizedCode)
+        ? blockedServices.filter(c => c.toLowerCase() !== normalizedCode)
+        : [...blockedServices.filter(c => c.toLowerCase() !== normalizedCode), normalizedCode];
+      
+      // Can't be both pinned and blocked
+      const newPinned = pinnedServices.filter(c => c.toLowerCase() !== normalizedCode);
+      
       const { error } = await supabase
         .from('discovery_engagements')
-        .update({
-          pinned_services: newPinned,
+        .update({ 
+          pinned_services: newPinned, 
           blocked_services: newBlocked,
           updated_at: new Date().toISOString()
         })
         .eq('id', engagementId);
+      
       if (error) throw error;
       onUpdate();
     } catch (err) {
@@ -92,7 +105,7 @@ export function ServicePinBlockControl({
       setUpdating(null);
     }
   };
-
+  
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-gray-500">
@@ -101,23 +114,26 @@ export function ServicePinBlockControl({
       </div>
     );
   }
-
+  
   if (services.length === 0) {
-    return <p className="text-sm text-gray-500 italic">No active services found</p>;
+    return (
+      <p className="text-sm text-gray-500 italic">No active services found</p>
+    );
   }
-
+  
   return (
     <div className="space-y-2 max-h-96 overflow-y-auto">
       {services.map(service => {
-        const isPinned = pinnedServices.includes(service.code);
-        const isBlocked = blockedServices.includes(service.code);
+        const isPinned = pinnedServices.some(p => p.toLowerCase() === (service.code || '').toLowerCase());
+        const isBlocked = blockedServices.some(b => b.toLowerCase() === (service.code || '').toLowerCase());
         const isUpdating = updating === service.code;
+        
         return (
-          <div
-            key={service.code}
+          <div 
+            key={service.code} 
             className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
-              isPinned ? 'border-emerald-300 bg-emerald-50' :
-              isBlocked ? 'border-red-300 bg-red-50' :
+              isPinned ? 'border-emerald-300 bg-emerald-50' : 
+              isBlocked ? 'border-red-300 bg-red-50' : 
               'border-gray-200 hover:border-gray-300'
             }`}
           >
@@ -125,12 +141,15 @@ export function ServicePinBlockControl({
               <p className="text-sm font-medium text-gray-900">{service.name}</p>
               <p className="text-xs text-gray-500">{service.category}</p>
             </div>
+            
             <div className="flex gap-1">
               <button
                 onClick={() => togglePin(service.code)}
                 disabled={isUpdating}
                 className={`p-2 rounded transition-colors disabled:opacity-50 ${
-                  isPinned ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-emerald-100'
+                  isPinned 
+                    ? 'bg-emerald-600 text-white' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-emerald-100'
                 }`}
                 title={isPinned ? 'Unpin' : 'Pin (always include in Pass 3)'}
               >
@@ -140,7 +159,9 @@ export function ServicePinBlockControl({
                 onClick={() => toggleBlock(service.code)}
                 disabled={isUpdating}
                 className={`p-2 rounded transition-colors disabled:opacity-50 ${
-                  isBlocked ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-red-100'
+                  isBlocked 
+                    ? 'bg-red-600 text-white' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-red-100'
                 }`}
                 title={isBlocked ? 'Unblock' : 'Block (exclude from Pass 3)'}
               >
@@ -150,9 +171,10 @@ export function ServicePinBlockControl({
           </div>
         );
       })}
+      
       <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
         <p className="text-xs text-blue-800">
-          <strong>Pin (📌)</strong>: Service will always appear in Pass 3 opportunities.
+          <strong>Pin (📌)</strong>: Service will always appear in Pass 3 opportunities, even if data doesn't strongly support it.
           <br />
           <strong>Block (🚫)</strong>: Service will be excluded from Pass 3 recommendations.
         </p>

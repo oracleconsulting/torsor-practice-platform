@@ -75,7 +75,16 @@ const formatCurrency = (value: number): string => {
   return `£${value}`;
 };
 
+const isBIOrBenchmarking = (service: RecommendedService): boolean => {
+  const n = (service.serviceName || service.serviceCode || '').toLowerCase();
+  const c = (service.serviceCode || '').toLowerCase();
+  return n.includes('bi') || n.includes('benchmarking') || c === 'business_intelligence' || c === 'benchmarking';
+};
+
 const formatPrice = (service: RecommendedService): string => {
+  if (isBIOrBenchmarking(service)) {
+    return '£500 – £1,000/month or £1,500 – £3,000/quarter';
+  }
   if (service.priceRange) return service.priceRange;
   if (service.priceFrom && service.priceTo) {
     return `£${service.priceFrom.toLocaleString()} – £${service.priceTo.toLocaleString()}${service.priceUnit ? ` ${service.priceUnit}` : ''}`;
@@ -91,12 +100,19 @@ const getPriceUnitLabel = (unit?: string): string => {
   const labels: Record<string, string> = {
     'per_month': 'Monthly',
     'per_year': 'Annual',
+    'per_quarter': 'Quarterly',
+    '/quarter': 'Quarterly',
     '/project': 'One-off',
     'one_off': 'One-off',
     '/month': 'Monthly',
     '/year': 'Annual'
   };
   return labels[unit] || unit;
+};
+
+const getPriceUnitLabelForService = (service: RecommendedService): string => {
+  if (isBIOrBenchmarking(service)) return 'Monthly or Quarterly';
+  return getPriceUnitLabel(service.priceUnit);
 };
 
 const getSeverityColor = (severity: string): string => {
@@ -149,8 +165,8 @@ function PrimaryServiceCard({ service }: { service: RecommendedService }) {
           </div>
           <div className="text-right">
             <p className="text-lg font-semibold text-slate-900">{formatPrice(service)}</p>
-            {service.priceUnit && (
-              <p className="text-sm text-slate-500">{getPriceUnitLabel(service.priceUnit)}</p>
+            {getPriceUnitLabelForService(service) && (
+              <p className="text-sm text-slate-500">{getPriceUnitLabelForService(service)}</p>
             )}
           </div>
         </div>

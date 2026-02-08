@@ -5623,7 +5623,39 @@ When writing narratives:
         pass1Data.opportunitySizing._source = 'deterministic_fallback';
       }
     }
-    
+
+    // =========================================================================
+    // NORMALIZE RECOMMENDATION annualValues TO MATCH HERO TOTAL
+    // The hero total is deterministic, but LLM-generated recommendation annualValues
+    // may not sum to it. Scale them proportionally so all downstream consumers
+    // (web report, PDF export, data export) show consistent figures.
+    // =========================================================================
+    if (pass1Data.recommendations?.length && pass1Data.opportunitySizing?.totalAnnualOpportunity > 0) {
+      const heroTotal = pass1Data.opportunitySizing.totalAnnualOpportunity;
+      const currentSum = pass1Data.recommendations.reduce(
+        (sum: number, rec: any) => sum + (rec.annualValue || 0),
+        0
+      );
+
+      // Only normalize if there's a meaningful difference (>5%)
+      if (currentSum > 0 && Math.abs(currentSum - heroTotal) / heroTotal > 0.05) {
+        const scaleFactor = heroTotal / currentSum;
+        console.log(`[Pass 1] Recommendation normalization: sum=${currentSum.toLocaleString()} -> hero=${heroTotal.toLocaleString()} (scale=${scaleFactor.toFixed(3)})`);
+
+        for (const rec of pass1Data.recommendations) {
+          if (rec.annualValue) {
+            const original = rec.annualValue;
+            rec.annualValue = Math.round(rec.annualValue * scaleFactor);
+            console.log(`[Pass 1]   "${rec.title}": ${original.toLocaleString()} -> ${rec.annualValue.toLocaleString()}`);
+          }
+        }
+      } else if (currentSum === 0) {
+        // If all recommendations have 0 annualValue, assign hero total to first recommendation
+        console.log(`[Pass 1] Recommendation normalization: all zeros, assigning hero total to first recommendation`);
+        pass1Data.recommendations[0].annualValue = heroTotal;
+      }
+    }
+
     const tokensUsed = result.usage?.total_tokens || 0;
     const cost = (tokensUsed / 1000) * 0.003; // Approximate cost for Sonnet 4
     const generationTime = Date.now() - startTime;

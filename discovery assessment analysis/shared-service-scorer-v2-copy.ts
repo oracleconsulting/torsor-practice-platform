@@ -1,4 +1,4 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
+/* COPY - Do not edit. Source: supabase/functions/_shared/service-scorer-v2.ts */
 /**
  * Service Scoring Engine v2.0
  * ============================================================================

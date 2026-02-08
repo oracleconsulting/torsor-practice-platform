@@ -1,4 +1,4 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
+/* COPY - Do not edit. Source: supabase/functions/generate-discovery-report-pass1/index.ts */
 // ============================================================================
 // DISCOVERY REPORT - PASS 1: EXTRACTION & SCORING + 8-DIMENSION ANALYSIS
 // Includes: Business Type Classification, Financial Analysis, Service Scoring
@@ -90,7 +90,7 @@ interface TrajectoryAnalysis {
   priorRevenue: number | null;
   absoluteChange: number | null;
   percentageChange: number | null;
-  trend: 'growing' | 'stable' | 'declining' | 'unknown';
+  trend: 'growing' | 'stable' | 'declining' | 'volatile_recovering' | 'unknown';
   concernLevel: 'none' | 'low' | 'medium' | 'high';
   ownerPerception: string | null;
   marketContext: string | null;
@@ -302,8 +302,14 @@ interface ExtractedFinancials {
   rentalIncome?: number;                 // Rental income (if applicable)
   
   // === CONTRACTOR COSTS (for agencies) ===
-  consultancyFees?: number;              // Contractor/consultancy costs
+  consultingCosts?: number;              // Contractor/consulting costs (primary field)
+  consultancyFees?: number;              // Contractor/consultancy costs (alias)
   subcontractorCosts?: number;           // Subcontractor costs
+  contractorCountEstimate?: number;       // Estimated contractor headcount
+  clientRevenueConcentration?: number;   // Revenue concentration (for cost of inaction)
+  multiYearEarnings?: Array<{ year: number; earnings: number; revenue?: number | null }>;
+  earningsTrend?: string;
+  earningsTrendNarrative?: string;
 }
 
 interface DestinationClarityAnalysis {
@@ -706,6 +712,10 @@ const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
   'distribution': { typical: 30, good: 28, concern: 32, notes: 'Distribution' },
   'wholesale': { typical: 30, good: 28, concern: 32, notes: 'Wholesale' },
   'keys_lockers': { typical: 30, good: 28, concern: 32, notes: 'Keys/lockers wholesale' },
+  'creative_agency': { typical: 35, good: 25, concern: 50, notes: 'Agency/digital/creative services' },
+  
+  // Agency/Creative Services (45-55% typical - includes contractors)
+  'agency': { typical: 50, good: 45, concern: 55, notes: 'Agency/Creative Services - includes contractors' },
   
   // Professional Services (45-60% typical)
   'professional_services': { typical: 52, good: 45, concern: 60, notes: 'People are the product' },
@@ -739,6 +749,7 @@ const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
 const GROSS_MARGIN_BENCHMARKS: Record<string, { low: number; high: number }> = {
   'wholesale_distribution': { low: 25, high: 40 },
   'keys_lockers': { low: 45, high: 60 },  // Higher margin niche
+  'creative_agency': { low: 40, high: 55 },  // Agencies have higher people costs due to contractors
   'professional_services': { low: 60, high: 80 },
   'accountancy': { low: 65, high: 85 },
   'construction': { low: 15, high: 30 },
@@ -788,33 +799,61 @@ function getPayrollBenchmark(industry: string): PayrollBenchmark {
   return PAYROLL_BENCHMARKS['general_business'];
 }
 
-function detectIndustry(responses: Record<string, any>, companyName?: string): string {
+function detectIndustry(responses: Record<string, any>, companyName?: string, clientType?: string): string {
   const allText = JSON.stringify({ ...responses, companyName }).toLowerCase();
   
-  if (allText.includes('key') || allText.includes('locker') || allText.includes('lock') || 
-      allText.includes('security hardware') || allText.includes('office furniture')) {
-    return 'keys_lockers';
+  // Priority 1: Use client type classification from engagement
+  if (clientType) {
+    const typeMap: Record<string, string> = {
+      'trading_agency': 'creative_agency',
+      'trading_product': 'general_business',
+      'professional_practice': 'professional_services',
+      'investment_vehicle': 'financial_services',
+      'funded_startup': 'saas',
+      'lifestyle_business': 'general_business',
+    };
+    if (typeMap[clientType]) {
+      console.log(`[Pass1] Industry from client type '${clientType}': ${typeMap[clientType]}`);
+      return typeMap[clientType];
+    }
   }
-  if (allText.includes('distribut') || allText.includes('wholesale') || allText.includes('supply chain')) {
-    return 'wholesale_distribution';
+  
+  // Priority 2: Industry-specific keywords with word boundary matching
+  if (/\b(agency|agencies|creative agency|digital agency|marketing agency|advertising|media buying|campaigns?|branding)\b/.test(allText)) {
+    return 'creative_agency';
   }
-  if (allText.includes('saas') || allText.includes('software') || allText.includes('platform') || allText.includes('app')) {
+  if (/\b(saas|software as a service|software platform|recurring revenue|mrr|arr|subscription.*(model|revenue))\b/.test(allText)) {
     return 'saas';
   }
-  if (allText.includes('consult') || allText.includes('advisory')) {
+  if (/\b(software|app development|mobile app|web platform|tech startup)\b/.test(allText)) {
+    return 'saas';
+  }
+  if (/\b(consult(ing|ancy|ant)|advisory|professional services|legal|solicitor)\b/.test(allText)) {
     return 'professional_services';
   }
-  if (allText.includes('accountan') || allText.includes('bookkeep')) {
+  if (/\b(accountan(cy|t|ts)|bookkeep(ing|er)|tax advisory|audit)\b/.test(allText)) {
     return 'accountancy';
   }
-  if (allText.includes('construction') || allText.includes('building') || allText.includes('trade')) {
+  if (/\b(construction|builder|plumber|electrician|carpent|roofing|civil engineering)\b/.test(allText)) {
     return 'construction';
   }
-  if (allText.includes('retail') || allText.includes('shop') || allText.includes('ecommerce')) {
+  if (/\b(retail|shop|ecommerce|e-commerce|online store|high street)\b/.test(allText)) {
     return 'retail';
   }
-  if (allText.includes('manufactur') || allText.includes('factory')) {
+  if (/\b(manufactur(ing|er)|factory|production line|fabricat)\b/.test(allText)) {
     return 'manufacturing';
+  }
+  if (/\b(distribut(ion|or)|wholesale|supply chain|logistics|warehousing)\b/.test(allText)) {
+    return 'wholesale_distribution';
+  }
+  if (/\b(keys? (and|&) lockers?|security hardware|locksmith|padlock|safe(s| ))\b/.test(allText)) {
+    return 'keys_lockers';
+  }
+  if (/\b(restaurant|hotel|hospitality|catering|pub|bar|cafe)\b/.test(allText)) {
+    return 'hospitality';
+  }
+  if (/\b(healthcare|medical|dental|clinic|pharmacy|care home|nhs)\b/.test(allText)) {
+    return 'healthcare';
   }
   
   return 'general_business';
@@ -887,15 +926,30 @@ function extractValuationSignals(responses: Record<string, any>): ValuationSigna
 // 1. PAYROLL EFFICIENCY ANALYSIS
 // ============================================================================
 
-function analysePayrollEfficiency(financials: ExtractedFinancials, industry: string): PayrollAnalysis | null {
+function analysePayrollEfficiency(financials: ExtractedFinancials, industry: string, clientType?: string, frameworkOverrides?: any): PayrollAnalysis | null {
   if (!financials.turnover || !financials.totalStaffCosts) {
     return null;
   }
   
+  // For agencies, include contractor/consulting costs as "total people costs"
+  let effectiveStaffCosts = financials.totalStaffCosts;
+  if (clientType === 'trading_agency' && (financials as any).consultingCosts) {
+    effectiveStaffCosts = financials.totalStaffCosts + (financials as any).consultingCosts;
+    console.log('[Pass1] 🏢 Agency payroll: staff £' + financials.totalStaffCosts + ' + consulting £' + (financials as any).consultingCosts + ' = £' + effectiveStaffCosts);
+  }
+  
   const turnover = financials.turnover;
-  const staffCosts = financials.totalStaffCosts;
+  const staffCosts = effectiveStaffCosts;
   const staffCostsPct = (staffCosts / turnover) * 100;
-  const benchmark = getPayrollBenchmark(industry);
+  
+  // Agency-specific benchmarks (people costs as % of revenue)
+  let benchmark: PayrollBenchmark;
+  if (clientType === 'trading_agency') {
+    // Agencies: 45% efficient, 50% typical, 55% concern (includes contractors)
+    benchmark = { good: 45, typical: 50, concern: 55, notes: 'Agency - 45-55% healthy (includes contractors)' };
+  } else {
+    benchmark = getPayrollBenchmark(industry);
+  }
   
   // Compare against the GOOD benchmark (the target), not typical
   const excessPercentage = Math.max(0, staffCostsPct - benchmark.good);
@@ -1027,6 +1081,7 @@ function analyseValuation(
   const industryMultiples: Record<string, { low: number; high: number }> = {
     'wholesale_distribution': { low: 3.0, high: 5.0 },
     'keys_lockers': { low: 3.0, high: 5.0 },
+    'creative_agency': { low: 3.0, high: 6.0 },  // Digital agencies valued on recurring revenue
     'professional_services': { low: 4.0, high: 8.0 },
     'accountancy': { low: 4.0, high: 7.0 },
     'construction': { low: 2.5, high: 4.5 },
@@ -1159,11 +1214,12 @@ function analyseTrajectory(financials: ExtractedFinancials, responses: Record<st
   
   let absoluteChange: number | null = null;
   let percentageChange: number | null = null;
-  let trend: 'growing' | 'stable' | 'declining' | 'unknown' = 'unknown';
+  let trend: 'growing' | 'stable' | 'declining' | 'volatile_recovering' | 'unknown' = 'unknown';
   let concernLevel: 'none' | 'low' | 'medium' | 'high' = 'none';
   let narrative = '';
   
   if (currentRevenue && priorRevenue) {
+    // Existing logic - revenue-based trajectory
     absoluteChange = currentRevenue - priorRevenue;
     percentageChange = (absoluteChange / priorRevenue) * 100;
     
@@ -1183,7 +1239,43 @@ function analyseTrajectory(financials: ExtractedFinancials, responses: Record<st
       concernLevel = 'low';
       narrative = `Revenue stable year-on-year (${percentageChange.toFixed(1)}% change).`;
     }
-  } else if (currentRevenue) {
+  }
+  // FALLBACK: Use multi-year earnings data when turnover history unavailable
+  else if (financials.multiYearEarnings && financials.multiYearEarnings.length >= 2) {
+    const earnings = financials.multiYearEarnings;
+    const latest = earnings[earnings.length - 1];
+    const previous = earnings[earnings.length - 2];
+    const earliest = earnings[0];
+    
+    const hadLoss = earnings.some(e => e.earnings < 0);
+    const latestPositive = latest.earnings > 0;
+    const previousNegative = previous.earnings < 0;
+    
+    if (hadLoss && latestPositive && previousNegative) {
+      trend = 'volatile_recovering';
+      concernLevel = 'medium';
+      narrative = `Earnings volatile over ${earnings.length} years: `;
+      narrative += earnings.map(e => `£${(e.earnings/1000).toFixed(0)}k (${e.year})`).join(' → ');
+      narrative += `. Strong recovery in ${latest.year} after ${previous.year} loss. `;
+      narrative += `Current earnings of £${(latest.earnings/1000).toFixed(0)}k represent the strongest year in the period.`;
+    } else if (latest.earnings > earliest.earnings) {
+      trend = 'growing';
+      concernLevel = 'none';
+      const overallGrowth = ((latest.earnings - earliest.earnings) / Math.abs(earliest.earnings)) * 100;
+      narrative = `Earnings grew ${overallGrowth.toFixed(0)}% over ${earnings.length} years (£${(earliest.earnings/1000).toFixed(0)}k → £${(latest.earnings/1000).toFixed(0)}k).`;
+    } else if (latest.earnings < earliest.earnings * 0.9) {
+      trend = 'declining';
+      concernLevel = 'medium';
+      narrative = `Earnings declined from £${(earliest.earnings/1000).toFixed(0)}k to £${(latest.earnings/1000).toFixed(0)}k over ${earnings.length} years.`;
+    } else {
+      trend = 'stable';
+      concernLevel = 'low';
+      narrative = `Earnings broadly stable over ${earnings.length} years.`;
+    }
+    
+    console.log(`[Pass1] Trajectory from earnings fallback: ${trend} — ${narrative}`);
+  }
+  else if (currentRevenue) {
     narrative = `Revenue £${(currentRevenue/1000000).toFixed(2)}M. No prior year comparison available.`;
   } else {
     return null;
@@ -1209,6 +1301,7 @@ function analyseProductivity(financials: ExtractedFinancials, industry: string):
   const industryBenchmarks: Record<string, { low: number; high: number }> = {
     'wholesale_distribution': { low: 120000, high: 180000 },
     'keys_lockers': { low: 120000, high: 180000 },
+    'creative_agency': { low: 80000, high: 200000 },  // Wide range depending on contractor use
     'professional_services': { low: 80000, high: 150000 },
     'accountancy': { low: 80000, high: 150000 },
     'construction': { low: 100000, high: 150000 },
@@ -1485,19 +1578,21 @@ function calculateCostOfInaction(
   payrollAnalysis: PayrollAnalysis | null,
   trajectoryAnalysis: TrajectoryAnalysis | null,
   valuationAnalysis: ValuationAnalysis | null,
-  responses: Record<string, any>
+  responses: Record<string, any>,
+  financials?: ExtractedFinancials
 ): CostOfInactionAnalysis {
   const components: CostComponent[] = [];
   
-  // Determine time horizon from exit timeline
   let timeHorizon = 3;
   const exitResponse = (responses.sd_exit_timeline || responses.dd_exit_mindset || '').toLowerCase();
   if (exitResponse.includes('1-3') || exitResponse.includes('actively preparing')) timeHorizon = 2;
   else if (exitResponse.includes('3-5')) timeHorizon = 4;
-  else if (exitResponse.includes('5+') || exitResponse.includes('never')) timeHorizon = 5;
+  else if (exitResponse.includes('5+') || exitResponse.includes('never') || exitResponse.includes('10 year')) timeHorizon = 5;
   
-  // 1. Payroll excess
-  if (payrollAnalysis?.annualExcess && payrollAnalysis.annualExcess > 0) {
+  const turnover = financials?.turnover || 0;
+  
+  // 1. Payroll excess (existing)
+  if (payrollAnalysis?.annualExcess && payrollAnalysis.annualExcess > 0 && (payrollAnalysis as any).isValidated !== false) {
     components.push({
       category: 'Payroll Excess',
       annualCost: payrollAnalysis.annualExcess,
@@ -1507,13 +1602,12 @@ function calculateCostOfInaction(
     });
   }
   
-  // 2. Revenue decline (if applicable)
+  // 2. Revenue decline (existing)
   if (trajectoryAnalysis?.trend === 'declining' && trajectoryAnalysis.absoluteChange) {
     const annualDecline = Math.abs(trajectoryAnalysis.absoluteChange);
-    // Compound the decline
     let totalDecline = annualDecline;
     for (let i = 1; i < timeHorizon; i++) {
-      totalDecline += annualDecline * Math.pow(1.1, i);  // 10% compounding assumption
+      totalDecline += annualDecline * Math.pow(1.1, i);
     }
     components.push({
       category: 'Revenue Decline',
@@ -1524,29 +1618,105 @@ function calculateCostOfInaction(
     });
   }
   
-  // 3. Valuation erosion (if declining + no action)
-  if (valuationAnalysis?.conservativeValue && trajectoryAnalysis?.trend === 'declining') {
-    // Assume 5% valuation erosion per year of inaction
-    const annualErosion = Math.round(valuationAnalysis.conservativeValue * 0.05);
-    components.push({
-      category: 'Valuation Erosion',
-      annualCost: annualErosion,
-      costOverHorizon: annualErosion * timeHorizon,
-      calculation: `5% annual multiple erosion on £${(valuationAnalysis.conservativeValue/1000000).toFixed(1)}M base`,
-      confidence: 'estimated'
-    });
+  // 3. Valuation erosion (existing, plus volatile_recovering)
+  if (valuationAnalysis?.conservativeValue && 
+      (trajectoryAnalysis?.trend === 'declining' || trajectoryAnalysis?.trend === 'volatile_recovering')) {
+    const erosionRate = trajectoryAnalysis?.trend === 'declining' ? 0.05 : 0.03;
+    const annualErosion = Math.round(valuationAnalysis.conservativeValue * erosionRate);
+    if (annualErosion > 1000) {
+      components.push({
+        category: 'Valuation Erosion',
+        annualCost: annualErosion,
+        costOverHorizon: annualErosion * timeHorizon,
+        calculation: `${(erosionRate*100).toFixed(0)}% annual erosion on £${(valuationAnalysis.conservativeValue/1000).toFixed(0)}k base`,
+        confidence: 'estimated'
+      });
+    }
+  }
+  
+  // 4. Founder time on below-pay-grade work
+  const founderDependency = (responses.sd_founder_dependency || responses.dd_founder_dependency || '').toLowerCase();
+  const coreFrustration = (responses.rl_core_frustration || responses.dd_core_frustration || '').toLowerCase();
+  const magicFix = (responses.dd_magic_fix || responses.dd_90_day_magic || '').toLowerCase();
+  const isHighDependency = founderDependency.includes('critical') || founderDependency.includes('fall apart') || 
+                         founderDependency.includes('single point') || founderDependency.includes('only person');
+  const mentionsAdmin = coreFrustration.includes('admin') || coreFrustration.includes('invoic') || 
+                       coreFrustration.includes('bottleneck') || magicFix.includes('hire') || 
+                       magicFix.includes('assistant') || magicFix.includes('delegate');
+  
+  if ((isHighDependency || mentionsAdmin) && turnover > 0) {
+    const impliedFounderRate = turnover / 48 / 40;
+    const conservativeHoursPerWeek = 8;
+    const annualFounderTimeCost = Math.round(conservativeHoursPerWeek * 48 * impliedFounderRate);
+    const cappedCost = Math.min(annualFounderTimeCost, turnover * 0.15);
+    if (cappedCost > 5000) {
+      components.push({
+        category: 'Founder Time on Operations',
+        annualCost: Math.round(cappedCost),
+        costOverHorizon: Math.round(cappedCost * timeHorizon),
+        calculation: `~${conservativeHoursPerWeek}hrs/week at £${Math.round(impliedFounderRate)}/hr implied rate`,
+        confidence: 'estimated'
+      });
+    }
+  }
+  
+  // 5. Client concentration risk
+  const allText = JSON.stringify(responses).toLowerCase();
+  const hasConcentration = allText.includes('concentration') || allText.includes('one client') || 
+                          allText.includes('single client') || allText.includes('biggest client');
+  const concentrationPct = financials?.clientRevenueConcentration ?? null;
+  if ((hasConcentration || (concentrationPct != null && concentrationPct > 30)) && turnover > 0) {
+    const riskPct = concentrationPct ?? 40;
+    const atRiskRevenue = turnover * (riskPct / 100);
+    const annualRiskCost = Math.round(atRiskRevenue * 0.15);
+    if (annualRiskCost > 5000) {
+      components.push({
+        category: 'Client Concentration Risk',
+        annualCost: annualRiskCost,
+        costOverHorizon: Math.round(annualRiskCost * timeHorizon),
+        calculation: `${riskPct}% revenue concentration — £${(atRiskRevenue/1000).toFixed(0)}k at risk (15% annual probability)`,
+        confidence: 'estimated'
+      });
+    }
+  }
+  
+  // 6. Delayed growth / opportunity cost
+  const mentionsGrowth = coreFrustration.includes('growth') || coreFrustration.includes('stuck') || 
+                         coreFrustration.includes('ceiling') || coreFrustration.includes('capacity') ||
+                         magicFix.includes('sales') || magicFix.includes('new business');
+  if (mentionsGrowth && turnover > 0) {
+    const missedGrowth = Math.round(turnover * 0.10);
+    if (missedGrowth > 10000) {
+      components.push({
+        category: 'Delayed Growth',
+        annualCost: missedGrowth,
+        costOverHorizon: Math.round(missedGrowth * timeHorizon * 1.5),
+        calculation: 'Conservative 10% growth being missed due to capacity constraints',
+        confidence: 'estimated'
+      });
+    }
   }
   
   const totalAnnual = components.reduce((sum, c) => sum + c.annualCost, 0);
   const totalOverHorizon = components.reduce((sum, c) => sum + c.costOverHorizon, 0);
+  const calculatedComponents = components.filter(c => c.confidence === 'calculated');
+  const estimatedComponents = components.filter(c => c.confidence === 'estimated');
   
   let narrative = '';
   if (components.length > 0) {
     narrative = `Cost of inaction over ${timeHorizon}-year horizon: £${(totalOverHorizon/1000).toFixed(0)}k+. `;
-    narrative += `Breakdown: ${components.map(c => `${c.category}: £${(c.costOverHorizon/1000).toFixed(0)}k`).join(', ')}.`;
+    if (calculatedComponents.length > 0) {
+      narrative += `Calculated: ${calculatedComponents.map(c => `${c.category}: £${(c.costOverHorizon/1000).toFixed(0)}k`).join(', ')}. `;
+    }
+    if (estimatedComponents.length > 0) {
+      narrative += `Estimated: ${estimatedComponents.map(c => `${c.category}: £${(c.costOverHorizon/1000).toFixed(0)}k`).join(', ')}.`;
+    }
   } else {
     narrative = `No quantifiable cost of inaction calculated - likely qualitative (stress, time, health).`;
   }
+  
+  console.log(`[Pass1] Cost of Inaction: £${(totalOverHorizon/1000).toFixed(0)}k over ${timeHorizon} years (${components.length} components)`);
+  components.forEach(c => console.log(`  - ${c.category}: £${(c.annualCost/1000).toFixed(0)}k/year (${c.confidence})`));
   
   return { totalAnnual, totalOverHorizon, timeHorizon, components, narrative };
 }
@@ -1965,12 +2135,54 @@ function runLightweightBenchmark(
 function performComprehensiveAnalysis(
   financials: ExtractedFinancials,
   responses: Record<string, any>,
-  industry: string
+  industry: string,
+  clientType?: string,
+  frameworkOverrides?: any
 ): ComprehensiveAnalysis {
   const valuationSignals = extractValuationSignals(responses);
   
   // Run all analyses
-  const payroll = analysePayrollEfficiency(financials, industry);
+  // For agencies, include contractor/consulting costs in payroll analysis
+  let payroll: PayrollAnalysis | null;
+  if (clientType === 'trading_agency') {
+    const consultingCosts = (financials as any).consultingCosts || 
+                            (financials as any).consultancyFees || 
+                            (financials as any).subcontractorCosts || 0;
+    
+    if (consultingCosts > 0) {
+      const originalStaffCosts = financials.totalStaffCosts || 0;
+      const totalPeopleCosts = originalStaffCosts + consultingCosts;
+      
+      console.log('[ComprehensiveAnalysis] Agency mode: Including contractor costs in payroll', {
+        staffCosts: originalStaffCosts,
+        consultingCosts,
+        totalPeopleCosts,
+        asPercentOfRevenue: financials.turnover ? ((totalPeopleCosts / financials.turnover) * 100).toFixed(1) + '%' : 'N/A'
+      });
+      
+      // Create modified financials with combined people costs
+      const agencyFinancials = {
+        ...financials,
+        totalStaffCosts: totalPeopleCosts,
+        consultingCosts: 0,  // Already included in totalStaffCosts — prevent double-counting
+        consultancyFees: 0,
+        subcontractorCosts: 0
+      };
+      
+      // Use 'agency' as industry to trigger agency-specific benchmarks
+      payroll = analysePayrollEfficiency(agencyFinancials, 'agency', clientType, frameworkOverrides);
+      
+      if (payroll) {
+        // Override the calculation string to be transparent
+        payroll.calculation = `Staff costs £${originalStaffCosts.toLocaleString()} + Contractor costs £${consultingCosts.toLocaleString()} = Total people costs £${totalPeopleCosts.toLocaleString()} ÷ Turnover £${(financials.turnover || 0).toLocaleString()} = ${payroll.staffCostsPct.toFixed(1)}%. Agency benchmark: 45% (efficient), 50% (typical), 55% (concern). Assessment: ${payroll.assessment}.`;
+      }
+    } else {
+      // Agency but no contractor costs - use standard analysis
+      payroll = analysePayrollEfficiency(financials, 'agency', clientType, frameworkOverrides);
+    }
+  } else {
+    payroll = analysePayrollEfficiency(financials, industry, clientType, frameworkOverrides);
+  }
   const grossMargin = analyseGrossMargin(financials, industry);
   const hiddenAssets = analyseHiddenAssets(financials);
   const valuation = analyseValuation(financials, valuationSignals, industry, hiddenAssets);
@@ -1978,7 +2190,7 @@ function performComprehensiveAnalysis(
   const productivity = analyseProductivity(financials, industry);
   const workingCapital = analyseWorkingCapital(financials);
   const exitReadiness = analyseExitReadiness(responses, financials);
-  const costOfInaction = calculateCostOfInaction(payroll, trajectory, valuation, responses);
+  const costOfInaction = calculateCostOfInaction(payroll, trajectory, valuation, responses, financials);
   const achievements = analyseAchievements(responses, financials, payroll, grossMargin, exitReadiness);
   
   // NEW: Run lightweight benchmark for Pass 3 ROI grounding
@@ -2388,8 +2600,8 @@ function buildPrebuiltPhrases(
     closing: null
   };
   
-  // Payroll phrases
-  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0) {
+  // Payroll phrases (only use validated payroll — agencies/contractors have isValidated: false)
+  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0 && analysis.payroll.isValidated !== false) {
     const p = analysis.payroll;
     const annualK = Math.round(p.annualExcess / 1000);
     const monthlyK = Math.round(p.annualExcess / 12 / 1000);
@@ -2497,8 +2709,8 @@ DO NOT calculate your own figures. USE THESE EXACT NUMBERS.
 
 `;
 
-  // Payroll section
-  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0) {
+  // Payroll section (only use validated payroll — agencies/contractors have isValidated: false)
+  if (analysis.payroll?.annualExcess && analysis.payroll.annualExcess > 0 && analysis.payroll.isValidated !== false) {
     const p = analysis.payroll;
     const annualK = Math.round(p.annualExcess / 1000);
     const monthlyK = Math.round(p.annualExcess / 12 / 1000);
@@ -2948,6 +3160,11 @@ serve(async (req) => {
                                          (insights as any).clientRevenueConcentration || 
                                          undefined;
       
+      // === MULTI-YEAR EARNINGS (for trajectory when no turnover history) ===
+      const multiYearEarnings = insights.multi_year_earnings || (insights as any).multiYearEarnings || null;
+      const earningsTrend = insights.earnings_trend || (insights as any).earningsTrend || null;
+      const earningsTrendNarrative = insights.earnings_trend_narrative || (insights as any).earningsTrendNarrative || null;
+      
       // Calculate derived values
       const grossMarginPct = financialContext.gross_margin_pct || 
                              (grossProfit && turnover ? (grossProfit / turnover) * 100 : undefined);
@@ -3062,7 +3279,27 @@ serve(async (req) => {
           // Depreciation
           depreciation,
           amortisation,
+          
+          // Agency/contractor costs
+          consultingCosts,
+          contractorCountEstimate,
+          
+          // Revenue concentration
+          clientRevenueConcentration,
+          
+          // Multi-year earnings (trajectory fallback)
+          multiYearEarnings: multiYearEarnings ?? undefined,
+          earningsTrend: earningsTrend ?? undefined,
+          earningsTrendNarrative: earningsTrendNarrative ?? undefined,
         };
+        
+        // Add aliases for backward compatibility
+        if (clientRevenueConcentration) {
+          (extractedFinancials as any).client_revenue_concentration = clientRevenueConcentration;
+        }
+        if (consultingCosts) {
+          (extractedFinancials as any).consultancyFees = consultingCosts; // Alias
+        }
         
         // Log what we extracted for debugging
         const extractedFields = Object.entries(extractedFinancials)
@@ -3135,19 +3372,36 @@ serve(async (req) => {
     // RUN 8-DIMENSION COMPREHENSIVE ANALYSIS
     // ========================================================================
     
-    const industry = detectIndustry(discoveryResponses, engagement.client?.client_company);
+    const industry = detectIndustry(discoveryResponses, engagement.client?.client_company, clientType.type);
     console.log('[Pass1] Detected industry:', industry);
     
     // Run analysis (will be filtered based on client type)
-    const comprehensiveAnalysis = performComprehensiveAnalysis(extractedFinancials, discoveryResponses, industry);
+    const comprehensiveAnalysis = performComprehensiveAnalysis(
+      extractedFinancials, 
+      discoveryResponses, 
+      industry,
+      clientType.type,
+      clientType.frameworkOverrides
+    );
     
-    // Override irrelevant analysis based on client type
+    // Debug: Log consulting costs check
+    console.log('[Pass1] consultingCosts check:', {
+      consultingCosts: (extractedFinancials as any).consultingCosts || (extractedFinancials as any).consultancyFees,
+      totalStaffCosts: extractedFinancials.totalStaffCosts,
+      clientType: clientType.type
+    });
+    
+    // Override irrelevant analysis based on client type (zero out numbers so they don't propagate)
     if (skipPayrollAnalysis && comprehensiveAnalysis.payroll) {
       comprehensiveAnalysis.payroll = {
         ...comprehensiveAnalysis.payroll,
         isValidated: false,
-        narrative: 'Payroll benchmarking not applicable for this client type (contractor model or investment vehicle)'
+        annualExcess: 0,
+        excessPercentage: 0,
+        isOverstaffed: false,
+        assessment: 'typical' as const
       };
+      (comprehensiveAnalysis.payroll as any).narrative = 'Payroll benchmarking not applicable for this client type (contractor model or investment vehicle)';
     }
     
     if (skipExitReadiness && comprehensiveAnalysis.exitReadiness) {

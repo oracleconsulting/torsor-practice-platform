@@ -10,6 +10,7 @@
 | Document | Purpose |
 |----------|---------|
 | [DISCOVERY_SYSTEM_COMPLETE_ARCHITECTURE.md](./DISCOVERY_SYSTEM_COMPLETE_ARCHITECTURE.md) | **START HERE** - Complete architecture reference |
+| [SERVICE_LINE_FILES_REFERENCE.md](./SERVICE_LINE_FILES_REFERENCE.md) | **Service lines** - Creation, allocation, pricing (migrations, backend, frontend) |
 | [docs-DISCOVERY_ASSESSMENT_SYSTEM.md](./docs-DISCOVERY_ASSESSMENT_SYSTEM.md) | Assessment structure and questions |
 | [docs-DISCOVERY_AND_ANALYSIS_ARCHITECTURE.md](./docs-DISCOVERY_AND_ANALYSIS_ARCHITECTURE.md) | Data flow and analysis architecture |
 | [docs-DISCOVERY_ASSESSMENT_OVERVIEW.md](./docs-DISCOVERY_ASSESSMENT_OVERVIEW.md) | Service lines and skills mapping |
@@ -30,6 +31,7 @@
 | `docs-DISCOVERY_QUESTIONS.md` | Question reference |
 | `docs-DISCOVERY_LLM_OVERVIEW.md` | LLM integration details |
 | `docs-DISCOVERY_ANALYSIS_REFINEMENT.md` | Refinement history |
+| `SERVICE_LINE_FILES_REFERENCE.md` | Service line creation, allocation, pricing (all files + summaries) |
 
 ### ⚡ Edge Functions - Main (9 files)
 
@@ -103,7 +105,7 @@
 | `shared-llm-cache-copy.ts` | LLM response caching |
 | `shared-llm-cost-tracker-copy.ts` | LLM cost tracking |
 
-### 🗄️ Migrations (10 files)
+### 🗄️ Migrations (13 files)
 
 | File | Migration | Purpose |
 |------|-----------|---------|
@@ -117,6 +119,9 @@
 | `migrations-20260125_discovery_7dimension_analysis.sql` | Feature | 7-dimension analysis |
 | `migrations-20260129_fix_discovery_reports_client_rls.sql` | Fix | Client portal RLS |
 | `migrations-20251223_fix_destination_discovery_duplicates.sql` | Fix | Duplicate prevention |
+| `migrations-20260208120000_discovery_three_phase_pipeline.sql` | Feature | Three-phase pipeline |
+| `migrations-20260209120000_reset_discovery_pipeline_for_client.sql` | Utility | Reset pipeline |
+| `migrations-20260209140000_discovery_data_audit.sql` | Utility | Data audit |
 
 ### 🖥️ Frontend - Admin Portal (5 files)
 
@@ -151,18 +156,18 @@
 
 ---
 
-## Total Files: 76
+## Total Files: 80
 
 | Category | Count |
 |----------|-------|
-| Documentation | 8 |
+| Documentation | 9 |
 | Edge Functions (Main) | 9 |
 | Edge Functions (Supporting) | 12 |
 | Calculators | 12 |
 | Benchmarks | 2 |
 | Types | 2 |
 | Shared Utilities | 5 |
-| Migrations | 10 |
+| Migrations | 13 |
 | Frontend - Admin | 5 |
 | Frontend - Client | 10 |
 | Configuration | 1 |

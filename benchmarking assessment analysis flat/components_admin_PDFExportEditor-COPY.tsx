@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   X, Download, Eye, EyeOff, Settings2, ChevronUp, ChevronDown,
-  FileText, BarChart3, Target, TrendingUp, AlertTriangle, 
+  FileText, BarChart3, Target, TrendingUp, TrendingDown, AlertTriangle, 
   DollarSign, CheckCircle, Layers, Layout, RotateCcw,
   Loader2, ExternalLink
 } from 'lucide-react';
@@ -99,6 +99,15 @@ const SECTION_LIBRARY: Record<string, {
     configOptions: [
       { key: 'showBreakdown', label: 'Show component breakdown', type: 'checkbox', default: true },
     ],
+  },
+  surplusCashBreakdown: {
+    id: 'surplusCashBreakdown',
+    name: 'Surplus Cash Breakdown',
+    description: 'Detailed cash waterfall showing how surplus is calculated',
+    icon: DollarSign,
+    category: 'analysis',
+    required: false,
+    tier2Only: true,
   },
   keyMetrics: {
     id: 'keyMetrics',
@@ -232,6 +241,33 @@ const SECTION_LIBRARY: Record<string, {
       { key: 'showPathTo70', label: 'Show path to 70/100', type: 'checkbox', default: true },
     ],
   },
+  valueProtectors: {
+    id: 'valueProtectors',
+    name: 'Value Protectors',
+    description: 'Factors adding to or protecting business value',
+    icon: TrendingUp,
+    category: 'analysis',
+    required: false,
+    tier2Only: true,
+  },
+  pathToValue: {
+    id: 'pathToValue',
+    name: 'Path to Full Value',
+    description: 'Action steps and potential future value',
+    icon: Target,
+    category: 'strategy',
+    required: false,
+    tier2Only: true,
+  },
+  valueWaterfall: {
+    id: 'valueWaterfall',
+    name: 'Value Waterfall',
+    description: 'Visual flow from baseline value through suppressors to current value',
+    icon: TrendingDown,
+    category: 'analysis',
+    required: false,
+    tier2Only: true,
+  },
   twoPaths: {
     id: 'twoPaths',
     name: 'Two Paths',
@@ -323,6 +359,7 @@ const DEFAULT_TIER2_SECTIONS: SectionConfig[] = [
   { id: 'cover', enabled: true, config: {} },
   { id: 'executiveSummary', enabled: true, config: { showHeroMetrics: true } },
   { id: 'hiddenValue', enabled: true, config: { showBreakdown: true } },
+  { id: 'surplusCashBreakdown', enabled: true, config: {} },
   { id: 'keyMetrics', enabled: true, config: { layout: 'full', showPercentileBars: true, showGapIndicators: true } },
   { id: 'positionNarrative', enabled: true, config: {} },
   { id: 'strengthsNarrative', enabled: true, config: {} },
@@ -331,7 +368,10 @@ const DEFAULT_TIER2_SECTIONS: SectionConfig[] = [
   { id: 'recommendations', enabled: true, config: { detailLevel: 'full', showImplementationSteps: true, showStartThisWeek: true } },
   { id: 'scenarioExplorer', enabled: true, config: {} },
   { id: 'valuationAnalysis', enabled: true, config: { showSurplusCashAdd: true } },
-  { id: 'valueSuppressors', enabled: true, config: { layout: 'cards', showRecoveryTimelines: true } },
+  { id: 'valueWaterfall', enabled: true, config: {} },
+  { id: 'valueSuppressors', enabled: true, config: { layout: 'cards', showRecoveryTimelines: true, showTargetStates: true } },
+  { id: 'valueProtectors', enabled: true, config: {} },
+  { id: 'pathToValue', enabled: true, config: {} },
   { id: 'exitReadiness', enabled: true, config: { showComponentBreakdown: true, showPathTo70: true } },
   { id: 'twoPaths', enabled: true, config: {} },
   { id: 'scenarioPlanning', enabled: true, config: { layout: 'sequential', showRequirements: true } },
@@ -516,6 +556,20 @@ const SectionConfigPanel: React.FC<{
           <p className="text-sm text-slate-500 italic">No additional options for this section.</p>
         </div>
       )}
+
+      {/* Universal page break option - shown for all sections */}
+      <div className="border-t border-slate-100 pt-3 mt-3">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={section.config?.pageBreakBefore || false}
+            onChange={(e) => onUpdateConfig('pageBreakBefore', e.target.checked)}
+            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-slate-700">Start on new page</span>
+        </label>
+        <p className="text-xs text-slate-400 mt-1 ml-6">Force this section to begin at the top of a new page</p>
+      </div>
     </div>
   );
 };
@@ -659,8 +713,8 @@ export const PDFExportEditor: React.FC<PDFExportEditorProps> = ({
           template_id: selectedTemplateId,
         })
         .eq('engagement_id', reportId);
-      
-      // Generate PDF
+
+      // Generate PDF via Browserless
       const { data, error } = await supabase.functions.invoke('generate-benchmarking-pdf', {
         body: {
           reportId,
@@ -668,31 +722,45 @@ export const PDFExportEditor: React.FC<PDFExportEditorProps> = ({
           returnHtml: false,
         },
       });
-      
+
       if (error) throw error;
-      
-      // If we got HTML back (no browser service configured), open for browser print
-      if (data.html) {
+
+      if (data.pdf) {
+        // Decode base64 PDF and trigger download
+        const binaryString = atob(data.pdf);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.filename || `${reportData?.client?.name || 'Client'}-Benchmarking-Report.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        onExportComplete?.(url);
+      } else if (data.html) {
+        // Fallback: Browserless not configured or failed, use browser print
         const printWindow = window.open('', '_blank');
         if (printWindow) {
           printWindow.document.write(data.html);
           printWindow.document.close();
           setTimeout(() => printWindow.print(), 500);
         }
-      } else if (data instanceof Blob) {
-        // Download PDF blob
-        const url = URL.createObjectURL(data);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${reportData?.client?.name || 'Client'}-Benchmarking-Report.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-        onExportComplete?.(url);
+        if (data.error) {
+          console.warn('[PDF Export] Browserless fallback:', data.error);
+        }
       }
-      
+
       onClose();
     } catch (error) {
       console.error('Export error:', error);
+      alert('PDF export failed. Try the Preview button to print from your browser instead.');
     } finally {
       setIsExporting(false);
     }

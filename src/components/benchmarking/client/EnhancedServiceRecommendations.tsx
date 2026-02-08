@@ -153,8 +153,19 @@ export function EnhancedServiceRecommendations({
     });
   };
 
+  const isBIOrBenchmarking = (service: ServiceOpportunity['service']) => {
+    if (!service) return false;
+    const n = (service.name || '').toLowerCase();
+    const c = (service.code || '').toLowerCase();
+    return n.includes('bi') || n.includes('benchmarking') || c === 'business_intelligence' || c === 'benchmarking';
+  };
+
   const formatPrice = (service: ServiceOpportunity['service']) => {
-    if (!service?.price_from) return 'Contact for pricing';
+    if (!service) return 'Contact for pricing';
+    if (isBIOrBenchmarking(service)) {
+      return '£500 – £1,000/month or £1,500 – £3,000/quarter';
+    }
+    if (!service.price_from) return 'Contact for pricing';
     
     const from = service.price_from.toLocaleString();
     const to = service.price_to?.toLocaleString();
@@ -162,6 +173,7 @@ export function EnhancedServiceRecommendations({
     
     let unitLabel = '';
     if (unit === 'per_month' || unit === 'month' || unit === 'monthly') unitLabel = '/month';
+    else if (unit === 'per_quarter' || unit === 'quarter' || unit === 'quarterly') unitLabel = '/quarter';
     else if (unit === 'one_off' || unit === 'one-off' || unit === '/project') unitLabel = ' (one-off)';
     else if (unit === 'per_year' || unit === 'annual') unitLabel = '/year';
     

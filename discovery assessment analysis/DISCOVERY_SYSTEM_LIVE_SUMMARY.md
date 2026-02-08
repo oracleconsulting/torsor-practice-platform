@@ -84,6 +84,9 @@ Pass1 subfolder files (flattened):
 | `20260205_add_discovery_admin_context.sql` | `migrations-20260205_add_discovery_admin_context.sql` |
 | `20260206_add_followup_responses.sql` | `migrations-20260206_add_followup_responses.sql` |
 | `20260207103430_discovery_opportunity_enhancements.sql` | `migrations-20260207103430_discovery_opportunity_enhancements.sql` |
+| `20260208120000_discovery_three_phase_pipeline.sql` | `migrations-20260208120000_discovery_three_phase_pipeline.sql` |
+| `20260209120000_reset_discovery_pipeline_for_client.sql` | `migrations-20260209120000_reset_discovery_pipeline_for_client.sql` |
+| `20260209140000_discovery_data_audit.sql` | `migrations-20260209140000_discovery_data_audit.sql` |
 
 ### Frontend – Admin (source: `src/` or `src/components/discovery/`)
 

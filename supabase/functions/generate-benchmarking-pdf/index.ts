@@ -139,10 +139,13 @@ function normalizeSuppressorKey(s: any): string {
 
 // Cover Page
 function renderCover(data: any, config: any): string {
+  const logoUrl = data.siteUrl ? `${data.siteUrl}/logos/rpgcc-logo-light.png` : null;
   return `
     <div class="page cover-page">
       <div class="cover-header">
-        <div class="logo">RPGCC</div>
+        ${logoUrl
+          ? `<img src="${logoUrl}" alt="RPGCC" class="logo-img" />`
+          : '<div class="logo">RPGCC</div>'}
         <div class="tagline">Chartered Accountants, Auditors, Tax & Business Advisers</div>
       </div>
       <div class="cover-content">
@@ -1353,8 +1356,8 @@ function generateServicesFromSuppressors(data: any): any[] {
   services.push({
     name: 'Quarterly BI & Benchmarking',
     tagline: 'Turn your management accounts into strategic intelligence',
-    priceRange: '£500 – £1,000/month',
-    frequency: 'Monthly',
+    priceRange: '£500 – £1,000/month or £1,500 – £3,000/quarter',
+    frequency: 'Monthly or Quarterly',
     duration: 'Ongoing',
     whyThisMatters: `With ${formatCurrency(baselineMid)} revenue and margins recovering, ongoing benchmarking tracks your recovery against industry peers and catches margin drift early. Quarterly tracking is especially important with ${hasConcentration ? '99% client concentration' : 'your client mix'}. Early warning on margin erosion gives you time to act.`,
     expectedOutcome: 'Addresses issues worth £750k in potential value',
@@ -1465,9 +1468,13 @@ function renderClosing(data: any, config: any): string {
             <p>enquiries@rpgcc.co.uk | 020 7870 9050</p>
             <p>30 City Road, London EC1Y 2AB</p>
           </div>
+          ${config.showDataSources && data.dataSources ? `
+            <div class="data-sources-inline">
+              Benchmark Data Sources: ${data.dataSources.join(', ')}
+            </div>
+          ` : ''}
         </div>
-      ` : ''}
-      ${config.showDataSources && data.dataSources ? `
+      ` : config.showDataSources && data.dataSources ? `
         <div class="data-sources">
           <strong>Benchmark Data Sources:</strong>
           <p>${data.dataSources.join(', ')}</p>
@@ -1617,6 +1624,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     .cover-header { margin-bottom: 60px; }
     .cover-header .logo { font-size: 24px; font-weight: 700; }
+    .cover-header .logo-img { height: 36px; width: auto; object-fit: contain; display: block; }
     .cover-header .tagline { font-size: 11px; color: var(--blue-light); margin-top: 4px; }
     
     .cover-content {
@@ -2335,7 +2343,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .services-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 6px;
     }
     
     .service-card {
@@ -2400,9 +2408,9 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .closing-box {
       background: var(--navy-dark);
       color: white;
-      padding: 14px;
+      padding: 10px 14px;
       border-radius: 8px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -2414,31 +2422,40 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     .contact-cta {
       text-align: center;
-      padding: 14px;
+      padding: 8px;
       background: var(--teal);
       color: white;
       border-radius: 8px;
-      margin-bottom: 10px;
+      margin-bottom: 4px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     
     .contact-cta h3 {
-      font-size: 16px;
-      margin-bottom: 8px;
+      font-size: 14px;
+      margin-bottom: 4px;
     }
     
     .contact-details {
-      margin-top: 12px;
-      font-size: 11px;
+      margin-top: 6px;
+      font-size: 10px;
     }
     
     .data-sources {
-      font-size: 10px;
+      font-size: 8px;
       color: #64748b;
-      padding: 12px;
+      padding: 4px 10px;
       background: #f1f5f9;
-      border-radius: 6px;
+      border-radius: 4px;
+      line-height: 1.3;
+    }
+    .data-sources-inline {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.2);
+      font-size: 7.5px;
+      opacity: 0.7;
+      line-height: 1.3;
     }
     
     /* =========================== HIGHLIGHT SECTIONS =========================== */
@@ -2650,7 +2667,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .scenario-considerations h4 { color: #d97706; margin: 0 0 3px 0; font-size: 10px; }
 
     /* Services */
-    .services-grid { display: flex; flex-direction: column; gap: 16px; }
+    .services-grid { display: flex; flex-direction: column; gap: 12px; }
     .service-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; break-inside: avoid; }
     .service-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .service-price { font-weight: 600; color: #0f172a; }
@@ -2681,7 +2698,7 @@ serve(async (req) => {
   }
   
   try {
-    const { reportId, pdfConfig, returnHtml } = await req.json();
+    const { reportId, pdfConfig, returnHtml, siteUrl } = await req.json();
 
     if (!reportId) {
       throw new Error('reportId is required');
@@ -2796,6 +2813,18 @@ serve(async (req) => {
     }
     }
 
+    // Normalise BI/Benchmarking to show both monthly and quarterly options
+    const isBIOrBenchmarking = (s: any) => {
+      const n = (s.name || '').toLowerCase();
+      const c = (s.code || '').toLowerCase();
+      return n.includes('bi') || n.includes('benchmarking') || c === 'business_intelligence' || c === 'benchmarking';
+    };
+    clientServices = clientServices.map((s: any) =>
+      isBIOrBenchmarking(s)
+        ? { ...s, priceRange: '£500 – £1,000/month or £1,500 – £3,000/quarter', frequency: 'Monthly or Quarterly' }
+        : s
+    );
+
     let effectiveConfig: PdfConfig;
     if (pdfConfig) {
       effectiveConfig = pdfConfig;
@@ -2884,6 +2913,7 @@ serve(async (req) => {
 
     const reportData = {
       clientName,
+      siteUrl: siteUrl || Deno.env.get('SITE_URL') || undefined,
       tier: 2,
       overallPercentile: report.overall_percentile || 50,
       totalOpportunity: parseFloat(report.total_annual_opportunity) || 0,

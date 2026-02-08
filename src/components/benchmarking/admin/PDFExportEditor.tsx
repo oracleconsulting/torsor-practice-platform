@@ -684,6 +684,7 @@ export const PDFExportEditor: React.FC<PDFExportEditorProps> = ({
           reportId,
           pdfConfig: { sections, pdfSettings, tier: selectedTier },
           returnHtml: true,
+          siteUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
         },
       });
       
@@ -720,6 +721,7 @@ export const PDFExportEditor: React.FC<PDFExportEditorProps> = ({
           reportId,
           pdfConfig: { sections, pdfSettings, tier: selectedTier },
           returnHtml: false,
+          siteUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
         },
       });
 

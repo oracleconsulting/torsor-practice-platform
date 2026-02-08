@@ -1,4 +1,4 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
+/* COPY - Do not edit. Source: supabase/functions/generate-discovery-report-pass2/index.ts */
 // ============================================================================
 // DISCOVERY REPORT - PASS 2: DESTINATION-FOCUSED NARRATIVE GENERATION
 // ============================================================================
@@ -586,14 +586,20 @@ const DEFAULT_SERVICE_DETAILS: Record<string, ServiceDetail> = {
     outcome: "You'll Know Your Numbers"
   },
   'systems_audit': {
-    name: 'Systems Audit',
-    price: '£4,000',
+    name: 'Systems & Process Audit',
+    price: '£2,000',
     priceType: 'one-time',
     outcome: "You'll See Where The Time Goes"
   },
   '365_method': {
-    name: 'Goal Alignment Programme',
-    price: '£1,500-£9,000',
+    name: 'Goal Alignment Programme (Growth)',
+    price: '£4,500',
+    priceType: 'annual',
+    outcome: "You'll Have Someone In Your Corner"
+  },
+  'goal_alignment': {
+    name: 'Goal Alignment Programme (Growth)',
+    price: '£4,500',
     priceType: 'annual',
     outcome: "You'll Have Someone In Your Corner"
   },
@@ -628,14 +634,13 @@ const DEFAULT_SERVICE_DETAILS: Record<string, ServiceDetail> = {
     outcome: "You'll Know What It's Worth"
   },
   'benchmarking': {
-    name: 'Benchmarking & Hidden Value Analysis',
-    price: '£2,000', // Combined exit diagnostic: competitive positioning + value suppressors
+    name: 'Industry Benchmarking (Full Package)',
+    price: '£2,000',
     priceType: 'one-time',
     outcome: "You'll Know Where You Stand"
   }
-  // NOTE: Benchmarking & Hidden Value Analysis is ONE COMBINED service at £2,000
-  // This includes both industry benchmarking AND hidden value audit
-  // DO NOT list these as separate line items
+  // Tier 1: Benchmarking £2,000, Systems Audit £2,000. Goal Alignment £4,500/year.
+  // DO NOT list Benchmarking and Hidden Value Audit as separate line items.
 };
 
 // Outcome mappings (destination-focused language)
@@ -643,6 +648,7 @@ const SERVICE_OUTCOMES: Record<string, string> = {
   'management_accounts': "You'll Know Your Numbers",
   'systems_audit': "You'll See Where The Time Goes",
   '365_method': "You'll Have Someone In Your Corner",
+  'goal_alignment': "You'll Have Someone In Your Corner",
   'automation': "The Manual Work Disappears",
   'fractional_cfo': "You'll Have Strategic Financial Leadership",
   'fractional_coo': "Someone Else Carries The Load",
@@ -828,6 +834,27 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ========================================================================
+    // GUARD: Refuse to generate if Pass 1 hasn't run (Phase 2 / 2. Score)
+    // ========================================================================
+    const { data: existingReport, error: reportGuardError } = await supabase
+      .from('discovery_reports')
+      .select('id, comprehensive_analysis, pass1_completed_at')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    if (reportGuardError) {
+      console.error('[Pass2] Guard: failed to load report:', reportGuardError.message);
+      throw new Error('Could not verify Pass 1 status');
+    }
+    if (!existingReport?.comprehensive_analysis && !existingReport?.pass1_completed_at) {
+      console.warn('[Pass2] Guard: Pass 1 not complete for engagement:', engagementId);
+      return new Response(
+        JSON.stringify({ error: 'Pass 1 has not completed. Run Phase 2 (Score) first.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ========================================================================
     // SERVICE CATALOG - CANONICAL SERVICE DEFINITIONS
     // LLM selects which services are relevant, but cannot change names/prices
     // ========================================================================
@@ -846,12 +873,12 @@ serve(async (req) => {
     const SERVICE_CATALOG: Record<string, ServiceLine> = {
       'benchmarking': {
         id: 'benchmarking',
-        name: 'Industry Benchmarking',
+        name: 'Industry Benchmarking (Full Package)',
         displayName: 'Industry Benchmarking (Full Package)',
         price: 2000,
         priceFormatted: '£2,000',
         tier: 'foundation',
-        description: 'Valuation baseline and hidden value identification',
+        description: 'Agency-specific performance benchmarks, financial comparison, competitive positioning',
         keywords: ['benchmark', 'valuation', 'hidden value', 'what its worth', 'baseline', 'industry']
       },
       'goal_alignment_growth': {
@@ -878,10 +905,10 @@ serve(async (req) => {
         id: 'systems_audit',
         name: 'Systems & Process Audit',
         displayName: 'Systems & Process Audit',
-        price: 3500,
-        priceFormatted: '£3,500',
+        price: 2000,
+        priceFormatted: '£2,000',
         tier: 'foundation',
-        description: 'Operational efficiency analysis',
+        description: 'Map every system, process, and workaround — identify what to fix first',
         keywords: ['systems', 'process', 'efficiency', 'automation', 'audit']
       },
       'ma_monthly': {
@@ -987,6 +1014,149 @@ serve(async (req) => {
         
         return phase;
       });
+    }
+    
+    // Hardcoded enabled-by strings — we know exactly what these should say
+    const ENABLED_BY_STRINGS: Record<string, { phase1: string; deferred: string }> = {
+      'benchmarking': {
+        phase1: 'Industry Benchmarking (Full Package) (£2,000)',
+        deferred: 'Industry Benchmarking (Full Package) (£2,000 — when ready)'
+      },
+      'systems_audit': {
+        phase1: 'Systems & Process Audit (£2,000)',
+        deferred: 'Systems & Process Audit (£2,000 — when ready)'
+      },
+      'systems_and_process': {
+        phase1: 'Systems & Process Audit (£2,000)',
+        deferred: 'Systems & Process Audit (£2,000 — when ready)'
+      },
+      '365_method': {
+        phase1: 'Goal Alignment Programme (Growth) (£4,500/year)',
+        deferred: 'Goal Alignment Programme (Growth) (£4,500/year — when ready)'
+      },
+      'goal_alignment': {
+        phase1: 'Goal Alignment Programme (Growth) (£4,500/year)',
+        deferred: 'Goal Alignment Programme (Growth) (£4,500/year — when ready)'
+      },
+      'management_accounts': {
+        phase1: 'Management Accounts (£750/month)',
+        deferred: 'Management Accounts (£750/month — when ready)'
+      },
+      'fractional_cfo': {
+        phase1: 'Fractional CFO (£2,000/month)',
+        deferred: 'Fractional CFO (£2,000/month — when ready)'
+      },
+      'fractional_coo': {
+        phase1: 'Fractional COO (£2,000/month)',
+        deferred: 'Fractional COO (£2,000/month — when ready)'
+      },
+    };
+
+    function cleanJourneyPhases(journeyData: any): any {
+      if (!journeyData) return journeyData;
+
+      // Handle both .phases array and direct phase properties
+      const phases = journeyData.phases ||
+                 [journeyData.phase1, journeyData.phase2, journeyData.phase3].filter(Boolean);
+
+      if (!phases || !Array.isArray(phases) || phases.length === 0) {
+        console.log('[Pass2] cleanJourneyPhases: no phases array found, keys:', Object.keys(journeyData));
+        return journeyData;
+      }
+
+      console.log(`[Pass2] cleanJourneyPhases: processing ${phases.length} phases`);
+
+      phases.forEach((phase: any, index: number) => {
+        // Try every possible field name for the enabled-by line
+        const fieldNames = ['enabledBy', 'enabled_by', 'service', 'serviceLine', 'enabledByService'];
+        let fieldName: string | null = null;
+        let currentValue = '';
+
+        for (const fn of fieldNames) {
+          if (phase[fn] && typeof phase[fn] === 'string') {
+            fieldName = fn;
+            currentValue = phase[fn];
+            break;
+          }
+        }
+
+        if (!fieldName) {
+          console.log(`[Pass2] Phase ${index}: no enabled-by field found. Keys: ${Object.keys(phase).join(', ')}`);
+          return;
+        }
+
+        console.log(`[Pass2] Phase ${index} BEFORE: ${currentValue}`);
+
+        // Detect which service this phase is about by checking for keywords
+        let detectedService: string | null = null;
+        const lower = currentValue.toLowerCase();
+
+        if (lower.includes('benchmark')) detectedService = 'benchmarking';
+        else if (lower.includes('system') && (lower.includes('audit') || lower.includes('process'))) detectedService = 'systems_audit';
+        else if (lower.includes('goal') || lower.includes('alignment') || lower.includes('365')) detectedService = 'goal_alignment';
+        else if (lower.includes('management account')) detectedService = 'management_accounts';
+        else if (lower.includes('fractional cfo') || lower.includes('cfo')) detectedService = 'fractional_cfo';
+        else if (lower.includes('fractional coo') || lower.includes('coo')) detectedService = 'fractional_coo';
+
+        if (detectedService && ENABLED_BY_STRINGS[detectedService]) {
+          // Phase 0 (first phase) = firm price, no "when ready"
+          // Phase 1+ = deferred, "when ready"
+          const replacement = index === 0
+            ? ENABLED_BY_STRINGS[detectedService].phase1
+            : ENABLED_BY_STRINGS[detectedService].deferred;
+
+          phase[fieldName] = replacement;
+          console.log(`[Pass2] Phase ${index} AFTER: ${replacement}`);
+        } else {
+          console.log(`[Pass2] Phase ${index}: could not detect service from "${currentValue}"`);
+        }
+      });
+
+      // Write back if we used the phases array
+      if (journeyData.phases) {
+        journeyData.phases = phases;
+      }
+
+      return journeyData;
+    }
+
+    // Brute-force: clean "Enabled by:" lines in JSON string (narrative text or standalone fields)
+    function cleanAllEnabledByStrings(jsonStr: string): string {
+      const cleanups: [RegExp, string][] = [
+        [/Enabled by:\s*Industry Benchmarking[^"\\]*/g,
+         'Enabled by: Industry Benchmarking (Full Package) (£2,000)'],
+        [/Enabled by:\s*Systems\s*(?:&|and)\s*Process Audit[^"\\]*/g,
+         'Enabled by: Systems & Process Audit (£2,000 — when ready)'],
+        [/Enabled by:\s*Goal Alignment Programme[^"\\]*/g,
+         'Enabled by: Goal Alignment Programme (Growth) (£4,500/year — when ready)'],
+      ];
+      let cleaned = jsonStr;
+      for (const [pattern, replacement] of cleanups) {
+        cleaned = cleaned.replace(pattern, replacement);
+      }
+      return cleaned;
+    }
+
+    // Nuclear option: remove duplicate "when ready" from entire JSON before save
+    function cleanWhenReadyStutter(obj: any): any {
+      if (!obj) return obj;
+      try {
+        const jsonStr = JSON.stringify(obj);
+        let cleaned = jsonStr
+          .replace(/\(When ready\)\s*\(when ready\)\s*\(When ready\s*\(When ready\)\)/gi, '— when ready)')
+          .replace(/\(£[\d,]+(?:\/year)?\s*—\s*when ready\)\s*\(£[\d,]+(?:\/year)?\s*—\s*when ready\)/gi, (match: string) => {
+            const first = match.match(/\(£[\d,]+(?:\/year)?\s*—\s*when ready\)/);
+            return first ? first[0] : '(when ready)';
+          })
+          .replace(/(\([^)]*when ready[^)]*\))\s*\([^)]*when ready[^)]*\)/gi, (match: string) => {
+            const first = match.match(/\([^)]*\)/);
+            return first ? first[0] : '(when ready)';
+          });
+        return JSON.parse(cleaned);
+      } catch (e) {
+        console.warn('[Pass2] cleanWhenReadyStutter parse failed:', e);
+        return obj;
+      }
     }
     
     // ========================================================================
@@ -1131,6 +1301,12 @@ serve(async (req) => {
     }
 
     console.log('[Pass2] Found engagement for client:', engagement.client?.name);
+
+    // Load advisor pin/block preferences from engagement
+    const pinnedServices: string[] = ((engagement.pinned_services as string[]) || []).map((s: string) => s.toLowerCase());
+    const blockedServicesFromAdvisor: string[] = ((engagement.blocked_services as string[]) || []).map((s: string) => s.toLowerCase());
+    console.log(`[Pass2] Advisor pinned services: ${pinnedServices.join(', ') || 'none'}`);
+    console.log(`[Pass2] Advisor blocked services: ${blockedServicesFromAdvisor.join(', ') || 'none'}`);
 
     // Fetch service pricing from database (single source of truth)
     // Pass practice_id to use practice-specific pricing if available
@@ -1306,11 +1482,12 @@ No validated financial data available. When discussing financial figures:
     // Fetch engagement to get admin context and exit timeline
     const { data: engagementData } = await supabase
       .from('discovery_engagements')
-      .select('admin_flags, discovery')
+      .select('admin_flags, admin_context_note, discovery')
       .eq('id', engagementId)
       .single();
     
     const adminFlags = engagementData?.admin_flags || null;
+    const adminContextNote = engagementData?.admin_context_note || '';
     const exitTimeline = engagement?.discovery?.responses?.sd_exit_timeline || 
                         engagement?.discovery?.responses?.dd_exit_mindset ||
                         engagementData?.discovery?.responses?.sd_exit_timeline ||
@@ -1787,6 +1964,15 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
         };
       }
     }
+    // Override: Systems & Process Audit is always £2,000 (Tier 1) — correct any £1,500 from legacy/DB
+    if (pass1ServicePrices['systems_audit']) {
+      const p = pass1ServicePrices['systems_audit'].price || '';
+      if (/1[,.]?500|£1\s*,?\s*500/i.test(p)) {
+        pass1ServicePrices['systems_audit'].price = '£2,000';
+        console.log('[Pass2] 📊 Overrode systems_audit price to £2,000 (was ', p, ')');
+      }
+    }
+    console.log('[Pass2] Systems Audit price after override:', pass1ServicePrices['systems_audit']?.price ?? 'no systems_audit in pass1ServicePrices');
     
     console.log('[Pass2] 📊 Pass 1 Service Decisions (MUST USE THESE PRICES):');
     Object.entries(pass1ServicePrices).forEach(([code, info]) => {
@@ -1958,11 +2144,12 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
     // Business Advisory is ALWAYS blocked until the service line is properly defined
     // Hidden Value is NOT a separate service - it's included in Benchmarking
     const blockedServices = [
-      'business_advisory',  // Paused until service line is defined
-      'hidden_value',       // Not separate - included in benchmarking
-      ...(shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : [])
+      'business_advisory',  // System block: paused until service line is defined
+      'hidden_value',       // System block: included in benchmarking
+      ...(shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : []),
+      ...blockedServicesFromAdvisor  // Advisor blocks from pin/block UI
     ];
-    console.log(`[Pass2] Blocked services: ${blockedServices.join(', ')}`);
+    console.log(`[Pass2] Combined blocked services (system + advisor): ${blockedServices.join(', ')}`);
     
     let recommendedServices = [...primaryRecs, ...secondaryRecs]
       .filter(r => r.recommended)
@@ -2015,6 +2202,35 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
     }
     
     console.log(`[Pass2] Recommended services after filtering:`, recommendedServices.map(s => s.code));
+
+    // Ensure pinned services are included in recommendations
+    for (const pinnedCode of pinnedServices) {
+      const alreadyIncluded = recommendedServices.some((s: { code: string }) => s.code === pinnedCode);
+      if (!alreadyIncluded && !blockedServices.includes(pinnedCode)) {
+        const serviceDetail = SERVICE_DETAILS[pinnedCode];
+        if (serviceDetail) {
+          recommendedServices.push({
+            code: pinnedCode,
+            ...serviceDetail,
+            score: 85,
+            triggers: ['advisor_pinned'],
+            pinnedByAdvisor: true
+          });
+          console.log(`[Pass2] Added advisor-pinned service: ${pinnedCode}`);
+        }
+      }
+    }
+    console.log(`[Pass2] Final recommended services: ${recommendedServices.map((s: { code: string }) => s.code).join(', ')}`);
+    // Force Systems Audit to £2,000 on recommendedServices (DB/pass1 may have £1,500)
+    for (const service of recommendedServices) {
+      const code = (service as { code?: string }).code;
+      if (code === 'systems_audit' || code === 'systems_and_process') {
+        (service as { price?: string }).price = '£2,000';
+        (service as { price_amount?: number }).price_amount = 2000;
+        console.log('[Pass2] Forced Systems Audit price to £2,000 on recommendedServices');
+      }
+    }
+    console.log('[Pass2] Service prices being sent to LLM:', recommendedServices.map((s: { code?: string; price?: string }) => `${(s as { code?: string }).code}: ${(s as { price?: string }).price ?? 'no price'}`));
 
     // Build context from notes
     const contextSection = contextNotes?.length 
@@ -2079,6 +2295,43 @@ IMPORTANT: When generating pages 1-5, you MUST:
         console.log(`  - [${f.section_type}] ${f.comment_type}: ${f.comment_text.substring(0, 50)}...`);
       });
     }
+
+    // Load curated opportunities from Phase 2 for the LLM prompt
+    const { data: curatedOpportunities } = await supabase
+      .from('discovery_opportunities')
+      .select('*, service:services(id, code, name, price_amount, price_period)')
+      .eq('engagement_id', engagementId)
+      .order('severity', { ascending: true });
+
+    const clientVisibleOpps = (curatedOpportunities || []).filter((o: { show_in_client_view?: boolean }) => o.show_in_client_view);
+    const pinnedOpps = (curatedOpportunities || []).filter((o: { opportunity_code?: string }) => (o.opportunity_code || '').startsWith('pinned_'));
+    console.log(`[Pass2] Loaded ${curatedOpportunities?.length || 0} opportunities (${clientVisibleOpps.length} client-visible, ${pinnedOpps.length} pinned)`);
+
+    const opportunityContext = (curatedOpportunities?.length ?? 0) > 0 ? `
+
+============================================================================
+ADVISOR-CURATED SERVICE OPPORTUNITIES (from Phase 2)
+============================================================================
+The advisor has reviewed the following opportunities and marked some as client-visible.
+Your journey phases (Page 3) MUST reference the pinned/recommended services.
+Your gap analysis (Page 2) should align with the opportunity themes below.
+
+${(curatedOpportunities || []).map((o: { severity?: string; title?: string; category?: string; financial_impact_amount?: number; show_in_client_view?: boolean; opportunity_code?: string }) =>
+  `- [${(o.severity || '').toUpperCase()}] ${o.title || 'Untitled'} (${o.category || 'General'}) — £${Number(o.financial_impact_amount || 0).toLocaleString()} impact${o.show_in_client_view ? ' [CLIENT VISIBLE]' : ''}${(o.opportunity_code || '').startsWith('pinned_') ? ' [ADVISOR PINNED]' : ''}`
+).join('\n')}
+
+PINNED SERVICES (advisor wants these in the journey):
+${pinnedServices.map((code: string) => {
+  const detail = SERVICE_DETAILS[code];
+  return detail ? `- ${(detail as { name?: string }).name} (${code}) — £${(detail as { price?: string }).price || 'TBD'}` : `- ${code}`;
+}).join('\n')}
+
+BLOCKED SERVICES (do NOT recommend these):
+${blockedServicesFromAdvisor.map((code: string) => {
+  const detail = SERVICE_DETAILS[code];
+  return detail ? `- ${(detail as { name?: string }).name} (${code})` : `- ${code}`;
+}).join('\n')}
+` : '';
 
     // ============================================================================
     // THE MASTER PROMPT - Destination-Focused Discovery Report
@@ -2210,6 +2463,7 @@ ANYTHING ELSE THEY SHARED:
 ${contextSection}
 ${docSection}
 ${feedbackSection}
+${opportunityContext}
 ${neverHadBreak ? `
 
 ============================================================================
@@ -2267,7 +2521,7 @@ CRITICAL: This client is cash-strapped. Maximum initial investment recommendatio
 RULES:
 1. The transformation journey's FIRST step must cost ≤ £${frameworkOverrides.maxRecommendedInvestment}
 2. The total "to start" investment shown in the Investment Summary must be ≤ £${frameworkOverrides.maxRecommendedInvestment}
-3. Subsequent steps can be presented as "when cash flow allows" or "Phase 2 — when ready" but should NOT be included in the headline investment figure
+3. Subsequent steps can be presented as "when cash flow allows" or as Phase 2/3 next steps but should NOT be included in the headline investment figure
 4. Present only the first step as the commitment. Any additional services should be positioned as future phases, not upfront commitments.
 
 EXAMPLE: If benchmarking (£2,000) is the first step and fits within a £3,000 cap, present it as the initial commitment. The £4,500 365 programme should be presented as "Phase 2 — when the benchmarking data confirms the path."
@@ -2280,7 +2534,8 @@ EXAMPLE: If benchmarking (£2,000) is the first step and fits within a £3,000 c
 ============================================================================
 ${(() => {
   const exitTimelineLower = String(exitTimeline || '').toLowerCase();
-  const adminContextLower = String(adminFlags?.admin_context_note || '').toLowerCase();
+  const adminContextForFraming = engagement?.admin_context_note || engagementData?.admin_context_note || '';
+  const adminContextLower = adminContextForFraming.toLowerCase();
   
   // Check exit timeline
   const isActivelyExiting = exitTimelineLower.includes('already exploring') || 
@@ -2383,13 +2638,83 @@ PHASE 2 (Month 3-12+): GOAL ALIGNMENT - The 3-Year Exit Plan
 YOUR TASK - Generate a 5-page Destination-Focused Report
 ============================================================================
 
+PAGE 3 — THE PATH FORWARD (Journey Phases):
+
+CRITICAL RULES FOR JOURNEY PHASES:
+1. Each recommended service gets its OWN dedicated phase. Do NOT bundle deliverables from one service into another service's phase.
+2. Only describe deliverables that the named service actually provides. Benchmarking provides financial comparisons and competitive data. It does NOT provide systems mapping, process audits, or operational reviews.
+3. Systems & Process Audit is a SEPARATE service that maps operational systems, identifies manual processes, and creates delegation plans. If it's in the recommended services, it MUST have its own phase.
+4. Phase 1 is the only phase with a firm price. Phases 2 and 3 are offered as next steps when the client is ready.
+5. The "Enabled by:" line at the bottom of each phase must name exactly ONE service with its exact catalog name and price.
+
+ENABLED BY FORMAT (use EXACTLY — do not add extra "when ready" tags):
+- Phase 1: "Enabled by: [Service Name] (£X,XXX)"
+- Phase 2: "Enabled by: [Service Name] (£X,XXX — when ready)"
+- Phase 3: "Enabled by: [Service Name] (£X,XXX/year — when ready)"
+Output ONE "when ready" per line maximum. Never repeat it.
+
+PHASE STRUCTURE (when 3 services are recommended):
+- Phase 1 (Month 1-3): First service — firm commitment, specific price
+- Phase 2 (Month 3-6): Second service — specific price, marked as when ready
+- Phase 3 (Month 6-12): Third service — specific price, marked as when ready
+
+DELIVERABLE BOUNDARIES:
+- Benchmarking delivers: financial benchmarks against industry peers, competitive positioning, revenue/margin/productivity comparisons, baseline valuation, data for key decisions
+- Systems Audit delivers: operational system mapping, process documentation, single-point-of-failure identification, delegation planning, manual vs automated assessment, handoff readiness
+- Goal Alignment delivers: quarterly roadmap with milestones, strategic support, exit planning, growth planning, accountability, ongoing advisory relationship
+
+Do NOT mix these. If a bullet point describes "mapping operational systems" or "where time disappears", that belongs in the Systems Audit phase, NOT the Benchmarking phase.
+
+PAGE 4 — THE INVESTMENT:
+
+MANDATORY PRICING (these override any other prices you see in the data):
+- Systems & Process Audit: £2,000 (NOT £1,500 — this has been updated)
+- Industry Benchmarking (Full Package): £2,000
+- Goal Alignment Programme (Growth): £4,500/year
+
+EXACT SERVICE PRICING (use these figures, do not invent prices):
+- Industry Benchmarking (Full Package): £2,000 (one-off)
+- Systems & Process Audit: £2,000 (one-off)
+- Goal Alignment Programme (Growth): £4,500/year (ongoing)
+
+PRICING RULES:
+1. Total Year 1 cost should reflect ONLY the firm Phase 1 commitment (e.g., £2,000), NOT the sum of all phases. The client is committing to Phase 1 only. Phases 2 and 3 are next steps.
+2. List each phase with its price; phases 2+ are offered when the client is ready.
+3. The "first step" price in Page 5 must match the Phase 1 price exactly.
+4. Do NOT bundle Phase 1 + Phase 2 into a single price. They are separate engagements.
+
+Example format:
+- Months 1-3: Know where you stand — £2,000
+- Months 3-6: See where the time goes — £2,000 (when ready)
+- Months 6-12: Someone in your corner — £4,500/year (when ready)
+- Total Year 1 commitment: £2,000
+
+PAGE 5 — NEXT STEPS:
+
+The "Your First Step" section must recommend ONLY the Phase 1 service.
+Do NOT bundle Phase 1 + Phase 2 into the first step.
+The price in the call-to-action must match Phase 1's price exactly.
+
+If Phase 1 is Benchmarking at £2,000, the CTA should be "£2,000 to know where you stand" — NOT "£3,500 for benchmarking and systems audit."
+
+The systems audit comes AFTER the client has seen the benchmarking results and decided to proceed. Bundling them together undermines the "start small, prove value" approach.
+
+============================================================================
+PAGE 1 — YOUR VISION / THE TUESDAY:
+Write this section in FIRST PERSON using the client's own words as much as possible.
+The client described their ideal Tuesday in their own voice — preserve that voice.
+Use "I wake up", "I'm at my desk", "My role is focused on..." — NOT "You wake up".
+This is THEIR vision, spoken in THEIR words. It's more powerful because it comes from them.
+Do NOT rewrite their vision into second person.
+The rest of the report (Pages 2-5) should use second person ("you", "your") as the advisor speaking to the client.
+
 Return a JSON object with this exact structure:
 
 {
   "page1_destination": {
     "headerLine": "The Tuesday You're Building Towards",
     "visionProvided": true/false,
-    "visionVerbatim": "IF PROVIDED: Their Tuesday Test answer, edited slightly for flow but keeping their exact words. Include specific details like leaving times, activities, family names. IF NOT PROVIDED: A warm acknowledgment that they haven't painted the picture yet, with an invitation to have that conversation.",
+    "visionVerbatim": "IF PROVIDED: Their Tuesday Test answer in FIRST PERSON. Keep their exact words: 'I wake up', 'I'm at my desk', 'My role is...'. Edit only slightly for flow. Include specific details like leaving times, activities, family names. Do NOT change to second person. IF NOT PROVIDED: A warm acknowledgment that they haven't painted the picture yet, with an invitation to have that conversation.",
     "whatTheyWontBeDoing": ["List of things they specifically said they want to stop doing"],
     "destinationClarityScore": 1-10,
     "clarityExplanation": "One sentence about how clear their vision is. Be honest if data is missing."
@@ -2816,6 +3141,74 @@ Before returning, verify:
     }
     
     // ========================================================================
+    // POST-PROCESSING: ENFORCE HEADLINE FRAMING (Exit vs Growth)
+    // ========================================================================
+    {
+      const adminCtxNote = engagement?.admin_context_note || engagementData?.admin_context_note || '';
+      const adminCtxLower = adminCtxNote.toLowerCase();
+      const exitTimelineStr = String(exitTimeline || '').toLowerCase();
+      
+      const shouldNotLeadWithExit = 
+        adminCtxLower.includes('can exit but don') ||
+        adminCtxLower.includes('not actively preparing') ||
+        adminCtxLower.includes('growth priority') ||
+        exitTimelineStr.includes('3-5 years') ||
+        exitTimelineStr.includes('5-10 years') ||
+        exitTimelineStr.includes('never');
+      
+      const headline = narratives.meta?.headline || '';
+      
+      console.log('[Pass2] 🏷️ Headline framing check:', {
+        shouldNotLeadWithExit,
+        headline: headline.substring(0, 80),
+        adminCtxSnippet: adminCtxLower.substring(0, 60),
+        exitTimeline: exitTimelineStr.substring(0, 40)
+      });
+      
+      if (shouldNotLeadWithExit && headline) {
+        // Check if headline contains exit-focused language
+        const isExitFocused = /exit/i.test(headline) || 
+                              /building for.*£\d/i.test(headline) ||
+                              /preparing to sell/i.test(headline);
+        
+        if (isExitFocused) {
+          console.warn('[Pass2] ⚠️ Headline leads with exit despite context. Replacing.');
+          
+          // Try to find a better headline from the gaps
+          const gaps = narratives.page2_gaps?.gaps || [];
+          const growthGap = gaps.find((g: any) => {
+            const title = (g.title || '').toLowerCase();
+            return title.includes('relationship') || 
+                   title.includes('revenue') ||
+                   title.includes('growth') ||
+                   title.includes('£1m') ||
+                   title.includes('ceiling') ||
+                   title.includes('engine');
+          });
+          
+          if (growthGap?.title) {
+            narratives.meta.headline = growthGap.title;
+            console.log('[Pass2] ✅ Replaced headline with gap title:', growthGap.title);
+          } else {
+            // Fallback: rewrite to remove exit framing
+            let newHeadline = headline
+              .replace(/You're building for a £\d+[MmKk]? exit but/i, "You're growing but")
+              .replace(/building for .* exit/i, 'building something significant')
+              .replace(/exit-ready/gi, 'scalable');
+            
+            // If it still mentions exit, use a generic growth headline
+            if (/exit/i.test(newHeadline)) {
+              newHeadline = "You're stuck at half a million with the growth opportunity of a lifetime sitting right in front of you.";
+            }
+            
+            narratives.meta.headline = newHeadline;
+            console.log('[Pass2] ✅ Rewrote headline to:', newHeadline);
+          }
+        }
+      }
+    }
+    
+    // ========================================================================
     // CRITICAL: Enforce Pass 1 service prices in LLM output
     // The LLM might have ignored our constraints, so we fix them here
     // ========================================================================
@@ -2901,7 +3294,13 @@ Before returning, verify:
       // Fix page4_numbers.investment array
       if (narratives.page4_numbers?.investment) {
         console.log('[Pass2] Fixing page4_numbers.investment items...');
-        
+        for (const inv of narratives.page4_numbers.investment) {
+          const text = `${inv.amount || ''} ${inv.whatYouGet || ''} ${inv.phase || ''}`.toLowerCase();
+          if ((text.includes('time goes') || text.includes('systems') || text.includes('audit')) && /1[,.]?500|£1\s*,?\s*500/.test(String(inv.amount || ''))) {
+            inv.amount = '£2,000';
+            console.log('[Pass2]   ✓ Overrode Systems Audit amount to £2,000 in page4 investment');
+          }
+        }
         for (let i = 0; i < narratives.page4_numbers.investment.length; i++) {
           const inv = narratives.page4_numbers.investment[i];
           const searchText = `${inv.phase || ''} ${inv.service || ''} ${inv.whatYouGet || ''} ${inv.description || ''}`.toLowerCase();
@@ -3012,20 +3411,16 @@ Before returning, verify:
     if (narratives.page3_journey?.phases) {
       console.log('[Pass2] 🔧 Enforcing service catalog on journey phases...');
       narratives.page3_journey.phases = enforceServiceCatalog(narratives.page3_journey.phases);
-      
-      // Recalculate total from enforced prices
-      const totalPrice = narratives.page3_journey.phases.reduce((sum: number, phase: any) => {
-        const priceStr = phase.price || '';
-        const match = priceStr.match(/[\d,]+/);
-        return sum + (match ? parseInt(match[0].replace(/,/g, ''), 10) : 0);
-      }, 0);
-      
-      if (totalPrice > 0) {
-        const formattedTotal = `£${totalPrice.toLocaleString()}`;
-        if (narratives.page4_numbers) {
-          narratives.page4_numbers.totalYear1 = formattedTotal;
-        }
-        console.log('[Pass2] ✅ Recalculated total investment:', formattedTotal);
+      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey);
+      // Total Year 1 = Phase 1 commitment only (phases 2+ are "when ready")
+      const firstPhase = narratives.page3_journey.phases[0];
+      const firstPriceStr = firstPhase?.price || firstPhase?.investmentAmount || '';
+      const firstPriceMatch = firstPriceStr.match(/[\d,]+/);
+      const firstPhasePrice = firstPriceMatch ? parseInt(firstPriceMatch[0].replace(/,/g, ''), 10) : 0;
+      if (firstPhasePrice > 0 && narratives.page4_numbers) {
+        narratives.page4_numbers.totalYear1 = `£${firstPhasePrice.toLocaleString()}`;
+        narratives.page4_numbers.toStartTheJourney = `£${firstPhasePrice.toLocaleString()}`;
+        console.log('[Pass2] ✅ Total Year 1 commitment (Phase 1 only):', narratives.page4_numbers.totalYear1);
       }
     }
     
@@ -3081,6 +3476,170 @@ Before returning, verify:
       if (preBuiltPhrases.grossMarginStrength && !narratives.page4_numbers.grossMarginStrength) {
         narratives.page4_numbers.grossMarginStrength = preBuiltPhrases.grossMarginStrength;
         console.log('[Pass2] 📊 Added grossMarginStrength to page4_numbers:', preBuiltPhrases.grossMarginStrength);
+      }
+    }
+    
+    // ========================================================================
+    // FIX 2: ENFORCE INVESTMENT CAP (post-processing)
+    // ========================================================================
+    const maxInvestment = frameworkOverrides?.maxRecommendedInvestment;
+    if (maxInvestment && narratives.page3_journey?.phases) {
+      const phases = narratives.page3_journey.phases;
+      let runningTotal = 0;
+      
+      for (let i = 0; i < phases.length; i++) {
+        const phase = phases[i];
+        // Extract price from various possible fields
+        const phasePriceStr = phase.investmentAmount || phase.price || phase.investment || '';
+        const priceMatch = phasePriceStr.match(/[\d,]+/);
+        const phasePrice = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 0;
+        
+        if (i === 0) {
+          // First phase: keep as-is if within cap
+          if (phasePrice <= maxInvestment) {
+            runningTotal += phasePrice;
+            console.log(`[Pass2] 💰 Phase 1 within cap: £${phasePrice} (cap: £${maxInvestment})`);
+          } else {
+            // Even first phase exceeds cap — flag but keep
+            console.warn(`[Pass2] ⚠️ First phase £${phasePrice} exceeds cap £${maxInvestment}`);
+            runningTotal += phasePrice;
+          }
+        } else {
+          // Subsequent phases: mark as deferred, remove price from commitment
+          phase.deferred = true;
+          phase.deferredReason = 'Phase 2 — when cash flow allows';
+          // Mark as deferred; cleanJourneyPhases will normalize enabledBy to " (£X — when ready)"
+          if (phase.enabledBy && !phase.enabledBy.includes('when ready')) {
+            const priceMatch = (phase.price || '').match(/£[\d,]+/);
+            phase.enabledBy = priceMatch ? phase.enabledBy.replace(/\(£[\d,]+\)/, `(${priceMatch[0]} — when ready)`) : phase.enabledBy + ' — when ready';
+          }
+          if (phasePrice > 0) {
+            phase.price = phase.price?.replace(/£[\d,]+/, (m: string) => m + ' — when ready') || 'When ready';
+            phase.investmentAmount = 'When ready';
+          }
+          console.log(`[Pass2] 💰 Deferred phase ${i + 1}: ${phase.title || phase.headline} — exceeds investment cap`);
+        }
+      }
+      
+      // Override the investment summary to show only committed amount
+      if (narratives.page4_numbers) {
+        const firstPhasePriceStr = phases[0]?.investmentAmount || phases[0]?.price || '0';
+        const firstPriceMatch = firstPhasePriceStr.match(/[\d,]+/);
+        const firstPhasePrice = firstPriceMatch ? parseInt(firstPriceMatch[0].replace(/,/g, ''), 10) : 0;
+        
+        narratives.page4_numbers.totalYear1 = `£${firstPhasePrice.toLocaleString()}`;
+        narratives.page4_numbers.toStartTheJourney = `£${firstPhasePrice.toLocaleString()}`;
+        
+        // Fix investment breakdown display
+        if (narratives.page4_numbers.investmentBreakdown) {
+          const breakdownItems: string[] = [];
+          for (let i = 0; i < phases.length; i++) {
+            const phase = phases[i];
+            const priceStr = phase.investmentAmount || phase.price || '';
+            const service = phase.enabledBy || phase.service || `Phase ${i + 1}`;
+            
+            if (i === 0) {
+              const priceMatch = priceStr.match(/[\d,]+/);
+              const price = priceMatch ? parseInt(priceMatch[0].replace(/,/g, ''), 10) : 0;
+              breakdownItems.push(`${service}: £${price.toLocaleString()}`);
+            } else {
+              breakdownItems.push(`${service}: When ready`);
+            }
+          }
+          narratives.page4_numbers.investmentBreakdown = breakdownItems.join('\n');
+        }
+        
+        console.log(`[Pass2] 💰 Investment cap enforced: showing £${firstPhasePrice} (cap: £${maxInvestment})`);
+      }
+    }
+    
+    // ========================================================================
+    // FIX 3: ENFORCE HEADLINE FRAMING (post-processing)
+    // ========================================================================
+    const adminContextLower = String(adminContextNote || '').toLowerCase();
+    const exitTimelineLower = String(exitTimeline || '').toLowerCase();
+    
+    const shouldNotLeadWithExit = 
+      adminContextLower.includes('can exit but don') ||
+      adminContextLower.includes('not actively preparing') ||
+      adminContextLower.includes('growth priority') ||
+      exitTimelineLower.includes('3-5 years') ||
+      exitTimelineLower.includes('5-10 years') ||
+      exitTimelineLower.includes('never');
+    
+    console.log('[Pass2] Headline check:', { 
+      shouldNotLeadWithExit, 
+      headline: narratives.meta?.headline || narratives.page2_gaps?.openingLine || 'N/A',
+      adminContextLower: adminContextLower.substring(0, 50),
+      clientType: clientType || 'unknown'
+    });
+    
+    if (shouldNotLeadWithExit) {
+      // Check if headline contains exit-focused language
+      const headline = narratives.meta?.headline || 
+                      narratives.page2_gaps?.openingLine || 
+                      narratives.page1_destination?.headerLine || 
+                      '';
+      const headlineLower = headline.toLowerCase();
+      
+      const exitPatterns = [
+        /building for .* exit/i,
+        /exit.ready/i,
+        /preparing to sell/i,
+        /your exit/i,
+        /£\d+[mk]?\s*exit/i,  // Updated: matches "£5M exit" with optional whitespace
+        /exit.*£\d+[mk]?/i
+      ];
+      
+      const isExitFocused = exitPatterns.some(pattern => pattern.test(headline));
+      
+      if (isExitFocused) {
+        console.warn(`[Pass2] ⚠️ Headline leads with exit despite admin context saying otherwise. Original: "${headline}"`);
+        
+        // Check if there's a better headline from the gap analysis or journey
+        const gaps = narratives.page2_gaps?.gaps || [];
+        
+        // For trading_agency, prioritize gaps containing "relationship" or "£1M"
+        let strategicGap: any = null;
+        if (clientType === 'trading_agency') {
+          strategicGap = gaps.find((g: any) => 
+            g.title?.toLowerCase().includes('relationship') || 
+            g.title?.includes('£1M') ||
+            g.title?.includes('£1 M')
+          );
+        }
+        
+        // Fallback to general strategic gaps if no agency-specific match
+        if (!strategicGap) {
+          strategicGap = gaps.find((g: any) => 
+            g.title?.toLowerCase().includes('relationship') || 
+            g.title?.toLowerCase().includes('revenue') ||
+            g.title?.toLowerCase().includes('growth') ||
+            g.title?.toLowerCase().includes('ceiling') ||
+            g.title?.toLowerCase().includes('scale')
+          );
+        }
+        
+        if (strategicGap) {
+          // Use the strategic gap title directly as the headline
+          const newHeadline = strategicGap.title;
+          if (narratives.meta) narratives.meta.headline = newHeadline;
+          if (narratives.page2_gaps) narratives.page2_gaps.openingLine = newHeadline;
+          console.log(`[Pass2] ✅ Replaced exit headline with strategic gap: "${newHeadline}"`);
+        } else {
+          // Generic replacement: strip "exit" framing, keep the operational tension
+          const cleaned = headline
+            .replace(/building for a £\d+[mk]?\s*exit but/i, 'growing but')
+            .replace(/building for .* exit but/i, 'growing but')
+            .replace(/exit-ready/gi, 'scalable')
+            .replace(/your exit/gi, 'your growth')
+            .replace(/£\d+[mk]?\s*exit/gi, 'growth')
+            .replace(/exit.*£\d+[mk]?/gi, 'growth');
+          
+          if (narratives.meta) narratives.meta.headline = cleaned;
+          if (narratives.page2_gaps) narratives.page2_gaps.openingLine = cleaned;
+          console.log(`[Pass2] ✅ Cleaned exit headline to: "${cleaned}"`);
+        }
       }
     }
     
@@ -3304,12 +3863,25 @@ Before returning, verify:
       page5_hasThisWeek: !!narratives.page5_nextSteps?.thisWeek
     });
 
+    // Final cleanup: remove any duplicate "when ready" stutter in full payload before save
+    narratives = cleanWhenReadyStutter(narratives);
+    if (narratives?.page3_journey) {
+      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey);
+    }
+    // Brute-force: clean any "Enabled by:" stutter in the entire JSON before save
+    const reportJsonStr = JSON.stringify(narratives);
+    const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
+    narratives = JSON.parse(cleanedStr);
+
     // Update report with Pass 2 results
+    console.log('[Pass2] 📝 Final headline being saved:', narratives.meta?.headline);
+    
     const { error: updateError } = await supabase
       .from('discovery_reports')
       .update({
         status: reportStatus,
         destination_report: narratives,
+        headline: narratives.meta?.headline || '',
         page1_destination: narratives.page1_destination,
         page2_gaps: narratives.page2_gaps,
         page3_journey: narratives.page3_journey,
@@ -3340,6 +3912,73 @@ Before returning, verify:
       throw new Error(`Database update failed: ${updateError.message}`);
     }
     console.log('[Pass2] ✅ Database update successful');
+
+    // ========================================================================
+    // POST-SAVE: Fix Stage 3 headline if it leads with exit inappropriately
+    // (reuses exitTimelineLower from FIX 3 above)
+    // ========================================================================
+    const shouldNotLeadWithExitPostSave =
+      exitTimelineLower.includes('3-5 years') ||
+      exitTimelineLower.includes('5-10 years') ||
+      exitTimelineLower.includes('never');
+
+    if (shouldNotLeadWithExitPostSave) {
+      // Check discovery_reports.headline (set by Stage 3)
+      const { data: savedReport } = await supabase
+        .from('discovery_reports')
+        .select('headline')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+      
+      const savedHeadline = savedReport?.headline || '';
+      const exitPatterns = [/exit/i, /building for.*£\d/i, /preparing to sell/i];
+      
+      if (savedHeadline && exitPatterns.some(p => p.test(savedHeadline))) {
+        // Try to use a gap title as the replacement
+        const gaps = narratives.page2_gaps?.gaps || [];
+        const betterGap = gaps.find((g: any) => {
+          const t = (g.title || '').toLowerCase();
+          return t.includes('relationship') || t.includes('revenue') || 
+                 t.includes('growth') || t.includes('engine') || t.includes('ceiling');
+        });
+        
+        const newHeadline = betterGap?.title || 
+          savedHeadline
+            .replace(/building for a? ?£\d+[mk]?\s*exit/i, 'growing')
+            .replace(/£\d+[mk]?\s*exit/gi, 'growth');
+        
+        await supabase
+          .from('discovery_reports')
+          .update({ headline: newHeadline })
+          .eq('engagement_id', engagementId);
+        
+        console.log(`[Pass2] ✅ Fixed Stage 3 headline: "${savedHeadline}" → "${newHeadline}"`);
+      }
+      
+      // Also check client_reports (where Stage 3 stores its analysis)
+      const { data: clientReport } = await supabase
+        .from('client_reports')
+        .select('id, report_data')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+      
+      if (clientReport?.report_data?.analysis?.executiveSummary?.headline) {
+        const stg3Headline = clientReport.report_data.analysis.executiveSummary.headline;
+        if (exitPatterns.some(p => p.test(stg3Headline))) {
+          const fixedData = JSON.parse(JSON.stringify(clientReport.report_data));
+          fixedData.analysis.executiveSummary.headline = newHeadline || stg3Headline
+            .replace(/building for a? ?£\d+[mk]?\s*exit/i, 'growing')
+            .replace(/£\d+[mk]?\s*exit/gi, 'growth');
+          
+          await supabase
+            .from('client_reports')
+            .update({ report_data: fixedData })
+            .eq('id', clientReport.id);
+          
+          console.log(`[Pass2] ✅ Also fixed client_reports headline`);
+        }
+      }
+    }
 
     // Update engagement status
     await supabase
