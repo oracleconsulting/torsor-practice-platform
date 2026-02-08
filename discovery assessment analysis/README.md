@@ -1,7 +1,7 @@
-# Discovery Assessment Analysis - Complete Backup
+# Discovery Assessment Analysis - Complete Backup (COPY REFERENCE)
 
-**Created:** February 2026  
-**Purpose:** Complete backup of all Discovery Assessment system files
+**Created:** February 2026 | **Last synced:** 2026-02-07  
+**Purpose:** Flat reference copy of all Discovery Assessment system files. **Do not edit these files** — edit the live paths in `torsor-practice-platform/` instead. See `COPY_NOTICE.txt` and `DISCOVERY_SYSTEM_LIVE_SUMMARY.md`.
 
 ---
 
@@ -204,5 +204,5 @@ Client → 40 Questions → Document Upload → Pass 1 (Calc) → Pass 2 (LLM) �
 
 ---
 
-*This backup was created to ensure all Discovery Assessment code is preserved and documented.*  
-*Last updated: February 2026*
+*This folder is FLAT (no subfolders). Every .ts, .tsx, .sql file here is a COPY; edit only the live source paths.*  
+*For a new chat, use the continuation prompt in COPY_NOTICE.txt.*

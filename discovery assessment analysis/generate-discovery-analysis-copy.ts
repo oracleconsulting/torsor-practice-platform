@@ -1,3 +1,4 @@
+/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 // ============================================================================
 // GENERATE DISCOVERY ANALYSIS - Part 2 of 2-stage report generation
 // ============================================================================

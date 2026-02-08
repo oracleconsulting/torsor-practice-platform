@@ -182,6 +182,20 @@ Pass 3 (Opus 4.5)   → Opportunity identification
 
 ---
 
-*Last updated: 2026-02-04*
-*Total files: 49*
-*Total size: ~1.5MB*
+---
+
+## Flat snapshot (no subfolders)
+
+A **flat** copy of all files in this folder is in:
+
+**`benchmarking assessment analysis flat/`**
+
+- Every file is at the top level (path segments become underscores, e.g. `components_admin_BenchmarkingAdminView-COPY.tsx`).
+- Contains **BENCHMARKING_SYSTEM_SUMMARY.md** — single summary of the current live system.
+- Contains **CONTINUATION_PROMPT_NEW_CHAT.md** — paste into a new chat to continue with context.
+
+---
+
+*Last updated: 2026-02-07*
+*Total files: synced from live (components, edge functions, migrations, lib, config, docs)*
+*Flat folder: benchmarking assessment analysis flat/ (all files at top level)*

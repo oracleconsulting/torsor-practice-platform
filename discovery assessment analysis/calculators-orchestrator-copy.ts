@@ -1,3 +1,4 @@
+/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 // ============================================================================
 // MASTER ORCHESTRATOR - "Calculate Once, Narrate Forever"
 // ============================================================================

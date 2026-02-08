@@ -89,7 +89,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   const [clientName, setClientName] = useState('');
   
   const [generating, setGenerating] = useState(false);
-  const [generatingPass, setGeneratingPass] = useState<1 | 2 | 3 | null>(null);
+  const [generatingPass, setGeneratingPass] = useState<1 | 2 | 3 | 4 | null>(null);
   const [viewMode, setViewMode] = useState<'admin' | 'script' | 'client'>('admin');
   const [publishing, setPublishing] = useState(false);
   
@@ -275,101 +275,115 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     }
   };
 
-  const handleRunPass1 = async () => {
+  // Phase 1: Deep Analysis (prepare-data → advisory-deep-dive → generate-analysis)
+  const handlePhase1 = async () => {
     if (!engagement) return;
-    
     setGenerating(true);
     setGeneratingPass(1);
-    
     try {
-      // Save admin context values before triggering Pass 1
-      const adminFlags: Record<string, any> = {};
-      if (cashConstrained) {
-        adminFlags.cash_constrained = true;
-      }
-      if (urgentDecision) {
-        adminFlags.urgent_decision = true;
-        if (urgentDecisionDetail) {
-          adminFlags.urgent_decision_detail = urgentDecisionDetail;
-        }
-      }
-      
-      const updateData: any = {
-        admin_context_note: adminContextNote || null,
-        admin_flags: Object.keys(adminFlags).length > 0 ? adminFlags : null
-      };
-      
-      // Only set admin_business_type if not auto-detect
-      if (adminBusinessType !== 'auto-detect') {
-        updateData.admin_business_type = adminBusinessType;
-      } else {
-        updateData.admin_business_type = null;
-      }
-      
-      const { error: updateError } = await supabase
-        .from('discovery_engagements')
-        .update(updateData)
-        .eq('id', engagement.id);
-      
-      if (updateError) {
-        console.error('Error saving admin context:', updateError);
-        // Continue anyway - non-fatal
-      }
-      
-      const { data, error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
+      const { data: prepData, error: prepError } = await supabase.functions.invoke('prepare-discovery-data', {
         body: { engagementId: engagement.id }
       });
+      if (prepError) throw prepError;
 
-      if (error) throw error;
-      
-      console.log('Pass 1 complete:', data);
+      const { error: ddError } = await supabase.functions.invoke('advisory-deep-dive', {
+        body: { engagementId: engagement.id, preparedData: prepData }
+      });
+      if (ddError) throw ddError;
+
+      const { error: analysisError } = await supabase.functions.invoke('generate-discovery-analysis', {
+        body: { engagementId: engagement.id, preparedData: prepData }
+      });
+      if (analysisError) throw analysisError;
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'analysis_complete', analysis_completed_at: new Date().toISOString() })
+        .eq('id', engagement.id);
+
       await fetchData();
     } catch (error: any) {
-      console.error('Pass 1 error:', error);
-      alert(`Error running analysis: ${error.message}`);
+      console.error('Phase 1 error:', error);
+      alert(`Deep analysis failed: ${error.message}`);
     } finally {
       setGenerating(false);
       setGeneratingPass(null);
     }
   };
 
-  const handleRunPass2 = async () => {
+  // Phase 2: Score + Opportunities (pass1 → generate-discovery-opportunities)
+  const handlePhase2 = async () => {
     if (!engagement) return;
-    
     setGenerating(true);
     setGeneratingPass(2);
-    
     try {
-      const { data, error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+      const { error: p1Error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
         body: { engagementId: engagement.id }
       });
+      if (p1Error) throw p1Error;
 
-      if (error) throw error;
-      
-      console.log('Pass 2 complete:', data);
-      
-      // Automatically run Pass 3 (Opportunities) after Pass 2 succeeds
       setGeneratingPass(3);
-      console.log('Starting Pass 3 (Opportunities)...');
-      
-      const { data: pass3Data, error: pass3Error } = await supabase.functions.invoke('generate-discovery-opportunities', {
+      const { error: p3Error } = await supabase.functions.invoke('generate-discovery-opportunities', {
         body: { engagementId: engagement.id }
       });
-      
-      if (pass3Error) {
-        console.warn('Pass 3 warning (non-fatal):', pass3Error);
-        // Pass 3 failure is non-fatal - report is still valid
-      } else {
-        console.log('Pass 3 complete:', pass3Data);
-      }
-      
+      if (p3Error) console.warn('Opportunities warning:', p3Error);
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'opportunities_complete', opportunities_completed_at: new Date().toISOString() })
+        .eq('id', engagement.id);
+
       await fetchData();
     } catch (error: any) {
-      console.error('Pass 2 error:', error);
-      alert(`Error generating narrative: ${error.message}`);
+      console.error('Phase 2 error:', error);
+      alert(`Scoring failed: ${error.message}`);
     } finally {
       setGenerating(false);
       setGeneratingPass(null);
+    }
+  };
+
+  // Phase 3: Narrative Report (pass2 only)
+  const handlePhase3 = async () => {
+    if (!engagement) return;
+    setGenerating(true);
+    setGeneratingPass(4);
+    try {
+      const { error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+        body: { engagementId: engagement.id }
+      });
+      if (error) throw error;
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'pass2_complete', pass2_completed_at: new Date().toISOString() })
+        .eq('id', engagement.id);
+
+      await fetchData();
+    } catch (error: any) {
+      console.error('Phase 3 error:', error);
+      alert(`Report generation failed: ${error.message}`);
+    } finally {
+      setGenerating(false);
+      setGeneratingPass(null);
+    }
+  };
+
+  // Standalone: Regenerate opportunities only
+  const handleRegenerateOpportunities = async () => {
+    if (!engagement) return;
+    setGenerating(true);
+    try {
+      const { error } = await supabase.functions.invoke('generate-discovery-opportunities', {
+        body: { engagementId: engagement.id }
+      });
+      if (error) throw error;
+      await fetchData();
+    } catch (error: any) {
+      console.error('Opportunities regen error:', error);
+      alert(`Failed: ${error.message}`);
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -2100,32 +2114,44 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {/* Pass 1 Button */}
+                    {/* Phase 1: Deep Analysis */}
                     <button
-                      onClick={handleRunPass1}
+                      onClick={handlePhase1}
                       disabled={generating || !discovery || engagement?.status === 'pending_responses'}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                     >
                       {generatingPass === 1 ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      {report?.service_scores ? 'Re-run Analysis' : 'Run Analysis'}
+                      {generatingPass === 1 ? 'Analysing...' : '1. Analyse'}
                     </button>
-                    
-                    {/* Pass 2 + 3 Button */}
+                    {/* Phase 2: Score + Opportunities */}
                     <button
-                      onClick={handleRunPass2}
-                      disabled={generating || !report?.service_scores}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                      onClick={handlePhase2}
+                      disabled={generating || !['analysis_complete', 'opportunities_complete', 'pass2_complete'].includes(engagement?.status || '')}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center gap-2"
                     >
                       {(generatingPass === 2 || generatingPass === 3) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
+                        <BarChart3 className="h-4 w-4" />
+                      )}
+                      {generatingPass === 3 ? 'Finding Opportunities...' : '2. Score'}
+                    </button>
+                    {/* Phase 3: Narrative Report */}
+                    <button
+                      onClick={handlePhase3}
+                      disabled={generating || !['opportunities_complete', 'pass2_complete'].includes(engagement?.status || '')}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {generatingPass === 4 ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      {generatingPass === 3 ? 'Finding Opportunities...' : 'Generate Report'}
+                      {generatingPass === 4 ? 'Writing...' : '3. Report'}
                     </button>
                     
                     {/* Publish Button */}
@@ -2326,11 +2352,24 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold">Identified Opportunities</h3>
+                    <h3 className="text-lg font-semibold">Service Opportunities</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Review and manage opportunities identified by Pass 3. Mark which ones to show in client view.
+                      Review and manage opportunities identified by Phase 2. Mark which ones to show in client view.
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateOpportunities}
+                    disabled={generating}
+                    className="px-3 py-1.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/40 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {generating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    Regenerate Opportunities
+                  </button>
                 </div>
                 
                 <DiscoveryOpportunityPanel 

@@ -1131,6 +1131,12 @@ serve(async (req) => {
 
     console.log('[Pass2] Found engagement for client:', engagement.client?.name);
 
+    // Load advisor pin/block preferences from engagement
+    const pinnedServices: string[] = ((engagement.pinned_services as string[]) || []).map((s: string) => s.toLowerCase());
+    const blockedServicesFromAdvisor: string[] = ((engagement.blocked_services as string[]) || []).map((s: string) => s.toLowerCase());
+    console.log(`[Pass2] Advisor pinned services: ${pinnedServices.join(', ') || 'none'}`);
+    console.log(`[Pass2] Advisor blocked services: ${blockedServicesFromAdvisor.join(', ') || 'none'}`);
+
     // Fetch service pricing from database (single source of truth)
     // Pass practice_id to use practice-specific pricing if available
     const SERVICE_DETAILS = await fetchServiceDetails(supabase, engagement.practice_id);
@@ -1958,11 +1964,12 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
     // Business Advisory is ALWAYS blocked until the service line is properly defined
     // Hidden Value is NOT a separate service - it's included in Benchmarking
     const blockedServices = [
-      'business_advisory',  // Paused until service line is defined
-      'hidden_value',       // Not separate - included in benchmarking
-      ...(shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : [])
+      'business_advisory',  // System block: paused until service line is defined
+      'hidden_value',       // System block: included in benchmarking
+      ...(shouldBlockCOO ? ['fractional_coo', 'combined_advisory'] : []),
+      ...blockedServicesFromAdvisor  // Advisor blocks from pin/block UI
     ];
-    console.log(`[Pass2] Blocked services: ${blockedServices.join(', ')}`);
+    console.log(`[Pass2] Combined blocked services (system + advisor): ${blockedServices.join(', ')}`);
     
     let recommendedServices = [...primaryRecs, ...secondaryRecs]
       .filter(r => r.recommended)
@@ -2015,6 +2022,25 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
     }
     
     console.log(`[Pass2] Recommended services after filtering:`, recommendedServices.map(s => s.code));
+
+    // Ensure pinned services are included in recommendations
+    for (const pinnedCode of pinnedServices) {
+      const alreadyIncluded = recommendedServices.some((s: { code: string }) => s.code === pinnedCode);
+      if (!alreadyIncluded && !blockedServices.includes(pinnedCode)) {
+        const serviceDetail = SERVICE_DETAILS[pinnedCode];
+        if (serviceDetail) {
+          recommendedServices.push({
+            code: pinnedCode,
+            ...serviceDetail,
+            score: 85,
+            triggers: ['advisor_pinned'],
+            pinnedByAdvisor: true
+          });
+          console.log(`[Pass2] Added advisor-pinned service: ${pinnedCode}`);
+        }
+      }
+    }
+    console.log(`[Pass2] Final recommended services: ${recommendedServices.map((s: { code: string }) => s.code).join(', ')}`);
 
     // Build context from notes
     const contextSection = contextNotes?.length 
@@ -2079,6 +2105,43 @@ IMPORTANT: When generating pages 1-5, you MUST:
         console.log(`  - [${f.section_type}] ${f.comment_type}: ${f.comment_text.substring(0, 50)}...`);
       });
     }
+
+    // Load curated opportunities from Phase 2 for the LLM prompt
+    const { data: curatedOpportunities } = await supabase
+      .from('discovery_opportunities')
+      .select('*, service:services(id, code, name, price_amount, price_period)')
+      .eq('engagement_id', engagementId)
+      .order('severity', { ascending: true });
+
+    const clientVisibleOpps = (curatedOpportunities || []).filter((o: { show_in_client_view?: boolean }) => o.show_in_client_view);
+    const pinnedOpps = (curatedOpportunities || []).filter((o: { opportunity_code?: string }) => (o.opportunity_code || '').startsWith('pinned_'));
+    console.log(`[Pass2] Loaded ${curatedOpportunities?.length || 0} opportunities (${clientVisibleOpps.length} client-visible, ${pinnedOpps.length} pinned)`);
+
+    const opportunityContext = (curatedOpportunities?.length ?? 0) > 0 ? `
+
+============================================================================
+ADVISOR-CURATED SERVICE OPPORTUNITIES (from Phase 2)
+============================================================================
+The advisor has reviewed the following opportunities and marked some as client-visible.
+Your journey phases (Page 3) MUST reference the pinned/recommended services.
+Your gap analysis (Page 2) should align with the opportunity themes below.
+
+${(curatedOpportunities || []).map((o: { severity?: string; title?: string; category?: string; financial_impact_amount?: number; show_in_client_view?: boolean; opportunity_code?: string }) =>
+  `- [${(o.severity || '').toUpperCase()}] ${o.title || 'Untitled'} (${o.category || 'General'}) — £${Number(o.financial_impact_amount || 0).toLocaleString()} impact${o.show_in_client_view ? ' [CLIENT VISIBLE]' : ''}${(o.opportunity_code || '').startsWith('pinned_') ? ' [ADVISOR PINNED]' : ''}`
+).join('\n')}
+
+PINNED SERVICES (advisor wants these in the journey):
+${pinnedServices.map((code: string) => {
+  const detail = SERVICE_DETAILS[code];
+  return detail ? `- ${(detail as { name?: string }).name} (${code}) — £${(detail as { price?: string }).price || 'TBD'}` : `- ${code}`;
+}).join('\n')}
+
+BLOCKED SERVICES (do NOT recommend these):
+${blockedServicesFromAdvisor.map((code: string) => {
+  const detail = SERVICE_DETAILS[code];
+  return detail ? `- ${(detail as { name?: string }).name} (${code})` : `- ${code}`;
+}).join('\n')}
+` : '';
 
     // ============================================================================
     // THE MASTER PROMPT - Destination-Focused Discovery Report
@@ -2210,6 +2273,7 @@ ANYTHING ELSE THEY SHARED:
 ${contextSection}
 ${docSection}
 ${feedbackSection}
+${opportunityContext}
 ${neverHadBreak ? `
 
 ============================================================================

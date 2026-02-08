@@ -977,10 +977,14 @@ function postProcessOpportunities(analysis: any, clientData: ClientData, service
   // PHASE 3d: Ensure pinned services appear
   if (clientData.pinnedServices.length > 0 && services.length > 0) {
     for (const pinnedCode of clientData.pinnedServices) {
+      // Only skip if there's already a dedicated pinned card (not just any opportunity that recommends this service)
       const alreadyPresent = opportunities.some(
-        (o: any) => (o.serviceMapping?.existingService?.code || '').toLowerCase() === pinnedCode
+        (o: any) => {
+          const c = (o.code || '').toLowerCase();
+          return c === pinnedCode || c === `pinned_${pinnedCode}`;
+        }
       );
-      
+
       if (!alreadyPresent) {
         console.log(`[Pass 3] Adding pinned service: ${pinnedCode}`);
         // Look up service details from the catalogue (codes are lowercase)

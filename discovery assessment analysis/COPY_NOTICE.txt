@@ -1,0 +1,41 @@
+================================================================================
+COPY NOTICE — Discovery Assessment Analysis Folder
+================================================================================
+Last updated: 2026-02-07
+
+EVERY .ts, .tsx, .sql file in this folder is a REFERENCE COPY of the live
+codebase. Do NOT edit these files when making changes to the product.
+
+- Edit the LIVE files in torsor-practice-platform/ (paths listed in
+  DISCOVERY_SYSTEM_LIVE_SUMMARY.md and in each file's header).
+- This folder is FLAT (no subfolders). It exists so you can read the full
+  Discovery system in one place without touching the real code.
+
+Each copy file has a first-line header like:
+  /* COPY - Do not edit. Source: supabase/functions/... */
+  -- COPY - Do not edit. Source: supabase/migrations/...
+  <!-- COPY - Do not edit. Source: ... -->
+
+================================================================================
+CONTINUATION PROMPT (paste into a new chat when switching context)
+================================================================================
+
+Use this when moving Discovery work to a new chat:
+
+---
+The folder `torsor-practice-platform/discovery assessment analysis` is a FLAT
+reference copy of the live Discovery Assessment system. Every file there is
+marked COPY — do not edit those files; edit the corresponding live paths in
+`torsor-practice-platform/` instead.
+
+Read `discovery assessment analysis/DISCOVERY_SYSTEM_LIVE_SUMMARY.md` for:
+- System overview (Pass 1 / Pass 2 / Pass 3, pin/block, tables)
+- Mapping from flat COPY filenames to live paths (supabase/functions,
+  supabase/migrations, apps/client-portal, src/components/discovery, etc.)
+
+Admin discovery UI (Create Service modal, pin/block, opportunities) lives in
+`src/pages/admin/ClientServicesPage.tsx`. Pass 3 pin/block is implemented in
+`supabase/functions/generate-discovery-opportunities/index.ts`.
+---
+
+================================================================================

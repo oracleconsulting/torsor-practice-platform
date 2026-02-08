@@ -1,3 +1,4 @@
+/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 // ============================================================================
 // PASS 1 OUTPUT TYPES - "Calculate Once, Narrate Forever"
 // ============================================================================

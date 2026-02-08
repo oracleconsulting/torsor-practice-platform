@@ -1,3 +1,4 @@
+/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 // ============================================================================
 // DISCOVERY REPORT - PASS 1: EXTRACTION & SCORING + 8-DIMENSION ANALYSIS
 // Includes: Business Type Classification, Financial Analysis, Service Scoring

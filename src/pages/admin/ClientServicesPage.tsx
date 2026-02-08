@@ -49,6 +49,7 @@ import {
   RefreshCw,
   Save,
   BarChart3,
+  Brain,
   Quote,
   Phone,
   XCircle
@@ -2279,6 +2280,9 @@ function DiscoveryClientModal({
   const [analysisNotes, setAnalysisNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
+  // Three-phase generation state
+  const [currentPhase, setCurrentPhase] = useState<1 | 2 | 3 | null>(null);
+  const [phaseProgress, setPhaseProgress] = useState<string>('');
   const [generatedReport, setGeneratedReport] = useState<any>(null);
   const [isReportShared, setIsReportShared] = useState(false);
   const [sharingReport, setSharingReport] = useState(false);
@@ -2717,6 +2721,196 @@ function DiscoveryClientModal({
       .eq('engagement_id', discoveryEngagement.id)
       .order('severity', { ascending: true });
     if (data) setSpecialistOpportunities(data);
+  };
+
+  // Ensure we have a discovery engagement (for phase status updates)
+  const ensureDiscoveryEngagement = async (): Promise<string | null> => {
+    if (discoveryEngagement?.id) return discoveryEngagement.id;
+    const { data: existing } = await supabase
+      .from('discovery_engagements')
+      .select('id')
+      .eq('client_id', clientId)
+      .maybeSingle();
+    if (existing?.id) {
+      setDiscoveryEngagement(existing);
+      return existing.id;
+    }
+    const { data: newEng, error } = await supabase
+      .from('discovery_engagements')
+      .insert({
+        client_id: clientId,
+        discovery_id: discovery?.id,
+        practice_id: client?.practice_id,
+        status: 'responses_complete',
+      })
+      .select('id')
+      .single();
+    if (error || !newEng?.id) return null;
+    setDiscoveryEngagement(newEng);
+    return newEng.id;
+  };
+
+  // ================================================================
+  // PHASE 1: Deep Analysis
+  // ================================================================
+  const handlePhase1DeepAnalysis = async () => {
+    const engagementId = await ensureDiscoveryEngagement();
+    if (!engagementId) {
+      alert('Could not create or find discovery engagement.');
+      return;
+    }
+    setCurrentPhase(1);
+    try {
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'analysis_processing', analysis_started_at: new Date().toISOString() })
+        .eq('id', engagementId);
+
+      setPhaseProgress('Preparing data...');
+      const { data: prepData, error: prepError } = await supabase.functions.invoke('prepare-discovery-data', {
+        body: { clientId, practiceId: client?.practice_id, discoveryId: discovery?.id },
+      });
+      if (prepError) throw new Error(`Data preparation failed: ${prepError.message}`);
+      if (!prepData?.success || !prepData?.preparedData) throw new Error(prepData?.error || 'Failed to prepare data');
+
+      setPhaseProgress('Running deep analysis...');
+      const { data: deepDiveData, error: deepDiveError } = await supabase.functions.invoke('advisory-deep-dive', {
+        body: { preparedData: prepData.preparedData },
+      });
+      if (deepDiveError) throw new Error(`Advisory deep dive failed: ${deepDiveError.message}`);
+
+      setPhaseProgress('Generating comprehensive analysis...');
+      const advisoryInsights = deepDiveData?.advisoryInsights ?? null;
+      const { data: analysisResult, error: analysisError } = await supabase.functions.invoke('generate-discovery-analysis', {
+        body: { preparedData: prepData.preparedData, advisoryInsights },
+      });
+      if (analysisError) throw new Error(`Analysis generation failed: ${analysisError.message}`);
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'analysis_complete', analysis_completed_at: new Date().toISOString() })
+        .eq('id', engagementId);
+
+      setPhaseProgress('Deep analysis complete ✓');
+      if (analysisResult?.report) setGeneratedReport(analysisResult.report);
+      await fetchClientDetail();
+    } catch (error: any) {
+      console.error('Phase 1 error:', error);
+      alert(`Phase 1 failed: ${error?.message || error}`);
+      await supabase.from('discovery_engagements').update({ status: 'responses_complete' }).eq('id', engagementId);
+    } finally {
+      setCurrentPhase(null);
+      setPhaseProgress('');
+    }
+  };
+
+  // ================================================================
+  // PHASE 2: Analyse & Score + Opportunities
+  // ================================================================
+  const handlePhase2AnalyseAndScore = async () => {
+    const engagementId = discoveryEngagement?.id ?? (await ensureDiscoveryEngagement());
+    if (!engagementId) {
+      alert('No discovery engagement. Run Phase 1 first.');
+      return;
+    }
+    setCurrentPhase(2);
+    try {
+      await supabase.from('discovery_engagements').update({ status: 'pass1_processing' }).eq('id', engagementId);
+
+      setPhaseProgress('Calculating scores & benchmarks...');
+      const { error: pass1Error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
+        body: { engagementId },
+      });
+      if (pass1Error) throw new Error(`Pass 1 failed: ${pass1Error.message}`);
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'opportunities_processing', opportunities_started_at: new Date().toISOString() })
+        .eq('id', engagementId);
+
+      setPhaseProgress('Generating service opportunities...');
+      const { error: oppError } = await supabase.functions.invoke('generate-discovery-opportunities', {
+        body: { engagementId },
+      });
+      if (oppError) console.warn('Opportunities (non-fatal):', oppError);
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'opportunities_complete', opportunities_completed_at: new Date().toISOString() })
+        .eq('id', engagementId);
+
+      setPhaseProgress('Analysis & opportunities complete ✓');
+      await fetchClientDetail();
+    } catch (error: any) {
+      console.error('Phase 2 error:', error);
+      alert(`Phase 2 failed: ${error?.message || error}`);
+      await supabase.from('discovery_engagements').update({ status: 'analysis_complete' }).eq('id', engagementId);
+    } finally {
+      setCurrentPhase(null);
+      setPhaseProgress('');
+    }
+  };
+
+  // ================================================================
+  // PHASE 2B: Regenerate Opportunities only
+  // ================================================================
+  const handleRegenerateOpportunities = async () => {
+    if (!discoveryEngagement?.id) return;
+    setCurrentPhase(2);
+    setPhaseProgress('Regenerating opportunities...');
+    try {
+      const { error } = await supabase.functions.invoke('generate-discovery-opportunities', {
+        body: { engagementId: discoveryEngagement.id },
+      });
+      if (error) throw error;
+      setPhaseProgress('Opportunities regenerated ✓');
+      await fetchClientDetail();
+    } catch (error: any) {
+      console.error('Opportunity regeneration error:', error);
+      alert(`Failed to regenerate opportunities: ${error?.message || error}`);
+    } finally {
+      setCurrentPhase(null);
+      setPhaseProgress('');
+    }
+  };
+
+  // ================================================================
+  // PHASE 3: Generate Narrative Report
+  // ================================================================
+  const handlePhase3GenerateReport = async () => {
+    const engagementId = discoveryEngagement?.id;
+    if (!engagementId) {
+      alert('No discovery engagement. Run Phase 2 first.');
+      return;
+    }
+    setCurrentPhase(3);
+    try {
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'pass2_processing', pass2_started_at: new Date().toISOString() })
+        .eq('id', engagementId);
+
+      setPhaseProgress('Generating narrative report...');
+      const { error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+        body: { engagementId },
+      });
+      if (error) throw new Error(`Report generation failed: ${error.message}`);
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'pass2_complete', pass2_completed_at: new Date().toISOString() })
+        .eq('id', engagementId);
+
+      setPhaseProgress('Report generated ✓');
+      await fetchClientDetail();
+    } catch (error: any) {
+      console.error('Phase 3 error:', error);
+      alert(`Report generation failed: ${error?.message || error}`);
+      await supabase.from('discovery_engagements').update({ status: 'opportunities_complete' }).eq('id', engagementId);
+    } finally {
+      setCurrentPhase(null);
+      setPhaseProgress('');
+    }
   };
 
   const parsePriceFromConcept = (suggestedPricing: string | undefined): string => {
@@ -4524,25 +4718,64 @@ function DiscoveryClientModal({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleGenerateReport}
-              disabled={generatingReport || (!discovery?.completed_at && !discovery?.responses)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium"
-              title={!discovery?.completed_at && discovery?.responses ? 'Generate from partial responses' : undefined}
-            >
-              {generatingReport ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Download className="w-4 h-4" />
-                  {generatedReport ? 'Regenerate' : 'Generate Report'}
-                </>
-              )}
-            </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Three-Phase Generation Controls */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handlePhase1DeepAnalysis}
+                disabled={currentPhase !== null || (!discovery?.completed_at && !discovery?.responses)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  discovery?.completed_at || discovery?.responses
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                } disabled:opacity-50`}
+                title="Run deep analysis (prepare data, advisory deep dive, Opus analysis)"
+              >
+                {currentPhase === 1 ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Brain className="w-4 h-4" />
+                )}
+                {currentPhase === 1 ? 'Analysing...' : '1. Analyse'}
+              </button>
+              <button
+                onClick={handlePhase2AnalyseAndScore}
+                disabled={currentPhase !== null || !['analysis_complete', 'opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  discoveryEngagement?.status === 'analysis_complete'
+                    ? 'bg-amber-600 text-white hover:bg-amber-700'
+                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                } disabled:opacity-50`}
+                title="Calculate scores, benchmarks, and generate service opportunities"
+              >
+                {currentPhase === 2 ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <BarChart3 className="w-4 h-4" />
+                )}
+                {currentPhase === 2 ? 'Scoring...' : '2. Score'}
+              </button>
+              <button
+                onClick={handlePhase3GenerateReport}
+                disabled={currentPhase !== null || !['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                  discoveryEngagement?.status === 'opportunities_complete'
+                    ? 'bg-purple-600 text-white hover:bg-purple-700'
+                    : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                } disabled:opacity-50`}
+                title="Generate the narrative report using all curated data"
+              >
+                {currentPhase === 3 ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                {currentPhase === 3 ? 'Writing...' : '3. Report'}
+              </button>
+            </div>
+            {phaseProgress && (
+              <span className="text-xs text-gray-500">{phaseProgress}</span>
+            )}
             {generatedReport && (
               <>
                 <button
@@ -6012,8 +6245,26 @@ function DiscoveryClientModal({
                       </div>
 
                       {/* Deep Dive Recommendations (admin only – from Pass 3 opportunities) */}
-                      {specialistOpportunities.length > 0 && (
+                      {(specialistOpportunities.length > 0 || discoveryEngagement?.id) && (
                         <section className="bg-white rounded-xl shadow-sm overflow-hidden border border-violet-200">
+                          <div className="flex items-center justify-between mb-4 px-6 pt-6">
+                            <h3 className="text-lg font-semibold text-violet-900">Service Opportunities</h3>
+                            <button
+                              type="button"
+                              onClick={handleRegenerateOpportunities}
+                              disabled={currentPhase !== null}
+                              className="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
+                            >
+                              {currentPhase === 2 ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="w-4 h-4" />
+                              )}
+                              Regenerate Opportunities
+                            </button>
+                          </div>
+                          {specialistOpportunities.length > 0 ? (
+                          <>
                           <div className="bg-gradient-to-r from-violet-50 to-purple-50 p-6 border-b border-violet-200">
                             <span className="text-xs font-medium text-violet-600 uppercase tracking-widest">
                               Deep Dive Recommendations
@@ -6231,6 +6482,12 @@ function DiscoveryClientModal({
                               </div>
                             )}
                           </div>
+                          </>
+                          ) : (
+                            <div className="px-6 pb-6 text-sm text-violet-600">
+                              Run &quot;2. Score&quot; to generate service opportunities, or use Regenerate Opportunities after changing pins/blocks.
+                            </div>
+                          )}
                         </section>
                       )}
 

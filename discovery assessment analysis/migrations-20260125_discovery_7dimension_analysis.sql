@@ -1,3 +1,4 @@
+-- COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md
 -- ============================================================================
 -- DISCOVERY REPORTS: 7-DIMENSION COMPREHENSIVE ANALYSIS COLUMNS
 -- ============================================================================
