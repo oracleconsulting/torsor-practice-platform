@@ -2758,8 +2758,11 @@ function DiscoveryClientModal({
   };
 
   // ================================================================
-  // PHASE 1: Deep Analysis
+  // PHASE 1: Deep Analysis (prepare → deep-dive → generate-analysis)
+  // Edge Functions can run 2–3+ minutes; use long timeout to avoid "connection closed".
   // ================================================================
+  const PHASE1_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
+
   const handlePhase1DeepAnalysis = async () => {
     const engagementId = await ensureDiscoveryEngagement();
     if (!engagementId) {
@@ -2767,15 +2770,20 @@ function DiscoveryClientModal({
       return;
     }
     setCurrentPhase(1);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PHASE1_INVOKE_TIMEOUT_MS);
     try {
       await supabase
         .from('discovery_engagements')
         .update({ status: 'analysis_processing', analysis_started_at: new Date().toISOString() })
         .eq('id', engagementId);
 
+      const invokeOpts = { signal: controller.signal as AbortSignal };
+
       setPhaseProgress('Preparing data...');
       const { data: prepData, error: prepError } = await supabase.functions.invoke('prepare-discovery-data', {
         body: { clientId, practiceId: client?.practice_id, discoveryId: discovery?.id },
+        ...invokeOpts,
       });
       if (prepError) throw new Error(`Data preparation failed: ${prepError.message}`);
       if (!prepData?.success || !prepData?.preparedData) throw new Error(prepData?.error || 'Failed to prepare data');
@@ -2783,6 +2791,7 @@ function DiscoveryClientModal({
       setPhaseProgress('Running deep analysis...');
       const { data: deepDiveData, error: deepDiveError } = await supabase.functions.invoke('advisory-deep-dive', {
         body: { preparedData: prepData.preparedData },
+        ...invokeOpts,
       });
       if (deepDiveError) throw new Error(`Advisory deep dive failed: ${deepDiveError.message}`);
 
@@ -2790,6 +2799,7 @@ function DiscoveryClientModal({
       const advisoryInsights = deepDiveData?.advisoryInsights ?? null;
       const { data: analysisResult, error: analysisError } = await supabase.functions.invoke('generate-discovery-analysis', {
         body: { preparedData: prepData.preparedData, advisoryInsights },
+        ...invokeOpts,
       });
       if (analysisError) throw new Error(`Analysis generation failed: ${analysisError.message}`);
 
@@ -2803,17 +2813,36 @@ function DiscoveryClientModal({
       await fetchClientDetail();
     } catch (error: any) {
       console.error('Phase 1 error:', error);
-      alert(`Phase 1 failed: ${error?.message || error}`);
-      await supabase.from('discovery_engagements').update({ status: 'responses_complete' }).eq('id', engagementId);
+      const isTimeoutOrConnection =
+        error?.name === 'AbortError' ||
+        (error?.message && (
+          error.message.includes('timeout') ||
+          error.message.includes('connection closed') ||
+          error.message.includes('Failed to send a request') ||
+          error.message.includes('aborted')
+        ));
+      if (isTimeoutOrConnection) {
+        alert(
+          'Phase 1 is taking longer than the browser allows. The analysis may still be running on the server. ' +
+          'Wait 2–3 minutes, then refresh the page to check. If status is "Analysis complete", run Phase 2 next.'
+        );
+        // Leave status as analysis_processing so refresh can show progress
+      } else {
+        alert(`Phase 1 failed: ${error?.message || error}`);
+        await supabase.from('discovery_engagements').update({ status: 'responses_complete' }).eq('id', engagementId);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setCurrentPhase(null);
       setPhaseProgress('');
     }
   };
 
   // ================================================================
-  // PHASE 2: Analyse & Score + Opportunities
+  // PHASE 2: Analyse & Score + Opportunities (Pass 1 + opportunities can run 2+ min)
   // ================================================================
+  const PHASE2_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
+
   const handlePhase2AnalyseAndScore = async () => {
     const engagementId = discoveryEngagement?.id ?? (await ensureDiscoveryEngagement());
     if (!engagementId) {
@@ -2821,12 +2850,16 @@ function DiscoveryClientModal({
       return;
     }
     setCurrentPhase(2);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PHASE2_INVOKE_TIMEOUT_MS);
+    const invokeOpts = { signal: controller.signal as AbortSignal };
     try {
       await supabase.from('discovery_engagements').update({ status: 'pass1_processing' }).eq('id', engagementId);
 
       setPhaseProgress('Calculating scores & benchmarks...');
       const { error: pass1Error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
         body: { engagementId },
+        ...invokeOpts,
       });
       if (pass1Error) throw new Error(`Pass 1 failed: ${pass1Error.message}`);
 
@@ -2838,6 +2871,7 @@ function DiscoveryClientModal({
       setPhaseProgress('Generating service opportunities...');
       const { error: oppError } = await supabase.functions.invoke('generate-discovery-opportunities', {
         body: { engagementId },
+        ...invokeOpts,
       });
       if (oppError) console.warn('Opportunities (non-fatal):', oppError);
 
@@ -2850,9 +2884,25 @@ function DiscoveryClientModal({
       await fetchClientDetail();
     } catch (error: any) {
       console.error('Phase 2 error:', error);
-      alert(`Phase 2 failed: ${error?.message || error}`);
-      await supabase.from('discovery_engagements').update({ status: 'analysis_complete' }).eq('id', engagementId);
+      const isTimeoutOrConnection =
+        error?.name === 'AbortError' ||
+        (error?.message && (
+          error.message.includes('timeout') ||
+          error.message.includes('connection closed') ||
+          error.message.includes('Failed to send a request') ||
+          error.message.includes('aborted')
+        ));
+      if (isTimeoutOrConnection) {
+        alert(
+          'Phase 2 is taking longer than the browser allows. It may still be running on the server. ' +
+          'Wait 2–3 minutes, then refresh the page to check. If status shows complete, run Phase 3 next.'
+        );
+      } else {
+        alert(`Phase 2 failed: ${error?.message || error}`);
+        await supabase.from('discovery_engagements').update({ status: 'analysis_complete' }).eq('id', engagementId);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setCurrentPhase(null);
       setPhaseProgress('');
     }
@@ -2870,6 +2920,13 @@ function DiscoveryClientModal({
         body: { engagementId: discoveryEngagement.id },
       });
       if (error) throw error;
+      await supabase
+        .from('discovery_engagements')
+        .update({
+          status: 'opportunities_complete',
+          opportunities_completed_at: new Date().toISOString(),
+        })
+        .eq('id', discoveryEngagement.id);
       setPhaseProgress('Opportunities regenerated ✓');
       await fetchClientDetail();
     } catch (error: any) {
@@ -2928,8 +2985,10 @@ function DiscoveryClientModal({
   };
 
   // ================================================================
-  // PHASE 3: Generate Narrative Report
+  // PHASE 3: Generate Narrative Report (Pass 2 can run 2+ min)
   // ================================================================
+  const PHASE3_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
+
   const handlePhase3GenerateReport = async () => {
     const engagementId = discoveryEngagement?.id;
     if (!engagementId) {
@@ -2937,6 +2996,8 @@ function DiscoveryClientModal({
       return;
     }
     setCurrentPhase(3);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), PHASE3_INVOKE_TIMEOUT_MS);
     try {
       await supabase
         .from('discovery_engagements')
@@ -2946,6 +3007,7 @@ function DiscoveryClientModal({
       setPhaseProgress('Generating narrative report...');
       const { error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
         body: { engagementId },
+        signal: controller.signal as AbortSignal,
       });
       if (error) throw new Error(`Report generation failed: ${error.message}`);
 
@@ -2958,9 +3020,25 @@ function DiscoveryClientModal({
       await fetchClientDetail();
     } catch (error: any) {
       console.error('Phase 3 error:', error);
-      alert(`Report generation failed: ${error?.message || error}`);
-      await supabase.from('discovery_engagements').update({ status: 'opportunities_complete' }).eq('id', engagementId);
+      const isTimeoutOrConnection =
+        error?.name === 'AbortError' ||
+        (error?.message && (
+          error.message.includes('timeout') ||
+          error.message.includes('connection closed') ||
+          error.message.includes('Failed to send a request') ||
+          error.message.includes('aborted')
+        ));
+      if (isTimeoutOrConnection) {
+        alert(
+          'Phase 3 is taking longer than the browser allows. It may still be running. ' +
+          'Wait 2–3 minutes, then refresh the page to check.'
+        );
+      } else {
+        alert(`Report generation failed: ${error?.message || error}`);
+        await supabase.from('discovery_engagements').update({ status: 'opportunities_complete' }).eq('id', engagementId);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setCurrentPhase(null);
       setPhaseProgress('');
     }
@@ -4520,13 +4598,13 @@ function DiscoveryClientModal({
               </button>
               <button
                 onClick={handlePhase2AnalyseAndScore}
-                disabled={currentPhase !== null || !['analysis_complete', 'opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '')}
+                disabled={currentPhase !== null || !['analysis_processing', 'analysis_complete', 'opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '')}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                  discoveryEngagement?.status === 'analysis_complete'
+                  ['analysis_processing', 'analysis_complete'].includes(discoveryEngagement?.status || '')
                     ? 'bg-amber-600 text-white hover:bg-amber-700'
                     : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
                 } disabled:opacity-50`}
-                title="Calculate scores, benchmarks, and generate service opportunities"
+                title="Calculate scores, benchmarks, and generate service opportunities (also enabled after Phase 1 timeout – refresh first)"
               >
                 {currentPhase === 2 ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -4537,13 +4615,13 @@ function DiscoveryClientModal({
               </button>
               <button
                 onClick={handlePhase3GenerateReport}
-                disabled={currentPhase !== null || !['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '')}
+                disabled={currentPhase !== null || (!['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '') && !(specialistOpportunities?.length > 0))}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                  discoveryEngagement?.status === 'opportunities_complete'
+                  discoveryEngagement?.status === 'opportunities_complete' || (specialistOpportunities?.length ?? 0) > 0
                     ? 'bg-purple-600 text-white hover:bg-purple-700'
                     : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                 } disabled:opacity-50`}
-                title="Generate the narrative report using all curated data"
+                title="Generate the narrative report (enabled after 2. Score or when opportunities exist)"
               >
                 {currentPhase === 3 ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
