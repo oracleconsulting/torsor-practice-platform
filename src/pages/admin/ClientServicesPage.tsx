@@ -3172,9 +3172,13 @@ function DiscoveryClientModal({
       for (const file of files) {
         const ext = (file.name.split('.').pop() || '').toLowerCase();
         const isFinancial = ['pdf', 'csv', 'xlsx', 'xls'].includes(ext);
+        const useUnified = isFinancial && !!discoveryEngagement?.id && !!discoveryEngagement?.client_id;
+        if (isFinancial && !useUnified) {
+          console.warn('📤 Unified upload skipped for', file.name, { isFinancial, hasEngagementId: !!discoveryEngagement?.id, hasClientId: !!discoveryEngagement?.client_id });
+        }
 
         // Unified path: financial files go to upload-client-accounts → client_financial_data (one place)
-        if (isFinancial && discoveryEngagement?.id && discoveryEngagement?.client_id) {
+        if (useUnified) {
           const base64 = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
