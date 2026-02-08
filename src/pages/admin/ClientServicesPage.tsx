@@ -2313,6 +2313,7 @@ function DiscoveryClientModal({
   const [blockedServices, setBlockedServices] = useState<string[]>([]);
   const [allServices, setAllServices] = useState<any[]>([]);
   const [showServicePrefs, setShowServicePrefs] = useState(false);
+  const [resettingFinancials, setResettingFinancials] = useState(false);
   
   // Service assignment state
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -2565,6 +2566,7 @@ function DiscoveryClientModal({
           .maybeSingle();
         
         // Set destinationReport if any Pass 1/2 data exists (new fields OR legacy destination_report)
+        // When report was reset, clear state so UI doesn't keep showing old analysis
         if (destReportData && (
           destReportData.destination_report ||
           destReportData.destination_clarity ||
@@ -2579,6 +2581,8 @@ function DiscoveryClientModal({
             hasComprehensiveAnalysis: !!destReportData.comprehensive_analysis
           });
           setDestinationReport(destReportData);
+        } else {
+          setDestinationReport(null);
         }
         
         // Fetch specialist opportunities from Pass 3
@@ -2599,9 +2603,11 @@ function DiscoveryClientModal({
         
         if (opportunitiesData && opportunitiesData.length > 0) {
           console.log('[Report] Found specialist opportunities:', opportunitiesData.length, 
-            'with services:', opportunitiesData.filter(o => o.service).length,
-            'with concepts:', opportunitiesData.filter(o => o.concept).length);
+            'with services:', opportunitiesData.filter((o: any) => o.service).length,
+            'with concepts:', opportunitiesData.filter((o: any) => o.concept).length);
           setSpecialistOpportunities(opportunitiesData);
+        } else {
+          setSpecialistOpportunities([]);
         }
       }
 
@@ -2642,6 +2648,9 @@ function DiscoveryClientModal({
         console.log('[Report] Loaded existing report:', normalizedReport.id);
         setGeneratedReport(normalizedReport);
         setIsReportShared(existingReport.is_shared_with_client || false);
+      } else {
+        setGeneratedReport(null);
+        setIsReportShared(false);
       }
     } catch (error) {
       console.error('Error fetching client:', error);
@@ -2869,6 +2878,52 @@ function DiscoveryClientModal({
     } finally {
       setCurrentPhase(null);
       setPhaseProgress('');
+    }
+  };
+
+  // Clear financials and analysis only (keeps responses + context notes). Refetches so UI updates.
+  const handleClearFinancialsAndAnalysis = async () => {
+    if (!clientId) return;
+    if (!confirm('Clear all financials, analysis, uploaded documents, and service opportunities for this client? Discovery responses and context notes will be kept. You can then re-run 1. Analyse → 2. Score → 3. Report.')) return;
+    setResettingFinancials(true);
+    try {
+      console.log('[Discovery Reset] Calling reset for client_id:', clientId, 'engagement_id:', discoveryEngagement?.id);
+      const { data, error } = await supabase.rpc('reset_discovery_financials_and_analysis_for_client', {
+        p_client_id: clientId,
+      });
+      if (error) throw error;
+      console.log('[Discovery Reset] Result:', data);
+      await fetchClientDetail();
+      await fetchContextNotes();
+      refetchComments?.();
+      const msg = (data as any)?.message || 'Cleared. Run 1. Analyse → 2. Score → 3. Report to regenerate.';
+      alert(msg);
+    } catch (err: any) {
+      console.error('Reset financials/analysis error:', err);
+      alert(`Reset failed: ${err?.message || err}`);
+    } finally {
+      setResettingFinancials(false);
+    }
+  };
+
+  // Audit: show exactly what discovery data exists for this client (for debugging reset/display).
+  const handleDiscoveryAudit = async () => {
+    if (!clientId) return;
+    try {
+      const { data, error } = await supabase.rpc('discovery_data_audit_for_client', {
+        p_client_id: clientId,
+      });
+      if (error) throw error;
+      console.log('[Discovery Audit] client_id:', clientId, 'engagement_id:', discoveryEngagement?.id);
+      console.log('[Discovery Audit] Full audit:', JSON.stringify(data, null, 2));
+      alert(
+        `Audit for client_id ${clientId}\n` +
+          `Reports: ${(data as any)?.discovery_reports?.count ?? 0}, Opportunities: ${(data as any)?.discovery_opportunities?.count ?? 0}, client_reports: ${(data as any)?.client_reports_discovery_analysis?.count ?? 0}\n` +
+          `Full JSON logged to console.`
+      );
+    } catch (err: any) {
+      console.error('Discovery audit error:', err);
+      alert(`Audit failed: ${err?.message || err}`);
     }
   };
 
@@ -4496,6 +4551,26 @@ function DiscoveryClientModal({
                   <FileText className="w-4 h-4" />
                 )}
                 {currentPhase === 3 ? 'Writing...' : '3. Report'}
+              </button>
+              <button
+                onClick={handleClearFinancialsAndAnalysis}
+                disabled={resettingFinancials || currentPhase !== null}
+                title="Remove financials, analysis, documents and opportunities; keep responses and context notes"
+                className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+              >
+                {resettingFinancials ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                Clear financials & analysis
+              </button>
+              <button
+                onClick={handleDiscoveryAudit}
+                title="Log to console: what discovery data exists for this client (reports, opportunities, client_id). Use to debug reset."
+                className="px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 border border-gray-200 text-gray-500 hover:bg-gray-50"
+              >
+                Audit
               </button>
             </div>
             {phaseProgress && (
