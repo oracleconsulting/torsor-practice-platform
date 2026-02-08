@@ -63,7 +63,20 @@ function formatPercent(value: number): string {
 }
 
 // Normalize any suppressor to a common display format (handles enhanced + value_analysis structures)
-function normalizeSuppressor(s: any): { name: string; severity: string; evidence: string; whyThisDiscount: string; currentLabel: string; targetLabel: string; discountPercent: number; discountValue: number; recoveryValue: number; recoveryTimeframe: string; pathToFixSummary: string } {
+function normalizeSuppressor(s: any): {
+  name: string; severity: string; evidence: string; whyThisDiscount: string; currentLabel: string; targetLabel: string;
+  discountPercent: number; discountValue: number; recoveryValue: number; recoveryTimeframe: string; pathToFixSummary: string;
+  pathToFixSteps: string[]; investment: string | number | null; roi: string | null; dependencies: string | null;
+} {
+  const pathToFix = s.pathToFix || {};
+  const steps = Array.isArray(pathToFix.steps) ? pathToFix.steps : [];
+  const investment = pathToFix.estimatedInvestment ?? pathToFix.investment ?? null;
+  const recoveryVal = s.recovery?.valueRecoverable ?? 0;
+  const invNum = typeof investment === 'string' ? parseFloat(String(investment).replace(/[^\d.-]/g, '')) : Number(investment);
+  const roi = invNum > 0 && recoveryVal > 0 ? `${Math.round(recoveryVal / invNum)}x` : (pathToFix.roi ?? null);
+  const deps = pathToFix.dependencies;
+  const dependencies = deps == null ? null : Array.isArray(deps) ? deps.join('; ') : String(deps);
+
   // Already in enhanced format
   if (s.current && typeof s.current === 'object' && (s.current.value !== undefined || s.current.discountValue !== undefined)) {
     const currVal = s.current.value;
@@ -79,9 +92,13 @@ function normalizeSuppressor(s: any): { name: string; severity: string; evidence
       targetLabel: (targVal !== undefined && targVal !== null && typeof targVal !== 'object' ? `${targVal} ${targMetric}`.trim() : targMetric || '') || 'Improved',
       discountPercent: s.current.discountPercent || 0,
       discountValue: s.current.discountValue || 0,
-      recoveryValue: s.recovery?.valueRecoverable || 0,
+      recoveryValue: recoveryVal,
       recoveryTimeframe: s.recovery?.timeframe || '',
-      pathToFixSummary: s.pathToFix?.summary || '',
+      pathToFixSummary: pathToFix.summary || '',
+      pathToFixSteps: steps,
+      investment: investment,
+      roi: roi,
+      dependencies: dependencies,
     };
   }
   // Value analysis format
@@ -103,6 +120,10 @@ function normalizeSuppressor(s: any): { name: string; severity: string; evidence
     recoveryValue: 0,
     recoveryTimeframe: s.remediationTimeMonths ? `${s.remediationTimeMonths} months` : '',
     pathToFixSummary: s.remediationService || '',
+    pathToFixSteps: steps,
+    investment: investment,
+    roi: roi,
+    dependencies: dependencies,
   };
 }
 
@@ -145,6 +166,9 @@ function renderCover(data: any, config: any): string {
 // Executive Summary
 function renderExecutiveSummary(data: any, config: any): string {
   const showHero = config.showHeroMetrics !== false;
+  const totalOpp = data.totalOpportunity || data.annualOpportunity || 0;
+  const pct = data.overallPercentile || 55;
+  const heroCaption = (data.headline || data.executiveSummaryHeadline || data.opportunityNarrative || '').substring(0, 200);
   
   return `
     <div class="section">
@@ -152,11 +176,11 @@ function renderExecutiveSummary(data: any, config: any): string {
       ${showHero ? `
         <div class="hero-metrics">
           <div class="hero-metric">
-            <div class="metric-value teal">${data.overallPercentile || 50}th</div>
+            <div class="metric-value teal">${pct}th</div>
             <div class="metric-label">Overall Percentile</div>
           </div>
           <div class="hero-metric">
-            <div class="metric-value teal">${formatCurrency(data.totalOpportunity || 0)}</div>
+            <div class="metric-value teal">${formatCurrency(totalOpp)}</div>
             <div class="metric-label">Annual Opportunity</div>
           </div>
           <div class="hero-metric">
@@ -166,6 +190,17 @@ function renderExecutiveSummary(data: any, config: any): string {
         </div>
       ` : ''}
       <div class="narrative-text">${data.executiveSummary || ''}</div>
+      ${showHero && totalOpp > 0 ? `
+        <div class="hero-opportunity">
+          <div class="hero-label">ANNUAL OPPORTUNITY IDENTIFIED</div>
+          <div class="hero-amount">${formatCurrency(totalOpp)}</div>
+          ${heroCaption ? `<div class="hero-caption">${heroCaption}</div>` : ''}
+          <div class="hero-percentile-bar">
+            <div class="hero-bar-fill" style="left: ${Math.min(Math.max(pct, 2), 98)}%"></div>
+          </div>
+          <div class="hero-percentile-label">${pct}th Percentile · ${pct >= 50 ? 'Above Median' : 'Below Median'}</div>
+        </div>
+      ` : ''}
     </div>
   `;
 }
@@ -264,7 +299,6 @@ function renderHiddenValue(data: any, config: any): string {
 function renderKeyMetrics(data: any, config: any): string {
   const metrics = data.metrics || [];
   const layout = config.layout || 'detailed';
-  const showBars = config.showPercentileBars !== false;
   
   // Format detection from metricCode - matches browser's getMetricFormat()
   function getMetricFormat(metricCode: string): 'currency' | 'percent' | 'number' | 'days' {
@@ -325,23 +359,52 @@ function renderKeyMetrics(data: any, config: any): string {
               default: return `${Math.round(val * 10) / 10}`;
             }
           };
+
+          const p25Val = Number(m.p25 ?? m.benchmark_p25 ?? m.p50 ?? 0);
+          const p75Val = Number(m.p75 ?? m.benchmark_p75 ?? m.p50 ?? 0);
+
+          // Smart scale bounds matching web client
+          const minVal = Math.min(clientVal, p25Val);
+          const maxVal = Math.max(clientVal, p75Val);
+          const scaleRange_raw = maxVal - minVal;
+          const padding = scaleRange_raw * 0.15;
+          let roundTo: number;
+          if (fmt === 'percent') roundTo = scaleRange_raw > 50 ? 10 : 5;
+          else if (fmt === 'days') roundTo = scaleRange_raw > 50 ? 10 : 5;
+          else roundTo = scaleRange_raw > 100000 ? 10000 : scaleRange_raw > 10000 ? 5000 : scaleRange_raw > 1000 ? 500 : 100;
+
+          let scaleMin = Math.floor((minVal - padding) / roundTo) * roundTo;
+          let scaleMax = Math.ceil((maxVal + padding) / roundTo) * roundTo;
+          if ((fmt === 'percent' || fmt === 'days') && scaleMin < 0) scaleMin = 0;
+          const scaleRangeCalc = scaleMax - scaleMin || 1;
+
+          const clientPos = Math.min(Math.max(((clientVal - scaleMin) / scaleRangeCalc) * 100, 2), 98);
+          const medianPos = Math.min(Math.max(((medianVal - scaleMin) / scaleRangeCalc) * 100, 2), 98);
+          const p25Pos = ((p25Val - scaleMin) / scaleRangeCalc) * 100;
+          const p75Pos = ((p75Val - scaleMin) / scaleRangeCalc) * 100;
+
+          const pctile = m.percentile || 50;
+          const hasValidPercentile = pctile > 0;
+          const pctileNum = Math.round(pctile);
+          let suffix = 'th';
+          if (pctileNum % 100 >= 11 && pctileNum % 100 <= 13) suffix = 'th';
+          else if (pctileNum % 10 === 1) suffix = 'st';
+          else if (pctileNum % 10 === 2) suffix = 'nd';
+          else if (pctileNum % 10 === 3) suffix = 'rd';
           
           // Gap text
           let gapText = '';
           let gapClass = '';
-          
           if (absGap < 0.05) {
             gapText = 'At median';
             gapClass = 'neutral';
           } else if (isGap) {
-            // Client is worse than median
             const gapDisplay = fmt === 'currency' ? formatCurrency(absGap) : 
               fmt === 'days' ? `${Math.round(absGap)} days` :
               fmt === 'percent' ? `${absGap.toFixed(1)}%` : absGap.toFixed(1);
             gapText = `-${gapDisplay} GAP`;
             gapClass = 'gap';
           } else {
-            // Client is better than median
             const advDisplay = fmt === 'currency' ? formatCurrency(absGap) :
               fmt === 'days' ? `${Math.round(absGap)} days` :
               fmt === 'percent' ? `${absGap.toFixed(1)}%` : absGap.toFixed(1);
@@ -349,36 +412,52 @@ function renderKeyMetrics(data: any, config: any): string {
             gapClass = 'advantage';
           }
 
-          // Ordinal suffix for percentile
-          const pctile = m.percentile || 50;
-          const pctileNum = Math.round(pctile);
-          let suffix = 'th';
-          if (pctileNum % 100 >= 11 && pctileNum % 100 <= 13) suffix = 'th';
-          else if (pctileNum % 10 === 1) suffix = 'st';
-          else if (pctileNum % 10 === 2) suffix = 'nd';
-          else if (pctileNum % 10 === 3) suffix = 'rd';
-
           const displayName = m.metricName || m.metric_name || m.name || m.metric || 'Metric';
           const displayValue = formatDisplay(clientVal);
           const displayMedian = formatDisplay(medianVal);
-          
+
           return `
             <div class="metric-card ${gapClass}">
               <div class="metric-header">
                 <span class="metric-name">${displayName}</span>
-                <span class="metric-percentile">${pctileNum}${suffix} percentile</span>
+                <span class="metric-percentile">${hasValidPercentile ? pctileNum + suffix + ' percentile' : '<em style="color:#94a3b8">Benchmark data limited</em>'}</span>
               </div>
-              <div class="metric-values">
-                <div class="your-value">${displayValue}</div>
-                <div class="median-value">Median: ${displayMedian}</div>
-              </div>
-              ${showBars ? `
-                <div class="percentile-bar">
-                  <div class="bar-fill" style="width: ${pctile}%"></div>
-                  <div class="bar-marker" style="left: ${pctile}%"></div>
+              
+              <!-- Visual Bar -->
+              <div class="metric-bar-area">
+                <div class="bar-track-rich">
+                  <div class="bar-iqr" style="left: ${p25Pos}%; width: ${Math.max(0, p75Pos - p25Pos)}%"></div>
+                  <div class="bar-median-line" style="left: ${medianPos}%"></div>
+                  <div class="bar-client-marker ${gapClass}" style="left: ${clientPos}%">
+                    ${isGap ? '↘' : '↗'}
+                  </div>
                 </div>
-              ` : ''}
-              <div class="metric-status ${gapClass}">${gapText}</div>
+                <div class="bar-scale-labels">
+                  <span>${formatDisplay(scaleMin)}</span>
+                  <span>P25: ${formatDisplay(p25Val)}</span>
+                  <span>Median: ${formatDisplay(medianVal)}</span>
+                  <span>P75: ${formatDisplay(p75Val)}</span>
+                  <span>${formatDisplay(scaleMax)}</span>
+                </div>
+              </div>
+              
+              <!-- Value Comparison Footer -->
+              <div class="metric-footer">
+                <div class="mf-item">
+                  <div class="mf-value">${displayValue}</div>
+                  <div class="mf-label">YOUR VALUE</div>
+                </div>
+                <div class="mf-arrow">→</div>
+                <div class="mf-item">
+                  <div class="mf-value mf-median">${displayMedian}</div>
+                  <div class="mf-label">MEDIAN</div>
+                </div>
+                <div class="mf-arrow">→</div>
+                <div class="mf-item">
+                  <div class="mf-value ${gapClass === 'gap' ? 'mf-gap' : gapClass === 'advantage' ? 'mf-advantage' : ''}">${gapText}</div>
+                  <div class="mf-label">${absGap < 0.05 ? '' : isGap ? 'GAP' : 'ADVANTAGE'}</div>
+                </div>
+              </div>
             </div>
           `;
         }).join('')}
@@ -406,7 +485,25 @@ function renderNarrative(title: string, content: string, highlights?: string[]):
 
 // Recommendations
 function renderRecommendations(data: any, config: any): string {
-  const recommendations = data.recommendations || [];
+  const rawRecommendations = data.recommendations || [];
+  const heroTotal = data.totalOpportunity || 0;
+
+  // Normalize annualValues to sum to hero total (same as BenchmarkingClientReport.tsx)
+  let recommendations = rawRecommendations;
+  if (rawRecommendations.length > 0 && heroTotal > 0) {
+    const currentSum = rawRecommendations.reduce(
+      (sum: number, rec: any) => sum + (rec.annualValue || 0),
+      0
+    );
+    if (currentSum > 0 && Math.abs(currentSum - heroTotal) / heroTotal > 0.05) {
+      const scaleFactor = heroTotal / currentSum;
+      recommendations = rawRecommendations.map((rec: any) => ({
+        ...rec,
+        annualValue: Math.round((rec.annualValue || 0) * scaleFactor),
+      }));
+    }
+  }
+
   const detailLevel = config.detailLevel || 'standard';
   const showSteps = config.showImplementationSteps !== false && detailLevel === 'full';
   const showStartWeek = config.showStartThisWeek !== false && detailLevel === 'full';
@@ -608,6 +705,25 @@ function renderSuppressors(data: any, config: any): string {
               ${n.pathToFixSummary ? `
                 <div class="supp-remedy">Fixable via ${n.pathToFixSummary}</div>
               ` : ''}
+              ${n.pathToFixSteps?.length > 0 ? `
+                <div class="supp-fix-steps">
+                  <strong>Path to fix:</strong>
+                  <ol>
+                    ${n.pathToFixSteps.map((step: string) => `<li>${step}</li>`).join('')}
+                  </ol>
+                </div>
+              ` : ''}
+              ${n.investment ? `
+                <div class="supp-investment">
+                  <span>Investment: ${typeof n.investment === 'number' ? formatCurrency(n.investment) : n.investment}</span>
+                  ${n.roi ? `<span>ROI: ${n.roi}</span>` : ''}
+                </div>
+              ` : ''}
+              ${n.dependencies ? `
+                <div class="supp-dependencies">
+                  <strong>Dependencies:</strong> ${n.dependencies}
+                </div>
+              ` : ''}
             </div>
           `;
         }).join('')}
@@ -717,35 +833,52 @@ function renderExitReadiness(data: any, config: any): string {
           ${components.map((c: any) => {
             const compScore = c.currentScore ?? c.score ?? 0;
             const compMax = c.maxScore ?? c.max ?? 25;
+            const compTarget = c.targetScore ?? 20;
             const compAction = c.gap ?? c.action ?? '';
+            const gapPoints = compTarget - compScore;
             return `
-              <div class="component-row">
-                <span class="comp-name">${c.name || c.id || 'Unknown'}</span>
-                <div class="comp-bar">
-                  <div class="comp-fill" style="width: ${(compScore / compMax) * 100}%"></div>
+              <div class="exit-component">
+                <div class="comp-main">
+                  <span class="comp-name">${c.name || c.id || 'Unknown'}</span>
+                  <span class="comp-score">${compScore}/${compMax}</span>
                 </div>
-                <span class="comp-score">${compScore}/${compMax}</span>
-                ${compAction ? `<span class="comp-action">${compAction}</span>` : ''}
+                <div class="comp-bar-row">
+                  <div class="comp-bar">
+                    <div class="comp-bar-fill" style="width: ${(compScore / compMax) * 100}%"></div>
+                  </div>
+                </div>
+                ${compAction ? `<div class="comp-action">${compAction}</div>` : ''}
+                <div class="comp-target">Target: ${compTarget}/${compMax} · Gap: ${gapPoints} points</div>
               </div>
             `;
           }).join('')}
         </div>
       ` : ''}
-      ${config.showPathTo70 !== false && (pathTo70.timeframe || pathTo70.timeline) ? `
-        <div class="path-to-70">
-          <h3>Path to Exit Ready (70/100)</h3>
+      ${config.showPathTo70 !== false && (pathTo70.timeframe || pathTo70.timeline || (pathTo70.actions && pathTo70.actions.length > 0)) ? `
+        <div class="path-to-exit">
+          <h3>PATH TO CREDIBLY EXIT READY (70/100)</h3>
+          ${(pathTo70.actions && pathTo70.actions.length > 0) ? `
+            <div class="path-steps">
+              ${pathTo70.actions.map((action: string, i: number) => `
+                <div class="path-step">
+                  <span class="step-number">${i + 1}</span>
+                  <span class="step-text">${action}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
           <div class="path-metrics">
-            <div class="path-item">
-              <span class="path-label">Timeline</span>
-              <span class="path-value">${pathTo70.timeframe || pathTo70.timeline || '18-24 months'}</span>
+            <div class="path-metric">
+              <div class="path-metric-value">${pathTo70.timeframe || pathTo70.timeline || '18-24 months'}</div>
+              <div class="path-metric-label">Timeline</div>
             </div>
-            <div class="path-item">
-              <span class="path-label">Investment</span>
-              <span class="path-value">${formatCurrency(pathTo70.investment || 150000)}</span>
+            <div class="path-metric">
+              <div class="path-metric-value">${formatCurrency(pathTo70.investment || 150000)}</div>
+              <div class="path-metric-label">Investment</div>
             </div>
-            <div class="path-item highlight">
-              <span class="path-label">Value Unlocked</span>
-              <span class="path-value">${formatCurrency(pathTo70.valueUnlocked || 0)}</span>
+            <div class="path-metric">
+              <div class="path-metric-value">${formatCurrency(pathTo70.valueUnlocked || 0)}</div>
+              <div class="path-metric-label">Value Unlocked</div>
             </div>
           </div>
         </div>
@@ -754,33 +887,50 @@ function renderExitReadiness(data: any, config: any): string {
   `;
 }
 
-// Margin Impact (static Scenario Explorer for PDF)
-function renderMarginImpact(data: any, config: any): string {
+// Scenario Explorer (static PDF version of web ScenarioExplorer - Margin, Pricing, Cash, Efficiency, Diversification)
+function renderScenarioExplorer(data: any, config: any): string {
   const metrics = data.metrics || [];
-  const gmMetric = metrics.find((m: any) => {
-    const code = (m.metricCode || m.metric_code || '').toLowerCase();
-    return code.includes('gross_margin');
-  });
-
-  if (!gmMetric) return '';
-
-  const currentGM = Number(gmMetric.clientValue ?? gmMetric.client_value ?? 0);
-  const medianGM = Number(gmMetric.p50 ?? gmMetric.median ?? 18);
-  if (currentGM >= medianGM) return ''; // No gap to show
-
   const revenue = data.revenue || 63328519;
-  const marginGap = medianGM - currentGM;
-  const additionalGrossProfit = revenue * (marginGap / 100);
-  const flowThrough = 0.45;
-  const netProfitImpact = additionalGrossProfit * flowThrough;
   const ebitdaMultiple = data.valuation?.baseline?.multipleRange?.mid || 5;
-  const businessValueImpact = netProfitImpact * ebitdaMultiple;
+  const pass1 = data.pass1Data || {};
+  const netMargin = pass1.net_margin ?? pass1.netMargin ?? 5;
+  const netProfit = pass1.net_profit ?? pass1.netProfit ?? (revenue * (netMargin / 100));
+  const headcount = pass1.employee_count ?? pass1.employeeCount ?? Math.max(1, Math.round(revenue / 350000));
 
-  return `
-    <div class="section margin-impact-section">
-      <h2 class="section-title">Explore Improvement Scenarios</h2>
-      <p class="section-subtitle">Use your actual data to see the impact of potential improvements</p>
+  const findByCode = (pattern: string | string[]) => {
+    const patterns = Array.isArray(pattern) ? pattern : [pattern];
+    return metrics.find((m: any) => {
+      const code = (m.metricCode || m.metric_code || '').toLowerCase();
+      return patterns.some((p) => code.includes(p));
+    });
+  };
 
+  const gmMetric = findByCode('gross_margin');
+  const debtorMetric = findByCode(['debtor_days', 'days_sales_outstanding']);
+  const rpeMetric = findByCode('revenue_per_employee');
+  const concMetric = findByCode(['client_concentration_top3', 'client_concentration', 'concentration']);
+
+  const currentGM = gmMetric ? Number(gmMetric.clientValue ?? gmMetric.client_value ?? 0) : 0;
+  const medianGM = gmMetric ? Number(gmMetric.p50 ?? gmMetric.median ?? 18) : 18;
+  const debtorDays = debtorMetric ? Number(debtorMetric.clientValue ?? debtorMetric.client_value ?? 45) : 45;
+  const medianDebtorDays = debtorMetric ? Number(debtorMetric.p50 ?? debtorMetric.median ?? 60) : 60;
+  const currentRPE = rpeMetric ? Number(rpeMetric.clientValue ?? rpeMetric.client_value ?? 0) : revenue / headcount;
+  const medianRPE = rpeMetric ? Number(rpeMetric.p50 ?? rpeMetric.median ?? 350000) : 350000;
+  const concentrationRaw = concMetric?.clientValue ?? concMetric?.client_value ?? 50;
+  const concentration = typeof concentrationRaw === 'string'
+    ? parseFloat(String(concentrationRaw).replace(/[^\d.-]/g, '')) || 50
+    : Number(concentrationRaw) || 50;
+
+  const scenarioPanels: string[] = [];
+
+  // 1. Margin — show if currentGM < medianGM
+  if (gmMetric && currentGM > 0 && currentGM < medianGM) {
+    const marginGap = medianGM - currentGM;
+    const additionalGrossProfit = revenue * (marginGap / 100);
+    const flowThrough = 0.45;
+    const netProfitImpact = additionalGrossProfit * flowThrough;
+    const businessValueImpact = netProfitImpact * ebitdaMultiple;
+    scenarioPanels.push(`
       <div class="margin-scenario">
         <div class="scenario-left">
           <h3>What if you improved gross margin?</h3>
@@ -813,7 +963,6 @@ function renderMarginImpact(data: any, config: any): string {
           </div>
         </div>
       </div>
-
       <div class="how-to-achieve">
         <strong>How to achieve this</strong>
         <div>→ Review pricing structure: when did you last increase rates?</div>
@@ -821,6 +970,264 @@ function renderMarginImpact(data: any, config: any): string {
         <div>→ Identify and eliminate margin-diluting work</div>
         <div>→ Negotiate better terms with suppliers and subcontractors</div>
       </div>
+    `);
+  }
+
+  // 2. Pricing Power — ALWAYS show
+  const rateIncrease = 5;
+  const volumeRetention = 95;
+  const marginImpact = revenue * (rateIncrease / 100) * (volumeRetention / 100);
+  const breakEvenVolumeLoss = (1 - 1 / (1 + rateIncrease / 100)) * 100;
+  const valueImpact = marginImpact * ebitdaMultiple;
+  scenarioPanels.push(`
+    <div class="margin-scenario pricing-scenario">
+      <div class="scenario-left">
+        <h3>What if you increased rates by ${rateIncrease}%?</h3>
+        <div class="scenario-target">
+          <span>Pricing Power Scenario</span>
+          <strong>${rateIncrease}% rate increase</strong>
+        </div>
+        <div class="scenario-current">Assumption: ${volumeRetention}% client retention. You could lose up to ${breakEvenVolumeLoss.toFixed(1)}% volume and still be better off.</div>
+      </div>
+      <div class="scenario-right">
+        <h3>Projected Impact</h3>
+        <div class="impact-hero">
+          <div class="impact-label">Direct Margin Impact</div>
+          <div class="impact-value">${formatCurrency(marginImpact)} <span>additional annually</span></div>
+        </div>
+        <div class="impact-row">
+          <span>Break-even Volume Loss</span>
+          <span class="impact-detail">You could lose up to ${breakEvenVolumeLoss.toFixed(1)}% and still be better off</span>
+          <strong>${breakEvenVolumeLoss.toFixed(1)}%</strong>
+        </div>
+        <div class="impact-row">
+          <span>Business Value Impact</span>
+          <span class="impact-detail">At ${ebitdaMultiple}x EBITDA multiple</span>
+          <strong>${formatCurrency(valueImpact)}</strong>
+        </div>
+      </div>
+    </div>
+    <div class="how-to-achieve">
+      <strong>How to achieve this</strong>
+      <div>→ Communicate value delivered before discussing price</div>
+      <div>→ Start increases with new clients, then existing relationships</div>
+      <div>→ Consider tiered pricing for different service levels</div>
+      <div>→ Focus on results delivered, not hours worked</div>
+    </div>
+  `);
+
+  // 3. Cash Flow — show as OPPORTUNITY if debtorDays > medianDebtorDays, or as STRENGTH if better
+  if (debtorMetric) {
+    if (debtorDays > medianDebtorDays) {
+    const dailyRevenue = revenue / 365;
+    const cashReleased = dailyRevenue * (debtorDays - medianDebtorDays);
+    const interestSaving = cashReleased * 0.08;
+    scenarioPanels.push(`
+      <div class="margin-scenario">
+        <div class="scenario-left">
+          <h3>What if you improved debtor days?</h3>
+          <div class="scenario-target">
+            <span>Target Debtor Days</span>
+            <strong>${medianDebtorDays} days</strong>
+          </div>
+          <div class="scenario-current">Current: ${debtorDays} days · Industry median: ${medianDebtorDays} days</div>
+        </div>
+        <div class="scenario-right">
+          <h3>Projected Impact</h3>
+          <div class="impact-hero">
+            <div class="impact-label">Working Capital Released</div>
+            <div class="impact-value">${formatCurrency(cashReleased)}</div>
+          </div>
+          <div class="impact-row">
+            <span>Annual Interest Saving</span>
+            <span class="impact-detail">At 8% effective borrowing rate</span>
+            <strong>${formatCurrency(interestSaving)}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="how-to-achieve">
+        <strong>How to achieve this</strong>
+        <div>→ Implement proactive credit control process</div>
+        <div>→ Send invoices immediately on milestone completion</div>
+        <div>→ Review payment terms on new contracts</div>
+        <div>→ Consider early payment discounts</div>
+      </div>
+    `);
+    } else if (debtorDays < medianDebtorDays) {
+      // Strength: client is BETTER than median (e.g. Ian 30 vs 60)
+      const dailyRevenue = revenue / 365;
+      const cashAdvantage = dailyRevenue * (medianDebtorDays - debtorDays);
+      const interestSaving = cashAdvantage * 0.08;
+      scenarioPanels.push(`
+      <div class="margin-scenario cash-strength">
+        <div class="scenario-left">
+          <h3>Your cash advantage</h3>
+          <div class="scenario-target">
+            <span>What you're already saving</span>
+            <strong>${debtorDays} days vs ${medianDebtorDays}-day sector median</strong>
+          </div>
+          <div class="scenario-current">Your ${debtorDays}-day collection releases ${formatCurrency(cashAdvantage)} in working capital vs a typical peer.</div>
+        </div>
+        <div class="scenario-right">
+          <h3>Value of Your Advantage</h3>
+          <div class="impact-hero">
+            <div class="impact-label">Working Capital Advantage</div>
+            <div class="impact-value">${formatCurrency(cashAdvantage)}</div>
+          </div>
+          <div class="impact-row">
+            <span>Equivalent Interest Saving</span>
+            <span class="impact-detail">At 8% effective borrowing rate</span>
+            <strong>${formatCurrency(interestSaving)} annually</strong>
+          </div>
+        </div>
+      </div>
+      <div class="how-to-achieve">
+        <strong>Keep this strength</strong>
+        <div>→ Maintain your proactive credit control</div>
+        <div>→ Document processes so this doesn't slip as you scale</div>
+      </div>
+    `);
+    }
+  }
+
+  // 4. Efficiency — show as OPPORTUNITY if RPE < medianRPE, or as STRENGTH if better
+  if (rpeMetric && currentRPE > 0) {
+    if (currentRPE < medianRPE) {
+    const additionalRevenue = (medianRPE - currentRPE) * headcount;
+    const additionalProfit = additionalRevenue * (netMargin / 100);
+    const efficientHeadcount = Math.ceil(revenue / medianRPE);
+    const headcountReduction = headcount - efficientHeadcount;
+    const costSaving = headcountReduction > 0 ? headcountReduction * 55000 : 0;
+    scenarioPanels.push(`
+      <div class="margin-scenario">
+        <div class="scenario-left">
+          <h3>What if you improved revenue per employee?</h3>
+          <div class="scenario-target">
+            <span>Target Revenue per Employee</span>
+            <strong>${formatCurrency(medianRPE)}</strong>
+          </div>
+          <div class="scenario-current">Current: ${formatCurrency(currentRPE)} · Industry median: ${formatCurrency(medianRPE)}</div>
+        </div>
+        <div class="scenario-right">
+          <h3>Projected Impact</h3>
+          <div class="impact-hero">
+            <div class="impact-label">Revenue Capacity Unlocked</div>
+            <div class="impact-value">${formatCurrency(additionalRevenue)}</div>
+          </div>
+          <div class="impact-row">
+            <span>Additional Profit (if capacity filled)</span>
+            <span class="impact-detail">At ${netMargin.toFixed(1)}% net margin</span>
+            <strong>${formatCurrency(additionalProfit)}</strong>
+          </div>
+          ${costSaving > 0 ? `
+          <div class="impact-row">
+            <span>Alternative: Cost Saving</span>
+            <span class="impact-detail">Deliver current revenue with ${headcountReduction} fewer people</span>
+            <strong>${formatCurrency(costSaving)}</strong>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+      <div class="how-to-achieve">
+        <strong>How to achieve this</strong>
+        <div>→ Improve utilisation through better resource planning</div>
+        <div>→ Reduce non-billable time and admin burden</div>
+        <div>→ Automate repetitive tasks</div>
+        <div>→ Focus team on higher-value work</div>
+      </div>
+    `);
+    } else {
+      // Strength: client is BETTER than median (e.g. Ian £483k vs £350k)
+      const additionalValue = (currentRPE - medianRPE) * headcount;
+      const efficientHeadcount = Math.ceil(revenue / medianRPE);
+      const equivalentHeadcount = Math.max(0, efficientHeadcount - headcount);
+      scenarioPanels.push(`
+      <div class="margin-scenario efficiency-strength">
+        <div class="scenario-left">
+          <h3>Your productivity advantage</h3>
+          <div class="scenario-target">
+            <span>What your efficiency is worth</span>
+            <strong>${formatCurrency(currentRPE - medianRPE)} more per head than sector median</strong>
+          </div>
+          <div class="scenario-current">Your team generates ${formatCurrency(additionalValue)} more annually than a typical peer with the same headcount.</div>
+        </div>
+        <div class="scenario-right">
+          <h3>Value of Your Advantage</h3>
+          <div class="impact-hero">
+            <div class="impact-label">Additional Value Generated</div>
+            <div class="impact-value">${formatCurrency(additionalValue)} annually</div>
+          </div>
+          <div class="impact-row">
+            <span>Equivalent Headcount</span>
+            <span class="impact-detail">Same output with ~${equivalentHeadcount} fewer people</span>
+            <strong>~${formatCurrency(equivalentHeadcount * 55000)} cost advantage</strong>
+          </div>
+        </div>
+      </div>
+      <div class="how-to-achieve">
+        <strong>Keep this strength</strong>
+        <div>→ Document what drives your utilisation</div>
+        <div>→ Protect against margin drift as you scale</div>
+      </div>
+    `);
+    }
+  }
+
+  // 5. Customer Diversification — show if concentration > 60%
+  if (concentration > 60) {
+    const targetConcentration = 60;
+    const currentDiscount = concentration >= 80 ? 25 : concentration >= 60 ? 15 : 5;
+    const targetDiscount = targetConcentration >= 80 ? 25 : targetConcentration >= 60 ? 15 : 5;
+    const baseValue = netProfit * ebitdaMultiple;
+    const valueImprovement = baseValue * (currentDiscount - targetDiscount) / 100;
+    const currentRevenueAtRisk = revenue * (concentration / 100) / 3;
+    const targetRevenueAtRisk = revenue * (targetConcentration / 100) / 3;
+    const riskReduction = currentRevenueAtRisk - targetRevenueAtRisk;
+    scenarioPanels.push(`
+      <div class="margin-scenario diversification-scenario">
+        <div class="scenario-left">
+          <h3>What if you diversified your client base?</h3>
+          <div class="scenario-target">
+            <span>Target Concentration</span>
+            <strong>${targetConcentration}% from top 3</strong>
+          </div>
+          <div class="scenario-current">Current: ${concentration}% from top 3 clients · High concentration triggers valuation discounts</div>
+        </div>
+        <div class="scenario-right">
+          <h3>Projected Impact</h3>
+          <div class="impact-hero">
+            <div class="impact-label">Risk Reduction per Major Client</div>
+            <div class="impact-value">${formatCurrency(riskReduction)}</div>
+          </div>
+          <div class="impact-row">
+            <span>Valuation Discount Reduction</span>
+            <span class="impact-detail">Buyers penalise high concentration</span>
+            <strong>${currentDiscount - targetDiscount} points</strong>
+          </div>
+          <div class="impact-row">
+            <span>Business Value Improvement</span>
+            <span class="impact-detail">From reduced concentration discount</span>
+            <strong>${formatCurrency(valueImprovement)}</strong>
+          </div>
+        </div>
+      </div>
+      <div class="how-to-achieve">
+        <strong>How to achieve this</strong>
+        <div>→ Proactively develop relationships with new target clients</div>
+        <div>→ Expand services within existing smaller accounts</div>
+        <div>→ Target adjacent sectors or industries</div>
+        <div>→ Consider small acquisitions to diversify client base</div>
+      </div>
+    `);
+  }
+
+  if (scenarioPanels.length === 0) return '';
+
+  return `
+    <div class="section margin-impact-section">
+      <h2 class="section-title">Explore Improvement Scenarios</h2>
+      <p class="section-subtitle">Use your actual data to see the impact of potential improvements</p>
+      ${scenarioPanels.join('')}
     </div>
   `;
 }
@@ -941,6 +1348,10 @@ function generateServicesFromSuppressors(data: any): any[] {
 function renderServices(data: any, config: any): string {
   const services = data.services || [];
   const generatedServices = services.length > 0 ? services : generateServicesFromSuppressors(data);
+  const primaryServices = generatedServices.filter((s: any) => s.isPrimary !== false);
+  const additionalServices = generatedServices.filter((s: any) => s.isPrimary === false);
+  const hasPrimary = primaryServices.length > 0;
+  const hasAdditional = additionalServices.length > 0;
 
   if (generatedServices.length === 0) {
     return `
@@ -952,12 +1363,7 @@ function renderServices(data: any, config: any): string {
     `;
   }
 
-  return `
-    <div class="section">
-      <h2 class="section-title">How We Can Help</h2>
-      <p class="section-subtitle">Based on your analysis, we've identified specific services that address your key challenges.</p>
-      <div class="services-grid">
-        ${generatedServices.map((service: any) => `
+  const renderServiceCard = (service: any) => `
           <div class="service-card">
             <div class="service-header">
               <span class="service-price">${service.priceRange || '£TBC'}</span>
@@ -988,8 +1394,24 @@ function renderServices(data: any, config: any): string {
               ${service.addressesValue ? `<span class="service-value">Total value at stake: ${service.addressesValue >= 1000 ? formatCurrency(service.addressesValue) : service.addressesValue > 0 ? formatCurrency(service.addressesValue * 1000) + ' (est.)' : ''}</span>` : ''}
             </div>
           </div>
-        `).join('')}
+        `;
+
+  const servicesToRender = hasPrimary ? primaryServices : generatedServices;
+  const additionalBlock = hasAdditional && hasPrimary ? `
+        <h3 class="subsection-title">Additional Support Options</h3>
+        <div class="services-grid additional-services">
+          ${additionalServices.map(renderServiceCard).join('')}
+        </div>
+      ` : hasAdditional ? additionalServices.map(renderServiceCard).join('') : '';
+
+  return `
+    <div class="section">
+      <h2 class="section-title">How We Can Help</h2>
+      <p class="section-subtitle">Based on your analysis, we've identified specific services that address your key challenges.</p>
+      <div class="services-grid">
+        ${servicesToRender.map(renderServiceCard).join('')}
       </div>
+      ${additionalBlock}
     </div>
   `;
 }
@@ -1036,7 +1458,12 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
   
   for (const section of sections) {
     if (!section.enabled) continue;
-    
+
+    // Add page break if configured for this section
+    if (section.config?.pageBreakBefore) {
+      sectionsHTML += '<div class="page-break-before"></div>';
+    }
+
     switch (section.id) {
       case 'cover':
         sectionsHTML += renderCover({ ...data, tier }, section.config);
@@ -1066,7 +1493,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderNarrative('The Opportunity', data.opportunityNarrative, [`${formatCurrency(data.totalOpportunity || 0)} potential`]);
         break;
       case 'scenarioExplorer':
-        sectionsHTML += renderMarginImpact(data, section.config);
+        sectionsHTML += renderScenarioExplorer(data, section.config);
         break;
       case 'twoPaths':
         if (data.twoPathsNarrative) {
@@ -1093,11 +1520,9 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderPathToValue(data, section.config);
         break;
       case 'exitReadiness':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderExitReadiness(data, section.config);
         break;
       case 'scenarioPlanning':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderScenarioPlanning(data, section.config);
         break;
       case 'serviceRecommendations':
@@ -1227,8 +1652,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     /* =========================== SECTIONS =========================== */
     .section {
-      margin-bottom: ${density === 'compact' ? '16px' : density === 'spacious' ? '32px' : '24px'};
-      page-break-inside: avoid;
+      margin-bottom: 16px;
     }
     
     .section-title {
@@ -1238,6 +1662,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       margin-bottom: ${density === 'compact' ? '8px' : '12px'};
       padding-bottom: 8px;
       border-bottom: 2px solid #e2e8f0;
+      page-break-after: avoid;
     }
     
     .section-subtitle {
@@ -1279,83 +1704,209 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .hero-metric .metric-value.teal { color: var(--teal-light); }
     .hero-metric .metric-value.green { color: #4ade80; }
     
+    .hero-opportunity {
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      border-radius: 16px;
+      padding: 32px;
+      text-align: center;
+      color: white;
+      margin: 24px 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .hero-opportunity .hero-label {
+      font-size: 0.75em;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+    .hero-opportunity .hero-amount {
+      font-size: 2.5em;
+      font-weight: 800;
+      margin-bottom: 8px;
+    }
+    .hero-opportunity .hero-caption {
+      font-size: 0.9em;
+      color: #94a3b8;
+      max-width: 500px;
+      margin: 0 auto 16px;
+    }
+    .hero-percentile-bar {
+      height: 8px;
+      background: linear-gradient(90deg, #ef4444, #f59e0b, #22c55e, #94a3b8);
+      border-radius: 4px;
+      position: relative;
+      max-width: 300px;
+      margin: 0 auto;
+    }
+    .hero-bar-fill {
+      position: absolute;
+      top: -4px;
+      width: 16px;
+      height: 16px;
+      background: white;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      transform: translateX(-50%);
+    }
+    .hero-percentile-label {
+      font-size: 0.85em;
+      margin-top: 8px;
+    }
+    
     .hero-metric .metric-label {
       font-size: 10px;
       color: var(--blue-light);
       margin-top: 4px;
     }
     
+    /* =========================== VALUATION SUMMARY =========================== */
+    .valuation-summary {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border-radius: 12px;
+      padding: 28px 24px;
+      margin-bottom: 16px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .val-box {
+      flex: 1;
+      text-align: center;
+      color: white;
+    }
+    .val-label {
+      font-size: 0.7em;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #94a3b8;
+      margin-bottom: 6px;
+    }
+    .val-amount {
+      font-size: 2em;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+    .val-box.baseline .val-amount { color: #4ade80; }
+    .val-box.current .val-amount { color: #60a5fa; }
+    .val-box.gap .val-amount { color: #f87171; }
+    .val-note {
+      font-size: 0.8em;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+    .val-arrow {
+      color: #475569;
+      font-size: 1.5em;
+      padding: 0 4px;
+    }
+    .surplus-note {
+      text-align: center;
+      font-size: 0.9em;
+      color: #059669;
+      margin-top: 8px;
+      padding: 8px;
+      background: #f0fdf4;
+      border-radius: 6px;
+    }
+    
     /* =========================== METRICS GRID =========================== */
     .metrics-grid {
       display: grid;
-      gap: ${density === 'compact' ? '8px' : '12px'};
+      gap: 12px;
     }
-    
-    .metrics-grid.compact { grid-template-columns: repeat(2, 1fr); }
+    .metrics-grid.compact,
     .metrics-grid.detailed { grid-template-columns: repeat(2, 1fr); }
     .metrics-grid.full { grid-template-columns: 1fr; }
-    
+
     .metric-card {
-      background: #f8fafc;
+      background: white;
       border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: ${density === 'compact' ? '10px' : '14px'};
+      border-radius: 12px;
+      padding: 16px;
+      page-break-inside: avoid;
     }
-    
-    .metric-card.gap { border-left: 3px solid var(--red); }
-    .metric-card.advantage { border-left: 3px solid var(--green); }
-    
-    .metric-header {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
-    
-    .metric-name { font-weight: 600; font-size: 12px; }
-    .metric-percentile { font-size: 10px; color: #64748b; }
-    
-    .metric-values {
-      display: flex;
-      gap: 16px;
-      align-items: baseline;
-      margin-bottom: 8px;
-    }
-    
-    .your-value { font-size: 20px; font-weight: 700; color: var(--navy-dark); }
-    .median-value { font-size: 11px; color: #64748b; }
-    
-    .percentile-bar {
-      height: 6px;
-      background: #e2e8f0;
-      border-radius: 3px;
+    .metric-card.gap { border-left: 3px solid #dc2626; }
+    .metric-card.advantage { border-left: 3px solid #059669; }
+
+    .metric-header { margin-bottom: 12px; }
+    .metric-name { font-weight: 600; font-size: 13px; display: block; }
+    .metric-percentile { font-size: 10px; color: #64748b; display: block; margin-top: 2px; }
+
+    /* Rich bar area */
+    .metric-bar-area { margin-bottom: 12px; }
+    .bar-track-rich {
       position: relative;
-      margin-bottom: 8px;
+      height: 40px;
+      background: #f1f5f9;
+      border-radius: 8px;
+      overflow: visible;
     }
-    
-    .bar-fill {
-      height: 100%;
-      background: var(--teal);
-      border-radius: 3px;
-    }
-    
-    .bar-marker {
+    .bar-iqr {
       position: absolute;
-      top: -2px;
-      width: 10px;
-      height: 10px;
-      background: var(--teal);
-      border-radius: 50%;
+      top: 0;
+      height: 100%;
+      background: #e2e8f0;
+      border-radius: 8px;
+    }
+    .bar-median-line {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 2px;
+      background: #94a3b8;
       transform: translateX(-50%);
     }
-    
-    .metric-status {
-      font-size: 10px;
-      font-weight: 600;
+    .bar-client-marker {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 14px;
+      font-weight: 700;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-    
-    .metric-status.gap { color: var(--red); }
-    .metric-status.advantage { color: var(--green); }
-    .metric-status.neutral { color: #64748b; }
+    .bar-client-marker.gap { background: #f43f5e; }
+    .bar-client-marker.advantage { background: #10b981; }
+    .bar-client-marker.neutral { background: #64748b; }
+
+    .bar-scale-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #94a3b8;
+      margin-top: 4px;
+      padding: 0 2px;
+    }
+
+    /* Value comparison footer */
+    .metric-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .mf-item { text-align: center; flex: 1; }
+    .mf-value { font-size: 18px; font-weight: 700; color: #0f172a; line-height: 1.2; }
+    .mf-median { color: #475569; }
+    .mf-gap { color: #dc2626; }
+    .mf-advantage { color: #059669; }
+    .mf-label { font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-top: 2px; }
+    .mf-arrow { color: #cbd5e1; font-size: 16px; padding: 0 4px; }
     
     /* =========================== RECOMMENDATIONS =========================== */
     .total-opportunity {
@@ -1574,6 +2125,10 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .supp-evidence { font-size: 0.85em; color: #475569; margin: 8px 0; font-style: italic; }
     .supp-why { font-size: 0.85em; color: #64748b; margin: 4px 0; }
     .supp-remedy { font-size: 0.85em; color: #059669; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+    .supp-fix-steps { font-size: 0.85em; margin-top: 8px; }
+    .supp-fix-steps ol { margin: 4px 0 0 16px; padding: 0; }
+    .supp-investment { display: flex; gap: 16px; font-size: 0.85em; margin-top: 8px; }
+    .supp-dependencies { font-size: 0.85em; margin-top: 8px; color: #64748b; }
     
     /* =========================== EXIT READINESS =========================== */
     .exit-score-display {
@@ -1614,61 +2169,87 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       margin-top: 16px;
     }
     
-    .component-row {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 8px 0;
+    .exit-component {
+      padding: 10px 0;
       border-bottom: 1px solid #e2e8f0;
       font-size: 11px;
     }
     
-    .comp-name { width: 140px; font-weight: 500; }
+    .comp-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .comp-name { font-weight: 500; }
+    .comp-score { font-weight: 600; }
+    
+    .comp-bar-row { margin: 6px 0; }
     
     .comp-bar {
-      flex: 1;
       height: 8px;
       background: #e2e8f0;
       border-radius: 4px;
       overflow: hidden;
     }
     
-    .comp-fill {
+    .comp-bar-fill {
       height: 100%;
       background: var(--teal);
       border-radius: 4px;
     }
     
-    .comp-score { width: 50px; text-align: right; font-weight: 600; }
-    .comp-action { width: 180px; color: #64748b; font-size: 10px; }
+    .comp-target { font-size: 0.8em; color: #94a3b8; margin-top: 2px; }
+    .comp-action { font-size: 0.85em; color: #dc2626; margin-top: 4px; }
     
-    .path-to-70 {
-      margin-top: 20px;
+    .path-to-exit {
+      margin-top: 24px;
       background: var(--teal);
       color: white;
-      padding: 16px;
+      padding: 20px;
       border-radius: 8px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     
-    .path-to-70 h3 {
-      font-size: 14px;
+    .path-to-exit h3 {
+      font-size: 0.85em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: white;
       margin-bottom: 12px;
     }
+    
+    .path-steps { margin-bottom: 16px; }
+    .path-step { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      color: white;
+      font-size: 0.8em;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-text { color: white; font-size: 0.9em; opacity: 0.95; }
     
     .path-metrics {
       display: flex;
       justify-content: space-around;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.3);
     }
     
-    .path-item {
+    .path-metric {
       text-align: center;
     }
     
-    .path-label { font-size: 10px; opacity: 0.8; }
-    .path-value { font-size: 18px; font-weight: 700; }
-    .path-item.highlight .path-value { color: #fef08a; }
+    .path-metric-value { font-size: 1.3em; font-weight: 800; }
+    .path-metric-label { font-size: 0.75em; opacity: 0.8; margin-top: 2px; }
     
     /* =========================== SCENARIOS =========================== */
     .scenarios-sequential {
@@ -1983,7 +2564,11 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     @media print {
       body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       .page { page-break-after: always; }
-      .section { page-break-inside: avoid; }
+      .section-title { page-break-after: avoid; }
+      .metric-card, .suppressor-card, .recommendation-card,
+      .scenario-card, .service-card, .waterfall-item {
+        page-break-inside: avoid;
+      }
       .no-break { page-break-inside: avoid; }
     }
 
@@ -2005,6 +2590,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .pv-uplift { color: #059669; }
 
     /* Scenario enhancements */
+    .scenario-card { page-break-inside: avoid; }
     .scenario-risks { background: #fef2f2; padding: 12px; border-radius: 6px; margin: 12px 0; }
     .scenario-risks h4 { color: #dc2626; margin: 0 0 8px 0; }
     .scenario-considerations { background: #fffbeb; padding: 12px; border-radius: 6px; margin: 12px 0; }
@@ -2012,7 +2598,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
 
     /* Services */
     .services-grid { display: flex; flex-direction: column; gap: 16px; }
-    .service-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+    .service-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; page-break-inside: avoid; }
     .service-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .service-price { font-weight: 600; color: #0f172a; }
     .service-frequency { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
@@ -2091,8 +2677,27 @@ serve(async (req) => {
 
     console.log('[PDF Export] Client name:', clientName);
 
-    // Fetch services from client_opportunities (Pass 3 data)
+    // Primary: recommended_services from report (same source as web client)
     let clientServices: any[] = [];
+    const recommendedServices = report.recommended_services;
+    if (Array.isArray(recommendedServices) && recommendedServices.length > 0) {
+      clientServices = recommendedServices.map((r: any) => ({
+        name: r.serviceName || r.name,
+        tagline: r.headline || r.tagline || '',
+        priceRange: r.priceRange || r.price_range || 'Price on application',
+        frequency: r.frequency || (r.pricePeriod === 'one-off' ? 'One-off' : r.pricePeriod === 'monthly' ? 'Monthly' : 'One-off'),
+        whyThisMatters: r.whyThisMatters || r.fitRationale || '',
+        whatYouGet: r.whatYouGet || r.deliverables || [],
+        expectedOutcome: r.expectedOutcome || '',
+        addressesValue: r.totalValueAtStake || r.addressesValue || 0,
+        isPrimary: r.isPrimary !== false,
+        addressesIssues: r.addressesIssues || [],
+      }));
+      console.log('[PDF Export] Services from recommended_services:', clientServices.length);
+    }
+
+    // Fallback: client_opportunities
+    if (clientServices.length === 0) {
     try {
       const { data: opportunities } = await supabase
         .from('client_opportunities')
@@ -2135,6 +2740,7 @@ serve(async (req) => {
       }
     } catch (e) {
       console.log('[PDF Export] Could not fetch client_opportunities:', e);
+    }
     }
 
     let effectiveConfig: PdfConfig;
@@ -2232,6 +2838,7 @@ serve(async (req) => {
       freeWorkingCapital: Math.abs(report.surplus_cash?.components?.netWorkingCapital || 0),
       freeholdProperty: report.balance_sheet?.freehold_property || report.pass1_data?.balance_sheet?.freeholdProperty || 0,
       executiveSummary: report.executive_summary || '',
+      headline: report.headline || report.pass1_data?.headline || '',
       positionNarrative: report.position_narrative || '',
       strengthsNarrative: report.strength_narrative || '',
       gapsNarrative: report.gap_narrative || '',
@@ -2244,6 +2851,7 @@ serve(async (req) => {
       recommendations: Array.isArray(report.recommendations) ? report.recommendations : (typeof report.recommendations === 'string' ? JSON.parse(report.recommendations || '[]') : []),
       surplusCashBreakdown: report.surplus_cash_breakdown || report.surplus_cash || report.pass1_data?.surplus_cash_breakdown || report.pass1_data?.surplus_cash || null,
       revenue: report.pass1_data?.revenue || report.pass1_data?.financials?.revenue || report.pass1_data?._enriched_revenue || 63328519,
+      pass1Data: report.pass1_data || {},
       valuation: {
         baseline: {
           enterpriseValue: baseline.enterpriseValue || { low: 0, mid: 0, high: 0 },
@@ -2402,34 +3010,48 @@ serve(async (req) => {
       });
     }
     
-    // Call Browserless PDF endpoint
-    const pdfResponse = await fetch('https://chrome.browserless.io/pdf', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${btoa(browserlessApiKey + ':')}`,
-      },
-      body: JSON.stringify({
-        html,
-        options: {
-          format: effectiveConfig.pdfSettings?.pageSize || 'A4',
-          margin: {
-            top: `${effectiveConfig.pdfSettings?.margins?.top || 12}mm`,
-            right: `${effectiveConfig.pdfSettings?.margins?.right || 12}mm`,
-            bottom: `${effectiveConfig.pdfSettings?.margins?.bottom || 12}mm`,
-            left: `${effectiveConfig.pdfSettings?.margins?.left || 12}mm`,
-          },
-          printBackground: true,
-          preferCSSPageSize: true,
+    // Call Browserless v2 PDF endpoint (London for lower latency)
+    const browserlessEndpoint = Deno.env.get('BROWSERLESS_ENDPOINT') || 'https://production-lon.browserless.io';
+    console.log(`[PDF Export] Calling Browserless at ${browserlessEndpoint}/pdf`);
+
+    const pdfResponse = await fetch(
+      `${browserlessEndpoint}/pdf?token=${browserlessApiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      }),
-    });
-    
+        body: JSON.stringify({
+          html,
+          options: {
+            format: effectiveConfig.pdfSettings?.pageSize || 'A4',
+            margin: {
+              top: `${effectiveConfig.pdfSettings?.margins?.top || 12}mm`,
+              right: `${effectiveConfig.pdfSettings?.margins?.right || 12}mm`,
+              bottom: `${effectiveConfig.pdfSettings?.margins?.bottom || 12}mm`,
+              left: `${effectiveConfig.pdfSettings?.margins?.left || 12}mm`,
+            },
+            printBackground: true,
+            preferCSSPageSize: true,
+          },
+        }),
+      }
+    );
+
     if (!pdfResponse.ok) {
-      throw new Error(`PDF generation failed: ${pdfResponse.statusText}`);
+      const errorBody = await pdfResponse.text();
+      console.error(`[PDF Export] Browserless error: ${pdfResponse.status} - ${errorBody}`);
+      // Fall back to HTML on Browserless failure
+      return new Response(JSON.stringify({
+        html,
+        error: `PDF generation failed (${pdfResponse.status}). Falling back to browser print.`,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
-    
+
     const pdfBuffer = await pdfResponse.arrayBuffer();
+    console.log(`[PDF Export] PDF generated: ${pdfBuffer.byteLength} bytes`);
 
     try {
       await supabase
@@ -2440,13 +3062,20 @@ serve(async (req) => {
       console.log('[PDF Export] Could not update timestamp:', e);
     }
 
-    // Return PDF
-    return new Response(pdfBuffer, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${reportData.clientName}-Benchmarking-Report.pdf"`,
-      },
+    // Return PDF as base64 JSON (supabase.functions.invoke can't handle binary)
+    const uint8 = new Uint8Array(pdfBuffer);
+    let binary = '';
+    for (let i = 0; i < uint8.length; i++) {
+      binary += String.fromCharCode(uint8[i]);
+    }
+    const base64Pdf = btoa(binary);
+
+    return new Response(JSON.stringify({
+      pdf: base64Pdf,
+      filename: `${reportData.clientName}-Benchmarking-Report.pdf`,
+      size: pdfBuffer.byteLength,
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
     
   } catch (error) {

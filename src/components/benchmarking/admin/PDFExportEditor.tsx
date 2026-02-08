@@ -556,6 +556,20 @@ const SectionConfigPanel: React.FC<{
           <p className="text-sm text-slate-500 italic">No additional options for this section.</p>
         </div>
       )}
+
+      {/* Universal page break option - shown for all sections */}
+      <div className="border-t border-slate-100 pt-3 mt-3">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={section.config?.pageBreakBefore || false}
+            onChange={(e) => onUpdateConfig('pageBreakBefore', e.target.checked)}
+            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span className="text-slate-700">Start on new page</span>
+        </label>
+        <p className="text-xs text-slate-400 mt-1 ml-6">Force this section to begin at the top of a new page</p>
+      </div>
     </div>
   );
 };
@@ -699,8 +713,8 @@ export const PDFExportEditor: React.FC<PDFExportEditorProps> = ({
           template_id: selectedTemplateId,
         })
         .eq('engagement_id', reportId);
-      
-      // Generate PDF
+
+      // Generate PDF via Browserless
       const { data, error } = await supabase.functions.invoke('generate-benchmarking-pdf', {
         body: {
           reportId,
@@ -708,31 +722,45 @@ export const PDFExportEditor: React.FC<PDFExportEditorProps> = ({
           returnHtml: false,
         },
       });
-      
+
       if (error) throw error;
-      
-      // If we got HTML back (no browser service configured), open for browser print
-      if (data.html) {
+
+      if (data.pdf) {
+        // Decode base64 PDF and trigger download
+        const binaryString = atob(data.pdf);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.filename || `${reportData?.client?.name || 'Client'}-Benchmarking-Report.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        onExportComplete?.(url);
+      } else if (data.html) {
+        // Fallback: Browserless not configured or failed, use browser print
         const printWindow = window.open('', '_blank');
         if (printWindow) {
           printWindow.document.write(data.html);
           printWindow.document.close();
           setTimeout(() => printWindow.print(), 500);
         }
-      } else if (data instanceof Blob) {
-        // Download PDF blob
-        const url = URL.createObjectURL(data);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${reportData?.client?.name || 'Client'}-Benchmarking-Report.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-        onExportComplete?.(url);
+        if (data.error) {
+          console.warn('[PDF Export] Browserless fallback:', data.error);
+        }
       }
-      
+
       onClose();
     } catch (error) {
       console.error('Export error:', error);
+      alert('PDF export failed. Try the Preview button to print from your browser instead.');
     } finally {
       setIsExporting(false);
     }
