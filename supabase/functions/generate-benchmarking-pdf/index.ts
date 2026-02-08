@@ -483,6 +483,24 @@ function renderNarrative(title: string, content: string, highlights?: string[]):
   `;
 }
 
+// Compact continuation narrative — uses h3 subheading instead of full section with h2+border
+// Saves ~28px per block vs renderNarrative (no section margin, no border, smaller title)
+function renderNarrativeContinuation(title: string, content: string, highlights?: string[]): string {
+  if (!content) return '';
+  
+  return `
+    <div class="narrative-continuation">
+      <h3 class="subsection-heading">${title}</h3>
+      ${highlights ? `
+        <div class="highlights compact">
+          ${highlights.map(h => `<span class="highlight-tag">${h}</span>`).join('')}
+        </div>
+      ` : ''}
+      <div class="narrative-text">${content}</div>
+    </div>
+  `;
+}
+
 // Recommendations
 function renderRecommendations(data: any, config: any): string {
   const rawRecommendations = data.recommendations || [];
@@ -1495,20 +1513,18 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderKeyMetrics(data, section.config);
         break;
       case 'positionNarrative':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderNarrative('Where You Stand', data.positionNarrative, [`${data.overallPercentile}th percentile`]);
         break;
       case 'strengthsNarrative':
-        sectionsHTML += renderNarrative('Your Strengths', data.strengthsNarrative);
+        sectionsHTML += renderNarrativeContinuation('Your Strengths', data.strengthsNarrative);
         break;
       case 'gapsNarrative':
-        sectionsHTML += renderNarrative('Performance Gaps', data.gapsNarrative, [`${data.gapCount || 0} gaps identified`]);
+        sectionsHTML += renderNarrativeContinuation('Performance Gaps', data.gapsNarrative, [`${data.gapCount || 0} gaps identified`]);
         break;
       case 'opportunityNarrative':
-        sectionsHTML += renderNarrative('The Opportunity', data.opportunityNarrative, [`${formatCurrency(data.totalOpportunity || 0)} potential`]);
+        sectionsHTML += renderNarrativeContinuation('The Opportunity', data.opportunityNarrative, [`${formatCurrency(data.totalOpportunity || 0)} potential`]);
         break;
       case 'scenarioExplorer':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderScenarioExplorer(data, section.config);
         break;
       case 'twoPaths':
@@ -1517,11 +1533,9 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         }
         break;
       case 'recommendations':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderRecommendations(data, section.config);
         break;
       case 'valuationAnalysis':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderValuation(data, section.config);
         break;
       case 'valueWaterfall':
@@ -1537,15 +1551,12 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderPathToValue(data, section.config);
         break;
       case 'exitReadiness':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderExitReadiness(data, section.config);
         break;
       case 'scenarioPlanning':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderScenarioPlanning(data, section.config);
         break;
       case 'serviceRecommendations':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderServices(data, section.config);
         break;
       case 'closingSummary':
@@ -1581,7 +1592,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     body {
       font-family: 'Inter', -apple-system, sans-serif;
       font-size: ${density === 'compact' ? '9pt' : density === 'spacious' ? '11pt' : '10pt'};
-      line-height: 1.5;
+      line-height: 1.45;
       color: #1e293b;
       background: white;
     }
@@ -1671,29 +1682,29 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     /* =========================== SECTIONS =========================== */
     .section {
-      margin-bottom: 16px;
-    }
-    
-    .section-title {
-      font-size: ${density === 'compact' ? '16px' : '18px'};
-      font-weight: 600;
-      color: var(--navy-dark);
-      margin-bottom: ${density === 'compact' ? '8px' : '12px'};
-      padding-bottom: 8px;
-      border-bottom: 2px solid #e2e8f0;
-      page-break-after: avoid;
-    }
-    
-    .section-subtitle {
-      font-size: 12px;
-      color: #64748b;
-      margin-top: -8px;
       margin-bottom: 12px;
     }
     
+    .section-title {
+      font-size: ${density === 'compact' ? '15px' : '17px'};
+      font-weight: 600;
+      color: var(--navy-dark);
+      margin-bottom: ${density === 'compact' ? '6px' : '8px'};
+      padding-bottom: 6px;
+      border-bottom: 2px solid #e2e8f0;
+      break-after: avoid;
+    }
+    
+    .section-subtitle {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: -6px;
+      margin-bottom: 8px;
+    }
+    
     .narrative-text {
-      font-size: ${density === 'compact' ? '9pt' : '10pt'};
-      line-height: 1.6;
+      font-size: ${density === 'compact' ? '8.5pt' : density === 'spacious' ? '10.5pt' : '9.5pt'};
+      line-height: 1.45;
       color: #334155;
     }
     
@@ -1845,24 +1856,24 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .metric-card {
       background: white;
       border: 1px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 16px;
-      page-break-inside: avoid;
+      border-radius: 10px;
+      padding: 10px 12px;
+      break-inside: avoid;
     }
     .metric-card.gap { border-left: 3px solid #dc2626; }
     .metric-card.advantage { border-left: 3px solid #059669; }
 
-    .metric-header { margin-bottom: 12px; }
+    .metric-header { margin-bottom: 6px; }
     .metric-name { font-weight: 600; font-size: 13px; display: block; }
     .metric-percentile { font-size: 10px; color: #64748b; display: block; margin-top: 2px; }
 
     /* Rich bar area */
-    .metric-bar-area { margin-bottom: 12px; }
+    .metric-bar-area { margin-bottom: 6px; }
     .bar-track-rich {
       position: relative;
-      height: 40px;
+      height: 28px;
       background: #f1f5f9;
-      border-radius: 8px;
+      border-radius: 6px;
       overflow: visible;
     }
     .bar-iqr {
@@ -1884,16 +1895,16 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       position: absolute;
       top: 50%;
       transform: translate(-50%, -50%);
-      width: 32px;
-      height: 32px;
+      width: 24px;
+      height: 24px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
-      font-size: 14px;
+      font-size: 11px;
       font-weight: 700;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -1916,11 +1927,11 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       align-items: center;
       justify-content: space-between;
       background: #f8fafc;
-      border-radius: 8px;
-      padding: 10px 12px;
+      border-radius: 6px;
+      padding: 6px 10px;
     }
     .mf-item { text-align: center; flex: 1; }
-    .mf-value { font-size: 18px; font-weight: 700; color: #0f172a; line-height: 1.2; }
+    .mf-value { font-size: 15px; font-weight: 700; color: #0f172a; line-height: 1.2; }
     .mf-median { color: #475569; }
     .mf-gap { color: #dc2626; }
     .mf-advantage { color: #059669; }
@@ -1950,8 +1961,8 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 14px;
-      page-break-inside: avoid;
+      padding: 12px;
+      break-inside: avoid;
     }
     
     .rec-header {
@@ -2001,10 +2012,10 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .effort-badge.quick { background: #d1fae5; color: #059669; }
     
     .rec-steps, .rec-immediate {
-      margin-top: 12px;
-      padding-top: 12px;
+      margin-top: 8px;
+      padding-top: 8px;
       border-top: 1px solid #e2e8f0;
-      font-size: 11px;
+      font-size: 10px;
     }
     
     .rec-steps ul, .rec-immediate ul {
@@ -2018,13 +2029,13 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     .rec-value { font-size: 1.2em; font-weight: 700; color: #0f766e; text-align: right; }
     .rec-value-label { font-size: 0.7em; font-weight: 400; color: #64748b; }
-    .rec-implementation { margin-top: 12px; }
-    .rec-implementation ol { padding-left: 20px; margin: 8px 0; }
-    .rec-implementation li { margin: 4px 0; font-size: 0.9em; color: #334155; }
-    .rec-quickwins { background: #ecfdf5; border-radius: 8px; padding: 12px 16px; margin-top: 12px; }
+    .rec-implementation { margin-top: 8px; }
+    .rec-implementation ol { padding-left: 18px; margin: 4px 0; }
+    .rec-implementation li { margin: 2px 0; font-size: 0.85em; color: #334155; }
+    .rec-quickwins { background: #ecfdf5; border-radius: 6px; padding: 8px 12px; margin-top: 8px; }
     .rec-quickwins strong { color: #059669; font-size: 0.85em; text-transform: uppercase; }
     .quickwin-item { color: #047857; font-size: 0.9em; margin: 4px 0; }
-    .rec-help { background: #eff6ff; border-radius: 8px; padding: 12px 16px; margin-top: 8px; font-size: 0.9em; color: #1e40af; }
+    .rec-help { background: #eff6ff; border-radius: 6px; padding: 8px 12px; margin-top: 6px; font-size: 0.85em; color: #1e40af; }
     .rec-service { font-size: 0.85em; color: #6366f1; margin-top: 8px; }
     
     /* =========================== VALUE BRIDGE =========================== */
@@ -2032,9 +2043,9 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 16px;
+      gap: 12px;
       background: var(--navy-dark);
-      padding: 20px;
+      padding: 14px;
       border-radius: 8px;
       color: white;
       text-align: center;
@@ -2043,11 +2054,11 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     .bridge-item {
-      padding: 12px 20px;
+      padding: 8px 14px;
     }
     
     .bridge-value {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 700;
     }
     
@@ -2071,11 +2082,11 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     .surplus-add {
-      margin-top: 12px;
-      padding: 12px;
+      margin-top: 8px;
+      padding: 8px 10px;
       background: #d1fae5;
       border-radius: 6px;
-      font-size: 11px;
+      font-size: 10px;
       color: #065f46;
     }
     
@@ -2083,15 +2094,14 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .suppressors-grid {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 8px;
     }
     
     .suppressor-card {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 16px;
-      page-break-inside: avoid;
+      padding: 10px;
       break-inside: avoid;
     }
     
@@ -2102,7 +2112,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 5px;
     }
     
     .supp-name { font-weight: 600; font-size: 12px; }
@@ -2119,8 +2129,8 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     .supp-impact {
       display: flex;
-      gap: 12px;
-      margin-bottom: 8px;
+      gap: 10px;
+      margin-bottom: 5px;
     }
     
     .discount { font-size: 18px; font-weight: 700; color: var(--red); }
@@ -2142,21 +2152,21 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     .recoverable { color: var(--green); font-weight: 600; }
     
-    .supp-evidence { font-size: 0.85em; color: #475569; margin: 8px 0; font-style: italic; }
-    .supp-why { font-size: 0.85em; color: #64748b; margin: 4px 0; }
-    .supp-remedy { font-size: 0.85em; color: #059669; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
-    .supp-fix-steps { font-size: 0.85em; margin-top: 8px; }
-    .supp-fix-steps ol { margin: 4px 0 0 16px; padding: 0; }
-    .supp-investment { display: flex; gap: 16px; font-size: 0.85em; margin-top: 8px; }
-    .supp-dependencies { font-size: 0.85em; margin-top: 8px; color: #64748b; }
+    .supp-evidence { font-size: 0.82em; color: #475569; margin: 5px 0; font-style: italic; }
+    .supp-why { font-size: 0.82em; color: #64748b; margin: 3px 0; }
+    .supp-remedy { font-size: 0.82em; color: #059669; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0; }
+    .supp-fix-steps { font-size: 0.82em; margin-top: 6px; }
+    .supp-fix-steps ol { margin: 3px 0 0 16px; padding: 0; }
+    .supp-investment { display: flex; gap: 12px; font-size: 0.82em; margin-top: 6px; }
+    .supp-dependencies { font-size: 0.82em; margin-top: 6px; color: #64748b; }
     
     /* =========================== EXIT READINESS =========================== */
     .exit-score-display {
       text-align: center;
-      padding: 24px;
+      padding: 10px;
       background: #f8fafc;
       border-radius: 8px;
-      margin-bottom: 16px;
+      margin-bottom: 6px;
     }
     
     .score-circle {
@@ -2164,7 +2174,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     .score-circle .score-value {
-      font-size: 48px;
+      font-size: 32px;
       font-weight: 700;
     }
     
@@ -2178,21 +2188,21 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     .score-status {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
-      margin-top: 8px;
+      margin-top: 4px;
     }
     
     .score-circle.red + .score-status { color: var(--red); }
     
     .exit-components {
-      margin-top: 16px;
+      margin-top: 8px;
     }
     
     .exit-component {
-      padding: 10px 0;
+      padding: 5px 0;
       border-bottom: 1px solid #e2e8f0;
-      font-size: 11px;
+      font-size: 10px;
     }
     
     .comp-main {
@@ -2204,7 +2214,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .comp-name { font-weight: 500; }
     .comp-score { font-weight: 600; }
     
-    .comp-bar-row { margin: 6px 0; }
+    .comp-bar-row { margin: 3px 0; }
     
     .comp-bar {
       height: 8px;
@@ -2223,10 +2233,10 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .comp-action { font-size: 0.85em; color: #dc2626; margin-top: 4px; }
     
     .path-to-exit {
-      margin-top: 24px;
+      margin-top: 10px;
       background: var(--teal);
       color: white;
-      padding: 20px;
+      padding: 14px;
       border-radius: 8px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
@@ -2237,11 +2247,11 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: white;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     
-    .path-steps { margin-bottom: 16px; }
-    .path-step { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+    .path-steps { margin-bottom: 10px; }
+    .path-step { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
     .step-number {
       display: inline-flex;
       align-items: center;
@@ -2275,15 +2285,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .scenarios-sequential {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-    }
-    
-    .scenario-block {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 16px;
-      page-break-inside: avoid;
+      gap: 10px;
     }
     
     .scenario-name {
@@ -2293,9 +2295,9 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     .scenario-timeframe {
-      font-size: 11px;
+      font-size: 10px;
       color: #64748b;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     
     .scenario-metrics {
@@ -2318,10 +2320,10 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .sm-projected { font-weight: 600; color: var(--navy-dark); }
     
     .scenario-requirements {
-      margin-top: 12px;
-      padding-top: 12px;
+      margin-top: 5px;
+      padding-top: 5px;
       border-top: 1px solid #e2e8f0;
-      font-size: 10px;
+      font-size: 9px;
     }
     
     .scenario-requirements ul {
@@ -2333,15 +2335,15 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .services-list {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 10px;
     }
     
     .service-card {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 16px;
-      page-break-inside: avoid;
+      padding: 12px;
+      break-inside: avoid;
     }
     
     .service-header {
@@ -2357,15 +2359,20 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .service-meta {
       font-size: 10px;
       color: #64748b;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     
     .service-meta span:not(:last-child)::after { content: ' · '; }
     
     .service-why, .service-outcomes {
-      margin-bottom: 12px;
-      font-size: 11px;
+      margin-bottom: 6px;
+      font-size: 10px;
     }
+    
+    .service-deliverables ul { margin: 2px 0; padding-left: 14px; }
+    .service-deliverables li { margin-bottom: 1px; font-size: 10px; }
+    .service-outcome { margin-bottom: 6px; }
+    .service-outcome p { font-size: 10px; }
     
     .service-why p, .service-outcomes ul {
       margin-top: 4px;
@@ -2393,25 +2400,25 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .closing-box {
       background: var(--navy-dark);
       color: white;
-      padding: 20px;
+      padding: 14px;
       border-radius: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     
     .closing-box p {
-      font-size: 12px;
-      line-height: 1.7;
+      font-size: 11px;
+      line-height: 1.5;
     }
     
     .contact-cta {
       text-align: center;
-      padding: 20px;
+      padding: 14px;
       background: var(--teal);
       color: white;
       border-radius: 8px;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -2436,9 +2443,9 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     /* =========================== HIGHLIGHT SECTIONS =========================== */
     .highlight-section {
-      padding: 16px;
+      padding: 12px;
       border-radius: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 12px;
     }
     
     .highlight-section.green {
@@ -2459,13 +2466,13 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .value-card {
       flex: 1;
       background: white;
-      padding: 16px;
+      padding: 10px;
       border-radius: 8px;
       text-align: center;
     }
     
     .value-amount {
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 700;
       color: var(--green);
     }
@@ -2487,7 +2494,23 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .highlights {
       display: flex;
       gap: 8px;
-      margin-bottom: 12px;
+      margin-bottom: 6px;
+    }
+    .highlights.compact {
+      margin-bottom: 6px;
+    }
+    
+    /* Narrative continuation — lighter than full section */
+    .narrative-continuation {
+      margin-top: 8px;
+      margin-bottom: 2px;
+    }
+    .subsection-heading {
+      font-size: ${density === 'compact' ? '13px' : '14px'};
+      font-weight: 600;
+      color: var(--navy-dark);
+      margin-bottom: 4px;
+      break-after: avoid;
     }
     
     .highlight-tag {
@@ -2507,7 +2530,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     th, td {
-      padding: 8px 12px;
+      padding: 6px 10px;
       text-align: left;
       border-bottom: 1px solid #e2e8f0;
     }
@@ -2529,7 +2552,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     /* Value Waterfall */
     .waterfall-section { page-break-inside: avoid; }
-    .waterfall-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; }
+    .waterfall-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
     .waterfall-item:last-child { border-bottom: 2px solid #1e293b; }
     .wf-left { flex: 1; }
     .wf-detail { font-size: 0.85em; color: #64748b; margin-top: 2px; }
@@ -2547,53 +2570,57 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .suppressor-item.severity-medium { border-left-color: #3b82f6; }
 
     /* Surplus Cash Breakdown */
-    .surplus-hero { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
-    .surplus-amount { font-size: 2em; font-weight: 800; color: #059669; }
+    .surplus-hero { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+    .surplus-amount { font-size: 1.7em; font-weight: 800; color: #059669; }
     .surplus-pct { font-size: 0.9em; color: #64748b; }
     .surplus-bonus { background: #065f46; color: white; border-radius: 8px; padding: 8px 16px; margin-top: 12px; font-size: 0.9em; }
     .surplus-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
-    .surplus-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+    .surplus-table td { padding: 5px 10px; border-bottom: 1px solid #e2e8f0; }
     .surplus-table .amount { text-align: right; font-weight: 600; }
     .surplus-table .amount.negative { color: #dc2626; }
     .surplus-table .amount.positive { color: #059669; }
     .surplus-total { background: #f0fdf4; }
     .surplus-total td { border-top: 2px solid #059669; font-size: 1.1em; }
-    .wc-breakdown { margin-top: 16px; }
+    .wc-breakdown { margin-top: 10px; }
     .wc-breakdown h4 { font-size: 0.85em; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; }
     .surplus-table.small td { padding: 4px 12px; font-size: 0.9em; }
     .wc-total td { border-top: 1px solid #94a3b8; }
     .wc-explanation { background: #ecfdf5; padding: 10px 14px; border-radius: 8px; margin-top: 8px; font-size: 0.85em; color: #047857; }
-    .surplus-methodology { font-size: 0.8em; color: #94a3b8; margin-top: 16px; padding-top: 12px; border-top: 1px dashed #e2e8f0; }
+    .surplus-methodology { font-size: 0.78em; color: #94a3b8; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
 
     /* Margin Impact / Scenario Explorer */
-    .margin-impact-section { /* Allow page breaks between scenario panels */ }
-    .margin-scenario { display: flex; gap: 24px; margin: 16px 0; page-break-inside: avoid; break-inside: avoid; }
-    .scenario-left, .scenario-right { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
-    .scenario-target { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; }
-    .scenario-target strong { font-size: 1.3em; color: #059669; }
-    .scenario-current { font-size: 0.85em; color: #64748b; }
-    .impact-hero { background: #059669; color: white; border-radius: 8px; padding: 16px; margin-bottom: 12px; }
-    .impact-hero .impact-value { font-size: 1.5em; font-weight: 800; }
+    .margin-impact-section { /* panels handle own breaks */ }
+    .margin-scenario { display: flex; gap: 12px; margin: 8px 0; break-inside: avoid; }
+    .scenario-left, .scenario-right { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
+    .scenario-target { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
+    .scenario-target strong { font-size: 1.2em; color: #059669; }
+    .scenario-current { font-size: 0.82em; color: #64748b; }
+    .impact-hero { background: #059669; color: white; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; }
+    .impact-hero .impact-value { font-size: 1.3em; font-weight: 800; }
     .impact-hero .impact-value span { font-size: 0.5em; font-weight: 400; }
-    .impact-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
-    .impact-detail { font-size: 0.8em; color: #94a3b8; }
-    .how-to-achieve { margin-top: 16px; font-size: 0.9em; margin-bottom: 24px; }
-    .how-to-achieve div { color: #334155; margin: 4px 0; }
+    .impact-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #e2e8f0; font-size: 0.88em; }
+    .impact-detail { font-size: 0.78em; color: #94a3b8; }
+    .how-to-achieve { margin-top: 6px; font-size: 0.82em; margin-bottom: 8px; }
+    .how-to-achieve div { color: #334155; margin: 2px 0; }
 
-    /* =========================== PRINT SPECIFIC =========================== */
-    @media print {
-      body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-      .page { page-break-after: always; }
-      .section-title { page-break-after: avoid; }
-      .metric-card, .suppressor-card, .recommendation-card,
-      .scenario-card, .service-card, .waterfall-item {
-        page-break-inside: avoid;
-      }
-      .no-break { page-break-inside: avoid; }
+    /* =========================== PAGINATION CONTROL =========================== */
+    /* NO forced page breaks. Content flows. break-inside:avoid on atomic blocks. */
+    body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    p, .narrative-text { orphans: 3; widows: 3; }
+    .section-title, h2, h3 { break-after: avoid; }
+    .metric-card, .suppressor-card, .recommendation-card,
+    .scenario-card, .service-card, .waterfall-item,
+    .margin-scenario, .exit-score-display, .path-to-exit,
+    .value-protectors, .path-to-value, .surplus-hero,
+    .hero-metrics, .closing-box, .contact-cta,
+    .potential-value-box, .highlight-section,
+    .exit-component, .protector-card {
+      break-inside: avoid;
     }
+    .page-break-before { break-before: page; }
 
     /* Value Protectors */
-    .value-protectors { background: #f0fdf4; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .value-protectors { background: #f0fdf4; border-radius: 8px; padding: 12px; margin: 10px 0; }
     .protectors-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
     .protector-card { background: white; padding: 12px; border-radius: 6px; border-left: 3px solid #059669; }
     .protector-name { font-weight: 600; color: #065f46; }
@@ -2601,30 +2628,36 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .protector-impact { color: #059669; font-weight: 600; }
 
     /* Path to Full Value */
-    .path-to-value { background: #eff6ff; border-radius: 8px; padding: 16px; margin: 16px 0; }
+    .path-to-value { background: #eff6ff; border-radius: 8px; padding: 12px; margin: 10px 0; }
     .path-actions { list-style: none; padding: 0; }
-    .path-action { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+    .path-action { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid #e2e8f0; }
     .action-number { width: 24px; height: 24px; background: #2563eb; color: white; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8em; }
-    .potential-value-box { background: white; padding: 16px; border-radius: 8px; text-align: center; margin-top: 16px; }
-    .pv-amount { font-size: 2em; font-weight: 700; color: #059669; }
+    .potential-value-box { background: white; padding: 12px; border-radius: 8px; text-align: center; margin-top: 10px; }
+    .pv-amount { font-size: 1.6em; font-weight: 700; color: #059669; }
     .pv-uplift { color: #059669; }
 
     /* Scenario enhancements */
-    .scenario-card { page-break-inside: avoid; break-inside: avoid; }
-    .scenario-risks { background: #fef2f2; padding: 12px; border-radius: 6px; margin: 12px 0; }
-    .scenario-risks h4 { color: #dc2626; margin: 0 0 8px 0; }
-    .scenario-considerations { background: #fffbeb; padding: 12px; border-radius: 6px; margin: 12px 0; }
-    .scenario-considerations h4 { color: #d97706; margin: 0 0 8px 0; }
+    .scenario-card { break-inside: avoid; padding: 10px; }
+    .scenario-card th, .scenario-card td { padding: 4px 8px; font-size: 9.5px; }
+    .scenario-card table { margin: 6px 0; }
+    .scenario-card h3 { margin: 0 0 4px 0; font-size: 13px; }
+    .scenario-card > p { margin: 0 0 4px 0; font-size: 10px; }
+    .scenario-card ul { margin: 2px 0; padding-left: 14px; }
+    .scenario-card li { margin-bottom: 1px; font-size: 9.5px; }
+    .scenario-risks { background: #fef2f2; padding: 6px 10px; border-radius: 6px; margin: 6px 0; }
+    .scenario-risks h4 { color: #dc2626; margin: 0 0 3px 0; font-size: 10px; }
+    .scenario-considerations { background: #fffbeb; padding: 6px 10px; border-radius: 6px; margin: 6px 0; }
+    .scenario-considerations h4 { color: #d97706; margin: 0 0 3px 0; font-size: 10px; }
 
     /* Services */
     .services-grid { display: flex; flex-direction: column; gap: 16px; }
-    .service-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; page-break-inside: avoid; }
+    .service-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; break-inside: avoid; }
     .service-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .service-price { font-weight: 600; color: #0f172a; }
     .service-frequency { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
     .service-name { font-size: 1.2em; font-weight: 600; margin: 0 0 4px 0; }
     .service-tagline { color: #64748b; margin: 0 0 12px 0; }
-    .service-why, .service-deliverables, .service-outcome { margin: 12px 0; }
+    .service-why, .service-deliverables, .service-outcome { margin: 6px 0; }
     .service-why h4, .service-deliverables h4, .service-outcome h4 { font-size: 0.9em; color: #475569; margin: 0 0 4px 0; }
     .service-meta { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 0.85em; color: #64748b; }
     .service-value { font-weight: 600; color: #059669; }

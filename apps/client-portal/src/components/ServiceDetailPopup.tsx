@@ -1,30 +1,10 @@
 // ============================================================================
-// SERVICE DETAIL POPUP
-// ============================================================================
-// Shows service line details when clicking "Enabled by: {Service}" links
-// Includes link to PDF manual if available
+// SERVICE DETAIL POPUP — Registry-based
 // ============================================================================
 
-import { useState, useEffect } from 'react';
-import { X, FileText, Download, Clock, CheckCircle, ExternalLink } from 'lucide-react';
+import { FileText, MessageCircle, X } from 'lucide-react';
+import { SERVICE_REGISTRY, LEGACY_CODE_MAP } from '@/lib/service-registry';
 import { supabase } from '../lib/supabase';
-
-interface ServiceMetadata {
-  code: string;
-  name: string;
-  display_name?: string;
-  core_function?: string;
-  problems_addressed?: string[];
-  pricing?: {
-    tier?: string;
-    amount?: number;
-    frequency?: string;
-  }[];
-  key_deliverables?: string[];
-  typical_timeline?: string;
-  roi_calculation_method?: string;
-  manual_file_path?: string;
-}
 
 interface ServiceDetailPopupProps {
   serviceCode: string;
@@ -32,196 +12,87 @@ interface ServiceDetailPopupProps {
   onClose: () => void;
 }
 
+function getExamplePdfUrl(tierExamplePdfUrl: string | undefined): string | null {
+  if (!tierExamplePdfUrl) return null;
+  const path = tierExamplePdfUrl.replace(/^\/storage\/service-examples\/?/, '');
+  const { data } = supabase.storage.from('service-examples').getPublicUrl(path);
+  return data?.publicUrl ?? null;
+}
+
 export function ServiceDetailPopup({ serviceCode, serviceName, onClose }: ServiceDetailPopupProps) {
-  const [metadata, setMetadata] = useState<ServiceMetadata | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [manualUrl, setManualUrl] = useState<string | null>(null);
+  const resolvedCode = LEGACY_CODE_MAP[serviceCode] ?? serviceCode;
+  const service = SERVICE_REGISTRY[resolvedCode];
 
-  useEffect(() => {
-    loadServiceDetails();
-  }, [serviceCode]);
-
-  const loadServiceDetails = async () => {
-    try {
-      // Fetch service metadata
-      const { data, error } = await supabase
-        .from('service_line_metadata')
-        .select('*')
-        .eq('code', serviceCode)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error loading service metadata:', error);
-      }
-
-      if (data) {
-        setMetadata(data);
-        
-        // Get manual URL if available
-        if (data.manual_file_path) {
-          const { data: urlData } = supabase.storage
-            .from('service-manuals')
-            .getPublicUrl(data.manual_file_path);
-          
-          if (urlData?.publicUrl) {
-            setManualUrl(urlData.publicUrl);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error in loadServiceDetails:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Map service codes to friendly names
-  const getDisplayName = () => {
-    if (metadata?.display_name) return metadata.display_name;
-    if (serviceName) return serviceName;
-    
-    const nameMap: Record<string, string> = {
-      '365_method': 'Goal Alignment Programme',
-      '365_alignment': 'Goal Alignment Programme',
-      'management_accounts': 'Management Accounts',
-      'systems_audit': 'Systems Audit',
-      'fractional_cfo': 'Fractional CFO',
-      'hidden_value_audit': 'Hidden Value Audit',
-      'benchmarking': 'Benchmarking & Hidden Value Analysis',
-      'industry_benchmarking': 'Benchmarking & Hidden Value Analysis',
-      'automation': 'Automation & Integration',
-      'exit_planning': 'Exit Planning',
-    };
-    
-    return nameMap[serviceCode] || metadata?.name || serviceCode;
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-teal-600 to-emerald-600 p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-bold">{getDisplayName()}</h2>
-              {metadata?.core_function && (
-                <p className="text-teal-100 text-sm mt-1">{metadata.core_function}</p>
-              )}
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-            >
+  if (!service) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+          <div className="flex justify-between items-start mb-4">
+            <h3 className="text-lg font-bold text-gray-900">{serviceName ?? serviceCode}</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="w-5 h-5" />
             </button>
           </div>
+          <p className="text-gray-600">More details coming soon.</p>
         </div>
+      </div>
+    );
+  }
 
-        {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="w-8 h-8 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Problems Addressed */}
-              {metadata?.problems_addressed && metadata.problems_addressed.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                    What This Solves
-                  </h3>
-                  <ul className="space-y-2">
-                    {metadata.problems_addressed.slice(0, 5).map((problem, idx) => (
-                      <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
-                        <CheckCircle className="w-4 h-4 text-teal-500 mt-0.5 flex-shrink-0" />
-                        <span>{problem}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+  const popupTiers = service.tiers.filter(t => t.showInPopup);
 
-              {/* Key Deliverables */}
-              {metadata?.key_deliverables && metadata.key_deliverables.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                    What You Get
-                  </h3>
-                  <ul className="space-y-2">
-                    {metadata.key_deliverables.map((deliverable, idx) => (
-                      <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
-                        <div className="w-1.5 h-1.5 bg-teal-500 rounded-full mt-2 flex-shrink-0" />
-                        <span>{deliverable}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg mx-auto w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="p-6">
+          <div className="flex justify-between items-start mb-2">
+            <h3 className="text-lg font-bold text-gray-900">{service.displayName}</h3>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
 
-              {/* Timeline */}
-              {metadata?.typical_timeline && (
-                <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
-                  <Clock className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase tracking-wide">Typical Timeline</p>
-                    <p className="text-sm font-medium text-gray-800">{metadata.typical_timeline}</p>
+          <p className="text-teal-600 font-medium text-sm mb-3">{service.outcome}</p>
+          <p className="text-gray-600 text-sm mb-6">{service.description}</p>
+
+          <div className={`grid gap-4 ${popupTiers.length >= 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
+            {popupTiers.map((tier) => {
+              const pdfUrl = getExamplePdfUrl(tier.examplePdfUrl);
+              return (
+                <div key={tier.name} className="border border-gray-200 rounded-xl p-4 flex flex-col">
+                  <h4 className="font-semibold text-gray-900 text-sm">{tier.name}</h4>
+                  <p className="text-gray-500 text-xs mb-3">{tier.tagline}</p>
+
+                  <p className="text-lg font-bold text-gray-900 mb-1">
+                    {tier.pricingModel === 'fixed' ? tier.priceFormatted : tier.priceFromFormatted}
+                    <span className="text-sm font-normal text-gray-500">{tier.periodLabel}</span>
+                  </p>
+
+                  <div className="mt-auto pt-3">
+                    {pdfUrl ? (
+                      <a
+                        href={pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-medium transition-colors"
+                      >
+                        <FileText className="w-4 h-4" />
+                        {tier.popupCtaLabel ?? 'View Example'}
+                      </a>
+                    ) : (
+                      <a
+                        href="/appointments"
+                        className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        {tier.popupCtaLabel ?? 'Talk to us'}
+                      </a>
+                    )}
                   </div>
                 </div>
-              )}
-
-              {/* Pricing */}
-              {metadata?.pricing && metadata.pricing.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                    Investment
-                  </h3>
-                  <div className="space-y-2">
-                    {metadata.pricing.map((price, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-teal-50 rounded-lg">
-                        <span className="text-sm text-gray-700">{price.tier || 'Standard'}</span>
-                        <span className="font-semibold text-teal-700">
-                          £{price.amount?.toLocaleString()}{price.frequency === 'monthly' ? '/month' : ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* ROI */}
-              {metadata?.roi_calculation_method && (
-                <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
-                  <h3 className="text-sm font-semibold text-emerald-800 mb-2">Expected Return</h3>
-                  <p className="text-sm text-emerald-700">{metadata.roi_calculation_method}</p>
-                </div>
-              )}
-
-              {/* Manual Download */}
-              {manualUrl && (
-                <a
-                  href={manualUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-4 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition-colors"
-                >
-                  <FileText className="w-6 h-6" />
-                  <div className="flex-1">
-                    <p className="font-medium">Service Manual</p>
-                    <p className="text-sm text-slate-300">View full details and methodology</p>
-                  </div>
-                  <ExternalLink className="w-5 h-5 text-slate-400" />
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-100 p-4 bg-gray-50">
-          <p className="text-xs text-gray-500 text-center">
-            Questions? Your advisor can explain how this fits your specific situation.
-          </p>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -229,6 +100,3 @@ export function ServiceDetailPopup({ serviceCode, serviceName, onClose }: Servic
 }
 
 export default ServiceDetailPopup;
-
-
-

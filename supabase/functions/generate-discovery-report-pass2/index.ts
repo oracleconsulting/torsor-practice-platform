@@ -10,6 +10,65 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+// Inlined service registry (avoids "Module not found" when Dashboard deploys only index.ts).
+// Canonical: supabase/functions/_shared/service-registry.ts — keep in sync when changing prices/tiers.
+interface TurnoverBand { maxTurnover: number | null; price: number; priceFormatted: string; }
+interface ServiceTier {
+  name: string; tagline: string; pricingModel: 'fixed' | 'turnover-scaled';
+  price?: number; priceFormatted?: string; priceRanges?: TurnoverBand[]; priceFromFormatted?: string;
+  period: 'one-off' | 'monthly' | 'annual'; periodLabel: string;
+  examplePdfUrl?: string; showInPopup: boolean; popupCtaLabel?: string;
+}
+interface ServiceDefinition {
+  code: string; name: string; displayName: string; category: 'foundation' | 'growth' | 'strategic' | 'operational';
+  outcome: string; description: string; keywords: string[]; tiers: ServiceTier[]; defaultTierIndex: number; isActive: boolean;
+}
+const SERVICE_REGISTRY: Record<string, ServiceDefinition> = {
+  business_intelligence: { code: 'business_intelligence', name: 'Business Intelligence', displayName: 'Business Intelligence', category: 'operational', outcome: "You'll Know Your Numbers", description: 'Monthly financial visibility — from knowing where you are to having a strategic financial partner in the room.', keywords: ['business intelligence', 'management account', 'monthly reporting', 'financial', 'numbers', 'cash flow', 'P&L'], tiers: [{ name: 'Clarity', tagline: 'See where you are', pricingModel: 'turnover-scaled', priceRanges: [{ maxTurnover: 750000, price: 2000, priceFormatted: '£2,000' }, { maxTurnover: 2000000, price: 2500, priceFormatted: '£2,500' }, { maxTurnover: 5000000, price: 3000, priceFormatted: '£3,000' }, { maxTurnover: null, price: 3500, priceFormatted: '£3,500' }], priceFromFormatted: 'from £2,000', period: 'monthly', periodLabel: '/month', examplePdfUrl: '/storage/service-examples/business-intelligence-clarity.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Foresight', tagline: 'See where you could be', pricingModel: 'turnover-scaled', priceRanges: [{ maxTurnover: 750000, price: 3000, priceFormatted: '£3,000' }, { maxTurnover: 2000000, price: 3500, priceFormatted: '£3,500' }, { maxTurnover: 5000000, price: 4500, priceFormatted: '£4,500' }, { maxTurnover: null, price: 5000, priceFormatted: '£5,000' }], priceFromFormatted: 'from £3,000', period: 'monthly', periodLabel: '/month', examplePdfUrl: '/storage/service-examples/business-intelligence-foresight.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Strategic', tagline: 'Your financial partner', pricingModel: 'turnover-scaled', priceRanges: [{ maxTurnover: 2000000, price: 5000, priceFormatted: '£5,000' }, { maxTurnover: 5000000, price: 7000, priceFormatted: '£7,000' }, { maxTurnover: null, price: 10000, priceFormatted: '£10,000' }], priceFromFormatted: 'from £5,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: true },
+  benchmarking: { code: 'benchmarking', name: 'Industry Benchmarking', displayName: 'Industry Benchmarking (Full Package)', category: 'foundation', outcome: "You'll Know Where You Stand", description: 'See exactly how your business compares to others in your industry.', keywords: ['benchmark', 'valuation', 'hidden value', 'baseline', 'industry'], tiers: [{ name: 'Tier 1', tagline: 'Industry comparison and baseline', pricingModel: 'fixed', price: 2000, priceFormatted: '£2,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/benchmarking-tier1.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Tier 2', tagline: 'Deep-dive with action plan', pricingModel: 'fixed', price: 4500, priceFormatted: '£4,500', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/benchmarking-tier2.pdf', showInPopup: true, popupCtaLabel: 'View Example' }], defaultTierIndex: 0, isActive: true },
+  systems_audit: { code: 'systems_audit', name: 'Systems & Process Audit', displayName: 'Systems & Process Audit', category: 'foundation', outcome: "You'll See Where The Time Goes", description: 'Map every system, process, and workaround in your business.', keywords: ['systems', 'process', 'efficiency', 'automation', 'audit'], tiers: [{ name: 'Tier 1', tagline: 'Systems map and priority list', pricingModel: 'fixed', price: 2000, priceFormatted: '£2,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/systems-audit-tier1.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Tier 2', tagline: 'Full audit with implementation roadmap', pricingModel: 'fixed', price: 4500, priceFormatted: '£4,500', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/systems-audit-tier2.pdf', showInPopup: true, popupCtaLabel: 'View Example' }], defaultTierIndex: 0, isActive: true },
+  goal_alignment: { code: 'goal_alignment', name: 'Goal Alignment Programme', displayName: 'Goal Alignment Programme', category: 'growth', outcome: "You'll Have Someone In Your Corner", description: 'Quarterly accountability and strategic support.', keywords: ['goal alignment', 'accountability', 'co-pilot', 'support', '365', 'alignment'], tiers: [{ name: 'Lite', tagline: 'Survey + plan + one review', pricingModel: 'fixed', price: 1500, priceFormatted: '£1,500', period: 'annual', periodLabel: '/year', examplePdfUrl: '/storage/service-examples/goal-alignment-lite.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Growth', tagline: 'Quarterly reviews for 12 months', pricingModel: 'fixed', price: 4500, priceFormatted: '£4,500', period: 'annual', periodLabel: '/year', examplePdfUrl: '/storage/service-examples/goal-alignment-growth.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Partner', tagline: 'Strategy day + BSG integration', pricingModel: 'fixed', price: 9000, priceFormatted: '£9,000', period: 'annual', periodLabel: '/year', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 1, isActive: true },
+  business_advisory: { code: 'business_advisory', name: 'Business Advisory & Exit Planning', displayName: 'Business Advisory & Exit Planning', category: 'strategic', outcome: "You'll Know What It's Worth", description: 'Protect and maximise the value you have built.', keywords: ['exit', 'sale', 'succession', 'planning', 'advisory'], tiers: [{ name: 'Tier 1', tagline: 'Valuation and readiness assessment', pricingModel: 'fixed', price: 2000, priceFormatted: '£2,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/business-advisory-tier1.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Tier 2', tagline: 'Full exit strategy and preparation', pricingModel: 'fixed', price: 4000, priceFormatted: '£4,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/business-advisory-tier2.pdf', showInPopup: true, popupCtaLabel: 'View Example' }], defaultTierIndex: 0, isActive: false },
+  automation: { code: 'automation', name: 'Automation Services', displayName: 'Automation Services', category: 'operational', outcome: "The Manual Work Disappears", description: 'Eliminate manual work and unlock your team\'s potential.', keywords: ['automation', 'automate', 'manual', 'integrate', 'workflow'], tiers: [{ name: 'Project', tagline: 'Scoped automation implementation', pricingModel: 'fixed', price: 5000, priceFormatted: '£5,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/automation-project.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Retainer', tagline: 'Ongoing automation support', pricingModel: 'fixed', price: 1500, priceFormatted: '£1,500', period: 'monthly', periodLabel: '/month', examplePdfUrl: '/storage/service-examples/automation-retainer.pdf', showInPopup: true, popupCtaLabel: 'View Example' }], defaultTierIndex: 0, isActive: false },
+  fractional_cfo: { code: 'fractional_cfo', name: 'Fractional CFO', displayName: 'Fractional CFO Services', category: 'strategic', outcome: "You'll Have Strategic Financial Leadership", description: 'Part-time strategic finance leadership.', keywords: ['cfo', 'finance director', 'strategic finance', 'fractional cfo'], tiers: [{ name: '2 days/month', tagline: 'Strategic finance leadership', pricingModel: 'fixed', price: 4000, priceFormatted: '£4,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
+  fractional_coo: { code: 'fractional_coo', name: 'Fractional COO', displayName: 'Fractional COO Services', category: 'strategic', outcome: "Someone Else Carries The Load", description: 'Operational leadership to build systems that run without you.', keywords: ['coo', 'operations', 'fractional coo'], tiers: [{ name: '2 days/month', tagline: 'Operational leadership', pricingModel: 'fixed', price: 3750, priceFormatted: '£3,750', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
+  combined_advisory: { code: 'combined_advisory', name: 'Combined CFO/COO Advisory', displayName: 'Combined CFO/COO Advisory', category: 'strategic', outcome: "Complete Business Transformation", description: 'Executive partnership covering both financial and operational strategy.', keywords: ['combined', 'cfo coo', 'executive partnership'], tiers: [{ name: 'Standard', tagline: 'Full executive partnership', pricingModel: 'fixed', price: 6000, priceFormatted: '£6,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
+};
+function getPriceForTurnover(tier: ServiceTier, turnover: number): { price: number; priceFormatted: string } {
+  if (tier.pricingModel === 'fixed') return { price: tier.price!, priceFormatted: tier.priceFormatted! };
+  if (!tier.priceRanges?.length) return { price: 0, priceFormatted: 'TBD' };
+  for (const band of tier.priceRanges) { if (band.maxTurnover === null || turnover <= band.maxTurnover) return { price: band.price, priceFormatted: band.priceFormatted }; }
+  const last = tier.priceRanges[tier.priceRanges.length - 1]; return { price: last.price, priceFormatted: last.priceFormatted };
+}
+function getDefaultTier(code: string): ServiceTier | null { const def = SERVICE_REGISTRY[code]; if (!def) return null; return def.tiers[def.defaultTierIndex] || def.tiers[0] || null; }
+function getTierByName(code: string, tierName: string): ServiceTier | null { const def = SERVICE_REGISTRY[code]; if (!def) return null; return def.tiers.find(t => t.name.toLowerCase() === tierName.toLowerCase()) || null; }
+function getEnabledByString(code: string, options?: { tierName?: string; turnover?: number; deferred?: boolean }): string {
+  const def = SERVICE_REGISTRY[code]; if (!def) return code;
+  const tier = options?.tierName ? getTierByName(code, options.tierName) : getDefaultTier(code); if (!tier) return def.displayName;
+  const { priceFormatted } = options?.turnover ? getPriceForTurnover(tier, options.turnover) : tier.pricingModel === 'fixed' ? { priceFormatted: tier.priceFormatted! } : { priceFormatted: tier.priceFromFormatted || 'TBD' };
+  const tierLabel = def.tiers.length > 1 ? ` (${tier.name})` : ''; const priceLabel = `${priceFormatted}${tier.periodLabel}`; const deferredSuffix = options?.deferred ? ' — when ready' : '';
+  return `${def.displayName}${tierLabel} (${priceLabel}${deferredSuffix})`;
+}
+function getOutcome(code: string): string { return SERVICE_REGISTRY[code]?.outcome || 'Business Transformation'; }
+function detectServiceCode(text: string): string | null {
+  if (!text) return null; const lower = text.toLowerCase();
+  if (lower.includes('business intelligence') || lower.includes('management account')) return 'business_intelligence';
+  if (lower.includes('benchmark')) return 'benchmarking'; if (lower.includes('system') && (lower.includes('audit') || lower.includes('process'))) return 'systems_audit';
+  if (lower.includes('goal') || lower.includes('alignment') || lower.includes('365')) return 'goal_alignment';
+  if (lower.includes('combined') && (lower.includes('cfo') || lower.includes('coo'))) return 'combined_advisory';
+  if (lower.includes('fractional cfo') || (lower.includes('cfo') && !lower.includes('coo'))) return 'fractional_cfo';
+  if (lower.includes('fractional coo') || (lower.includes('coo') && !lower.includes('cfo'))) return 'fractional_coo';
+  if (lower.includes('automation') || lower.includes('automate')) return 'automation'; if (lower.includes('exit') || lower.includes('advisory')) return 'business_advisory';
+  return null;
+}
+function getLegacyServiceDetail(code: string, turnover?: number): { name: string; price: string; priceType: string; outcome: string } | null {
+  const def = SERVICE_REGISTRY[code]; if (!def) return null; const tier = getDefaultTier(code); if (!tier) return null;
+  const { priceFormatted } = turnover ? getPriceForTurnover(tier, turnover) : tier.pricingModel === 'fixed' ? { priceFormatted: tier.priceFormatted! } : { priceFormatted: tier.priceFromFormatted || 'TBD' };
+  return { name: def.displayName, price: priceFormatted, priceType: tier.period === 'one-off' ? 'one-time' : tier.period, outcome: def.outcome };
+}
+const LEGACY_CODE_MAP: Record<string, string> = { '365_method': 'goal_alignment', 'management_accounts': 'business_intelligence' };
+function resolveServiceCode(code: string): string { return LEGACY_CODE_MAP[code] || code; }
+
 // Use Opus for premium narrative quality
 const PASS2_MODEL = 'anthropic/claude-opus-4.5';
 
@@ -566,166 +625,6 @@ GOOD (diverse):
 }
 
 // ============================================================================
-// SERVICE PRICING AND OUTCOMES (Services as footnotes)
-// Defaults used if database fetch fails - canonical source is service_line_metadata
-// ============================================================================
-
-interface ServiceDetail {
-  name: string;
-  price: string;
-  priceType: 'monthly' | 'one-time' | 'annual';
-  outcome: string;  // The destination, not the service
-}
-
-const DEFAULT_SERVICE_DETAILS: Record<string, ServiceDetail> = {
-  'management_accounts': {
-    name: 'Management Accounts',
-    price: '£650',
-    priceType: 'monthly',
-    outcome: "You'll Know Your Numbers"
-  },
-  'systems_audit': {
-    name: 'Systems Audit',
-    price: '£4,000',
-    priceType: 'one-time',
-    outcome: "You'll See Where The Time Goes"
-  },
-  '365_method': {
-    name: 'Goal Alignment Programme',
-    price: '£1,500-£9,000',
-    priceType: 'annual',
-    outcome: "You'll Have Someone In Your Corner"
-  },
-  'automation': {
-    name: 'Automation Services',
-    price: '£5,000',
-    priceType: 'one-time',
-    outcome: "The Manual Work Disappears"
-  },
-  'fractional_cfo': {
-    name: 'Fractional CFO Services',
-    price: '£4,000',
-    priceType: 'monthly',
-    outcome: "You'll Have Strategic Financial Leadership"
-  },
-  'fractional_coo': {
-    name: 'Fractional COO Services',
-    price: '£3,750',
-    priceType: 'monthly',
-    outcome: "Someone Else Carries The Load"
-  },
-  'combined_advisory': {
-    name: 'Combined CFO/COO Advisory',
-    price: '£6,000',
-    priceType: 'monthly',
-    outcome: "Complete Business Transformation"
-  },
-  'business_advisory': {
-    name: 'Business Advisory & Exit Planning',
-    price: '£2,000', // BLOCKED - currently in development, but priced for future
-    priceType: 'one-time',
-    outcome: "You'll Know What It's Worth"
-  },
-  'benchmarking': {
-    name: 'Benchmarking & Hidden Value Analysis',
-    price: '£2,000', // Combined exit diagnostic: competitive positioning + value suppressors
-    priceType: 'one-time',
-    outcome: "You'll Know Where You Stand"
-  }
-  // NOTE: Benchmarking & Hidden Value Analysis is ONE COMBINED service at £2,000
-  // This includes both industry benchmarking AND hidden value audit
-  // DO NOT list these as separate line items
-};
-
-// Outcome mappings (destination-focused language)
-const SERVICE_OUTCOMES: Record<string, string> = {
-  'management_accounts': "You'll Know Your Numbers",
-  'systems_audit': "You'll See Where The Time Goes",
-  '365_method': "You'll Have Someone In Your Corner",
-  'automation': "The Manual Work Disappears",
-  'fractional_cfo': "You'll Have Strategic Financial Leadership",
-  'fractional_coo': "Someone Else Carries The Load",
-  'combined_advisory': "Complete Business Transformation",
-  'business_advisory': "You'll Know What It's Worth",
-  'benchmarking': "You'll Know Where You Stand",  // Includes Hidden Value Analysis
-};
-
-// Fetch service details from database, falling back to defaults
-async function fetchServiceDetails(supabase: any, practiceId?: string): Promise<Record<string, ServiceDetail>> {
-  try {
-    // First try the new service_pricing table if we have a practice ID
-    if (practiceId) {
-      const { data: pricingData, error: pricingError } = await supabase
-        .rpc('get_service_pricing', { p_practice_id: practiceId });
-      
-      if (!pricingError && pricingData && Object.keys(pricingData).length > 0) {
-        console.log('Using service pricing from database for practice:', practiceId);
-        
-        const serviceDetails: Record<string, ServiceDetail> = {};
-        
-        for (const [code, service] of Object.entries(pricingData as Record<string, any>)) {
-          const primaryTier = service.tiers?.[0];
-          if (primaryTier) {
-            const priceType = primaryTier.frequency === 'monthly' ? 'monthly' 
-              : primaryTier.frequency === 'annual' ? 'annual' 
-              : 'one-time';
-            
-            serviceDetails[code] = {
-              name: service.name,
-              price: `£${primaryTier.price.toLocaleString()}`,
-              priceType,
-              outcome: SERVICE_OUTCOMES[code] || DEFAULT_SERVICE_DETAILS[code]?.outcome || 'Business Transformation'
-            };
-          }
-        }
-        
-        // Merge with defaults for any missing services
-        return { ...DEFAULT_SERVICE_DETAILS, ...serviceDetails };
-      }
-    }
-    
-    // Fallback to service_line_metadata table
-    const { data, error } = await supabase
-      .from('service_line_metadata')
-      .select('code, display_name, name, pricing')
-      .eq('status', 'ready');
-    
-    if (error || !data) {
-      console.log('Using default service details (DB fetch failed):', error?.message);
-      return DEFAULT_SERVICE_DETAILS;
-    }
-    
-    const serviceDetails: Record<string, ServiceDetail> = {};
-    
-    for (const service of data) {
-      const code = service.code;
-      const pricing = service.pricing?.[0]; // Get primary pricing tier
-      
-      if (pricing) {
-        const priceType = pricing.frequency === 'monthly' ? 'monthly' 
-          : pricing.frequency === 'annual' ? 'annual' 
-          : 'one-time';
-        
-        serviceDetails[code] = {
-          name: service.display_name || service.name,
-          price: `£${pricing.amount.toLocaleString()}`,
-          priceType,
-          outcome: SERVICE_OUTCOMES[code] || DEFAULT_SERVICE_DETAILS[code]?.outcome || 'Business Transformation'
-        };
-      } else if (DEFAULT_SERVICE_DETAILS[code]) {
-        serviceDetails[code] = DEFAULT_SERVICE_DETAILS[code];
-      }
-    }
-    
-    // Merge with defaults for any missing services
-    return { ...DEFAULT_SERVICE_DETAILS, ...serviceDetails };
-  } catch (err) {
-    console.error('Error fetching service details:', err);
-    return DEFAULT_SERVICE_DETAILS;
-  }
-}
-
-// ============================================================================
 // DATA COMPLETENESS CHECKER
 // ============================================================================
 
@@ -848,94 +747,6 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // SERVICE CATALOG - CANONICAL SERVICE DEFINITIONS
-    // LLM selects which services are relevant, but cannot change names/prices
-    // ========================================================================
-    
-    interface ServiceLine {
-      id: string;
-      name: string;
-      displayName: string;
-      price: number;
-      priceFormatted: string;
-      tier: string;
-      description: string;
-      keywords: string[];
-    }
-    
-    const SERVICE_CATALOG: Record<string, ServiceLine> = {
-      'benchmarking': {
-        id: 'benchmarking',
-        name: 'Industry Benchmarking',
-        displayName: 'Industry Benchmarking (Full Package)',
-        price: 2000,
-        priceFormatted: '£2,000',
-        tier: 'foundation',
-        description: 'Valuation baseline and hidden value identification',
-        keywords: ['benchmark', 'valuation', 'hidden value', 'what its worth', 'baseline', 'industry']
-      },
-      'goal_alignment_growth': {
-        id: 'goal_alignment_growth',
-        name: 'Goal Alignment Programme',
-        displayName: 'Goal Alignment Programme (Growth)',
-        price: 4500,
-        priceFormatted: '£4,500',
-        tier: 'growth',
-        description: 'Quarterly accountability and strategic support',
-        keywords: ['goal alignment', 'accountability', 'co-pilot', 'corner', 'support', 'growth']
-      },
-      'goal_alignment_scale': {
-        id: 'goal_alignment_scale',
-        name: 'Goal Alignment Programme',
-        displayName: 'Goal Alignment Programme (Scale)',
-        price: 7500,
-        priceFormatted: '£7,500',
-        tier: 'scale',
-        description: 'Intensive strategic partnership',
-        keywords: ['scale', 'intensive', 'transformation']
-      },
-      'systems_audit': {
-        id: 'systems_audit',
-        name: 'Systems & Process Audit',
-        displayName: 'Systems & Process Audit',
-        price: 3500,
-        priceFormatted: '£3,500',
-        tier: 'foundation',
-        description: 'Operational efficiency analysis',
-        keywords: ['systems', 'process', 'efficiency', 'automation', 'audit']
-      },
-      'ma_monthly': {
-        id: 'ma_monthly',
-        name: 'Management Accounts',
-        displayName: 'Management Accounts (Monthly)',
-        price: 500,
-        priceFormatted: '£500/month',
-        tier: 'ongoing',
-        description: 'Monthly financial reporting and insights',
-        keywords: ['management accounts', 'monthly', 'reporting', 'financials']
-      },
-      'fractional_cfo': {
-        id: 'fractional_cfo',
-        name: 'Fractional CFO',
-        displayName: 'Fractional CFO',
-        price: 2500,
-        priceFormatted: '£2,500/month',
-        tier: 'strategic',
-        description: 'Part-time strategic finance leadership',
-        keywords: ['cfo', 'finance director', 'strategic finance', 'fractional']
-      },
-      'exit_planning': {
-        id: 'exit_planning',
-        name: 'Exit Planning',
-        displayName: 'Exit Planning & Preparation',
-        price: 5000,
-        priceFormatted: '£5,000',
-        tier: 'strategic',
-        description: 'Comprehensive exit strategy development',
-        keywords: ['exit', 'sale', 'succession', 'planning']
-      }
-    };
-    
     // ========================================================================
     // NON-NEGOTIABLE CONSTANTS - SYSTEM DEFINES, LLM CANNOT OVERRIDE
     // ========================================================================
@@ -957,56 +768,102 @@ serve(async (req) => {
         followsOnHoliday: "staff issues keep finding you, even on holiday"
       }
     };
-    
-    // ========================================================================
-    // SERVICE MATCHING FUNCTIONS
-    // ========================================================================
-    
-    function matchServiceToCatalog(llmServiceName: string): ServiceLine | null {
-      if (!llmServiceName) return null;
-      const normalized = llmServiceName.toLowerCase();
-      
-      // Direct match by keywords
-      for (const [id, service] of Object.entries(SERVICE_CATALOG)) {
-        for (const keyword of service.keywords) {
-          if (normalized.includes(keyword)) {
-            return service;
+
+    function cleanJourneyPhases(journeyData: any, clientTurnover?: number): any {
+      if (!journeyData) return journeyData;
+
+      const phases = journeyData.phases ||
+        [journeyData.phase1, journeyData.phase2, journeyData.phase3].filter(Boolean);
+
+      if (!phases || !Array.isArray(phases) || phases.length === 0) {
+        console.log('[Pass2] cleanJourneyPhases: no phases found');
+        return journeyData;
+      }
+
+      console.log(`[Pass2] cleanJourneyPhases: processing ${phases.length} phases`);
+
+      phases.forEach((phase: any, index: number) => {
+        const fieldNames = ['enabledBy', 'enabled_by', 'service', 'serviceLine', 'enabledByService'];
+        let fieldName: string | null = null;
+        let currentValue = '';
+
+        for (const fn of fieldNames) {
+          if (phase[fn] && typeof phase[fn] === 'string') {
+            fieldName = fn;
+            currentValue = phase[fn];
+            break;
           }
         }
-      }
-      
-      // Fallback: fuzzy match on name
-      for (const [id, service] of Object.entries(SERVICE_CATALOG)) {
-        const firstWord = service.name.toLowerCase().split(' ')[0];
-        if (normalized.includes(firstWord)) {
-          return service;
+
+        if (!fieldName) return;
+
+        console.log(`[Pass2] Phase ${index} BEFORE: ${currentValue}`);
+
+        const rawCode = phase.enabledByCode || detectServiceCode(currentValue);
+        const code = rawCode ? resolveServiceCode(rawCode) : null;
+
+        if (code && SERVICE_REGISTRY[code]) {
+          const isDeferred = index > 0;
+          const tierName = phase.tier || phase.tierName || undefined;
+
+          const replacement = getEnabledByString(code, {
+            tierName,
+            turnover: clientTurnover,
+            deferred: isDeferred,
+          });
+
+          phase[fieldName] = replacement;
+          phase.enabledByCode = code;
+          console.log(`[Pass2] Phase ${index} AFTER: ${replacement}`);
+        } else {
+          console.log(`[Pass2] Phase ${index}: could not detect service from "${currentValue}"`);
         }
-      }
-      
-      console.warn(`[Pass2] ⚠️ Could not match service: "${llmServiceName}"`);
-      return null;
-    }
-    
-    function enforceServiceCatalog(journeyPhases: any[]): any[] {
-      if (!journeyPhases || !Array.isArray(journeyPhases)) return journeyPhases;
-      
-      return journeyPhases.map(phase => {
-        const serviceText = phase.enabledBy || phase.service || phase.serviceName || '';
-        const matched = matchServiceToCatalog(serviceText);
-        
-        if (matched) {
-          console.log(`[Pass2] ✅ Matched "${serviceText}" → ${matched.displayName} (${matched.priceFormatted})`);
-          return {
-            ...phase,
-            enabledBy: matched.displayName,
-            service: matched.name,
-            serviceId: matched.id,
-            price: matched.priceFormatted  // Use formatted string for display
-          };
-        }
-        
-        return phase;
       });
+
+      if (journeyData.phases) {
+        journeyData.phases = phases;
+      }
+
+      return journeyData;
+    }
+
+    // Brute-force: clean "Enabled by:" lines in JSON string (narrative text or standalone fields)
+    function cleanAllEnabledByStrings(jsonStr: string): string {
+      const cleanups: [RegExp, string][] = [
+        [/Enabled by:\s*Industry Benchmarking[^"\\]*/g,
+         'Enabled by: Industry Benchmarking (Full Package) (£2,000)'],
+        [/Enabled by:\s*Systems\s*(?:&|and)\s*Process Audit[^"\\]*/g,
+         'Enabled by: Systems & Process Audit (£2,000 — when ready)'],
+        [/Enabled by:\s*Goal Alignment Programme[^"\\]*/g,
+         'Enabled by: Goal Alignment Programme (Growth) (£4,500/year — when ready)'],
+      ];
+      let cleaned = jsonStr;
+      for (const [pattern, replacement] of cleanups) {
+        cleaned = cleaned.replace(pattern, replacement);
+      }
+      return cleaned;
+    }
+
+    // Nuclear option: remove duplicate "when ready" from entire JSON before save
+    function cleanWhenReadyStutter(obj: any): any {
+      if (!obj) return obj;
+      try {
+        const jsonStr = JSON.stringify(obj);
+        let cleaned = jsonStr
+          .replace(/\(When ready\)\s*\(when ready\)\s*\(When ready\s*\(When ready\)\)/gi, '— when ready)')
+          .replace(/\(£[\d,]+(?:\/year)?\s*—\s*when ready\)\s*\(£[\d,]+(?:\/year)?\s*—\s*when ready\)/gi, (match: string) => {
+            const first = match.match(/\(£[\d,]+(?:\/year)?\s*—\s*when ready\)/);
+            return first ? first[0] : '(when ready)';
+          })
+          .replace(/(\([^)]*when ready[^)]*\))\s*\([^)]*when ready[^)]*\)/gi, (match: string) => {
+            const first = match.match(/\([^)]*\)/);
+            return first ? first[0] : '(when ready)';
+          });
+        return JSON.parse(cleaned);
+      } catch (e) {
+        console.warn('[Pass2] cleanWhenReadyStutter parse failed:', e);
+        return obj;
+      }
     }
     
     // ========================================================================
@@ -1111,7 +968,7 @@ serve(async (req) => {
     }
 
     console.log('[Pass2] Starting for engagement:', engagementId);
-    console.log('[Pass2] 📋 Loaded service catalog:', Object.keys(SERVICE_CATALOG).length, 'services');
+    console.log('[Pass2] 📋 Service registry:', Object.keys(SERVICE_REGISTRY).length, 'services');
     const startTime = Date.now();
 
     // Update status
@@ -1158,10 +1015,7 @@ serve(async (req) => {
     console.log(`[Pass2] Advisor pinned services: ${pinnedServices.join(', ') || 'none'}`);
     console.log(`[Pass2] Advisor blocked services: ${blockedServicesFromAdvisor.join(', ') || 'none'}`);
 
-    // Fetch service pricing from database (single source of truth)
-    // Pass practice_id to use practice-specific pricing if available
-    const SERVICE_DETAILS = await fetchServiceDetails(supabase, engagement.practice_id);
-    console.log('[Pass2] Loaded service details for', Object.keys(SERVICE_DETAILS).length, 'services');
+    // SERVICE_DETAILS built from registry after validatedPayroll (see below)
 
     // ========================================================================
     // FETCH VALIDATED FINANCIAL DATA
@@ -1321,6 +1175,18 @@ No validated financial data available. When discussing financial figures:
 `;
       console.log('[Pass2] ⚠️ No validated financial data available - LLM should not invent figures');
     }
+
+    const clientTurnover = validatedPayroll?.turnover ?? null;
+    const SERVICE_DETAILS: Record<string, { name: string; price: string; priceType: string; outcome: string }> = {};
+    for (const code of Object.keys(SERVICE_REGISTRY)) {
+      const resolved = resolveServiceCode(code);
+      const d = getLegacyServiceDetail(resolved, clientTurnover ?? undefined);
+      if (d) SERVICE_DETAILS[resolved] = d;
+    }
+    for (const [legacy, canonical] of Object.entries(LEGACY_CODE_MAP)) {
+      if (SERVICE_DETAILS[canonical] && !SERVICE_DETAILS[legacy]) (SERVICE_DETAILS as Record<string, { name: string; price: string; priceType: string; outcome: string }>)[legacy] = SERVICE_DETAILS[canonical];
+    }
+    console.log('[Pass2] Loaded service details from registry for', Object.keys(SERVICE_DETAILS).length, 'services');
 
     // Fetch Pass 1 results
     const { data: report, error: reportError } = await supabase
@@ -1814,6 +1680,15 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
         };
       }
     }
+    // Override: Systems & Process Audit is always £2,000 (Tier 1) — correct any £1,500 from legacy/DB
+    if (pass1ServicePrices['systems_audit']) {
+      const p = pass1ServicePrices['systems_audit'].price || '';
+      if (/1[,.]?500|£1\s*,?\s*500/i.test(p)) {
+        pass1ServicePrices['systems_audit'].price = '£2,000';
+        console.log('[Pass2] 📊 Overrode systems_audit price to £2,000 (was ', p, ')');
+      }
+    }
+    console.log('[Pass2] Systems Audit price after override:', pass1ServicePrices['systems_audit']?.price ?? 'no systems_audit in pass1ServicePrices');
     
     console.log('[Pass2] 📊 Pass 1 Service Decisions (MUST USE THESE PRICES):');
     Object.entries(pass1ServicePrices).forEach(([code, info]) => {
@@ -2062,6 +1937,16 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       }
     }
     console.log(`[Pass2] Final recommended services: ${recommendedServices.map((s: { code: string }) => s.code).join(', ')}`);
+    // Force Systems Audit to £2,000 on recommendedServices (DB/pass1 may have £1,500)
+    for (const service of recommendedServices) {
+      const code = (service as { code?: string }).code;
+      if (code === 'systems_audit' || code === 'systems_and_process') {
+        (service as { price?: string }).price = '£2,000';
+        (service as { price_amount?: number }).price_amount = 2000;
+        console.log('[Pass2] Forced Systems Audit price to £2,000 on recommendedServices');
+      }
+    }
+    console.log('[Pass2] Service prices being sent to LLM:', recommendedServices.map((s: { code?: string; price?: string }) => `${(s as { code?: string }).code}: ${(s as { price?: string }).price ?? 'no price'}`));
 
     // Build context from notes
     const contextSection = contextNotes?.length 
@@ -2352,7 +2237,7 @@ CRITICAL: This client is cash-strapped. Maximum initial investment recommendatio
 RULES:
 1. The transformation journey's FIRST step must cost ≤ £${frameworkOverrides.maxRecommendedInvestment}
 2. The total "to start" investment shown in the Investment Summary must be ≤ £${frameworkOverrides.maxRecommendedInvestment}
-3. Subsequent steps can be presented as "when cash flow allows" or "Phase 2 — when ready" but should NOT be included in the headline investment figure
+3. Subsequent steps can be presented as "when cash flow allows" or as Phase 2/3 next steps but should NOT be included in the headline investment figure
 4. Present only the first step as the commitment. Any additional services should be positioned as future phases, not upfront commitments.
 
 EXAMPLE: If benchmarking (£2,000) is the first step and fits within a £3,000 cap, present it as the initial commitment. The £4,500 365 programme should be presented as "Phase 2 — when the benchmarking data confirms the path."
@@ -2469,6 +2354,68 @@ PHASE 2 (Month 3-12+): GOAL ALIGNMENT - The 3-Year Exit Plan
 YOUR TASK - Generate a 5-page Destination-Focused Report
 ============================================================================
 
+PAGE 3 — THE PATH FORWARD (Journey Phases):
+
+CRITICAL RULES FOR JOURNEY PHASES:
+1. Each recommended service gets its OWN dedicated phase. Do NOT bundle deliverables from one service into another service's phase.
+2. Only describe deliverables that the named service actually provides. Benchmarking provides financial comparisons and competitive data. It does NOT provide systems mapping, process audits, or operational reviews.
+3. Systems & Process Audit is a SEPARATE service that maps operational systems, identifies manual processes, and creates delegation plans. If it's in the recommended services, it MUST have its own phase.
+4. Phase 1 is the only phase with a firm price. Phases 2 and 3 are offered as next steps when the client is ready.
+5. The "Enabled by:" line at the bottom of each phase must name exactly ONE service with its exact catalog name and price.
+
+ENABLED BY FORMAT (use EXACTLY — do not add extra "when ready" tags):
+- Phase 1: "Enabled by: [Service Name] (£X,XXX)"
+- Phase 2: "Enabled by: [Service Name] (£X,XXX — when ready)"
+- Phase 3: "Enabled by: [Service Name] (£X,XXX/year — when ready)"
+Output ONE "when ready" per line maximum. Never repeat it.
+
+PHASE STRUCTURE (when 3 services are recommended):
+- Phase 1 (Month 1-3): First service — firm commitment, specific price
+- Phase 2 (Month 3-6): Second service — specific price, marked as when ready
+- Phase 3 (Month 6-12): Third service — specific price, marked as when ready
+
+DELIVERABLE BOUNDARIES:
+- Benchmarking delivers: financial benchmarks against industry peers, competitive positioning, revenue/margin/productivity comparisons, baseline valuation, data for key decisions
+- Systems Audit delivers: operational system mapping, process documentation, single-point-of-failure identification, delegation planning, manual vs automated assessment, handoff readiness
+- Goal Alignment delivers: quarterly roadmap with milestones, strategic support, exit planning, growth planning, accountability, ongoing advisory relationship
+
+Do NOT mix these. If a bullet point describes "mapping operational systems" or "where time disappears", that belongs in the Systems Audit phase, NOT the Benchmarking phase.
+
+PAGE 4 — THE INVESTMENT:
+
+MANDATORY PRICING (these override any other prices you see in the data):
+- Systems & Process Audit: £2,000 (NOT £1,500 — this has been updated)
+- Industry Benchmarking (Full Package): £2,000
+- Goal Alignment Programme (Growth): £4,500/year
+
+EXACT SERVICE PRICING (use these figures, do not invent prices):
+- Industry Benchmarking (Full Package): £2,000 (one-off)
+- Systems & Process Audit: £2,000 (one-off)
+- Goal Alignment Programme (Growth): £4,500/year (ongoing)
+
+PRICING RULES:
+1. Total Year 1 cost should reflect ONLY the firm Phase 1 commitment (e.g., £2,000), NOT the sum of all phases. The client is committing to Phase 1 only. Phases 2 and 3 are next steps.
+2. List each phase with its price; phases 2+ are offered when the client is ready.
+3. The "first step" price in Page 5 must match the Phase 1 price exactly.
+4. Do NOT bundle Phase 1 + Phase 2 into a single price. They are separate engagements.
+
+Example format:
+- Months 1-3: Know where you stand — £2,000
+- Months 3-6: See where the time goes — £2,000 (when ready)
+- Months 6-12: Someone in your corner — £4,500/year (when ready)
+- Total Year 1 commitment: £2,000
+
+PAGE 5 — NEXT STEPS:
+
+The "Your First Step" section must recommend ONLY the Phase 1 service.
+Do NOT bundle Phase 1 + Phase 2 into the first step.
+The price in the call-to-action must match Phase 1's price exactly.
+
+If Phase 1 is Benchmarking at £2,000, the CTA should be "£2,000 to know where you stand" — NOT "£3,500 for benchmarking and systems audit."
+
+The systems audit comes AFTER the client has seen the benchmarking results and decided to proceed. Bundling them together undermines the "start small, prove value" approach.
+
+============================================================================
 PAGE 1 — YOUR VISION / THE TUESDAY:
 Write this section in FIRST PERSON using the client's own words as much as possible.
 The client described their ideal Tuesday in their own voice — preserve that voice.
@@ -3063,7 +3010,13 @@ Before returning, verify:
       // Fix page4_numbers.investment array
       if (narratives.page4_numbers?.investment) {
         console.log('[Pass2] Fixing page4_numbers.investment items...');
-        
+        for (const inv of narratives.page4_numbers.investment) {
+          const text = `${inv.amount || ''} ${inv.whatYouGet || ''} ${inv.phase || ''}`.toLowerCase();
+          if ((text.includes('time goes') || text.includes('systems') || text.includes('audit')) && /1[,.]?500|£1\s*,?\s*500/.test(String(inv.amount || ''))) {
+            inv.amount = '£2,000';
+            console.log('[Pass2]   ✓ Overrode Systems Audit amount to £2,000 in page4 investment');
+          }
+        }
         for (let i = 0; i < narratives.page4_numbers.investment.length; i++) {
           const inv = narratives.page4_numbers.investment[i];
           const searchText = `${inv.phase || ''} ${inv.service || ''} ${inv.whatYouGet || ''} ${inv.description || ''}`.toLowerCase();
@@ -3172,22 +3125,17 @@ Before returning, verify:
     // LLM selects which services are relevant, but system defines names/prices
     // ========================================================================
     if (narratives.page3_journey?.phases) {
-      console.log('[Pass2] 🔧 Enforcing service catalog on journey phases...');
-      narratives.page3_journey.phases = enforceServiceCatalog(narratives.page3_journey.phases);
-      
-      // Recalculate total from enforced prices
-      const totalPrice = narratives.page3_journey.phases.reduce((sum: number, phase: any) => {
-        const priceStr = phase.price || '';
-        const match = priceStr.match(/[\d,]+/);
-        return sum + (match ? parseInt(match[0].replace(/,/g, ''), 10) : 0);
-      }, 0);
-      
-      if (totalPrice > 0) {
-        const formattedTotal = `£${totalPrice.toLocaleString()}`;
-        if (narratives.page4_numbers) {
-          narratives.page4_numbers.totalYear1 = formattedTotal;
-        }
-        console.log('[Pass2] ✅ Recalculated total investment:', formattedTotal);
+      console.log('[Pass2] 🔧 Normalising journey phases from registry...');
+      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey, clientTurnover ?? undefined);
+      // Total Year 1 = Phase 1 commitment only (phases 2+ are "when ready")
+      const firstPhase = narratives.page3_journey.phases[0];
+      const firstPriceStr = firstPhase?.price || firstPhase?.investmentAmount || '';
+      const firstPriceMatch = firstPriceStr.match(/[\d,]+/);
+      const firstPhasePrice = firstPriceMatch ? parseInt(firstPriceMatch[0].replace(/,/g, ''), 10) : 0;
+      if (firstPhasePrice > 0 && narratives.page4_numbers) {
+        narratives.page4_numbers.totalYear1 = `£${firstPhasePrice.toLocaleString()}`;
+        narratives.page4_numbers.toStartTheJourney = `£${firstPhasePrice.toLocaleString()}`;
+        console.log('[Pass2] ✅ Total Year 1 commitment (Phase 1 only):', narratives.page4_numbers.totalYear1);
       }
     }
     
@@ -3275,13 +3223,13 @@ Before returning, verify:
           // Subsequent phases: mark as deferred, remove price from commitment
           phase.deferred = true;
           phase.deferredReason = 'Phase 2 — when cash flow allows';
-          // Keep the service name but add "(when ready)" to the enabled-by text
+          // Mark as deferred; cleanJourneyPhases will normalize enabledBy to " (£X — when ready)"
           if (phase.enabledBy && !phase.enabledBy.includes('when ready')) {
-            phase.enabledBy = phase.enabledBy.replace(/\(£[\d,]+\)/, '(when ready)');
+            const priceMatch = (phase.price || '').match(/£[\d,]+/);
+            phase.enabledBy = priceMatch ? phase.enabledBy.replace(/\(£[\d,]+\)/, `(${priceMatch[0]} — when ready)`) : phase.enabledBy + ' — when ready';
           }
-          // Also update the price field to show "when ready"
           if (phasePrice > 0) {
-            phase.price = phase.price?.replace(/£[\d,]+/, 'When ready') || 'When ready';
+            phase.price = phase.price?.replace(/£[\d,]+/, (m: string) => m + ' — when ready') || 'When ready';
             phase.investmentAmount = 'When ready';
           }
           console.log(`[Pass2] 💰 Deferred phase ${i + 1}: ${phase.title || phase.headline} — exceeds investment cap`);
@@ -3629,6 +3577,16 @@ Before returning, verify:
       page2_gapsCount: narratives.page2_gaps?.gaps?.length,
       page5_hasThisWeek: !!narratives.page5_nextSteps?.thisWeek
     });
+
+    // Final cleanup: remove any duplicate "when ready" stutter in full payload before save
+    narratives = cleanWhenReadyStutter(narratives);
+    if (narratives?.page3_journey) {
+      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey, clientTurnover ?? undefined);
+    }
+    // Brute-force: clean any "Enabled by:" stutter in the entire JSON before save
+    const reportJsonStr = JSON.stringify(narratives);
+    const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
+    narratives = JSON.parse(cleanedStr);
 
     // Update report with Pass 2 results
     console.log('[Pass2] 📝 Final headline being saved:', narratives.meta?.headline);
