@@ -109,13 +109,10 @@ export function JourneyPhaseCard({
             "{phase.whatChanges}"
           </p>
           
-          {/* Enabled by - the plane (small, footnote-style) */}
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          {/* Enabled by — full string already includes price */}
+          <div className="text-sm text-gray-500">
             <span>
               Enabled by: <span className="font-medium text-gray-700">{phase.enabledBy}</span>
-            </span>
-            <span className="font-semibold text-gray-700">
-              {phase.investment}
             </span>
           </div>
         </div>
@@ -229,9 +226,8 @@ export function HorizontalJourneyView({
               <p className="text-sm text-gray-600 mb-3 line-clamp-3">{phase.youWillHave}</p>
               <p className="text-xs text-emerald-600 italic mb-2">"{phase.whatChanges}"</p>
               
-              <div className="pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-500">
+              <div className="pt-3 border-t border-gray-100 text-xs text-gray-500">
                 <span>{phase.enabledBy}</span>
-                <span className="font-semibold">{phase.investment}</span>
               </div>
             </div>
             

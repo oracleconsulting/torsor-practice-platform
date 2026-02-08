@@ -2520,6 +2520,8 @@ function DiscoveryClientModal({
         console.warn(`⚠️ Filtered out ${(docsData || []).length - validDocs.length} documents with mismatched client_id for client ${clientId}`);
       }
 
+      let documentsToSet: any[] = validDocs || [];
+
       // Fetch currently assigned services
       const { data: assignedServices } = await supabase
         .from('client_service_lines')
@@ -2609,6 +2611,21 @@ function DiscoveryClientModal({
         } else {
           setSpecialistOpportunities([]);
         }
+
+        // Unified upload list: include client_accounts_uploads for this engagement (financials)
+        const { data: accountsUploads } = await supabase
+          .from('client_accounts_uploads')
+          .select('id, file_name, status, created_at')
+          .eq('engagement_id', discoveryEngagementData.id)
+          .order('created_at', { ascending: false });
+        const accountsAsDocs = (accountsUploads || []).map((u: any) => ({
+          id: u.id,
+          client_id: clientId,
+          content: `Financial: ${u.file_name}${u.status ? ` (${u.status})` : ''}`,
+          created_at: u.created_at,
+          from_accounts: true
+        }));
+        documentsToSet = [...accountsAsDocs, ...validDocs];
       }
 
       // Add maDocuments to client data for display
@@ -2620,8 +2637,7 @@ function DiscoveryClientModal({
       
       setClient(clientWithMADocs);
       setDiscovery(discoveryData);
-      // Use validated documents (filtered by email match)
-      setDocuments(validDocs || []);
+      setDocuments(documentsToSet);
       setAnalysisNotes(discoveryData?.analysis_notes || '');
       setSelectedServices(assignedServices?.map((s: any) => s.service_lines?.code).filter(Boolean) || []);
       
@@ -3138,91 +3154,107 @@ function DiscoveryClientModal({
     }
   };
 
-  // Handle document upload
+  // Handle document upload (unified path for financials → client_accounts_uploads → client_financial_data)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0 || !client?.practice_id) return;
+    const practiceId = client?.practice_id ?? discoveryEngagement?.practice_id;
+    if (files.length === 0 || !practiceId) return;
 
     console.log('📤 Starting file upload:', {
       clientId,
-      practiceId: client.practice_id,
-      clientEmail: client.email,
+      practiceId,
+      engagementId: discoveryEngagement?.id,
       fileCount: files.length
     });
 
     setUploading(true);
     try {
       for (const file of files) {
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        const isFinancial = ['pdf', 'csv', 'xlsx', 'xls'].includes(ext);
+
+        // Unified path: financial files go to upload-client-accounts → client_financial_data (one place)
+        if (isFinancial && discoveryEngagement?.id && discoveryEngagement?.client_id) {
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              resolve(result.includes(',') ? result.split(',')[1]! : result);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const { data, error } = await supabase.functions.invoke('upload-client-accounts', {
+            body: {
+              clientId: discoveryEngagement.client_id,
+              practiceId: discoveryEngagement.practice_id ?? practiceId,
+              fileName: file.name,
+              fileType: ext,
+              fileSize: file.size,
+              fileBase64: base64,
+              engagementId: discoveryEngagement.id,
+              source: 'discovery',
+            },
+          });
+          if (error) throw error;
+          if (data && !data.success) throw new Error(data.error || 'Upload failed');
+          console.log('📤 Financial file uploaded via unified path:', file.name);
+          continue;
+        }
+
+        // Legacy path: non-financial or no engagement → client-documents + client_context + process-documents
         const timestamp = Date.now();
         const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const storagePath = `${client.practice_id}/${clientId}/${timestamp}_${safeFileName}`;
-        
+        const storagePath = `${practiceId}/${clientId}/${timestamp}_${safeFileName}`;
+
         console.log('📤 Uploading file:', file.name, 'to path:', storagePath);
-        
+
         const { error: uploadError } = await supabase.storage
           .from('client-documents')
           .upload(storagePath, file);
-        
+
         if (uploadError) throw uploadError;
-        
-        // Get public URL
+
         const { data: urlData } = supabase.storage
           .from('client-documents')
           .getPublicUrl(storagePath);
-        
-        // Save to client_context
-        // CRITICAL: Validate client_id before inserting document
-        console.log('📤 Verifying client_id before insert:', clientId);
-        const { data: clientVerify, error: verifyError } = await supabase
+
+        const { data: clientVerify } = await supabase
           .from('practice_members')
           .select('id, email, user_id')
           .eq('id', clientId)
           .single();
-        
-        console.log('📤 Client verification result:', clientVerify, verifyError);
-        
+
         if (!clientVerify) {
           console.error('❌ Client verification FAILED for clientId:', clientId);
           throw new Error(`Invalid client_id: ${clientId}. Cannot upload document.`);
         }
-        
-        console.log('✅ Client verified:', clientVerify.email);
-        
-        // CRITICAL: Verify storage path matches client_id
-        // Storage path format: practice_id/client_id/filename
-        const expectedPathPrefix = `${client.practice_id}/${clientId}/`;
+
+        const expectedPathPrefix = `${practiceId}/${clientId}/`;
         if (!storagePath.startsWith(expectedPathPrefix)) {
-          console.error(`CRITICAL: Storage path ${storagePath} does not match expected prefix ${expectedPathPrefix}`);
           throw new Error(`Storage path validation failed. Expected client_id ${clientId} in path.`);
         }
-        
-        // Insert document record with placeholder content
+
         const { data: contextRecord, error: insertError } = await supabase.from('client_context').insert({
-          practice_id: client.practice_id,
-          client_id: clientId, // Verified above
+          practice_id: practiceId,
+          client_id: clientId,
           context_type: 'document',
-          content: `Uploaded: ${file.name}`, // Placeholder - will be updated by process-documents
+          content: `Uploaded: ${file.name}`,
           source_file_url: urlData.publicUrl,
           applies_to: ['discovery'],
           data_source_type: 'accounts',
           processed: false
         }).select('id').single();
-        
+
         if (insertError) {
           console.error('Error inserting document record:', insertError);
           continue;
         }
-        
-        // CRITICAL: Call process-documents to extract PDF text
-        // NOTE: For large scanned PDFs, this can take 2-3 minutes
-        // We fire-and-forget so the UI doesn't block
-        console.log('📄 Processing document for text extraction:', file.name);
-        
-        // Fire and forget - don't await, let it process in background
+
         supabase.functions.invoke('process-documents', {
           body: {
             clientId,
-            practiceId: client.practice_id,
+            practiceId,
             contextId: contextRecord?.id,
             documents: [{
               fileName: file.name,
@@ -3235,19 +3267,13 @@ function DiscoveryClientModal({
             dataSourceType: 'accounts'
           }
         }).then(({ data, error }) => {
-          if (error) {
-            console.log('Document processing still running or completed with note:', error.message);
-          } else {
-            console.log('✅ Document processed successfully:', data);
-          }
+          if (error) console.log('Document processing note:', error.message);
+          else console.log('✅ Document processed:', data);
         }).catch(() => {
-          // Expected for long-running processing - function may still complete server-side
-          console.log('Document processing running in background (may take 2-3 minutes for large PDFs)');
+          console.log('Document processing running in background');
         });
-        
-        console.log('📄 Document upload complete - text extraction running in background');
       }
-      
+
       await fetchClientDetail();
     } catch (error) {
       console.error('Error uploading file:', error);
@@ -5031,14 +5057,16 @@ function DiscoveryClientModal({
                               </p>
                             </div>
                           </div>
-                          <a
-                            href={doc.source_file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1 text-cyan-600 hover:text-cyan-700 text-sm font-medium"
-                          >
-                            View
-                          </a>
+                          {doc.source_file_url && (
+                            <a
+                              href={doc.source_file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1 text-cyan-600 hover:text-cyan-700 text-sm font-medium"
+                            >
+                              View
+                            </a>
+                          )}
                         </div>
                       ))}
                     </div>

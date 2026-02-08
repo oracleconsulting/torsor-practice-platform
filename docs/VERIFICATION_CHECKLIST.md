@@ -2,6 +2,8 @@
 
 **Test Engagement**: Alex (Polar Advertising) - `6cfb2a1c-d81a-4f97-afac-98c3132f92fa`
 
+**Unified upload (financials in one place):** To verify Alex’s (or any engagement’s) data is in `client_accounts_uploads` and `client_financial_data`, run the SQL in [UNIFIED_UPLOAD_CHECK.md](./UNIFIED_UPLOAD_CHECK.md) in the Supabase SQL Editor.
+
 ---
 
 ## ✅ DEPLOYMENT STATUS

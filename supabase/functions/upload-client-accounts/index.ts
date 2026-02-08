@@ -14,6 +14,9 @@ interface UploadRequest {
   fileSize: number;
   fileBase64: string;
   fiscalYear?: number;
+  /** When uploaded from Discovery report — links upload to engagement for one document list */
+  engagementId?: string;
+  source?: string; // 'discovery' | 'upload' (default)
 }
 
 serve(async (req) => {
@@ -28,7 +31,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: UploadRequest = await req.json();
-    const { clientId, practiceId, fileName, fileType, fileSize, fileBase64, fiscalYear } = body;
+    const { clientId, practiceId, fileName, fileType, fileSize, fileBase64, fiscalYear, engagementId, source } = body;
 
     console.log(`[Accounts Upload] Starting upload for client ${clientId}`);
     console.log(`[Accounts Upload] File: ${fileName} (${fileType}, ${fileSize} bytes)`);
@@ -94,7 +97,7 @@ serve(async (req) => {
       throw storageError;
     }
 
-    // Create upload record
+    // Create upload record (single table for Discovery + Benchmarking + any flow)
     const { data: uploadRecord, error: dbError } = await supabase
       .from('client_accounts_uploads')
       .insert({
@@ -105,7 +108,9 @@ serve(async (req) => {
         file_size: fileSize,
         storage_path: storagePath,
         status: 'pending',
-        fiscal_year: fiscalYear || null
+        fiscal_year: fiscalYear ?? null,
+        engagement_id: engagementId ?? null,
+        source: source ?? 'upload'
       })
       .select()
       .single();

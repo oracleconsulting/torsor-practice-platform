@@ -259,14 +259,22 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
         
         setContextNotes(notesData || []);
 
-        // Fetch documents
-        const { data: docsData } = await supabase
+        // Fetch documents: unified list from client_accounts_uploads (financial) + discovery_uploaded_documents (other)
+        const { data: accountsUploads } = await supabase
+          .from('client_accounts_uploads')
+          .select('id, file_name, file_type, status, created_at')
+          .eq('engagement_id', engagementData.id)
+          .order('created_at', { ascending: false });
+        const { data: legacyDocs } = await supabase
           .from('discovery_uploaded_documents')
           .select('*')
           .eq('engagement_id', engagementData.id)
           .order('uploaded_at', { ascending: false });
-        
-        setDocuments(docsData || []);
+        const merged = [
+          ...(accountsUploads || []).map((u: any) => ({ id: u.id, filename: u.file_name, document_type: 'Financial data', uploaded_at: u.created_at, status: u.status, from_accounts: true })),
+          ...(legacyDocs || []).map((d: any) => ({ ...d, document_type: d.document_type || 'Document', from_accounts: false }))
+        ].sort((a: any, b: any) => new Date(b.uploaded_at || b.created_at).getTime() - new Date(a.uploaded_at || a.created_at).getTime());
+        setDocuments(merged);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -632,18 +640,50 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!engagement || !event.target.files?.length) return;
-    
+
+    const file = event.target.files[0];
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const isFinancial = ['pdf', 'csv', 'xlsx', 'xls'].includes(ext);
+
     setUploading(true);
     try {
-      const file = event.target.files[0];
+      if (isFinancial && engagement.client_id && engagement.practice_id) {
+        // Unified path: one table (client_accounts_uploads), one processor, one data store (client_financial_data)
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.includes(',') ? result.split(',')[1]! : result);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const { data, error } = await supabase.functions.invoke('upload-client-accounts', {
+          body: {
+            clientId: engagement.client_id,
+            practiceId: engagement.practice_id,
+            fileName: file.name,
+            fileType: ext,
+            fileSize: file.size,
+            fileBase64: base64,
+            engagementId: engagement.id,
+            source: 'discovery',
+          },
+        });
+
+        if (error) throw error;
+        if (data && !data.success) throw new Error(data.error || 'Upload failed');
+        await fetchData();
+        return;
+      }
+
+      // Non-financial or fallback: legacy discovery document storage (display only)
       const filePath = `${engagement.id}/${Date.now()}_${file.name}`;
-      
       const { error: uploadError } = await supabase.storage
         .from('discovery-documents')
         .upload(filePath, file);
-
       if (uploadError) throw uploadError;
-
       const { error: insertError } = await supabase
         .from('discovery_uploaded_documents')
         .insert({
@@ -655,9 +695,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
           uploaded_by: user?.id,
           is_for_ai_analysis: true
         });
-
       if (insertError) throw insertError;
-      
       await fetchData();
     } catch (error: any) {
       alert(`Error uploading: ${error.message}`);
@@ -1291,8 +1329,8 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                         <div className="mt-4 pt-4 border-t border-slate-100">
                           <EnabledByLink
                             serviceCode={getServiceCode(phase.enabledBy, phase.enabledByCode)}
-                            serviceName={getDisplayName(phase.enabledBy)}
-                            price={phase.price || phase.investment}
+                            serviceName={phase.enabledBy}
+                            price=""
                           />
                         </div>
                       )}
@@ -1853,7 +1891,12 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                           <FileText className="h-5 w-5 text-blue-500" />
                           <div>
                             <p className="font-medium">{doc.filename}</p>
-                            <p className="text-sm text-gray-500">{doc.document_type}</p>
+                            <p className="text-sm text-gray-500">
+                              {doc.document_type}
+                              {doc.from_accounts && doc.status && (
+                                <span className="ml-2 text-xs text-gray-400">({doc.status})</span>
+                              )}
+                            </p>
                           </div>
                         </div>
                       </div>

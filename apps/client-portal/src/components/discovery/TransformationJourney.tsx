@@ -174,19 +174,16 @@ export function JourneyPhaseCard({
             "{phase.whatChanges}"
           </p>
           
-          {/* Enabled by - CLICKABLE link to service details */}
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          {/* Enabled by — full string already includes price; clickable link to service details */}
+          <div className="text-sm text-gray-500">
             <span>
               Enabled by:{' '}
               <button
                 onClick={() => setShowServicePopup(true)}
                 className="font-medium text-teal-600 hover:text-teal-700 underline underline-offset-2 decoration-teal-300 hover:decoration-teal-500 transition-colors"
               >
-                {displayName}
+                {phase.enabledBy}
               </button>
-            </span>
-            <span className="font-semibold text-teal-600">
-              {phase.investment}
             </span>
           </div>
         </div>
