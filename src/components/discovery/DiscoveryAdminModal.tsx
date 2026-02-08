@@ -1079,15 +1079,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     if (nameLower.includes('exit')) return 'exit_planning';
     return 'discovery';
   };
-  
-  // Normalize service names
-  const getDisplayName = (name: string) => {
-    if (name.toLowerCase().includes('365 alignment') || name.toLowerCase().includes('365 method')) {
-      return 'Goal Alignment Programme';
-    }
-    return name;
-  };
-  
+
   const renderClientPreview = () => {
     const dest = report?.destination_report;
     const page1 = dest?.page1_destination || report?.page1_destination;
