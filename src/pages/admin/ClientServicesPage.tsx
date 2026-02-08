@@ -4615,13 +4615,13 @@ function DiscoveryClientModal({
               </button>
               <button
                 onClick={handlePhase3GenerateReport}
-                disabled={currentPhase !== null || (!['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '') && !(specialistOpportunities?.length > 0))}
+                disabled={currentPhase !== null || !(['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis))}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                  discoveryEngagement?.status === 'opportunities_complete' || (specialistOpportunities?.length ?? 0) > 0
+                  ['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis)
                     ? 'bg-purple-600 text-white hover:bg-purple-700'
                     : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                 } disabled:opacity-50`}
-                title="Generate the narrative report (enabled after 2. Score or when opportunities exist)"
+                title="Generate the narrative report (requires Pass 1 data: run 2. Score first)"
               >
                 {currentPhase === 3 ? (
                   <Loader2 className="w-4 h-4 animate-spin" />

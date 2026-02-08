@@ -827,6 +827,27 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ========================================================================
+    // GUARD: Refuse to generate if Pass 1 hasn't run (Phase 2 / 2. Score)
+    // ========================================================================
+    const { data: existingReport, error: reportGuardError } = await supabase
+      .from('discovery_reports')
+      .select('id, comprehensive_analysis, pass1_completed_at')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    if (reportGuardError) {
+      console.error('[Pass2] Guard: failed to load report:', reportGuardError.message);
+      throw new Error('Could not verify Pass 1 status');
+    }
+    if (!existingReport?.comprehensive_analysis && !existingReport?.pass1_completed_at) {
+      console.warn('[Pass2] Guard: Pass 1 not complete for engagement:', engagementId);
+      return new Response(
+        JSON.stringify({ error: 'Pass 1 has not completed. Run Phase 2 (Score) first.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ========================================================================
     // SERVICE CATALOG - CANONICAL SERVICE DEFINITIONS
     // LLM selects which services are relevant, but cannot change names/prices
     // ========================================================================
