@@ -5588,13 +5588,18 @@ function DiscoveryClientModal({
                                             <div className="flex items-start gap-3">
                                               <span className="text-lg">
                                                 {destinationReport.comprehensive_analysis.trajectory.trend === 'growing' ? '📈' :
-                                                 destinationReport.comprehensive_analysis.trajectory.trend === 'stable' ? '➡️' : '📉'}
+                                                 destinationReport.comprehensive_analysis.trajectory.trend === 'stable' ? '➡️' :
+                                                 destinationReport.comprehensive_analysis.trajectory.trend === 'volatile_recovering' ? '📈' : '📉'}
                                               </span>
                                               <div>
                                                 <p className="text-xs text-indigo-600 font-medium">Revenue Trend</p>
                                                 <p className="text-lg font-bold text-indigo-900">
-                                                  {destinationReport.comprehensive_analysis.trajectory.trend?.charAt(0).toUpperCase() + 
-                                                   destinationReport.comprehensive_analysis.trajectory.trend?.slice(1)}
+                                                  {destinationReport.comprehensive_analysis.trajectory.trend === 'volatile_recovering'
+                                                    ? 'Recovering — strong 2025 after 2024 loss'
+                                                    : (destinationReport.comprehensive_analysis.trajectory.trend
+                                                       ? (destinationReport.comprehensive_analysis.trajectory.trend.charAt(0).toUpperCase() +
+                                                          destinationReport.comprehensive_analysis.trajectory.trend.slice(1).replace(/_/g, ' '))
+                                                       : 'Unknown')}
                                                 </p>
                                                 {destinationReport.comprehensive_analysis.trajectory.changePercent && (
                                                   <p className="text-xs text-indigo-700 mt-1">

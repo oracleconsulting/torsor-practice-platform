@@ -895,7 +895,7 @@ function renderScenarioExplorer(data: any, config: any): string {
   const pass1 = data.pass1Data || {};
   const netMargin = pass1.net_margin ?? pass1.netMargin ?? 5;
   const netProfit = pass1.net_profit ?? pass1.netProfit ?? (revenue * (netMargin / 100));
-  const headcount = pass1.employee_count ?? pass1.employeeCount ?? Math.max(1, Math.round(revenue / 350000));
+  const headcount = pass1.employee_count ?? pass1.employeeCount ?? pass1._enriched_employee_count ?? Math.max(1, Math.round(revenue / 350000));
 
   const findByCode = (pattern: string | string[]) => {
     const patterns = Array.isArray(pattern) ? pattern : [pattern];
@@ -931,6 +931,7 @@ function renderScenarioExplorer(data: any, config: any): string {
     const netProfitImpact = additionalGrossProfit * flowThrough;
     const businessValueImpact = netProfitImpact * ebitdaMultiple;
     scenarioPanels.push(`
+      <div style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 8px;">
       <div class="margin-scenario">
         <div class="scenario-left">
           <h3>What if you improved gross margin?</h3>
@@ -970,6 +971,7 @@ function renderScenarioExplorer(data: any, config: any): string {
         <div>→ Identify and eliminate margin-diluting work</div>
         <div>→ Negotiate better terms with suppliers and subcontractors</div>
       </div>
+      </div>
     `);
   }
 
@@ -980,6 +982,7 @@ function renderScenarioExplorer(data: any, config: any): string {
   const breakEvenVolumeLoss = (1 - 1 / (1 + rateIncrease / 100)) * 100;
   const valueImpact = marginImpact * ebitdaMultiple;
   scenarioPanels.push(`
+    <div style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 8px;">
     <div class="margin-scenario pricing-scenario">
       <div class="scenario-left">
         <h3>What if you increased rates by ${rateIncrease}%?</h3>
@@ -1014,6 +1017,7 @@ function renderScenarioExplorer(data: any, config: any): string {
       <div>→ Consider tiered pricing for different service levels</div>
       <div>→ Focus on results delivered, not hours worked</div>
     </div>
+    </div>
   `);
 
   // 3. Cash Flow — show as OPPORTUNITY if debtorDays > medianDebtorDays, or as STRENGTH if better
@@ -1023,6 +1027,7 @@ function renderScenarioExplorer(data: any, config: any): string {
     const cashReleased = dailyRevenue * (debtorDays - medianDebtorDays);
     const interestSaving = cashReleased * 0.08;
     scenarioPanels.push(`
+      <div style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 8px;">
       <div class="margin-scenario">
         <div class="scenario-left">
           <h3>What if you improved debtor days?</h3>
@@ -1052,6 +1057,7 @@ function renderScenarioExplorer(data: any, config: any): string {
         <div>→ Review payment terms on new contracts</div>
         <div>→ Consider early payment discounts</div>
       </div>
+      </div>
     `);
     } else if (debtorDays < medianDebtorDays) {
       // Strength: client is BETTER than median (e.g. Ian 30 vs 60)
@@ -1059,6 +1065,7 @@ function renderScenarioExplorer(data: any, config: any): string {
       const cashAdvantage = dailyRevenue * (medianDebtorDays - debtorDays);
       const interestSaving = cashAdvantage * 0.08;
       scenarioPanels.push(`
+      <div style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 8px;">
       <div class="margin-scenario cash-strength">
         <div class="scenario-left">
           <h3>Your cash advantage</h3>
@@ -1086,6 +1093,7 @@ function renderScenarioExplorer(data: any, config: any): string {
         <div>→ Maintain your proactive credit control</div>
         <div>→ Document processes so this doesn't slip as you scale</div>
       </div>
+      </div>
     `);
     }
   }
@@ -1099,6 +1107,7 @@ function renderScenarioExplorer(data: any, config: any): string {
     const headcountReduction = headcount - efficientHeadcount;
     const costSaving = headcountReduction > 0 ? headcountReduction * 55000 : 0;
     scenarioPanels.push(`
+      <div style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 8px;">
       <div class="margin-scenario">
         <div class="scenario-left">
           <h3>What if you improved revenue per employee?</h3>
@@ -1135,6 +1144,7 @@ function renderScenarioExplorer(data: any, config: any): string {
         <div>→ Automate repetitive tasks</div>
         <div>→ Focus team on higher-value work</div>
       </div>
+      </div>
     `);
     } else {
       // Strength: client is BETTER than median (e.g. Ian £483k vs £350k)
@@ -1142,6 +1152,7 @@ function renderScenarioExplorer(data: any, config: any): string {
       const efficientHeadcount = Math.ceil(revenue / medianRPE);
       const equivalentHeadcount = Math.max(0, efficientHeadcount - headcount);
       scenarioPanels.push(`
+      <div style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 8px;">
       <div class="margin-scenario efficiency-strength">
         <div class="scenario-left">
           <h3>Your productivity advantage</h3>
@@ -1169,6 +1180,7 @@ function renderScenarioExplorer(data: any, config: any): string {
         <div>→ Document what drives your utilisation</div>
         <div>→ Protect against margin drift as you scale</div>
       </div>
+      </div>
     `);
     }
   }
@@ -1184,6 +1196,7 @@ function renderScenarioExplorer(data: any, config: any): string {
     const targetRevenueAtRisk = revenue * (targetConcentration / 100) / 3;
     const riskReduction = currentRevenueAtRisk - targetRevenueAtRisk;
     scenarioPanels.push(`
+      <div style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 8px;">
       <div class="margin-scenario diversification-scenario">
         <div class="scenario-left">
           <h3>What if you diversified your client base?</h3>
@@ -1217,6 +1230,7 @@ function renderScenarioExplorer(data: any, config: any): string {
         <div>→ Expand services within existing smaller accounts</div>
         <div>→ Target adjacent sectors or industries</div>
         <div>→ Consider small acquisitions to diversify client base</div>
+      </div>
       </div>
     `);
   }
@@ -1481,6 +1495,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderKeyMetrics(data, section.config);
         break;
       case 'positionNarrative':
+        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderNarrative('Where You Stand', data.positionNarrative, [`${data.overallPercentile}th percentile`]);
         break;
       case 'strengthsNarrative':
@@ -1493,6 +1508,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderNarrative('The Opportunity', data.opportunityNarrative, [`${formatCurrency(data.totalOpportunity || 0)} potential`]);
         break;
       case 'scenarioExplorer':
+        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderScenarioExplorer(data, section.config);
         break;
       case 'twoPaths':
@@ -1501,6 +1517,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         }
         break;
       case 'recommendations':
+        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderRecommendations(data, section.config);
         break;
       case 'valuationAnalysis':
@@ -1520,9 +1537,11 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderPathToValue(data, section.config);
         break;
       case 'exitReadiness':
+        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderExitReadiness(data, section.config);
         break;
       case 'scenarioPlanning':
+        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderScenarioPlanning(data, section.config);
         break;
       case 'serviceRecommendations':
@@ -2062,17 +2081,18 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     /* =========================== SUPPRESSORS =========================== */
     .suppressors-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
     }
     
     .suppressor-card {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 12px;
+      padding: 16px;
       page-break-inside: avoid;
+      break-inside: avoid;
     }
     
     .suppressor-card.severity-critical { border-left: 3px solid var(--red); background: #fef2f2; }
@@ -2546,8 +2566,8 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .surplus-methodology { font-size: 0.8em; color: #94a3b8; margin-top: 16px; padding-top: 12px; border-top: 1px dashed #e2e8f0; }
 
     /* Margin Impact / Scenario Explorer */
-    .margin-impact-section { page-break-inside: avoid; }
-    .margin-scenario { display: flex; gap: 24px; margin: 16px 0; }
+    .margin-impact-section { /* Allow page breaks between scenario panels */ }
+    .margin-scenario { display: flex; gap: 24px; margin: 16px 0; page-break-inside: avoid; break-inside: avoid; }
     .scenario-left, .scenario-right { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
     .scenario-target { display: flex; justify-content: space-between; align-items: center; margin: 12px 0; }
     .scenario-target strong { font-size: 1.3em; color: #059669; }
@@ -2557,7 +2577,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .impact-hero .impact-value span { font-size: 0.5em; font-weight: 400; }
     .impact-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
     .impact-detail { font-size: 0.8em; color: #94a3b8; }
-    .how-to-achieve { margin-top: 16px; font-size: 0.9em; }
+    .how-to-achieve { margin-top: 16px; font-size: 0.9em; margin-bottom: 24px; }
     .how-to-achieve div { color: #334155; margin: 4px 0; }
 
     /* =========================== PRINT SPECIFIC =========================== */
@@ -2590,7 +2610,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .pv-uplift { color: #059669; }
 
     /* Scenario enhancements */
-    .scenario-card { page-break-inside: avoid; }
+    .scenario-card { page-break-inside: avoid; break-inside: avoid; }
     .scenario-risks { background: #fef2f2; padding: 12px; border-radius: 6px; margin: 12px 0; }
     .scenario-risks h4 { color: #dc2626; margin: 0 0 8px 0; }
     .scenario-considerations { background: #fffbeb; padding: 12px; border-radius: 6px; margin: 12px 0; }

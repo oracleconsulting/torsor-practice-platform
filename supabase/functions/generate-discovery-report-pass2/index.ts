@@ -2448,13 +2448,21 @@ PHASE 2 (Month 3-12+): GOAL ALIGNMENT - The 3-Year Exit Plan
 YOUR TASK - Generate a 5-page Destination-Focused Report
 ============================================================================
 
+PAGE 1 — YOUR VISION / THE TUESDAY:
+Write this section in FIRST PERSON using the client's own words as much as possible.
+The client described their ideal Tuesday in their own voice — preserve that voice.
+Use "I wake up", "I'm at my desk", "My role is focused on..." — NOT "You wake up".
+This is THEIR vision, spoken in THEIR words. It's more powerful because it comes from them.
+Do NOT rewrite their vision into second person.
+The rest of the report (Pages 2-5) should use second person ("you", "your") as the advisor speaking to the client.
+
 Return a JSON object with this exact structure:
 
 {
   "page1_destination": {
     "headerLine": "The Tuesday You're Building Towards",
     "visionProvided": true/false,
-    "visionVerbatim": "IF PROVIDED: Their Tuesday Test answer, edited slightly for flow but keeping their exact words. Include specific details like leaving times, activities, family names. IF NOT PROVIDED: A warm acknowledgment that they haven't painted the picture yet, with an invitation to have that conversation.",
+    "visionVerbatim": "IF PROVIDED: Their Tuesday Test answer in FIRST PERSON. Keep their exact words: 'I wake up', 'I'm at my desk', 'My role is...'. Edit only slightly for flow. Include specific details like leaving times, activities, family names. Do NOT change to second person. IF NOT PROVIDED: A warm acknowledgment that they haven't painted the picture yet, with an invitation to have that conversation.",
     "whatTheyWontBeDoing": ["List of things they specifically said they want to stop doing"],
     "destinationClarityScore": 1-10,
     "clarityExplanation": "One sentence about how clear their vision is. Be honest if data is missing."

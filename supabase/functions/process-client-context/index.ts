@@ -104,12 +104,32 @@ Return a JSON object with:
   "cash": number or null,
   "prior_year_revenue": number or null,
   "prior_year_profit": number or null,
+  "multi_year_earnings": [
+    { "year": 2022, "earnings": number, "revenue": number or null },
+    { "year": 2023, "earnings": number, "revenue": number or null },
+    ...
+  ],
+  "earnings_trend": "growing|volatile|declining|recovering|stable|unknown",
+  "earnings_trend_narrative": "Brief description of the earnings trajectory",
+  "cash_trend": [
+    { "year": 2022, "cash": number },
+    ...
+  ],
+  "total_debt_trend": [
+    { "year": 2022, "total_debt": number },
+    ...
+  ],
   "extracted_insights": [
     "Any notable observations about the financials"
   ],
   "data_quality": "high|medium|low",
   "confidence": 0-100
-}`;
+}
+
+IMPORTANT: If the document contains multi-year data (balance sheets across multiple years,
+earnings history, etc.), extract ALL available years into the multi_year arrays.
+Even if full P&L is only available for the latest year, balance sheet earnings
+(retained earnings, current year earnings) provide trajectory data.`;
 
 const OPERATIONAL_EXTRACTION_PROMPT = `You are a business analyst extracting operational intelligence from documents and notes.
 
@@ -177,6 +197,19 @@ serve(async (req) => {
 
       if (extractionType === 'financial') {
         const financialData = await extractFinancialData(documentContent, openrouterKey);
+
+        // Merge multi-year data into extracted_insights for Pass 1 trajectory
+        const base = typeof financialData.extracted_insights === 'object' && financialData.extracted_insights !== null && !Array.isArray(financialData.extracted_insights)
+          ? financialData.extracted_insights
+          : {};
+        const enrichedInsights = {
+          ...base,
+          multi_year_earnings: financialData.multi_year_earnings ?? null,
+          earnings_trend: financialData.earnings_trend ?? null,
+          earnings_trend_narrative: financialData.earnings_trend_narrative ?? null,
+          cash_trend: financialData.cash_trend ?? null,
+          total_debt_trend: financialData.total_debt_trend ?? null,
+        };
         
         // Save to client_financial_context
         const { data: savedFinancial, error: saveError } = await supabase
@@ -196,7 +229,7 @@ serve(async (req) => {
             revenue_growth_pct: financialData.prior_year_revenue 
               ? ((financialData.revenue - financialData.prior_year_revenue) / financialData.prior_year_revenue * 100)
               : null,
-            extracted_insights: financialData.extracted_insights,
+            extracted_insights: enrichedInsights,
             data_source: 'document_upload',
             last_updated: new Date().toISOString()
           }, { onConflict: 'client_id' })
