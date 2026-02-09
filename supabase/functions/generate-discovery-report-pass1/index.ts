@@ -624,8 +624,8 @@ function classifyBusinessType(
     allText.includes('tight') ||
     allText.includes('sleep')
   );
-  const mentionsCashStruggle = responses.dd_sleep_thief?.toLowerCase()?.includes('cash') ||
-                                responses.dd_core_frustration?.toLowerCase()?.includes('cash');
+  const mentionsCashStruggle = String(responses.dd_sleep_thief ?? '').toLowerCase().includes('cash') ||
+                                String(responses.dd_core_frustration ?? '').toLowerCase().includes('cash');
   
   if (cashAnxiety || mentionsCashStruggle) {
     signals.push('Cash flow anxiety detected - recommend starting small');
@@ -2320,9 +2320,11 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
   // ============================================================================
   
   // Helper to get first non-empty value
-  const getFirst = (...vals: (string | undefined)[]): string => {
+  const getFirst = (...vals: (string | unknown)[]): string => {
     for (const v of vals) {
-      if (v && typeof v === 'string' && v.trim().length > 0) return v.trim();
+      if (v == null) continue;
+      const s = typeof v === 'string' ? v : Array.isArray(v) ? v.join(' ') : String(v);
+      if (s.trim().length > 0) return s.trim();
     }
     return '';
   };
