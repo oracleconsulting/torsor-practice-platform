@@ -38,9 +38,11 @@ import {
   CheckCircle2,
   DollarSign,
   Phone,
-  Eye
+  Eye,
+  Info
 } from 'lucide-react';
 import { EnabledByLink } from '../ServiceDetailPopup';
+import { ServiceRecommendationPopup } from '../shared/ServiceRecommendationPopup';
 import { 
   LearningReviewPanel, 
   useAnalysisComments 
@@ -74,6 +76,30 @@ const SERVICE_ICONS: Record<string, any> = {
   'business_advisory': Award,
   'benchmarking': BarChart3,
 };
+
+/** Map Discovery recommended_services code or name to service_catalogue.code */
+function discoveryServiceToCatalogueCode(rec: { serviceCode?: string; code?: string; serviceName?: string }): string {
+  const code = (rec.serviceCode || rec.code || '').toUpperCase().replace(/-/g, '_');
+  const map: Record<string, string> = {
+    'BENCHMARKING_DEEP_DIVE': 'benchmarking',
+    'BENCHMARKING': 'benchmarking',
+    'SYSTEMS_AUDIT': 'systems_audit',
+    'GOAL_ALIGNMENT': 'goal_alignment',
+    '365_METHOD': 'goal_alignment',
+    'FRACTIONAL_CFO': 'fractional_cfo',
+    'PROFIT_EXTRACTION': 'profit_extraction',
+    'QUARTERLY_BI': 'quarterly_bi',
+  };
+  if (map[code]) return map[code];
+  const name = (rec.serviceName || '').toLowerCase();
+  if (name.includes('benchmark')) return 'benchmarking';
+  if (name.includes('systems') || name.includes('audit')) return 'systems_audit';
+  if (name.includes('goal') || name.includes('alignment') || name.includes('365')) return 'goal_alignment';
+  if (name.includes('fractional cfo')) return 'fractional_cfo';
+  if (name.includes('profit extraction')) return 'profit_extraction';
+  if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+  return 'benchmarking';
+}
 
 export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalProps) {
   const { user } = useAuth();
@@ -115,6 +141,9 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   const [urgentDecision, setUrgentDecision] = useState<boolean>(false);
   const [urgentDecisionDetail, setUrgentDecisionDetail] = useState<string>('');
   
+  // Service recommendation popup (universal catalogue)
+  const [popupServiceCode, setPopupServiceCode] = useState<string | null>(null);
+
   // Analysis comments (for learning system)
   const { 
     comments: analysisComments, 
@@ -1497,13 +1526,21 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                       )}
                     </div>
                     
-                    <div className="text-right ml-6 flex-shrink-0">
+                    <div className="text-right ml-6 flex-shrink-0 flex flex-col items-end gap-2">
                       <p className="text-lg font-semibold text-amber-600">{rec.displayPrice}</p>
                       {rec.totalValueAtStake > 0 && (
                         <p className="text-xs text-emerald-600 mt-1">
                           ↗ £{rec.totalValueAtStake.toLocaleString()} potential
                         </p>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => setPopupServiceCode(discoveryServiceToCatalogueCode(rec))}
+                        className="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700 font-medium"
+                      >
+                        <Info className="h-4 w-4" />
+                        Learn more
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1641,13 +1678,21 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                       )}
                     </div>
                     
-                    <div className="text-right ml-6 flex-shrink-0">
+                    <div className="text-right ml-6 flex-shrink-0 flex flex-col items-end gap-2">
                       <p className="text-lg font-semibold text-amber-600">{rec.displayPrice}</p>
                       {rec.totalValueAtStake > 0 && (
                         <p className="text-xs text-emerald-600 mt-1">
                           ↗ £{rec.totalValueAtStake.toLocaleString()} potential
                         </p>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => setPopupServiceCode(discoveryServiceToCatalogueCode(rec))}
+                        className="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700 font-medium"
+                      >
+                        <Info className="h-4 w-4" />
+                        Learn more
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2444,6 +2489,12 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
           </div>
         </div>
       </div>
+
+      <ServiceRecommendationPopup
+        isOpen={!!popupServiceCode}
+        onClose={() => setPopupServiceCode(null)}
+        serviceCode={popupServiceCode || ''}
+      />
     </div>
   );
 }
