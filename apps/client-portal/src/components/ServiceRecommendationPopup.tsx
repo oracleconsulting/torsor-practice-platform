@@ -82,7 +82,9 @@ export function ServiceRecommendationPopup({
           .maybeSingle();
 
         if (catalogError || !catalog) {
-          if (!cancelled) setError(catalogError?.message ?? 'Service not found');
+          const msg = catalogError?.message ?? 'Service not found';
+          const isSchemaError = /schema cache|relation.*does not exist|could not find.*table/i.test(msg);
+          if (!cancelled) setError(isSchemaError ? 'Service details will be available soon. Please ask your advisor for more information.' : msg);
           return;
         }
 
@@ -121,7 +123,9 @@ export function ServiceRecommendationPopup({
           });
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load');
+        const msg = e instanceof Error ? e.message : 'Failed to load';
+        const isSchemaError = /schema cache|relation.*does not exist|could not find.*table/i.test(msg);
+        if (!cancelled) setError(isSchemaError ? 'Service details will be available soon. Please ask your advisor for more information.' : msg);
       } finally {
         if (!cancelled) setLoading(false);
       }

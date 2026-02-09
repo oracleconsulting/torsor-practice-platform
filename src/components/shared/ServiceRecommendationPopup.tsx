@@ -82,7 +82,9 @@ export function ServiceRecommendationPopup({
           .maybeSingle();
 
         if (catalogError || !catalog) {
-          if (!cancelled) setError(catalogError?.message ?? 'Service not found');
+          const msg = catalogError?.message ?? 'Service not found';
+          const isSchemaError = /schema cache|relation.*does not exist|could not find.*table/i.test(msg);
+          if (!cancelled) setError(isSchemaError ? 'Service catalogue not set up yet. Run the service_catalogue migration in Supabase.' : msg);
           return;
         }
 
@@ -121,7 +123,9 @@ export function ServiceRecommendationPopup({
           });
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load');
+        const msg = e instanceof Error ? e.message : 'Failed to load';
+        const isSchemaError = /schema cache|relation.*does not exist|could not find.*table/i.test(msg);
+        if (!cancelled) setError(isSchemaError ? 'Service catalogue not set up yet. Run the service_catalogue migration in Supabase.' : msg);
       } finally {
         if (!cancelled) setLoading(false);
       }
