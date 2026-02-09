@@ -7,9 +7,15 @@
 --
 -- Creates service_catalogue + service_tiers and seeds Benchmarking, Systems
 -- Audit, Quarterly BI, Profit Extraction, Goal Alignment, Fractional CFO.
+--
+-- If you get "column service_id does not exist", old tables had a different
+-- schema — we drop and recreate them here so the structure is correct.
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS service_catalogue (
+DROP TABLE IF EXISTS service_tiers;
+DROP TABLE IF EXISTS service_catalogue;
+
+CREATE TABLE service_catalogue (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
@@ -23,7 +29,7 @@ CREATE TABLE IF NOT EXISTS service_catalogue (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE TABLE IF NOT EXISTS service_tiers (
+CREATE TABLE service_tiers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   service_id UUID REFERENCES service_catalogue(id) ON DELETE CASCADE,
   tier_code TEXT NOT NULL,
