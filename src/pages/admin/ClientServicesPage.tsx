@@ -5531,7 +5531,7 @@ function DiscoveryClientModal({
                                                 return phase.enabledByCode || 'discovery';
                                               })()}
                                               serviceName={phase.enabledBy?.includes('365') ? 'Goal Alignment Programme' : phase.enabledBy}
-                                              price={phase.price}
+                                              price=""
                                             />
                                           </div>
                                         </div>
