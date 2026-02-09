@@ -627,6 +627,9 @@ export const PDFExportEditor: React.FC<PDFExportEditorProps> = ({
   const handleTierChange = useCallback((tier: 1 | 2) => {
     setSelectedTier(tier);
     setSections(tier === 1 ? DEFAULT_TIER1_SECTIONS : DEFAULT_TIER2_SECTIONS);
+    if (tier === 1) {
+      setPdfSettings(prev => ({ ...prev, density: 'compact' }));
+    }
     setSelectedIndex(null);
   }, []);
   

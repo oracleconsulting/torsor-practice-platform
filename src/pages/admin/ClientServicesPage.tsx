@@ -10,7 +10,7 @@ import {
   SectionCommentBox,
   useAnalysisComments
 } from '../../components/discovery';
-import { EnabledByLink } from '../../components/ServiceDetailPopup';
+import { ServiceRecommendationPopup } from '../../components/shared/ServiceRecommendationPopup';
 import { 
   Users, 
   CheckCircle,
@@ -2332,11 +2332,34 @@ function DiscoveryClientModal({
     importance: 'medium' as string
   });
 
+  // Service recommendation popup (universal catalogue)
+  const [popupServiceCode, setPopupServiceCode] = useState<string | null>(null);
+
   // Analysis comments (for learning system feedback boxes)
   const { 
     comments: analysisComments, 
     refetch: refetchComments 
   } = useAnalysisComments(discoveryEngagement?.id, destinationReport?.id);
+
+  /** Map journey phase enabledBy / enabledByCode to service_catalogue.code */
+  const journeyPhaseToCatalogueCode = (phase: { enabledBy?: string; enabledByCode?: string }): string => {
+    const code = (phase.enabledByCode || '').toUpperCase().replace(/-/g, '_');
+    const map: Record<string, string> = {
+      'BENCHMARKING': 'benchmarking', 'BENCHMARKING_DEEP_DIVE': 'benchmarking',
+      'SYSTEMS_AUDIT': 'systems_audit', 'GOAL_ALIGNMENT': 'goal_alignment', '365_METHOD': 'goal_alignment',
+      'FRACTIONAL_CFO': 'fractional_cfo', 'PROFIT_EXTRACTION': 'profit_extraction', 'QUARTERLY_BI': 'quarterly_bi',
+      'MANAGEMENT_ACCOUNTS': 'quarterly_bi', 'HIDDEN_VALUE_AUDIT': 'benchmarking',
+    };
+    if (map[code]) return map[code];
+    const name = (phase.enabledBy || '').toLowerCase();
+    if (name.includes('benchmark')) return 'benchmarking';
+    if (name.includes('systems') || name.includes('audit')) return 'systems_audit';
+    if (name.includes('goal') || name.includes('alignment') || name.includes('365')) return 'goal_alignment';
+    if (name.includes('fractional cfo')) return 'fractional_cfo';
+    if (name.includes('profit extraction')) return 'profit_extraction';
+    if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+    return 'benchmarking';
+  };
 
   useEffect(() => {
     fetchClientDetail();
@@ -5519,20 +5542,13 @@ function DiscoveryClientModal({
                                             <p className="text-gray-700"><strong>The outcome:</strong> {phase.outcome}</p>
                                           )}
                                           <div className="pt-2 border-t border-gray-100">
-                                            <EnabledByLink
-                                              serviceCode={(() => {
-                                                const name = (phase.enabledBy || '').toLowerCase();
-                                                if (name.includes('365') || name.includes('goal alignment')) return '365_method';
-                                                if (name.includes('systems audit')) return 'systems_audit';
-                                                if (name.includes('management account')) return 'management_accounts';
-                                                if (name.includes('fractional cfo')) return 'fractional_cfo';
-                                                if (name.includes('benchmark')) return 'benchmarking';
-                                                if (name.includes('automation')) return 'automation';
-                                                return phase.enabledByCode || 'discovery';
-                                              })()}
-                                              serviceName={phase.enabledBy?.includes('365') ? 'Goal Alignment Programme' : phase.enabledBy}
-                                              price=""
-                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => setPopupServiceCode(journeyPhaseToCatalogueCode(phase))}
+                                              className="text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors cursor-pointer underline-offset-2 hover:underline"
+                                            >
+                                              Enabled by: {phase.enabledBy?.includes('365') ? 'Goal Alignment Programme' : phase.enabledBy}
+                                            </button>
                                           </div>
                                         </div>
                                       </div>
@@ -7040,6 +7056,11 @@ function DiscoveryClientModal({
           )}
         </div>
       </div>
+      <ServiceRecommendationPopup
+        isOpen={!!popupServiceCode}
+        onClose={() => setPopupServiceCode(null)}
+        serviceCode={popupServiceCode || ''}
+      />
     </div>
   );
 }

@@ -26,6 +26,7 @@ import {
   DollarSign,
   Phone
 } from 'lucide-react';
+import { ServiceRecommendationPopup } from './ServiceRecommendationPopup';
 
 interface DiscoveryReportViewProps {
   clientId: string;
@@ -41,11 +42,32 @@ const TimelineDot = ({ active, label }: { active?: boolean; label: string }) => 
   </div>
 );
 
+/** Map journey phase enabledBy / enabledByCode to service_catalogue.code */
+function journeyPhaseToCatalogueCode(phase: { enabledBy?: string; enabledByCode?: string }): string {
+  const code = (phase.enabledByCode || '').toUpperCase().replace(/-/g, '_');
+  const map: Record<string, string> = {
+    'BENCHMARKING': 'benchmarking', 'BENCHMARKING_DEEP_DIVE': 'benchmarking',
+    'SYSTEMS_AUDIT': 'systems_audit', 'GOAL_ALIGNMENT': 'goal_alignment', '365_METHOD': 'goal_alignment',
+    'FRACTIONAL_CFO': 'fractional_cfo', 'PROFIT_EXTRACTION': 'profit_extraction', 'QUARTERLY_BI': 'quarterly_bi',
+    'MANAGEMENT_ACCOUNTS': 'quarterly_bi', 'HIDDEN_VALUE_AUDIT': 'benchmarking',
+  };
+  if (map[code]) return map[code];
+  const name = (phase.enabledBy || '').toLowerCase();
+  if (name.includes('benchmark')) return 'benchmarking';
+  if (name.includes('systems') || name.includes('audit')) return 'systems_audit';
+  if (name.includes('goal') || name.includes('alignment') || name.includes('365')) return 'goal_alignment';
+  if (name.includes('fractional cfo')) return 'fractional_cfo';
+  if (name.includes('profit extraction')) return 'profit_extraction';
+  if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+  return 'benchmarking';
+}
+
 export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedPhase, setExpandedPhase] = useState<number>(0);
+  const [popupCatalogueCode, setPopupCatalogueCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (clientId) {
@@ -362,10 +384,18 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
                       </div>
                     )}
                     
-                    {/* Service Footnote */}
+                    {/* Service Footnote — clickable to open universal service popup */}
                     {phase.enabledBy && (
-                      <p className="mt-4 text-sm text-slate-400">
-                        Enabled by: {phase.enabledBy}
+                      <p className="mt-4 pt-4 border-t border-slate-100 text-sm text-slate-500">
+                        Enabled by:{' '}
+                        <button
+                          type="button"
+                          onClick={() => setPopupCatalogueCode(journeyPhaseToCatalogueCode(phase))}
+                          className="inline-flex items-center gap-1.5 text-teal-600 hover:text-teal-700 font-medium underline underline-offset-2 hover:no-underline transition-colors"
+                        >
+                          {phase.enabledBy}
+                          <span className="text-xs font-normal opacity-90">— Learn more</span>
+                        </button>
                       </p>
                     )}
                   </div>
@@ -675,6 +705,11 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
         </section>
       )}
 
+      <ServiceRecommendationPopup
+        isOpen={!!popupCatalogueCode}
+        onClose={() => setPopupCatalogueCode(null)}
+        serviceCode={popupCatalogueCode || ''}
+      />
     </div>
   );
 }

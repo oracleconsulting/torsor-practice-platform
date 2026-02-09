@@ -568,9 +568,10 @@ export default function DiscoveryReportPage() {
                         )}
                         
                         {phase.enabledBy && (
-                          <p className="mt-4 text-sm text-slate-400">
+                          <p className="mt-4 pt-4 border-t border-slate-100 text-sm text-slate-500">
                             Enabled by:{' '}
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const nameToCatalogue: Record<string, string> = {
@@ -603,9 +604,10 @@ export default function DiscoveryReportPage() {
                                   'benchmarking';
                                 setPopupCatalogueCode(catalogueCode);
                               }}
-                              className="text-teal-600 hover:text-teal-700 underline underline-offset-2 hover:no-underline transition-colors"
+                              className="inline-flex items-center gap-1.5 text-teal-600 hover:text-teal-700 font-medium underline underline-offset-2 hover:no-underline transition-colors"
                             >
                               {phase.enabledBy}
+                              <span className="text-xs font-normal opacity-90">— Learn more</span>
                             </button>
                           </p>
                         )}

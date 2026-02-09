@@ -680,14 +680,51 @@ function renderValueWaterfall(data: any, config: any): string {
   `;
 }
 
-// Value Suppressors (detailed cards - waterfall shows the flow)
+// Value Suppressors (table for Tier 1, cards for Tier 2)
 function renderSuppressors(data: any, config: any): string {
   const suppressors = data.suppressors || [];
-
   if (suppressors.length === 0) {
     return '<div class="section"><p>No value suppressors identified.</p></div>';
   }
 
+  const layout = config.layout || 'cards';
+
+  // ===== TABLE LAYOUT (compact, for Tier 1) =====
+  if (layout === 'table') {
+    return `
+      <div class="section">
+        <h2 class="section-title">Value Suppressors</h2>
+        <table class="suppressor-table-compact">
+          <thead>
+            <tr>
+              <th style="width: 24%;">Suppressor</th>
+              <th style="width: 10%;">Severity</th>
+              <th style="width: 9%;">Discount</th>
+              <th style="width: 12%;">Impact</th>
+              <th style="width: 45%;">Summary</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${suppressors.map((s: any) => {
+              const n = normalizeSuppressor(s);
+              const severity = n.severity.toLowerCase();
+              return `
+                <tr>
+                  <td><strong>${n.name}</strong></td>
+                  <td><span class="severity-badge ${severity}">${n.severity}</span></td>
+                  <td class="discount-value">-${n.discountPercent}%</td>
+                  <td class="discount-value">${formatCurrency(n.discountValue)}</td>
+                  <td>${n.evidence || n.whyThisDiscount || ''}${n.pathToFixSummary ? `<br><span class="suppressor-remedy">Fix: ${n.pathToFixSummary}</span>` : ''}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // ===== CARDS LAYOUT (detailed, for Tier 2) =====
   return `
     <div class="section">
       <h2 class="section-title">Value Suppressor Details</h2>
@@ -717,21 +754,13 @@ function renderSuppressors(data: any, config: any): string {
                   <span class="timeframe">${n.recoveryTimeframe || ''}</span>
                 </div>
               ` : ''}
-              ${n.evidence ? `
-                <div class="supp-evidence">${n.evidence}</div>
-              ` : ''}
-              ${n.whyThisDiscount ? `
-                <div class="supp-why">${n.whyThisDiscount}</div>
-              ` : ''}
-              ${n.pathToFixSummary ? `
-                <div class="supp-remedy">Fixable via ${n.pathToFixSummary}</div>
-              ` : ''}
+              ${n.evidence ? `<div class="supp-evidence">${n.evidence}</div>` : ''}
+              ${n.whyThisDiscount ? `<div class="supp-why">${n.whyThisDiscount}</div>` : ''}
+              ${n.pathToFixSummary ? `<div class="supp-remedy">Fixable via ${n.pathToFixSummary}</div>` : ''}
               ${n.pathToFixSteps?.length > 0 ? `
                 <div class="supp-fix-steps">
                   <strong>Path to fix:</strong>
-                  <ol>
-                    ${n.pathToFixSteps.map((step: string) => `<li>${step}</li>`).join('')}
-                  </ol>
+                  <ol>${n.pathToFixSteps.map((step: string) => `<li>${step}</li>`).join('')}</ol>
                 </div>
               ` : ''}
               ${n.investment ? `
@@ -740,11 +769,7 @@ function renderSuppressors(data: any, config: any): string {
                   ${n.roi ? `<span>ROI: ${n.roi}</span>` : ''}
                 </div>
               ` : ''}
-              ${n.dependencies ? `
-                <div class="supp-dependencies">
-                  <strong>Dependencies:</strong> ${n.dependencies}
-                </div>
-              ` : ''}
+              ${n.dependencies ? `<div class="supp-dependencies"><strong>Dependencies:</strong> ${n.dependencies}</div>` : ''}
             </div>
           `;
         }).join('')}
@@ -1267,12 +1292,58 @@ function renderScenarioExplorer(data: any, config: any): string {
   `;
 }
 
-// Scenario Planning
+// Scenario Planning (table for Tier 1, sequential blocks for Tier 2)
 function renderScenarioPlanning(data: any, config: any): string {
   const scenarios = data.scenarios || [];
-
   if (scenarios.length === 0) return '';
 
+  const layout = config.layout || 'sequential';
+
+  // ===== TABLE LAYOUT (compact, for Tier 1) =====
+  if (layout === 'table') {
+    return `
+      <div class="section">
+        <h2 class="section-title">Scenario Planning</h2>
+        <p class="section-subtitle">What happens depending on the path you choose</p>
+        <table class="scenario-table-compact">
+          <thead>
+            <tr>
+              <th style="width: 18%;">Scenario</th>
+              <th style="width: 20%;">Metric</th>
+              <th style="width: 13%;">Today</th>
+              <th style="width: 13%;">Projected</th>
+              <th style="width: 36%;">Impact</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${scenarios.map((scenario: any, sIdx: number) => {
+              const metrics = scenario.metrics || [];
+              if (metrics.length === 0) return '';
+              return `
+                ${metrics.map((m: any, mIdx: number) => `
+                  <tr>
+                    ${mIdx === 0 ? `
+                      <td class="scenario-name-cell" rowspan="${metrics.length}">
+                        <strong>${scenario.title || scenario.name || 'Scenario'}</strong>
+                        ${scenario.timeframe ? `<br><span style="font-size: 8px; color: #64748b;">${scenario.timeframe}</span>` : ''}
+                      </td>
+                    ` : ''}
+                    <td>${m.label || m.name || ''}</td>
+                    <td>${m.current ?? '-'}</td>
+                    <td>${m.projected ?? '-'}</td>
+                    <td>${m.impact || ''}</td>
+                  </tr>
+                `).join('')}
+                ${sIdx < scenarios.length - 1 ? '<tr><td colspan="5" style="height: 4px; border: none;"></td></tr>' : ''}
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // ===== SEQUENTIAL LAYOUT (detailed, for Tier 2) =====
   return `
     <div class="section">
       <h2 class="section-title">Scenario Planning</h2>
@@ -1284,9 +1355,7 @@ function renderScenarioPlanning(data: any, config: any): string {
           ${scenario.timeframe ? `<div class="scenario-timeframe">Timeframe: ${scenario.timeframe}</div>` : ''}
           ${scenario.metrics?.length > 0 ? `
             <table class="scenario-metrics">
-              <thead>
-                <tr><th>Metric</th><th>Today</th><th>Projected</th><th>Impact</th></tr>
-              </thead>
+              <thead><tr><th>Metric</th><th>Today</th><th>Projected</th><th>Impact</th></tr></thead>
               <tbody>
                 ${scenario.metrics.map((m: any) => `
                   <tr>
@@ -1301,20 +1370,20 @@ function renderScenarioPlanning(data: any, config: any): string {
           ` : ''}
           ${scenario.risks?.length > 0 ? `
             <div class="scenario-risks">
-              <h4>⚠️ What You Risk</h4>
-              <ul>${scenario.risks.map((r: string) => `<li>⚠ ${r}</li>`).join('')}</ul>
+              <h4>What You Risk</h4>
+              <ul>${scenario.risks.map((r: string) => `<li>${r}</li>`).join('')}</ul>
             </div>
           ` : ''}
-          ${scenario.requirements?.length > 0 ? `
+          ${scenario.requirements?.length > 0 && config.showRequirements !== false ? `
             <div class="scenario-requirements">
-              <h4>✓ What This Requires</h4>
-              <ul>${scenario.requirements.map((r: string) => `<li>✓ ${r}</li>`).join('')}</ul>
+              <h4>What This Requires</h4>
+              <ul>${scenario.requirements.map((r: string) => `<li>${r}</li>`).join('')}</ul>
             </div>
           ` : ''}
           ${scenario.considerations?.length > 0 ? `
             <div class="scenario-considerations">
-              <h4>⚠ Considerations</h4>
-              <ul>${scenario.considerations.map((c: string) => `<li>• ${c}</li>`).join('')}</ul>
+              <h4>Considerations</h4>
+              <ul>${scenario.considerations.map((c: string) => `<li>${c}</li>`).join('')}</ul>
             </div>
           ` : ''}
         </div>
@@ -1490,7 +1559,7 @@ function renderClosing(data: any, config: any): string {
 
 function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
   const { sections, pdfSettings, tier } = pdfConfig;
-  const density = pdfSettings?.density || 'comfortable';
+  const density = pdfSettings?.density || (tier === 1 ? 'compact' : 'comfortable');
   
   // Build sections HTML
   let sectionsHTML = '';
@@ -1498,8 +1567,8 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
   for (const section of sections) {
     if (!section.enabled) continue;
 
-    // Add page break if configured for this section
-    if (section.config?.pageBreakBefore) {
+    // Add page break only for Tier 2 when configured (Tier 1 flows without forced breaks)
+    if (tier === 2 && section.config?.pageBreakBefore) {
       sectionsHTML += '<div class="page-break-before"></div>';
     }
 
@@ -2167,6 +2236,69 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .supp-fix-steps ol { margin: 3px 0 0 16px; padding: 0; }
     .supp-investment { display: flex; gap: 12px; font-size: 0.82em; margin-top: 6px; }
     .supp-dependencies { font-size: 0.82em; margin-top: 6px; color: #64748b; }
+    
+    /* =========================== COMPACT SUPPRESSOR TABLE (TIER 1) =========================== */
+    .suppressor-table-compact {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9px;
+      margin-top: 6px;
+    }
+    .suppressor-table-compact th {
+      background: var(--navy-dark);
+      color: white;
+      padding: 5px 7px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .suppressor-table-compact td {
+      padding: 5px 7px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+      line-height: 1.35;
+    }
+    .suppressor-table-compact tr:nth-child(even) td {
+      background: #f8fafc;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .suppressor-table-compact .discount-value { font-weight: 700; color: var(--red); }
+    .suppressor-remedy { font-size: 8px; color: var(--green); }
+    
+    /* =========================== COMPACT SCENARIO TABLE (TIER 1) =========================== */
+    .scenario-table-compact {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9px;
+      margin-top: 6px;
+    }
+    .scenario-table-compact th {
+      background: var(--navy-dark);
+      color: white;
+      padding: 5px 7px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 8px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .scenario-table-compact td {
+      padding: 4px 7px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+      line-height: 1.35;
+    }
+    .scenario-table-compact .scenario-name-cell {
+      font-weight: 600;
+      background: #f1f5f9;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
     
     /* =========================== EXIT READINESS =========================== */
     .exit-score-display {
