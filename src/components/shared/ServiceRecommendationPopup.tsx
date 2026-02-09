@@ -4,7 +4,7 @@
  * Data from service_catalogue + service_tiers, or override via serviceData prop.
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { X, FileText } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
