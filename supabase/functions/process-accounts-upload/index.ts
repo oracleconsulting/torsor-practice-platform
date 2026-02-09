@@ -44,6 +44,7 @@ interface ExtractedFinancialData {
   creditor_days?: number;
   employee_count?: number;
   revenue_per_employee?: number;
+  staff_costs?: number;
   confidence: number;
   notes: string[];
 }
@@ -71,6 +72,7 @@ const METRIC_LABELS: { patterns: RegExp[]; field: keyof ExtractedFinancialData }
   { patterns: [/^net\s+assets$|^shareholders?\s+funds?$|^total\s+equity$/i], field: 'net_assets' },
   { patterns: [/^employees?$|^employee\s+count$/i], field: 'employee_count' },
   { patterns: [/^stock$|^inventory$/i], field: 'stock' },
+  { patterns: [/^staff\s+costs\s+total$|^total\s+staff\s+costs$|^staff\s+salaries$|^staff\s+costs$|^payroll$|^wages\s+and\s+salaries$/i], field: 'staff_costs' },
 ];
 
 function parseCSVToGrid(text: string): string[][] {
@@ -168,10 +170,16 @@ function tryParseStructuredCSV(csvText: string): ExtractedFinancialData[] | null
 
   for (let r = 0; r < grid.length; r++) {
     const row = grid[r];
-    const label = (row[0] || '').replace(/^["']|["']$/g, '').trim();
-    if (!label || /^=+$/.test(label)) continue;
-    const field = getFieldForRowLabel(label);
-    if (!field || field === 'confidence' || field === 'notes') continue;
+    // Try first four columns as label (Section, Subsection, Item, Description) so formats like
+    // "KEY RATIOS, Cost Structure, Staff Costs Total, ..." match on "Staff Costs Total"
+    let field: keyof ExtractedFinancialData | null = null;
+    for (let c = 0; c < 4 && c < row.length; c++) {
+      const label = (row[c] || '').replace(/^["']|["']$/g, '').trim();
+      if (!label || /^=+$/.test(label)) continue;
+      field = getFieldForRowLabel(label);
+      if (field && field !== 'confidence' && field !== 'notes') break;
+    }
+    if (!field) continue;
 
     const yearCols = findYearColumnsForRow(grid, r);
     if (yearCols.length === 0) continue;
@@ -352,6 +360,7 @@ serve(async (req) => {
           creditor_days: financialData.creditor_days,
           employee_count: financialData.employee_count,
           revenue_per_employee: financialData.revenue_per_employee,
+          staff_costs: financialData.staff_costs,
           data_source: 'upload',
           confidence_score: financialData.confidence,
           notes: financialData.notes?.join('\n') || null

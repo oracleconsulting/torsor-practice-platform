@@ -95,6 +95,12 @@ interface ComprehensiveAnalysis {
   hiddenAssets: any;
   grossMargin: any;
   achievements: any;
+  yearOnYearComparisons?: {
+    turnover?: { current?: number; prior?: number; change?: number };
+    operatingProfit?: { current?: number; prior?: number; change?: number };
+    netProfit?: { current?: number; prior?: number; change?: number };
+  };
+  clientRevenueConcentration?: Record<string, any>;
 }
 
 interface DestinationClarityAnalysis {
@@ -778,15 +784,15 @@ serve(async (req) => {
 
     // Canonical enabled-by strings — the ONLY acceptable output
     const CANONICAL_ENABLED_BY: Record<string, { phase1: string; deferred: string }> = {
-      'benchmarking':        { phase1: 'Industry Benchmarking (Full Package) (£2,000)',              deferred: 'Industry Benchmarking (Full Package) (£2,000 — when ready)' },
-      'systems_audit':       { phase1: 'Systems & Process Audit (£2,000)',                           deferred: 'Systems & Process Audit (£2,000 — when ready)' },
-      'goal_alignment':      { phase1: 'Goal Alignment Programme (Growth) (£4,500/year)',            deferred: 'Goal Alignment Programme (Growth) (£4,500/year — when ready)' },
-      'management_accounts': { phase1: 'Management Accounts (£650/month)',                           deferred: 'Management Accounts (£650/month — when ready)' },
-      'business_intelligence': { phase1: 'Business Intelligence (Clarity) (from £2,000/month)',       deferred: 'Business Intelligence (Clarity) (from £2,000/month — when ready)' },
-      'fractional_cfo':      { phase1: 'Fractional CFO (£4,000/month)',                              deferred: 'Fractional CFO (£4,000/month — when ready)' },
-      'fractional_coo':      { phase1: 'Fractional COO (£3,750/month)',                              deferred: 'Fractional COO (£3,750/month — when ready)' },
-      'business_advisory':   { phase1: 'Business Advisory & Exit Planning (£2,000)',                 deferred: 'Business Advisory & Exit Planning (£2,000 — when ready)' },
-      'automation':          { phase1: 'Automation Services (£5,000)',                                deferred: 'Automation Services (£5,000 — when ready)' },
+      'benchmarking':        { phase1: 'Industry Benchmarking (Full Package) (£2,000 - £4,500)',              deferred: 'Industry Benchmarking (Full Package) (£2,000 - £4,500 — when ready)' },
+      'systems_audit':       { phase1: 'Systems & Process Audit (£2,000 - £4,500)',                           deferred: 'Systems & Process Audit (£2,000 - £4,500 — when ready)' },
+      'goal_alignment':      { phase1: 'Goal Alignment Programme (£1,500 - £9,000/year)',                        deferred: 'Goal Alignment Programme (£1,500 - £9,000/year — when ready)' },
+      'management_accounts': { phase1: 'Management Accounts (from £650/month)',                               deferred: 'Management Accounts (from £650/month — when ready)' },
+      'business_intelligence': { phase1: 'Business Intelligence (from £2,000/month)',                           deferred: 'Business Intelligence (from £2,000/month — when ready)' },
+      'fractional_cfo':      { phase1: 'Fractional CFO (£4,000/month)',                                      deferred: 'Fractional CFO (£4,000/month — when ready)' },
+      'fractional_coo':      { phase1: 'Fractional COO (£3,750/month)',                                        deferred: 'Fractional COO (£3,750/month — when ready)' },
+      'business_advisory':   { phase1: 'Business Advisory & Exit Planning (£2,000 - £4,000)',                 deferred: 'Business Advisory & Exit Planning (£2,000 - £4,000 — when ready)' },
+      'automation':          { phase1: 'Automation Services (£1,500 - £5,000)',                                 deferred: 'Automation Services (£1,500 - £5,000 — when ready)' },
     };
 
     function detectServiceFromText(text: string): string | null {
@@ -902,11 +908,11 @@ serve(async (req) => {
     function cleanAllEnabledByStrings(jsonStr: string): string {
       const cleanups: [RegExp, string][] = [
         [/Enabled by:\s*Industry Benchmarking[^"\\]*/g,
-         'Enabled by: Industry Benchmarking (Full Package) (£2,000)'],
+         'Enabled by: Industry Benchmarking (Full Package) (£2,000 - £4,500)'],
         [/Enabled by:\s*Systems\s*(?:&|and)\s*Process Audit[^"\\]*/g,
-         'Enabled by: Systems & Process Audit (£2,000 — when ready)'],
+         'Enabled by: Systems & Process Audit (£2,000 - £4,500 — when ready)'],
         [/Enabled by:\s*Goal Alignment Programme[^"\\]*/g,
-         'Enabled by: Goal Alignment Programme (Growth) (£4,500/year — when ready)'],
+         'Enabled by: Goal Alignment Programme (£1,500 - £9,000/year — when ready)'],
       ];
       let cleaned = jsonStr;
       for (const [pattern, replacement] of cleanups) {
@@ -1458,6 +1464,48 @@ No validated financial data available. When discussing financial figures:
       console.log('[Pass2] ✅ Built cost of inaction phrase from Pass 1:', preBuiltPhrases.costOfInaction);
     }
     
+    // OPERATING PROFIT GROWTH (pre-calculated — LLM must not calculate this)
+    const opYoY = comprehensiveAnalysis?.yearOnYearComparisons?.operatingProfit;
+    if (opYoY?.prior && opYoY.prior > 0 && opYoY.current != null && opYoY.change != null) {
+      const growthPct = ((opYoY.change / opYoY.prior) * 100).toFixed(1);
+      const priorK = Math.round(opYoY.prior / 1000);
+      const currentK = Math.round(opYoY.current / 1000);
+      preBuiltPhrases.operatingProfitGrowthPct = `${growthPct}%`;
+      preBuiltPhrases.operatingProfitGrowthNarrative = `operating profit up ${growthPct}% year-on-year (£${priorK}k → £${currentK}k)`;
+      console.log('[Pass2] ✅ Built operating profit growth phrase from Pass 1:', preBuiltPhrases.operatingProfitGrowthNarrative);
+    }
+
+    // REVENUE GROWTH (pre-calculated)
+    const revYoY = comprehensiveAnalysis?.yearOnYearComparisons?.turnover;
+    if (revYoY?.prior && revYoY.prior > 0 && revYoY.current != null && revYoY.change != null) {
+      const revGrowthPct = ((revYoY.change / revYoY.prior) * 100).toFixed(1);
+      const revM = (revYoY.current / 1000000).toFixed(1);
+      const revPriorM = (revYoY.prior / 1000000).toFixed(1);
+      preBuiltPhrases.revenueGrowth = `${revGrowthPct}%`;
+      preBuiltPhrases.revenueGrowthNarrative = `revenue up ${revGrowthPct}% year-on-year (£${revPriorM}M → £${revM}M)`;
+      preBuiltPhrases.turnoverScale = `£${revM}M turnover`;
+      console.log('[Pass2] ✅ Built revenue growth:', preBuiltPhrases.revenueGrowthNarrative);
+    }
+
+    // NET PROFIT GROWTH (pre-calculated)
+    const netYoY = comprehensiveAnalysis?.yearOnYearComparisons?.netProfit;
+    if (netYoY?.prior && netYoY.prior > 0 && netYoY.current != null && netYoY.change != null) {
+      const netGrowthPct = ((netYoY.change / netYoY.prior) * 100).toFixed(1);
+      preBuiltPhrases.netProfitGrowth = `${netGrowthPct}%`;
+      console.log('[Pass2] ✅ Built net profit growth:', preBuiltPhrases.netProfitGrowth);
+    }
+
+    // BUSINESS SCALE (for anchoring the report)
+    const turnoverForScale = validatedPayroll?.turnover ?? revYoY?.current ?? comprehensiveAnalysis?.payroll?.turnover;
+    const empCount = comprehensiveAnalysis?.payroll?.employeeCount ?? comprehensiveAnalysis?.productivity?.employeeCount;
+    if (turnoverForScale) {
+      const revM = (turnoverForScale / 1000000).toFixed(1);
+      preBuiltPhrases.businessScale = empCount
+        ? `a £${revM}M business with ${empCount} staff`
+        : `a £${revM}M business`;
+      console.log('[Pass2] ✅ Built business scale:', preBuiltPhrases.businessScale);
+    }
+
     // ========================================================================
     // BUILD ULTRA-MANDATORY PHRASES SECTION FOR PROMPT
     // ========================================================================
@@ -1557,6 +1605,18 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
 ⏱️ COST OF INACTION (USE THIS PHRASE):
 ────────────────────────────────────────────────────────────────────────────
 ► "Cost of inaction: ${preBuiltPhrases.costOfInaction}"
+
+`;
+      }
+      
+      if (preBuiltPhrases.operatingProfitGrowthNarrative) {
+        mandatoryPhrasesSection += `
+📈 OPERATING PROFIT GROWTH (PRE-CALCULATED — DO NOT CALCULATE YOURSELF):
+────────────────────────────────────────────────────────────────────────────
+► "${preBuiltPhrases.operatingProfitGrowthNarrative}"
+
+⛔ When mentioning operating profit growth or YoY profit, you MUST use this exact phrase.
+⛔ DO NOT calculate the percentage yourself — use: ${preBuiltPhrases.operatingProfitGrowthPct}
 
 `;
       }
@@ -1668,6 +1728,26 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
 
 ⛔ Reference these achievements to show the foundation is solid. 
    Don't just focus on gaps - acknowledge what's working.
+`;
+    }
+
+    // Pre-calculated growth and scale (LLM must not calculate)
+    if (preBuiltPhrases.operatingProfitGrowthNarrative) {
+      financialDataSection += `
+⛔ OPERATING PROFIT: ${preBuiltPhrases.operatingProfitGrowthNarrative}
+DO NOT calculate this yourself. Use this exact phrase when discussing operating profit growth.
+`;
+    }
+    if (preBuiltPhrases.revenueGrowthNarrative) {
+      financialDataSection += `
+⛔ REVENUE GROWTH: ${preBuiltPhrases.revenueGrowthNarrative}
+DO NOT calculate this yourself. Use this exact phrase.
+`;
+    }
+    if (preBuiltPhrases.businessScale) {
+      financialDataSection += `
+⛔ BUSINESS SCALE: This is ${preBuiltPhrases.businessScale}.
+Mention the business scale in the Reality section to anchor the reader.
 `;
     }
     
@@ -1846,8 +1926,11 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       .eq('is_for_ai_analysis', true);
 
     // Build the prompt
-    const clientName = engagement.client?.name?.split(' ')[0] || 'they'; // First name only
-    const fullName = engagement.client?.name || 'Client';
+    // Sanitise: strip trailing punctuation (e.g. "Jack," → "Jack")
+    const rawFirst = engagement.client?.name?.split(' ')[0] || '';
+    const clientName = rawFirst.replace(/[,;:.!?]+$/, '') || 'they';
+    const rawFull = engagement.client?.name || 'Client';
+    const fullName = rawFull.replace(/[,;:.!?]+$/, '') || rawFull;
     const companyName = engagement.client?.client_company || 'their business';
     const emotionalAnchors = report.emotional_anchors || {};
     const patterns = report.detection_patterns || {};
@@ -3185,7 +3268,9 @@ Before returning, verify:
       if (pass1Total && narratives.page4_numbers) {
         const oldTotal = narratives.page4_numbers.totalYear1;
         narratives.page4_numbers.totalYear1 = pass1Total;
-        
+        if (!narratives.page4_numbers.totalYear1Label) {
+          narratives.page4_numbers.totalYear1Label = 'To start the journey';
+        }
         if (oldTotal !== pass1Total) {
           console.log(`[Pass2] Fixed totalYear1 from "${oldTotal}" → "${pass1Total}"`);
         }
@@ -3359,6 +3444,7 @@ Before returning, verify:
       const firstPhasePrice = firstPriceMatch ? parseInt(firstPriceMatch[0].replace(/,/g, ''), 10) : 0;
       if (firstPhasePrice > 0 && narratives.page4_numbers) {
         narratives.page4_numbers.totalYear1 = `£${firstPhasePrice.toLocaleString()}`;
+        narratives.page4_numbers.totalYear1Label = 'To start the journey';
         narratives.page4_numbers.toStartTheJourney = `£${firstPhasePrice.toLocaleString()}`;
         console.log('[Pass2] ✅ Total Year 1 commitment (Phase 1 only):', narratives.page4_numbers.totalYear1);
       }
@@ -3468,6 +3554,7 @@ Before returning, verify:
         const firstPhasePrice = firstPriceMatch ? parseInt(firstPriceMatch[0].replace(/,/g, ''), 10) : 0;
         
         narratives.page4_numbers.totalYear1 = `£${firstPhasePrice.toLocaleString()}`;
+        narratives.page4_numbers.totalYear1Label = 'To start the journey';
         narratives.page4_numbers.toStartTheJourney = `£${firstPhasePrice.toLocaleString()}`;
         
         // Fix investment breakdown display

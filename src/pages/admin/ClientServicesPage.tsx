@@ -5624,24 +5624,51 @@ function DiscoveryClientModal({
                                           What Staying Here Costs
                                         </h3>
                                         <div className="space-y-2 text-rose-700">
-                                          {page4.costOfStaying.labourInefficiency && (
-                                            <div className="flex justify-between">
-                                              <span>Labour inefficiency</span>
-                                              <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
-                                            </div>
-                                          )}
-                                          {page4.costOfStaying.marginLeakage && (
-                                            <div className="flex justify-between">
-                                              <span>Margin leakage</span>
-                                              <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
-                                            </div>
-                                          )}
-                                          {page4.costOfStaying.yourTimeWasted && (
-                                            <div className="flex justify-between">
-                                              <span>Your time on work below pay grade</span>
-                                              <span className="font-medium">{page4.costOfStaying.yourTimeWasted}</span>
-                                            </div>
-                                          )}
+                                          {page4.costOfStaying.labourInefficiency && (() => {
+                                            const value = page4.costOfStaying.labourInefficiency;
+                                            const isShort = String(value).length <= 30;
+                                            return isShort ? (
+                                              <div className="flex justify-between">
+                                                <span>Labour inefficiency</span>
+                                                <span className="font-medium">{value}</span>
+                                              </div>
+                                            ) : (
+                                              <div className="mb-3">
+                                                <span className="font-semibold block mb-1">Labour inefficiency</span>
+                                                <span className="text-sm">{value}</span>
+                                              </div>
+                                            );
+                                          })()}
+                                          {page4.costOfStaying.marginLeakage && (() => {
+                                            const value = page4.costOfStaying.marginLeakage;
+                                            const isShort = String(value).length <= 30;
+                                            return isShort ? (
+                                              <div className="flex justify-between">
+                                                <span>Margin leakage</span>
+                                                <span className="font-medium">{value}</span>
+                                              </div>
+                                            ) : (
+                                              <div className="mb-3">
+                                                <span className="font-semibold block mb-1">Margin leakage</span>
+                                                <span className="text-sm">{value}</span>
+                                              </div>
+                                            );
+                                          })()}
+                                          {page4.costOfStaying.yourTimeWasted && (() => {
+                                            const value = page4.costOfStaying.yourTimeWasted;
+                                            const isShort = String(value).length <= 30;
+                                            return isShort ? (
+                                              <div className="flex justify-between">
+                                                <span>Your time on work below pay grade</span>
+                                                <span className="font-medium">{value}</span>
+                                              </div>
+                                            ) : (
+                                              <div className="mb-3">
+                                                <span className="font-semibold block mb-1">Your time on work below pay grade</span>
+                                                <span className="text-sm">{value}</span>
+                                              </div>
+                                            );
+                                          })()}
                                         </div>
                                         {page4.personalCost && (
                                           <p className="mt-3 pt-3 border-t border-rose-200 text-rose-800 font-medium">
@@ -5665,7 +5692,7 @@ function DiscoveryClientModal({
                                         </div>
                                         {page4.totalYear1 && (
                                           <div className="mt-3 pt-3 border-t-2 border-emerald-200 bg-emerald-50 -mx-4 -mb-4 p-4 rounded-b-lg flex justify-between">
-                                            <span className="font-medium text-emerald-800">Total Year 1</span>
+                                            <span className="font-medium text-emerald-800">{page4.totalYear1Label || 'To start the journey'}</span>
                                             <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
                                           </div>
                                         )}

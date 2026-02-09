@@ -470,37 +470,81 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
             {/* FALLBACK: LLM-generated narrative if no calculated data */}
             {!page4.financialInsights?.payroll && page4.costOfStaying && (
               <div className="space-y-2 mb-4">
-                {page4.costOfStaying.labourInefficiency && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Labour inefficiency</span>
-                    <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
-                  </div>
-                )}
-                {page4.costOfStaying.marginLeakage && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Margin leakage</span>
-                    <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
-                  </div>
-                )}
-                {page4.costOfStaying.yourTimeWasted && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Your time on work below your pay grade</span>
-                    <span className="font-medium">{page4.costOfStaying.yourTimeWasted}</span>
-                  </div>
-                )}
-                {page4.costOfStaying.businessValueImpact && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Business value without you</span>
-                    <span className="font-medium">{page4.costOfStaying.businessValueImpact}</span>
-                  </div>
-                )}
-                {/* LLM narrative fields */}
-                {page4.costOfStaying.annualFinancialCost && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Annual cost</span>
-                    <span className="font-medium">{page4.costOfStaying.annualFinancialCost}</span>
-                  </div>
-                )}
+                {page4.costOfStaying.labourInefficiency && (() => {
+                  const value = page4.costOfStaying.labourInefficiency;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Labour inefficiency</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Labour inefficiency</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
+                {page4.costOfStaying.marginLeakage && (() => {
+                  const value = page4.costOfStaying.marginLeakage;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Margin leakage</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Margin leakage</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
+                {page4.costOfStaying.yourTimeWasted && (() => {
+                  const value = page4.costOfStaying.yourTimeWasted;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Your time on work below your pay grade</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Your time on work below your pay grade</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
+                {page4.costOfStaying.businessValueImpact && (() => {
+                  const value = page4.costOfStaying.businessValueImpact;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Business value without you</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Business value without you</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
+                {page4.costOfStaying.annualFinancialCost && (() => {
+                  const value = page4.costOfStaying.annualFinancialCost;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Annual cost</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Annual cost</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
             
@@ -539,7 +583,7 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
                 {page4.totalYear1 && (
                   <div className="flex justify-between py-3 bg-emerald-50 -mx-6 px-6 mt-2 rounded-b-lg">
                     <span className="font-medium text-emerald-800">
-                      Total Year 1: {page4.totalYear1Label || 'Foundation for freedom'}
+                      {page4.totalYear1Label || 'To start the journey'}
                     </span>
                     <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
                   </div>

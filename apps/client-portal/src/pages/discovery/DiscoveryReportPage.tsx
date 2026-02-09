@@ -123,7 +123,7 @@ export default function DiscoveryReportPage() {
   const [newReport, setNewReport] = useState<any>(null);
   const [showCallToAction, setShowCallToAction] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
-  const [expandedPhase, setExpandedPhase] = useState<number>(0);
+  const [collapsedPhases, setCollapsedPhases] = useState<Set<number>>(new Set());
   const [popupCatalogueCode, setPopupCatalogueCode] = useState<string | null>(null);
   const [comprehensiveAnalysis, setComprehensiveAnalysis] = useState<any>(null);
   const [recommendedServices, setRecommendedServices] = useState<any[]>([]);
@@ -512,7 +512,15 @@ export default function DiscoveryReportPage() {
                     className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
                   >
                     <button
-                      onClick={() => setExpandedPhase(expandedPhase === index ? -1 : index)}
+                      type="button"
+                      onClick={() => {
+                        setCollapsedPhases(prev => {
+                          const next = new Set(prev);
+                          if (next.has(index)) next.delete(index);
+                          else next.add(index);
+                          return next;
+                        });
+                      }}
                       className="w-full p-6 text-left hover:bg-slate-50 transition-colors"
                     >
                       <div className="flex items-center justify-between">
@@ -524,15 +532,15 @@ export default function DiscoveryReportPage() {
                             {phase.headline}
                           </h3>
                         </div>
-                        {expandedPhase === index ? (
-                          <ChevronUp className="h-5 w-5 text-slate-400" />
-                        ) : (
+                        {collapsedPhases.has(index) ? (
                           <ChevronDown className="h-5 w-5 text-slate-400" />
+                        ) : (
+                          <ChevronUp className="h-5 w-5 text-slate-400" />
                         )}
                       </div>
                     </button>
                     
-                    {expandedPhase === index && (
+                    {!collapsedPhases.has(index) && (
                       <div className="px-6 pb-6 border-t border-slate-100">
                         {phase.whatChanges && phase.whatChanges.length > 0 && (
                           <div className="mt-4">
@@ -681,11 +689,16 @@ export default function DiscoveryReportPage() {
                   });
                 }
                 
-                // 3. Gross Margin
+                // 3. Gross Margin (avoid duplicate: value = %, subtext = assessment only)
                 if (page4.grossMarginStrength) {
+                  const gmMatch = page4.grossMarginStrength.match(/([\d.]+%)/);
+                  const gmValue = gmMatch ? gmMatch[1] : page4.grossMarginStrength;
+                  const gmAssessment = page4.grossMarginStrength.includes(' - ')
+                    ? page4.grossMarginStrength.split(' - ')[1]
+                    : (ca?.grossMargin?.assessment ? `${ca.grossMargin.assessment} for industry` : undefined);
                   metrics.push({
-                    icon: '📈', label: 'Gross Margin', value: page4.grossMarginStrength,
-                    subtext: ca?.grossMargin?.assessment ? `${ca.grossMargin.assessment} for industry` : undefined, color: 'blue'
+                    icon: '📈', label: 'Gross Margin', value: gmValue,
+                    subtext: gmAssessment, color: 'blue'
                   });
                 } else if (ca?.grossMargin?.grossMarginPct) {
                   metrics.push({
@@ -788,25 +801,26 @@ export default function DiscoveryReportPage() {
                     <AlertTriangle className="h-5 w-5" />
                     What Staying Here Costs
                   </h3>
-                  <div className="space-y-2">
-                    {page4.costOfStaying.labourInefficiency && (
-                      <div className="flex justify-between text-rose-700">
-                        <span>Labour inefficiency</span>
-                        <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
-                      </div>
-                    )}
-                    {page4.costOfStaying.marginLeakage && (
-                      <div className="flex justify-between text-rose-700">
-                        <span>Margin leakage</span>
-                        <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
-                      </div>
-                    )}
-                    {page4.costOfStaying.yourTimeWasted && (
-                      <div className="flex justify-between text-rose-700">
-                        <span>Your time</span>
-                        <span className="font-medium">{page4.costOfStaying.yourTimeWasted}</span>
-                      </div>
-                    )}
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Labour inefficiency', value: page4.costOfStaying.labourInefficiency },
+                      { label: 'Margin leakage', value: page4.costOfStaying.marginLeakage },
+                      { label: 'Your time', value: page4.costOfStaying.yourTimeWasted },
+                    ].filter(item => item.value).map((item, idx) => {
+                      const value = String(item.value);
+                      const isQuantified = value.length <= 40;
+                      return isQuantified ? (
+                        <div key={idx} className="flex justify-between items-baseline text-rose-700 py-1">
+                          <span className="text-rose-600">{item.label}</span>
+                          <span className="font-semibold text-rose-800">{value}</span>
+                        </div>
+                      ) : (
+                        <div key={idx} className="text-rose-700 py-2 border-b border-rose-100 last:border-b-0">
+                          <span className="font-semibold text-rose-800 text-sm uppercase tracking-wide block mb-1">{item.label}</span>
+                          <span className="text-sm leading-relaxed">{value}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                   {page4.personalCost && (
                     <div className="mt-4 pt-4 border-t border-rose-200">
@@ -839,7 +853,7 @@ export default function DiscoveryReportPage() {
                     
                     {page4.totalYear1 && (
                       <div className="flex justify-between py-3 bg-emerald-50 -mx-6 px-6 mt-2 rounded-b-lg">
-                        <span className="font-medium text-emerald-800">Total Year 1</span>
+                        <span className="font-medium text-emerald-800">{page4.totalYear1Label || 'To start the journey'}</span>
                         <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
                       </div>
                     )}

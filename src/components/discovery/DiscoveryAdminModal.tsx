@@ -1392,18 +1392,36 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                 </h3>
                 
                 <div className="space-y-2 mb-4">
-                  {page4.costOfStaying.labourInefficiency && (
-                    <div className="flex justify-between text-rose-700">
-                      <span>Labour inefficiency</span>
-                      <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
-                    </div>
-                  )}
-                  {page4.costOfStaying.marginLeakage && (
-                    <div className="flex justify-between text-rose-700">
-                      <span>Margin leakage</span>
-                      <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
-                    </div>
-                  )}
+                  {page4.costOfStaying.labourInefficiency && (() => {
+                    const value = page4.costOfStaying.labourInefficiency;
+                    const isShort = String(value).length <= 30;
+                    return isShort ? (
+                      <div className="flex justify-between text-rose-700">
+                        <span>Labour inefficiency</span>
+                        <span className="font-medium">{value}</span>
+                      </div>
+                    ) : (
+                      <div className="text-rose-700 mb-3">
+                        <span className="font-semibold block mb-1">Labour inefficiency</span>
+                        <span className="text-sm">{value}</span>
+                      </div>
+                    );
+                  })()}
+                  {page4.costOfStaying.marginLeakage && (() => {
+                    const value = page4.costOfStaying.marginLeakage;
+                    const isShort = String(value).length <= 30;
+                    return isShort ? (
+                      <div className="flex justify-between text-rose-700">
+                        <span>Margin leakage</span>
+                        <span className="font-medium">{value}</span>
+                      </div>
+                    ) : (
+                      <div className="text-rose-700 mb-3">
+                        <span className="font-semibold block mb-1">Margin leakage</span>
+                        <span className="text-sm">{value}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 
                 {page4.personalCost && (
@@ -1441,7 +1459,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   {page4.totalYear1 && (
                     <div className="flex justify-between py-3 bg-emerald-50 -mx-6 px-6 mt-2 rounded-b-lg">
                       <span className="font-medium text-emerald-800">
-                        Total Year 1
+                        {page4.totalYear1Label || 'To start the journey'}
                       </span>
                       <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
                     </div>

@@ -2960,7 +2960,30 @@ serve(async (req) => {
       .eq('client_id', engagement.client_id)
       .order('period_end_date', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
+
+    // ========================================================================
+    // FALLBACK: client_reports (from generate-discovery-analysis / legacy path)
+    // When neither client_financial_data nor client_financial_context has data
+    // ========================================================================
+    let clientReportFallback: any = null;
+    if (!financialContext && (!accountsYears || accountsYears.length === 0)) {
+      console.log('[Pass1] ⚠️ No structured financial data, checking client_reports...');
+      const { data: reportRow } = await supabase
+        .from('client_reports')
+        .select('report_data')
+        .eq('client_id', engagement.client_id)
+        .eq('report_type', 'discovery_analysis')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (reportRow?.report_data?.analysis?.financialContext) {
+        clientReportFallback = reportRow.report_data.analysis.financialContext;
+        console.log('[Pass1] ✅ Found financial data in client_reports (legacy path)');
+      } else {
+        console.log('[Pass1] ⚠️ No client_reports financialContext found either');
+      }
+    }
 
     console.log('[Pass1] 📊 Financial data sources:', {
       accountsYears: accountsYears?.length || 0,
@@ -3473,8 +3496,63 @@ serve(async (req) => {
         
         console.log('[Pass1] Available fields:', extractedFields.join(', '));
       }
+    } else if (clientReportFallback && typeof clientReportFallback === 'object') {
+      // ========================================================================
+      // BUILD FINANCIALS FROM client_reports.report_data.analysis.financialContext (legacy)
+      // ========================================================================
+      const fc = clientReportFallback;
+      const turnover = fc.turnover ?? fc.revenue ?? 0;
+      const turnoverPriorYear = fc.turnover_prior_year ?? fc.prior_year_turnover ?? fc.turnoverPriorYear ?? null;
+      const grossProfit = fc.gross_profit ?? fc.grossProfit ?? null;
+      const operatingProfit = fc.operating_profit ?? fc.operatingProfit ?? fc.ebitda ?? null;
+      const netProfit = fc.net_profit ?? fc.netProfit ?? fc.profit_after_tax ?? null;
+      const totalStaffCosts = fc.staff_costs ?? fc.total_staff_costs ?? fc.staff_cost ?? fc.employee_costs ?? null;
+      const employeeCount = fc.employee_count ?? fc.staff_count ?? fc.average_employees ?? null;
+      const grossMarginPct = fc.gross_margin_pct ?? (grossProfit && turnover ? (grossProfit / turnover) * 100 : null);
+      const netMarginPct = fc.net_margin_pct ?? (netProfit && turnover ? (netProfit / turnover) * 100 : null);
+      const turnoverGrowth = turnover && turnoverPriorYear && turnoverPriorYear > 0
+        ? ((turnover - turnoverPriorYear) / turnoverPriorYear * 100) : null;
+      const staffCostsPercentOfRevenue = totalStaffCosts && turnover ? (totalStaffCosts / turnover * 100) : null;
+      const revenuePerEmployee = employeeCount && turnover ? turnover / employeeCount : null;
+
+      extractedFinancials = {
+        source: 'client_reports',
+        turnover: Number(turnover) || 0,
+        turnoverPriorYear: turnoverPriorYear != null ? Number(turnoverPriorYear) : undefined,
+        turnoverGrowth: turnoverGrowth != null ? Number(turnoverGrowth) : undefined,
+        grossProfit: grossProfit != null ? Number(grossProfit) : undefined,
+        grossProfitPriorYear: undefined,
+        grossMarginPct: grossMarginPct != null ? Number(grossMarginPct) : undefined,
+        operatingProfit: operatingProfit != null ? Number(operatingProfit) : undefined,
+        operatingProfitPriorYear: undefined,
+        operatingMarginPct: operatingProfit && turnover ? (Number(operatingProfit) / turnover * 100) : undefined,
+        netProfit: netProfit != null ? Number(netProfit) : undefined,
+        netProfitPriorYear: undefined,
+        netMarginPct: netMarginPct != null ? Number(netMarginPct) : undefined,
+        ebitda: fc.ebitda != null ? Number(fc.ebitda) : undefined,
+        costOfSales: fc.cost_of_sales ?? fc.costOfSales ?? undefined,
+        costOfSalesPriorYear: undefined,
+        totalStaffCosts: totalStaffCosts != null ? Number(totalStaffCosts) : undefined,
+        staffCostsPercentOfRevenue: staffCostsPercentOfRevenue != null ? Number(staffCostsPercentOfRevenue) : undefined,
+        employeeCount: employeeCount != null ? Number(employeeCount) : undefined,
+        employeeCountPriorYear: undefined,
+        revenuePerEmployee: revenuePerEmployee != null ? Number(revenuePerEmployee) : undefined,
+        netAssets: fc.net_assets ?? fc.netAssets ?? undefined,
+        totalAssets: fc.total_assets ?? fc.totalAssets ?? undefined,
+        fixedAssets: fc.fixed_assets ?? fc.fixedAssets ?? undefined,
+        cash: fc.cash ?? fc.cash_position ?? fc.cash_at_bank ?? undefined,
+        debtors: fc.debtors ?? fc.trade_debtors ?? undefined,
+        creditors: fc.creditors ?? fc.trade_creditors ?? undefined,
+        stock: fc.stock ?? fc.inventory ?? undefined,
+      };
+      console.log('[Pass1] ✅ Built financials from client_reports:', {
+        turnover: extractedFinancials.turnover,
+        operatingProfit: extractedFinancials.operatingProfit,
+        totalStaffCosts: extractedFinancials.totalStaffCosts,
+        employeeCount: extractedFinancials.employeeCount,
+      });
     }
-    
+
     // ========================================================================
     // CLASSIFY BUSINESS TYPE FIRST (BEFORE CALCULATORS)
     // ========================================================================
