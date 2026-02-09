@@ -3778,8 +3778,9 @@ Before returning, verify:
 
     // Use valid database status values (admin_review is NOT a valid status)
     // Valid: pending, pass1_processing, pass1_complete, pass2_processing, generated, approved, published
-    const reportStatus = 'generated';  // Always 'generated' after Pass 2 completes
-    const engagementStatus = 'pass2_complete';  // Use ready_for_client flag to indicate review needed
+    // Auto-publish so client portal shows Pass 2 report without a separate "Share" step
+    const reportStatus = 'published';
+    const engagementStatus = 'published';
 
     console.log(`[Pass2] Setting status to: ${reportStatus} (data completeness: ${dataCompleteness.score}%)`);
 
@@ -3835,7 +3836,8 @@ Before returning, verify:
         missing_critical_data: dataCompleteness.missingCritical,
         missing_important_data: dataCompleteness.missingImportant,
         admin_actions_needed: dataCompleteness.adminActionRequired,
-        ready_for_client: dataCompleteness.canGenerateClientReport,
+        ready_for_client: true,
+        published_to_client_at: new Date().toISOString(),
         llm_model: PASS2_MODEL,
         llm_tokens_used: tokensUsed,
         llm_cost: estimatedCost,
