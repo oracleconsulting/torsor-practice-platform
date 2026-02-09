@@ -191,12 +191,13 @@ export default function DiscoveryReportPage() {
       console.log('[Report] Found engagement:', engagement);
 
       if (engagement?.id) {
-        // Look for discovery_reports - accept 'generated' or 'published' status
+        // Prefer Pass 2 report that is published for client (ready_for_client); fallback to any generated/published
         const { data: discoveryReport, error: drError } = await supabase
           .from('discovery_reports')
           .select('*')
           .eq('engagement_id', engagement.id)
           .in('status', ['generated', 'published', 'admin_review'])
+          .order('ready_for_client', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();

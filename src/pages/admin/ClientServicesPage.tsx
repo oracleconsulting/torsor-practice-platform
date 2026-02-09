@@ -3364,7 +3364,39 @@ function DiscoveryClientModal({
       console.log('[Share] Report updated successfully:', data);
       
       setIsReportShared(newSharedStatus);
-      
+
+      // When sharing: also publish the new discovery_reports (Pass 2) if it exists,
+      // so the client portal shows the 5-page format instead of legacy.
+      if (newSharedStatus && discoveryEngagement?.id) {
+        const { data: discoveryReport } = await supabase
+          .from('discovery_reports')
+          .select('id, status, destination_report, page1_destination')
+          .eq('engagement_id', discoveryEngagement.id)
+          .maybeSingle();
+
+        const hasPass2Data = discoveryReport?.destination_report || discoveryReport?.page1_destination;
+        if (hasPass2Data && discoveryReport.status !== 'published') {
+          await supabase
+            .from('discovery_reports')
+            .update({
+              status: 'published',
+              ready_for_client: true,
+              published_to_client_at: new Date().toISOString(),
+            })
+            .eq('id', discoveryReport.id);
+
+          await supabase
+            .from('discovery_engagements')
+            .update({
+              status: 'published',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', discoveryEngagement.id);
+
+          console.log('[Share] Also published discovery_reports for engagement:', discoveryEngagement.id);
+        }
+      }
+
       if (newSharedStatus) {
         alert('Report shared! The client can now view it in their portal.');
       } else {
