@@ -41,7 +41,6 @@ import {
   Eye,
   Info
 } from 'lucide-react';
-import { EnabledByLink } from '../ServiceDetailPopup';
 import { ServiceRecommendationPopup } from '../shared/ServiceRecommendationPopup';
 import { 
   LearningReviewPanel, 
@@ -89,6 +88,8 @@ function discoveryServiceToCatalogueCode(rec: { serviceCode?: string; code?: str
     'FRACTIONAL_CFO': 'fractional_cfo',
     'PROFIT_EXTRACTION': 'profit_extraction',
     'QUARTERLY_BI': 'quarterly_bi',
+    'MANAGEMENT_ACCOUNTS': 'quarterly_bi',
+    'HIDDEN_VALUE_AUDIT': 'benchmarking',
   };
   if (map[code]) return map[code];
   const name = (rec.serviceName || '').toLowerCase();
@@ -1345,14 +1346,19 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                         </div>
                       )}
                       
-                      {/* Enabled By - CLICKABLE SERVICE LINK */}
+                      {/* Enabled By - opens universal service recommendation popup */}
                       {phase.enabledBy && (
                         <div className="mt-4 pt-4 border-t border-slate-100">
-                          <EnabledByLink
-                            serviceCode={getServiceCode(phase.enabledBy, phase.enabledByCode)}
-                            serviceName={phase.enabledBy}
-                            price=""
-                          />
+                          <button
+                            type="button"
+                            onClick={() => setPopupServiceCode(discoveryServiceToCatalogueCode({
+                              serviceCode: phase.enabledByCode || getServiceCode(phase.enabledBy, phase.enabledByCode),
+                              serviceName: phase.enabledBy,
+                            }))}
+                            className="text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors cursor-pointer underline-offset-2 hover:underline"
+                          >
+                            Enabled by: {phase.enabledBy}
+                          </button>
                         </div>
                       )}
                     </div>
