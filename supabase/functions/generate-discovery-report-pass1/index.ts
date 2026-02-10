@@ -306,7 +306,11 @@ interface ExtractedFinancials {
   // === INVESTMENT/PROPERTY (for investment vehicles) ===
   investmentProperty?: number;           // Investment property value
   rentalIncome?: number;                 // Rental income (if applicable)
-  deferredTax?: number;                  // Deferred tax provision (Session 11)
+  deferredTax?: number;                  // Deferred tax provision (Session 11) — balance sheet balance (cumulative)
+  deferredTaxProvision?: number;         // Current year balance (cumulative)
+  deferredTaxProvisionPrior?: number;    // Prior year balance (for movement calc)
+  corporationTaxPayable?: number;        // From creditors note: current year CT
+  taxCharge?: number;                    // P&L: total tax on profit
   // bankLoans already above under LIABILITIES
   
   // === CONTRACTOR COSTS (for agencies) ===
@@ -2062,8 +2066,49 @@ function calculateCostOfInaction(
       confidence: 'calculated'
     });
   }
-  
-  // 2. Revenue decline (existing)
+
+  // 2. Operating margin recovery (replaces LLM-guessed "margin leakage")
+  // Uses client's own best-achieved operating margin vs current
+  if (financials?.multiYearEarnings && financials.multiYearEarnings.length >= 2 && turnover > 0) {
+    const currentOP = financials.operatingProfit || 0;
+    const currentMarginPct = currentOP > 0 ? (currentOP / turnover) * 100 : 0;
+
+    // Find peak operating margin across all available years
+    let peakMarginPct = currentMarginPct;
+    let peakYear: number | null = null;
+
+    for (const yearData of financials.multiYearEarnings) {
+      const yearOP = (yearData as any).operatingProfit;
+      const yearRev = yearData.revenue;
+      if (yearOP && yearRev && yearRev > 0) {
+        const yearMarginPct = (yearOP / yearRev) * 100;
+        if (yearMarginPct > peakMarginPct) {
+          peakMarginPct = yearMarginPct;
+          peakYear = yearData.year;
+        }
+      }
+    }
+
+    // Only include if there's a meaningful gap (> 1 percentage point)
+    const marginGapPct = peakMarginPct - currentMarginPct;
+    if (marginGapPct > 1.0 && peakYear !== null) {
+      const annualRecovery = Math.round((marginGapPct / 100) * turnover);
+
+      if (annualRecovery > 5000) {
+        components.push({
+          category: 'Operating Margin Recovery',
+          annualCost: annualRecovery,
+          costOverHorizon: annualRecovery * timeHorizon,
+          calculation: `Peak margin ${peakMarginPct.toFixed(1)}% (${peakYear}) vs current ${currentMarginPct.toFixed(1)}% = ${marginGapPct.toFixed(1)}pp gap. ${marginGapPct.toFixed(1)}% × £${(turnover / 1000).toFixed(0)}k = £${(annualRecovery / 1000).toFixed(0)}k/year`,
+          confidence: 'calculated'
+        });
+
+        console.log(`[Pass1] 📊 Operating margin recovery: ${peakMarginPct.toFixed(1)}% (${peakYear}) → ${currentMarginPct.toFixed(1)}% = £${(annualRecovery / 1000).toFixed(0)}k/year gap`);
+      }
+    }
+  }
+
+  // 3. Revenue decline (existing)
   if (trajectoryAnalysis?.trend === 'declining' && trajectoryAnalysis.absoluteChange) {
     const annualDecline = Math.abs(trajectoryAnalysis.absoluteChange);
     let totalDecline = annualDecline;
@@ -2079,7 +2124,7 @@ function calculateCostOfInaction(
     });
   }
   
-  // 3. Valuation erosion (existing, plus volatile_recovering)
+  // 4. Valuation erosion (existing, plus volatile_recovering)
   if (valuationAnalysis?.conservativeValue && 
       (trajectoryAnalysis?.trend === 'declining' || trajectoryAnalysis?.trend === 'volatile_recovering')) {
     const erosionRate = trajectoryAnalysis?.trend === 'declining' ? 0.05 : 0.03;
@@ -2095,7 +2140,7 @@ function calculateCostOfInaction(
     }
   }
   
-  // 4. Founder time on below-pay-grade work
+  // 5. Founder time on below-pay-grade work
   const founderDependency = (responses.sd_founder_dependency || responses.dd_founder_dependency || '').toLowerCase();
   const coreFrustration = (responses.rl_core_frustration || responses.dd_core_frustration || '').toLowerCase();
   const magicFix = (responses.dd_magic_fix || responses.dd_90_day_magic || '').toLowerCase();
@@ -2121,7 +2166,7 @@ function calculateCostOfInaction(
     }
   }
   
-  // 5. Client concentration risk
+  // 6. Client concentration risk
   const allText = JSON.stringify(responses).toLowerCase();
   const hasConcentration = allText.includes('concentration') || allText.includes('one client') || 
                           allText.includes('single client') || allText.includes('biggest client');
@@ -2141,7 +2186,7 @@ function calculateCostOfInaction(
     }
   }
   
-  // 6. Delayed growth / opportunity cost
+  // 7. Delayed growth / opportunity cost
   const mentionsGrowth = coreFrustration.includes('growth') || coreFrustration.includes('stuck') || 
                          coreFrustration.includes('ceiling') || coreFrustration.includes('capacity') ||
                          magicFix.includes('sales') || magicFix.includes('new business');
@@ -4028,7 +4073,8 @@ serve(async (req) => {
       const interestPaid = (latest as any).interest_paid ?? null;
       // Investment vehicle fields (Session 11)
       const investmentProperty = (latest as any).investment_property ?? null;
-      const deferredTax = (latest as any).deferred_tax ?? null;
+      const deferredTax = (latest as any).deferred_tax ?? (latest as any).deferred_tax_provision ?? null;
+      const deferredTaxPrior = (prior as any)?.deferred_tax ?? (prior as any)?.deferred_tax_provision ?? null;
       const bankLoans = (latest as any).bank_loans ?? (latest as any).long_term_liabilities ?? null;
       const costOfSales = latest.cost_of_sales ?? null;
       const costOfSalesPriorYear = prior?.cost_of_sales ?? null;
@@ -4090,6 +4136,10 @@ serve(async (req) => {
         interestPaid: interestPaid != null ? Number(interestPaid) : undefined,
         investmentProperty: investmentProperty != null ? Number(investmentProperty) : undefined,
         deferredTax: deferredTax != null ? Number(deferredTax) : undefined,
+        deferredTaxProvision: deferredTax != null ? Number(deferredTax) : undefined,
+        deferredTaxProvisionPrior: deferredTaxPrior != null ? Number(deferredTaxPrior) : undefined,
+        taxCharge: (latest as any).tax != null ? Number((latest as any).tax) : undefined,
+        corporationTaxPayable: (latest as any).corporation_tax_payable != null ? Number((latest as any).corporation_tax_payable) : undefined,
         bankLoans: bankLoans != null ? Number(bankLoans) : undefined,
         multiYearEarnings,
       };
@@ -4137,6 +4187,12 @@ serve(async (req) => {
               (extractedFinancials as any).staffCostsPercentOfRevenue = (staffCosts / turnoverNum * 100);
               console.log('[Pass1] ✅ Recovered staff costs from upload notes:', staffCosts);
             }
+          }
+          // Session 11: Recover corporation_tax_payable for deferred tax movement fallback
+          const corpTaxPayable = latestUploadYear?.corporation_tax_payable ?? latestUploadYear?.corporation_tax;
+          if (corpTaxPayable != null) {
+            (extractedFinancials as any).corporationTaxPayable = Number(corpTaxPayable);
+            console.log('[Pass1] ✅ Recovered corporation_tax_payable from upload:', corpTaxPayable);
           }
         }
       } catch (e) {
@@ -4309,25 +4365,44 @@ serve(async (req) => {
       (comprehensiveAnalysis as any).ihtExposure = ihtExposure;
     }
 
-    // Deferred tax detection (Session 11)
+    // ========================================================================
+    // DEFERRED TAX DETECTION (Session 11)
+    // CRITICAL: Balance sheet shows CUMULATIVE provision (e.g. £775k).
+    // The annual CHARGE is the MOVEMENT between years (e.g. £186k).
+    // ========================================================================
     if (extractedFinancials.operatingProfit != null && extractedFinancials.operatingProfit > 0) {
       const netProfit = extractedFinancials.netProfit ?? (extractedFinancials as any).profitBeforeTax ?? null;
-      const deferredTax = extractedFinancials.deferredTax ?? null;
+      const deferredTaxBalance = (extractedFinancials as any).deferredTaxProvision ?? extractedFinancials.deferredTax ?? null;
+      const deferredTaxBalancePrior = (extractedFinancials as any).deferredTaxProvisionPrior ?? null;
+      const deferredTaxMovement = (deferredTaxBalance != null && deferredTaxBalancePrior != null)
+        ? deferredTaxBalance - deferredTaxBalancePrior
+        : null;
+      const totalTaxCharge = (extractedFinancials as any).taxCharge ?? null;
+      const corpTaxPayable = (extractedFinancials as any).corporationTaxPayable ?? null;
+      const deferredTaxFromTaxLine = (totalTaxCharge != null && corpTaxPayable != null)
+        ? totalTaxCharge - corpTaxPayable
+        : null;
+      const annualDeferredTax = deferredTaxMovement ?? deferredTaxFromTaxLine ?? null;
+
       if (netProfit != null && netProfit < 0) {
-        const deferredK = deferredTax != null ? Math.round(Math.abs(deferredTax) / 1000) : null;
-        const explanation = deferredK != null
-          ? `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k is driven by a £${deferredK}k deferred tax provision (likely on property revaluation). Operating performance is strong at £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit.`
-          : `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k despite £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit — likely driven by non-cash items such as deferred tax on property revaluation.`;
+        const movementK = annualDeferredTax != null ? Math.round(Math.abs(annualDeferredTax) / 1000) : null;
+        const balanceK = deferredTaxBalance != null ? Math.round(deferredTaxBalance / 1000) : null;
+        const explanation = (movementK != null && balanceK != null)
+          ? `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k is driven by a £${movementK}k deferred tax movement (the in-year charge on property revaluation). The £${balanceK}k figure on the balance sheet is the cumulative provision, not the annual charge. Operating performance is strong at £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit.`
+          : movementK != null
+            ? `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k is driven by a £${movementK}k deferred tax movement (likely on property revaluation). Operating performance is strong at £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit.`
+            : `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k despite £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit — likely driven by non-cash deferred tax on property revaluation.`;
         (comprehensiveAnalysis as any).deferredTaxImpact = {
           hasData: true,
           isSignificant: true,
-          deferredTaxProvision: deferredTax,
           operatingProfit: extractedFinancials.operatingProfit,
-          statutoryNetProfit: netProfit,
           netProfit: netProfit,
+          deferredTaxBalance: deferredTaxBalance,
+          deferredTaxBalancePrior: deferredTaxBalancePrior,
+          deferredTaxMovement: annualDeferredTax,
           explanation
         };
-        console.log('[Pass1] 📊 Deferred tax detected:', explanation);
+        console.log('[Pass1] 📊 Deferred tax:', { balance: deferredTaxBalance, priorBalance: deferredTaxBalancePrior, movement: annualDeferredTax });
       }
     }
 
@@ -4353,6 +4428,19 @@ serve(async (req) => {
     } else {
       (comprehensiveAnalysis as any).employeeCountContext = 'sole operator';
       (comprehensiveAnalysis as any).isNotSoloPractitioner = 'false';
+    }
+
+    // Business size phrasing (Session 11) — asset-based for investment vehicles, not revenue
+    const turnoverForSize = extractedFinancials.turnover || 0;
+    const netAssetsForSize = extractedFinancials.netAssets ?? 0;
+    const investmentPropertyForSize = extractedFinancials.investmentProperty ?? 0;
+    if (clientType.type === 'investment_vehicle' && netAssetsForSize > 1000000) {
+      (comprehensiveAnalysis as any).businessSizePhrase = `a £${(netAssetsForSize / 1000000).toFixed(1)}M estate`;
+      (comprehensiveAnalysis as any).businessSizeContext = `${(investmentPropertyForSize / 1000000).toFixed(1)}M in investment property with net assets of £${(netAssetsForSize / 1000000).toFixed(1)}M`;
+    } else if (turnoverForSize > 0) {
+      (comprehensiveAnalysis as any).businessSizePhrase = turnoverForSize >= 1000000
+        ? `a £${(turnoverForSize / 1000000).toFixed(1)}M business`
+        : `a £${Math.round(turnoverForSize / 1000)}k business`;
     }
 
     // IHT exposure growth component in Cost of Inaction (Session 11)

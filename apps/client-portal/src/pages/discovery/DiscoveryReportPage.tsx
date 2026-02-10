@@ -720,10 +720,13 @@ export default function DiscoveryReportPage() {
                 }
                 
                 // 4. Exit Readiness — suppress for investment vehicles and when not applicable (Session 11)
+                const destForFlags = newReport?.destination_report || {};
                 const exitReadinessApplicable = !(
                   ca?.exitReadiness?.narrative?.includes('not applicable') ||
                   newReport?.client_type === 'investment_vehicle' ||
-                  newReport?.framework_overrides?.exitReadinessRelevant === false
+                  (destForFlags as any)?.client_type === 'investment_vehicle' ||
+                  newReport?.framework_overrides?.exitReadinessRelevant === false ||
+                  (destForFlags as any)?.framework_overrides?.exitReadinessRelevant === false
                 );
                 if (exitReadinessApplicable && ca?.exitReadiness?.score != null) {
                   const pct = Math.round((ca.exitReadiness.score / ca.exitReadiness.maxScore) * 100);
@@ -761,7 +764,8 @@ export default function DiscoveryReportPage() {
                 const productivitySuppressed =
                   ca?.productivity?.suppressInReport === true ||
                   (page4 as any)?.productivitySuppressed === true ||
-                  newReport?.client_type === 'investment_vehicle';
+                  newReport?.client_type === 'investment_vehicle' ||
+                  (destForFlags as any)?.client_type === 'investment_vehicle';
                 if (ca?.productivity?.hasData && ca.productivity.revenuePerHead && !productivitySuppressed) {
                   const gap = ca.productivity.benchmarkRPH ? 
                     Math.round(((ca.productivity.benchmarkRPH - ca.productivity.revenuePerHead) / ca.productivity.benchmarkRPH) * 100) : null;
@@ -780,7 +784,7 @@ export default function DiscoveryReportPage() {
                       .sort((a: any, b: any) => (b.costOverHorizon || 0) - (a.costOverHorizon || 0))
                       .slice(0, 2)
                       .map((c: any) => `${c.category}: £${Math.round((c.costOverHorizon || 0) / 1000)}k`)
-                      .join(', ');
+                      .join(' + ');
                     if (topComponents) coiSubtext = topComponents;
                   }
                   metrics.push({
@@ -1597,10 +1601,13 @@ export default function DiscoveryReportPage() {
           }
           
           // 4. Exit Readiness — suppress when not applicable (Session 11)
+          const reportDest = (report as any)?.destination_report || {};
           const exitReadinessApplicable = !(
             ca?.exitReadiness?.narrative?.includes('not applicable') ||
             (report as any)?.client_type === 'investment_vehicle' ||
-            (report as any)?.framework_overrides?.exitReadinessRelevant === false
+            reportDest?.client_type === 'investment_vehicle' ||
+            (report as any)?.framework_overrides?.exitReadinessRelevant === false ||
+            reportDest?.framework_overrides?.exitReadinessRelevant === false
           );
           if (exitReadinessApplicable && ca?.exitReadiness?.score != null) {
             const pct = Math.round((ca.exitReadiness.score / ca.exitReadiness.maxScore) * 100);
@@ -1637,7 +1644,8 @@ export default function DiscoveryReportPage() {
             ca?.productivity?.suppressInReport === true ||
             (report as any)?.page4_numbers?.productivitySuppressed === true ||
             (report as any)?.comprehensive_analysis?.productivity?.productivitySuppressed === true ||
-            (report as any)?.client_type === 'investment_vehicle';
+            (report as any)?.client_type === 'investment_vehicle' ||
+            reportDest?.client_type === 'investment_vehicle';
           if (ca?.productivity?.hasData && ca.productivity.revenuePerHead && !productivitySuppressedLegacy) {
             const gap = ca.productivity.benchmarkRPH ? 
               Math.round(((ca.productivity.benchmarkRPH - ca.productivity.revenuePerHead) / ca.productivity.benchmarkRPH) * 100) : null;
@@ -1656,7 +1664,7 @@ export default function DiscoveryReportPage() {
                 .sort((a: any, b: any) => (b.costOverHorizon || 0) - (a.costOverHorizon || 0))
                 .slice(0, 2)
                 .map((c: any) => `${c.category}: £${Math.round((c.costOverHorizon || 0) / 1000)}k`)
-                .join(', ');
+                .join(' + ');
               if (topComponents) coiSubtext = topComponents;
             }
             metrics.push({

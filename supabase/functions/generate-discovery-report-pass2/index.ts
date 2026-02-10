@@ -1636,15 +1636,21 @@ No validated financial data available. When discussing financial figures:
       console.log('[Pass2] ✅ Built net profit growth:', preBuiltPhrases.netProfitGrowth);
     }
 
-    // BUSINESS SCALE (for anchoring the report)
-    const turnoverForScale = revYoY?.current ?? validatedPayroll?.turnover ?? comprehensiveAnalysis?.payroll?.turnover;
-    const empCount = comprehensiveAnalysis?.productivity?.employeeCount ?? comprehensiveAnalysis?.productivity?.headcount ?? comprehensiveAnalysis?.payroll?.employeeCount;
-    if (turnoverForScale) {
-      const scaleM = (Number(turnoverForScale) / 1000000).toFixed(1);
-      preBuiltPhrases.businessScale = empCount
-        ? `a £${scaleM}M business with ${empCount} staff`
-        : `a £${scaleM}M business`;
-      console.log('[Pass2] ✅ Built business scale phrase:', preBuiltPhrases.businessScale);
+    // BUSINESS SCALE (for anchoring the report) — use asset-based phrase for investment vehicles (Session 11)
+    const businessSizePhrasePass1 = (comprehensiveAnalysis as any)?.businessSizePhrase;
+    if (businessSizePhrasePass1) {
+      preBuiltPhrases.businessScale = businessSizePhrasePass1;
+      console.log('[Pass2] ✅ Built business scale phrase (Pass 1):', preBuiltPhrases.businessScale);
+    } else {
+      const turnoverForScale = revYoY?.current ?? validatedPayroll?.turnover ?? comprehensiveAnalysis?.payroll?.turnover;
+      const empCount = comprehensiveAnalysis?.productivity?.employeeCount ?? comprehensiveAnalysis?.productivity?.headcount ?? comprehensiveAnalysis?.payroll?.employeeCount;
+      if (turnoverForScale) {
+        const scaleM = (Number(turnoverForScale) / 1000000).toFixed(1);
+        preBuiltPhrases.businessScale = empCount
+          ? `a £${scaleM}M business with ${empCount} staff`
+          : `a £${scaleM}M business`;
+        console.log('[Pass2] ✅ Built business scale phrase:', preBuiltPhrases.businessScale);
+      }
     }
 
     // ========================================================================
@@ -1767,10 +1773,26 @@ ${(preBuiltPhrases as any).isNotSoloPractitioner === 'true'
       }
       
       if (preBuiltPhrases.costOfInaction) {
+        const c = (comprehensiveAnalysis as any)?.costOfInaction;
+        const totalK = c?.totalOverHorizon ? Math.round(c.totalOverHorizon / 1000) : 0;
+        const timeH = c?.timeHorizon || 5;
+        let componentBreakdown = '';
+        if (c?.components?.length > 0) {
+          componentBreakdown = c.components
+            .filter((comp: { costOverHorizon?: number }) => (comp.costOverHorizon || 0) > 0)
+            .sort((a: { costOverHorizon?: number }, b: { costOverHorizon?: number }) => (b.costOverHorizon || 0) - (a.costOverHorizon || 0))
+            .map((comp: { category: string; costOverHorizon?: number; calculation?: string }) => `- ${comp.category}: £${Math.round((comp.costOverHorizon || 0) / 1000)}k (${comp.calculation || ''})`)
+            .join('\n');
+        }
         mandatoryPhrasesSection += `
-⏱️ COST OF INACTION (USE THIS PHRASE):
+⏱️ COST OF DELAY — £${totalK}k+ OVER ${timeH} YEARS (MANDATORY)
 ────────────────────────────────────────────────────────────────────────────
-► "Cost of inaction: ${preBuiltPhrases.costOfInaction}"
+Total: £${totalK}k+
+Time horizon: ${timeH} years
+${componentBreakdown ? `\nBREAKDOWN:\n${componentBreakdown}\n` : ''}
+⛔ WHEN USING THE £${totalK}k FIGURE, YOU MUST EXPLAIN WHAT IT CONTAINS.
+⛔ DO NOT just say "£${totalK}k+ over ${timeH} years" without breaking it down.
+⛔ USE phrases like: "£${totalK}k+ at risk — [top components from breakdown above]"
 
 `;
       }
@@ -1828,8 +1850,22 @@ ${caveatsList.map((c: string) => `- ${c}`).join('\n')}
 `;
       }
 
-      // Deferred tax mandatory explanation (Session 11 polish)
-      if ((preBuiltPhrases as any).deferredTaxExplanation) {
+      // Deferred tax mandatory explanation (Session 11) — balance vs movement
+      const dtImpact = (comprehensiveAnalysis as any)?.deferredTaxImpact;
+      if (dtImpact?.hasData) {
+        const balanceK = dtImpact.deferredTaxBalance != null ? Math.round(dtImpact.deferredTaxBalance / 1000) : null;
+        const movementK = dtImpact.deferredTaxMovement != null ? Math.round(Math.abs(dtImpact.deferredTaxMovement) / 1000) : null;
+        mandatoryPhrasesSection += `
+## DEFERRED TAX — CRITICAL DISTINCTION (MANDATORY)
+${dtImpact.explanation}
+
+⛔ THE £${balanceK ?? '???'}k FIGURE ON THE BALANCE SHEET IS THE CUMULATIVE PROVISION, NOT THE ANNUAL CHARGE.
+⛔ The annual deferred tax MOVEMENT is £${movementK ?? '???'}k. Use this figure when explaining the statutory loss.
+⛔ DO NOT say "£${balanceK ?? '???'}k deferred tax provision" when explaining the annual loss — that is the balance, not the charge.
+⛔ DO NOT describe the business as "loss-making" or "unprofitable."
+⛔ ALWAYS use the phrase: "The statutory loss is driven by a £${movementK ?? '???'}k deferred tax movement"
+`;
+      } else if ((preBuiltPhrases as any).deferredTaxExplanation) {
         mandatoryPhrasesSection += `
 ## DEFERRED TAX EXPLANATION (MANDATORY)
 ${(preBuiltPhrases as any).deferredTaxExplanation}
@@ -2037,6 +2073,35 @@ EXAMPLE OF GOOD RATIO USAGE:
 
 EXAMPLE OF BAD RATIO USAGE:
 "Your current ratio is 0.52, gearing is 8%, interest cover is 6.5x, asset turnover is 0.06, and return on equity is -0.7%."
+`;
+    }
+
+    // Business size + asset relationship for investment vehicles (Session 11 J-A, K-A)
+    let investmentVehicleExtraSection = '';
+    if (clientType === 'investment_vehicle' && assetValuation?.hasData) {
+      const netAssetsVal = assetValuation.netAssets || 0;
+      const investmentPropVal = assetValuation.investmentProperty || assetValuation.freeholdProperty || 0;
+      const turnoverVal = report.page4_numbers?.payrollAnalysis?.turnover ?? (comprehensiveAnalysis as any)?.payroll?.turnover ?? 0;
+      const businessSizePhraseVal = (comprehensiveAnalysis as any)?.businessSizePhrase;
+      const deferredTaxBalVal = (comprehensiveAnalysis as any)?.deferredTaxImpact?.deferredTaxBalance ?? 0;
+      investmentVehicleExtraSection = `
+
+## BUSINESS SIZE FRAMING (MANDATORY for investment vehicles)
+⛔ DO NOT describe this as "a £${turnoverVal ? Math.round(turnoverVal / 1000) : '?'}k business" or use turnover to indicate size.
+⛔ For property investment companies, the ASSET BASE defines the business, not the rental income.
+✅ USE: "${businessSizePhraseVal || `a £${(netAssetsVal / 1000000).toFixed(1)}M estate`}" or "a property portfolio worth £${(investmentPropVal / 1000000).toFixed(1)}M"
+✅ Revenue (£${turnoverVal ? Math.round(turnoverVal / 1000) : '?'}k) is rental income — mention it for context, not as a size indicator.
+
+## ASSET VALUES — USE CONSISTENTLY (MANDATORY)
+Investment property portfolio: £${(investmentPropVal / 1000000).toFixed(1)}M (gross value)
+Net assets: £${(netAssetsVal / 1000000).toFixed(1)}M (after deducting bank loans, £${deferredTaxBalVal ? Math.round(deferredTaxBalVal / 1000) : '?'}k deferred tax provision, and other liabilities)
+
+RULES:
+1. When talking about PORTFOLIO SIZE or PROPERTY VALUE: use £${(investmentPropVal / 1000000).toFixed(1)}M
+2. When talking about NET WORTH, IHT EXPOSURE, or ESTATE VALUE: use £${(netAssetsVal / 1000000).toFixed(1)}M
+3. ALWAYS explain the difference at least once: "a £${(investmentPropVal / 1000000).toFixed(1)}M property portfolio with net assets of £${(netAssetsVal / 1000000).toFixed(1)}M after mortgages and provisions"
+4. For IHT: the taxable estate is £${(netAssetsVal / 1000000).toFixed(1)}M (debts are deductible)
+5. DO NOT use both figures in the same sentence without explaining the relationship
 `;
     }
 
@@ -2698,12 +2763,19 @@ WRITING STYLE:
 6. Empathy before solutions - name their pain before offering hope
 7. Personal anchors - reference spouse names, kids' ages, specific details
 8. Services as footnotes - headline the OUTCOME, service is just how
+
+⛔ FABRICATED QUOTE GUARD:
+- The client NEVER said "one man band" or "a one-man band." DO NOT use this phrase.
+- The client NEVER said "I am a one man band." DO NOT put these words in their mouth.
+- Only use EXACT phrases from the assessment responses listed in CLIENT'S OWN WORDS above.
+- To describe the client working alone, say "the strategic burden sits with you" or use their actual words about delegation.
 ${financialDataSection}
 ${financialHealthSection}
 ${mandatoryPhrasesSection}
 ${servicePriceConstraints}
 ${mandatoryDimensionsPrompt}
 ${clientTypeGuidance}
+${investmentVehicleExtraSection}
 ============================================================================
 DATA COMPLETENESS STATUS
 ============================================================================
@@ -3224,6 +3296,40 @@ Before returning, verify:
     // Apply cleanup to all narratives
     narratives = cleanupText(narratives);
     console.log('[Pass2] Applied text cleanup to fix kk typos');
+    
+    // ========================================================================
+    // Session 11 (Fix I-A): Strip fabricated "one man band" from page2_gaps
+    // The client never said this — remove it so it cannot appear in the report.
+    // ========================================================================
+    if (narratives.page2_gaps) {
+      const p2 = narratives.page2_gaps;
+      const stripOneManBand = (s: string | undefined): string => {
+        if (!s || typeof s !== 'string') return s || '';
+        return s
+          .replace(/\bYou(?:'re| are) a one[- ]man band[^."]*/gi, '')
+          .replace(/\bYou described yourself as ["']a one[- ]man band["'][^.]*/gi, '')
+          .replace(/\bone[- ]man band\b/gi, 'the strategic burden sits with you')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+      };
+      if (p2.openingLine) {
+        const before = p2.openingLine;
+        p2.openingLine = stripOneManBand(p2.openingLine);
+        if (p2.openingLine !== before) console.log('[Pass2] Stripped "one man band" from page2_gaps.openingLine');
+      }
+      if (p2.gaps && Array.isArray(p2.gaps)) {
+        for (const gap of p2.gaps) {
+          if (gap.pattern) {
+            const before = gap.pattern;
+            gap.pattern = stripOneManBand(gap.pattern);
+            if (gap.pattern !== before) console.log('[Pass2] Stripped "one man band" from gap.pattern');
+          }
+          if (gap.title && /one[- ]man band/i.test(gap.title)) {
+            gap.title = gap.title.replace(/\bone[- ]man band\b/gi, 'strategic burden').trim();
+          }
+        }
+      }
+    }
     
     // ========================================================================
     // CRITICAL: Map field names to match client view expectations

@@ -50,6 +50,7 @@ interface ExtractedFinancialData {
   // Investment vehicle fields (added Session 11)
   investment_property?: number;
   deferred_tax?: number;
+  corporation_tax_payable?: number;  // Current year CT from creditors note (for deferred tax movement fallback)
   bank_loans?: number;
   confidence: number;
   notes: string[];
@@ -625,7 +626,8 @@ EXTRACT FOR EACH FISCAL YEAR:
 - fixed_assets: Tangible/fixed assets
 - net_assets: Net assets/shareholders funds
 - investment_property: Investment property at fair value (if present - property companies)
-- deferred_tax: Deferred tax provision
+- deferred_tax: The BALANCE SHEET provision for deferred tax (cumulative total under Provisions for liabilities — NOT the annual P&L charge)
+- corporation_tax_payable: Current year corporation tax from creditors/current liabilities (NOT total tax charge from P&L)
 - bank_loans: Bank loans (long-term)
 - confidence: 0.0-1.0 based on data clarity
 
@@ -710,7 +712,8 @@ function parseFinancialJson(content: string): ExtractedFinancialData[] {
       staff_costs: year.staff_costs,
       directors_remuneration: year.directors_remuneration,
       investment_property: year.investment_property,
-      deferred_tax: year.deferred_tax,
+      deferred_tax: year.deferred_tax ?? year.deferred_tax_provision,
+      corporation_tax_payable: year.corporation_tax_payable ?? year.corporation_tax,
       bank_loans: year.bank_loans,
       debtors: year.debtors || year.trade_debtors || year.receivables,
       creditors: year.creditors || year.trade_creditors || year.payables,
