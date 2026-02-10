@@ -457,7 +457,46 @@ export default function DiscoveryReportPage() {
                           <p className="text-slate-700 italic">"{gap.pattern}"</p>
                         </div>
                       )}
-                      
+
+                      {/* What This Costs — financial, time, emotional impact (Session 11) */}
+                      {(gap.financialImpact || gap.timeImpact || (gap.costs?.length ?? 0) > 0) && (
+                        <div className="mb-4">
+                          <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                            What this costs you:
+                          </p>
+                          <ul className="space-y-2">
+                            {gap.costs?.map((cost: string, costIdx: number) => (
+                              <li key={costIdx} className="flex items-start gap-2 text-slate-600">
+                                <span className="text-rose-400 mt-1">•</span>
+                                {cost}
+                              </li>
+                            ))}
+                            {gap.financialImpact && (
+                              <li className="flex items-start gap-2 text-rose-700 font-medium">
+                                <span className="text-rose-500 mt-1">£</span>
+                                {gap.financialImpact}
+                              </li>
+                            )}
+                            {gap.timeImpact && (
+                              <li className="flex items-start gap-2 text-amber-700">
+                                <span className="text-amber-500 mt-1">⏱</span>
+                                {gap.timeImpact}
+                              </li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* What This Feels Like — emotional anchor (Session 11) */}
+                      {gap.emotionalImpact && (
+                        <div className="bg-amber-50 rounded-lg p-4 mb-4 border border-amber-100">
+                          <p className="text-sm font-medium text-amber-700 uppercase tracking-wide mb-1">
+                            What this feels like:
+                          </p>
+                          <p className="text-amber-800 italic">{gap.emotionalImpact}</p>
+                        </div>
+                      )}
+
                       {/* The Shift Required */}
                       {gap.shiftRequired && (
                         <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
