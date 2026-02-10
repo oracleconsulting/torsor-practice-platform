@@ -22,9 +22,11 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  Wrench
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { ServiceLineBuilderModal } from '../admin/ServiceLineBuilderModal';
 
 // ============================================================================
 // Types
@@ -110,6 +112,12 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
   const [serviceCategory, setServiceCategory] = useState('advisory');
   const [servicePrice, setServicePrice] = useState('');
   const [servicePricePeriod, setServicePricePeriod] = useState<'monthly' | 'annual' | 'fixed'>('monthly');
+  const [builderModalOpen, setBuilderModalOpen] = useState(false);
+  const [builderModalData, setBuilderModalData] = useState<{
+    conceptId?: string;
+    opportunityId: string;
+    initialSourceName: string;
+  } | null>(null);
 
   useEffect(() => {
     if (engagementId) {
@@ -467,13 +475,31 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
                               <h5 className="font-semibold text-purple-900">{opp.concept.suggested_name}</h5>
                               <p className="text-sm text-purple-700 mt-1">{opp.concept.problem_it_solves}</p>
                             </div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleCreateService(opp.id, opp.concept?.id); }}
-                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1 flex-shrink-0"
-                            >
-                              <Plus className="w-4 h-4" />
-                              Create Service
-                            </button>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBuilderModalData({
+                                    conceptId: opp.concept?.id,
+                                    opportunityId: opp.id,
+                                    initialSourceName: opp.concept?.suggested_name || opp.title,
+                                  });
+                                  setBuilderModalOpen(true);
+                                }}
+                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-1"
+                                title="Generate full blueprint (assessment, scoring, narrative)"
+                              >
+                                <Wrench className="w-4 h-4" />
+                                Build Full Service Line
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleCreateService(opp.id, opp.concept?.id); }}
+                                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1"
+                              >
+                                <Plus className="w-4 h-4" />
+                                Create Service
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -608,6 +634,18 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
             </div>
           </div>
         </div>
+      )}
+
+      {builderModalOpen && practiceId && (
+        <ServiceLineBuilderModal
+          open={builderModalOpen}
+          onClose={() => { setBuilderModalOpen(false); setBuilderModalData(null); }}
+          practiceId={practiceId}
+          conceptId={builderModalData?.conceptId}
+          opportunityId={builderModalData?.opportunityId}
+          initialSourceName={builderModalData?.initialSourceName}
+          onImplemented={() => { loadOpportunities(); onVisibilityChange?.(); }}
+        />
       )}
     </div>
   );

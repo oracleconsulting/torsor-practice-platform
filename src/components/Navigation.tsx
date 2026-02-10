@@ -1,4 +1,4 @@
-import { LayoutDashboard, Target, TrendingUp, Brain, Users, ClipboardList, Truck, Settings, Award, BookOpen, Database, Calculator } from 'lucide-react';
+import { LayoutDashboard, Target, TrendingUp, Brain, Users, ClipboardList, Truck, Settings, Award, BookOpen, Database, Calculator, Wrench } from 'lucide-react';
 import type { NavigationProps } from '../types/navigation';
 
 export function Navigation({ currentPage, onNavigate }: NavigationProps) {
@@ -14,6 +14,7 @@ export function Navigation({ currentPage, onNavigate }: NavigationProps) {
     { id: 'assessments' as const, label: 'Assessments', icon: ClipboardList },
     { id: 'delivery' as const, label: 'Delivery Teams', icon: Truck },
     { id: 'config' as const, label: 'Service Config', icon: Settings },
+    { id: 'service-builder' as const, label: 'Service Line Builder', icon: Wrench },
     { id: 'knowledge' as const, label: 'Knowledge Base', icon: Database },
   ];
 

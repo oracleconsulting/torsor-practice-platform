@@ -16,7 +16,8 @@ export type Page =
   | 'cpd' 
   | 'training' 
   | 'knowledge'
-  | 'ma-portal';
+  | 'ma-portal'
+  | 'service-builder';
 
 export interface NavigationProps {
   currentPage: Page;

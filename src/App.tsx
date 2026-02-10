@@ -16,6 +16,7 @@ import { CPDTrackerPage } from './pages/admin/CPDTrackerPage';
 import { TrainingPlansPage } from './pages/admin/TrainingPlansPage';
 import { KnowledgeBasePage } from './pages/admin/KnowledgeBasePage';
 import { MAPortalPage } from './pages/admin/MAPortalPage';
+import { ServiceLineBuilderPage } from './pages/admin/ServiceLineBuilderPage';
 import { AssessmentReviewPage } from './pages/public/AssessmentReviewPage';
 import type { Page } from './types/navigation';
 import './index.css';
@@ -93,6 +94,10 @@ function AppContent() {
 
   if (currentPage === 'ma-portal') {
     return <MAPortalPage {...navProps} />;
+  }
+
+  if (currentPage === 'service-builder') {
+    return <ServiceLineBuilderPage {...navProps} />;
   }
 
   if (currentPage === 'management') {
