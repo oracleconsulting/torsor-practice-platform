@@ -1536,21 +1536,21 @@ No validated financial data available. When discussing financial figures:
       }
     }
     
-    // IHT Exposure phrases (Session 11)
+    // IHT Exposure phrases (Session 11) — use ihtRange when available for precision
     const iht = (comprehensiveAnalysis as any)?.ihtExposure;
     if (iht?.hasData) {
-      const rangeText = iht.ihtLiabilityRange
-        ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(1)}M-£${(iht.ihtLiabilityRange.high / 1000000).toFixed(1)}M`
-        : `£${((iht.ihtLiability || 0) / 1000000).toFixed(1)}M`;
+      const rangeText = iht.ihtRange ?? (iht.ihtLiabilityRange
+        ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(2)}M – £${(iht.ihtLiabilityRange.high / 1000000).toFixed(2)}M`
+        : `£${((iht.ihtLiability || 0) / 1000000).toFixed(2)}M`);
       (preBuiltPhrases as any).ihtHeadline = `Potential IHT liability: ${rangeText}`;
       (preBuiltPhrases as any).ihtRange = rangeText;
       (preBuiltPhrases as any).ihtEstateValue = `£${((iht.estateValue || 0) / 1000000).toFixed(1)}M`;
-      (preBuiltPhrases as any).ihtCaveats = 'Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.';
+      (preBuiltPhrases as any).ihtCaveats = Array.isArray(iht.caveats) ? iht.caveats.join(' ') : 'Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.';
     }
-    
+
     // Deferred tax impact (Session 11)
     const deferredTaxImpact = (comprehensiveAnalysis as any)?.deferredTaxImpact;
-    if (deferredTaxImpact?.isSignificant) {
+    if (deferredTaxImpact?.hasData || deferredTaxImpact?.isSignificant) {
       (preBuiltPhrases as any).deferredTaxExplanation = deferredTaxImpact.explanation;
     }
     
@@ -1580,6 +1580,22 @@ No validated financial data available. When discussing financial figures:
       preBuiltPhrases.costOfInaction = `£${totalK}k+ over ${coi.timeHorizon || 2} years`;
       
       console.log('[Pass2] ✅ Built cost of inaction phrase from Pass 1:', preBuiltPhrases.costOfInaction);
+    }
+
+    // FINANCIAL HEALTH SNAPSHOT PHRASES (Session 11)
+    const fhsData = (comprehensiveAnalysis as any)?.financialHealthSnapshot;
+    if (fhsData?.hasData) {
+      const fhs = fhsData;
+      (preBuiltPhrases as any).financialHealthOverall = fhs.overallHealth;
+      (preBuiltPhrases as any).financialHealthSummary = fhs.summaryNarrative;
+      (preBuiltPhrases as any).financialHealthRatios = fhs.noteworthyRatios.map(
+        (r: { name: string; formatted: string; narrativePhrase: string }) => `${r.name}: ${r.formatted} — ${r.narrativePhrase}`
+      );
+      console.log('[Pass2] ✅ Built financial health phrases:', {
+        overall: fhs.overallHealth,
+        noteworthyCount: fhs.noteworthyRatios.length,
+        ratios: fhs.noteworthyRatios.map((r: { name: string; formatted: string }) => `${r.name}: ${r.formatted}`)
+      });
     }
     
     // YoY GROWTH PHRASES — prefer page4_numbers.yearOnYearComparisons (where Pass 1 saves), else comprehensive_analysis
@@ -1787,6 +1803,43 @@ ${(preBuiltPhrases as any).isNotSoloPractitioner === 'true'
 
 `;
       }
+
+      // IHT exposure mandatory phrases (Session 11 polish)
+      const iht = (comprehensiveAnalysis as any)?.ihtExposure;
+      if (iht?.hasData && (preBuiltPhrases as any).ihtRange) {
+        const estateM = ((iht.estateValue || 0) / 1000000).toFixed(1);
+        const singleNRB = iht.singleNRB ?? 325000;
+        const marriedNRB = iht.marriedNRB ?? 650000;
+        const caveatsList = Array.isArray(iht.caveats) ? iht.caveats : ['Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.'];
+        mandatoryPhrasesSection += `
+## IHT EXPOSURE (MANDATORY — USE THESE EXACT FIGURES)
+Estate value: £${estateM}M
+IHT liability range: ${(preBuiltPhrases as any).ihtRange}
+Single nil rate band: £${(singleNRB / 1000).toFixed(0)}k
+Married nil rate band: £${(marriedNRB / 1000).toFixed(0)}k (transferable)
+
+⛔ YOU MUST USE the range "${(preBuiltPhrases as any).ihtRange}" when discussing IHT exposure.
+⛔ DO NOT say "up to £X" or "significant chunk" — use the calculated range.
+⛔ DO NOT recalculate. These figures include nil rate band deductions.
+
+Caveats to mention:
+${caveatsList.map((c: string) => `- ${c}`).join('\n')}
+
+`;
+      }
+
+      // Deferred tax mandatory explanation (Session 11 polish)
+      if ((preBuiltPhrases as any).deferredTaxExplanation) {
+        mandatoryPhrasesSection += `
+## DEFERRED TAX EXPLANATION (MANDATORY)
+${(preBuiltPhrases as any).deferredTaxExplanation}
+
+⛔ DO NOT describe the business as "loss-making" or "unprofitable."
+⛔ The statutory loss is a non-cash accounting adjustment, not poor trading.
+⛔ ALWAYS explain the difference between operating profit and statutory result.
+
+`;
+      }
       
       mandatoryPhrasesSection += `============================================================================
 `;
@@ -1949,6 +2002,42 @@ Mention the business scale in the Reality section to anchor the reader.
 `;
       
       console.log('[Pass2] ✅ Injected client revenue concentration data');
+    }
+
+    // Financial Health Snapshot guidance for LLM (Session 11)
+    let financialHealthSection = '';
+    const fhsForPrompt = (comprehensiveAnalysis as any)?.financialHealthSnapshot;
+    if (fhsForPrompt?.noteworthyRatios?.length > 0) {
+      const fhs = fhsForPrompt;
+      financialHealthSection = `
+
+## FINANCIAL HEALTH SNAPSHOT (USE IN PAGE 2 AND PAGE 4)
+
+Overall financial health: ${fhs.overallHealth}
+
+KEY RATIOS TO WEAVE INTO THE NARRATIVE (use naturally, don't list them as bullet points):
+${fhs.noteworthyRatios.map((r: { name: string; formatted: string; status: string; narrativePhrase: string; context: string }) => `
+- ${r.name}: ${r.formatted}
+  Status: ${r.status}
+  Narrative: ${r.narrativePhrase}
+  Context: ${r.context}
+`).join('')}
+
+RULES FOR USING RATIOS:
+1. DO NOT create a separate "financial health" section — weave insights into existing gaps (Page 2) and investment case (Page 4)
+2. Only mention the ratios listed above — they've been selected as the ones that tell a story
+3. Use the pre-built narrative phrases — DO NOT recalculate or reinterpret the numbers
+4. If a ratio supports an existing gap (e.g., current ratio supports liquidity concern), fold it in there
+5. If a ratio reveals something new (e.g., very low gearing = untapped borrowing capacity), it can be a new insight in Page 2
+6. Maximum 3 ratio references across the entire report — be selective, not exhaustive
+7. NEVER present ratios as a data dump or table. They should feel like advisor observations.
+
+EXAMPLE OF GOOD RATIO USAGE:
+"Your gearing of 8% tells a clear story — you've built a £6.4M estate with almost no debt. That's conservative, and it's served you well. But it also means there's borrowing capacity you're not using. Whether that matters depends on where you want to take the portfolio next."
+
+EXAMPLE OF BAD RATIO USAGE:
+"Your current ratio is 0.52, gearing is 8%, interest cover is 6.5x, asset turnover is 0.06, and return on equity is -0.7%."
+`;
     }
 
     // ========================================================================
@@ -2610,6 +2699,7 @@ WRITING STYLE:
 7. Personal anchors - reference spouse names, kids' ages, specific details
 8. Services as footnotes - headline the OUTCOME, service is just how
 ${financialDataSection}
+${financialHealthSection}
 ${mandatoryPhrasesSection}
 ${servicePriceConstraints}
 ${mandatoryDimensionsPrompt}
@@ -3782,6 +3872,24 @@ Before returning, verify:
       if (preBuiltPhrases.grossMarginStrength && !narratives.page4_numbers.grossMarginStrength) {
         narratives.page4_numbers.grossMarginStrength = preBuiltPhrases.grossMarginStrength;
         console.log('[Pass2] 📊 Added grossMarginStrength to page4_numbers:', preBuiltPhrases.grossMarginStrength);
+      }
+
+      // Financial Health Snapshot (Session 11) — for frontend and narrative consistency
+      const fhsForSave = (comprehensiveAnalysis as any)?.financialHealthSnapshot;
+      if (fhsForSave?.hasData) {
+        (narratives.page4_numbers as any).financialHealthSnapshot = {
+          overallHealth: fhsForSave.overallHealth,
+          noteworthyRatios: fhsForSave.noteworthyRatios.map((r: { name: string; value: number; formatted: string; category: string; status: string; narrativePhrase: string; context: string }) => ({
+            name: r.name,
+            value: r.value,
+            formatted: r.formatted,
+            category: r.category,
+            status: r.status,
+            narrativePhrase: r.narrativePhrase,
+            context: r.context
+          }))
+        };
+        console.log('[Pass2] 📊 Added financialHealthSnapshot to page4_numbers:', fhsForSave.noteworthyRatios.length, 'noteworthy ratios');
       }
       
       // Productivity suppressed for investment vehicles / small teams (Session 11)

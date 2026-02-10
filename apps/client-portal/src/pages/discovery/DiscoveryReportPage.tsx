@@ -719,8 +719,13 @@ export default function DiscoveryReportPage() {
                   });
                 }
                 
-                // 4. Exit Readiness
-                if (ca?.exitReadiness?.score) {
+                // 4. Exit Readiness — suppress for investment vehicles and when not applicable (Session 11)
+                const exitReadinessApplicable = !(
+                  ca?.exitReadiness?.narrative?.includes('not applicable') ||
+                  newReport?.client_type === 'investment_vehicle' ||
+                  newReport?.framework_overrides?.exitReadinessRelevant === false
+                );
+                if (exitReadinessApplicable && ca?.exitReadiness?.score != null) {
                   const pct = Math.round((ca.exitReadiness.score / ca.exitReadiness.maxScore) * 100);
                   const exitSubtext = (page4 as any).exitReadinessNote
                     ?? (ca.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
@@ -752,8 +757,12 @@ export default function DiscoveryReportPage() {
                   });
                 }
                 
-                // 7. Productivity (suppressed for investment vehicles / small teams)
-                if (!(page4 as any).productivitySuppressed && ca?.productivity?.hasData && ca.productivity.revenuePerHead) {
+                // 7. Revenue per Head — suppress when flagged (Session 11)
+                const productivitySuppressed =
+                  ca?.productivity?.suppressInReport === true ||
+                  (page4 as any)?.productivitySuppressed === true ||
+                  newReport?.client_type === 'investment_vehicle';
+                if (ca?.productivity?.hasData && ca.productivity.revenuePerHead && !productivitySuppressed) {
                   const gap = ca.productivity.benchmarkRPH ? 
                     Math.round(((ca.productivity.benchmarkRPH - ca.productivity.revenuePerHead) / ca.productivity.benchmarkRPH) * 100) : null;
                   metrics.push({
@@ -763,12 +772,21 @@ export default function DiscoveryReportPage() {
                   });
                 }
                 
-                // 8. Cost of Inaction
+                // 8. Cost of Delay — with composition breakdown (Session 11)
                 if (ca?.costOfInaction?.totalOverHorizon && ca.costOfInaction.totalOverHorizon > 50000) {
+                  let coiSubtext = `Over ${ca.costOfInaction.timeHorizon || 2} years`;
+                  if (ca.costOfInaction.components && ca.costOfInaction.components.length > 0) {
+                    const topComponents = ca.costOfInaction.components
+                      .sort((a: any, b: any) => (b.costOverHorizon || 0) - (a.costOverHorizon || 0))
+                      .slice(0, 2)
+                      .map((c: any) => `${c.category}: £${Math.round((c.costOverHorizon || 0) / 1000)}k`)
+                      .join(', ');
+                    if (topComponents) coiSubtext = topComponents;
+                  }
                   metrics.push({
                     icon: '⏱️', label: 'Cost of Delay',
                     value: `£${Math.round(ca.costOfInaction.totalOverHorizon / 1000)}k+`,
-                    subtext: `Over ${ca.costOfInaction.timeHorizon || 2} years`, color: 'red'
+                    subtext: coiSubtext, color: 'red'
                   });
                 }
                 
@@ -795,6 +813,43 @@ export default function DiscoveryReportPage() {
                   {(page4 as any).valuationMethod === 'net_asset_value' && (page4 as any).valuationNote && (
                     <p className="text-xs text-slate-500 mt-3 italic">{(page4 as any).valuationNote}</p>
                   )}
+
+                  {/* Financial Health Snapshot (Session 11) */}
+                  {(() => {
+                    const fhs = ca?.financialHealthSnapshot || (newReport?.page4_numbers as any)?.financialHealthSnapshot;
+                    if (!fhs?.noteworthyRatios?.length) return null;
+                    const statusClass: Record<string, string> = {
+                      strong: 'bg-emerald-100 text-emerald-700',
+                      healthy: 'bg-blue-100 text-blue-700',
+                      monitor: 'bg-amber-100 text-amber-700',
+                      concern: 'bg-orange-100 text-orange-700',
+                      critical: 'bg-red-100 text-red-700'
+                    };
+                    return (
+                      <div className="mt-4 pt-4 border-t border-emerald-200">
+                        <p className="text-sm font-medium text-emerald-700 mb-3">
+                          📊 Financial Health
+                          <span className="ml-2 text-xs font-normal text-gray-500">
+                            ({fhs.noteworthyRatios.length} noteworthy indicator{fhs.noteworthyRatios.length > 1 ? 's' : ''})
+                          </span>
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string }, idx: number) => (
+                            <div key={idx} className="bg-white/60 rounded-lg p-3">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-xs text-gray-500">{ratio.name}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
+                                  {ratio.status}
+                                </span>
+                              </div>
+                              <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
+                              <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   
                   {/* Data Quality Indicator */}
                   {ca?.dataQuality && (
@@ -1541,8 +1596,13 @@ export default function DiscoveryReportPage() {
             });
           }
           
-          // 4. Exit Readiness
-          if (ca?.exitReadiness?.score) {
+          // 4. Exit Readiness — suppress when not applicable (Session 11)
+          const exitReadinessApplicable = !(
+            ca?.exitReadiness?.narrative?.includes('not applicable') ||
+            (report as any)?.client_type === 'investment_vehicle' ||
+            (report as any)?.framework_overrides?.exitReadinessRelevant === false
+          );
+          if (exitReadinessApplicable && ca?.exitReadiness?.score != null) {
             const pct = Math.round((ca.exitReadiness.score / ca.exitReadiness.maxScore) * 100);
             metrics.push({ 
               icon: '🚪', label: 'Exit Readiness', 
@@ -1572,8 +1632,13 @@ export default function DiscoveryReportPage() {
             });
           }
           
-          // 7. Productivity
-          if (ca?.productivity?.hasData && ca.productivity.revenuePerHead) {
+          // 7. Revenue per Head — suppress when flagged (Session 11)
+          const productivitySuppressedLegacy =
+            ca?.productivity?.suppressInReport === true ||
+            (report as any)?.page4_numbers?.productivitySuppressed === true ||
+            (report as any)?.comprehensive_analysis?.productivity?.productivitySuppressed === true ||
+            (report as any)?.client_type === 'investment_vehicle';
+          if (ca?.productivity?.hasData && ca.productivity.revenuePerHead && !productivitySuppressedLegacy) {
             const gap = ca.productivity.benchmarkRPH ? 
               Math.round(((ca.productivity.benchmarkRPH - ca.productivity.revenuePerHead) / ca.productivity.benchmarkRPH) * 100) : null;
             metrics.push({
@@ -1583,12 +1648,21 @@ export default function DiscoveryReportPage() {
             });
           }
           
-          // 8. Cost of Inaction
+          // 8. Cost of Delay — with composition breakdown (Session 11)
           if (ca?.costOfInaction?.totalOverHorizon && ca.costOfInaction.totalOverHorizon > 50000) {
+            let coiSubtext = `Over ${ca.costOfInaction.timeHorizon || 2} years`;
+            if (ca.costOfInaction.components && ca.costOfInaction.components.length > 0) {
+              const topComponents = ca.costOfInaction.components
+                .sort((a: any, b: any) => (b.costOverHorizon || 0) - (a.costOverHorizon || 0))
+                .slice(0, 2)
+                .map((c: any) => `${c.category}: £${Math.round((c.costOverHorizon || 0) / 1000)}k`)
+                .join(', ');
+              if (topComponents) coiSubtext = topComponents;
+            }
             metrics.push({
               icon: '⏱️', label: 'Cost of Delay',
               value: `£${Math.round(ca.costOfInaction.totalOverHorizon / 1000)}k+`,
-              subtext: `Over ${ca.costOfInaction.timeHorizon || 2} years`
+              subtext: coiSubtext
             });
           } else if (gaps?.costOfInaction?.annualFinancialCost) {
             metrics.push({ 
@@ -1616,6 +1690,43 @@ export default function DiscoveryReportPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Financial Health Snapshot (Session 11) */}
+              {(() => {
+                const fhs = ca?.financialHealthSnapshot || (report as any)?.page4_numbers?.financialHealthSnapshot;
+                if (!fhs?.noteworthyRatios?.length) return null;
+                const statusClass: Record<string, string> = {
+                  strong: 'bg-emerald-100 text-emerald-700',
+                  healthy: 'bg-blue-100 text-blue-700',
+                  monitor: 'bg-amber-100 text-amber-700',
+                  concern: 'bg-orange-100 text-orange-700',
+                  critical: 'bg-red-100 text-red-700'
+                };
+                return (
+                  <div className="mt-4 pt-4 border-t border-emerald-200">
+                    <p className="text-sm font-medium text-emerald-700 mb-3">
+                      📊 Financial Health
+                      <span className="ml-2 text-xs font-normal text-gray-500">
+                        ({fhs.noteworthyRatios.length} noteworthy indicator{fhs.noteworthyRatios.length > 1 ? 's' : ''})
+                      </span>
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string }, idx: number) => (
+                        <div key={idx} className="bg-white/60 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs text-gray-500">{ratio.name}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
+                              {ratio.status}
+                            </span>
+                          </div>
+                          <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
+                          <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               
               {/* Data Quality Indicator */}
               {ca?.dataQuality && (

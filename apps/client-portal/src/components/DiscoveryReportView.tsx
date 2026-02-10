@@ -431,6 +431,42 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
             <p className="text-xs text-slate-500 mt-1 mb-4 italic">{(page4 as any).valuationNote}</p>
           )}
 
+          {/* Financial Health Snapshot (Session 11) */}
+          {(page4 as any).financialHealthSnapshot?.noteworthyRatios?.length > 0 && (() => {
+            const fhs = (page4 as any).financialHealthSnapshot;
+            const statusClass: Record<string, string> = {
+              strong: 'bg-emerald-100 text-emerald-700',
+              healthy: 'bg-blue-100 text-blue-700',
+              monitor: 'bg-amber-100 text-amber-700',
+              concern: 'bg-orange-100 text-orange-700',
+              critical: 'bg-red-100 text-red-700'
+            };
+            return (
+              <div className="bg-emerald-50 rounded-xl p-4 mb-6 border border-emerald-200">
+                <p className="text-sm font-medium text-emerald-700 mb-3">
+                  📊 Financial Health
+                  <span className="ml-2 text-xs font-normal text-slate-500">
+                    ({fhs.noteworthyRatios.length} noteworthy indicator{fhs.noteworthyRatios.length > 1 ? 's' : ''})
+                  </span>
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string }, idx: number) => (
+                    <div key={idx} className="bg-white/60 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-slate-500">{ratio.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-slate-100 text-slate-700'}`}>
+                          {ratio.status}
+                        </span>
+                      </div>
+                      <p className="text-lg font-bold text-slate-800">{ratio.formatted}</p>
+                      <p className="text-xs text-slate-500 mt-1">{ratio.context}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Cost of Staying - Uses calculated financialInsights when available */}
           <div className="bg-rose-50 rounded-xl p-6 mb-6 border border-rose-100">
             <h3 className="text-lg font-medium text-rose-800 mb-4 flex items-center gap-2">

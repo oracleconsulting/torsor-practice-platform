@@ -283,7 +283,9 @@ interface ExtractedFinancials {
   directorLoans?: number;                // Loans from/to directors
   taxLiability?: number;                 // Corporation tax
   vatLiability?: number;
-  
+  interestPaid?: number;                 // Interest expense (for interest cover)
+  currentAssets?: number;                // Total current assets (or derived from components)
+
   // === EQUITY ===
   shareCapital?: number;
   calledUpShareCapital?: number;
@@ -716,9 +718,16 @@ interface IHTExposureAnalysis {
   hasData: boolean;
   estateValue: number | null;
   nilRateBand: number;
+  singleNRB?: number;
+  marriedNRB?: number;
   taxableAmount: number | null;
+  taxableAmountLow?: number;
+  taxableAmountHigh?: number;
   ihtLiability: number | null;
   ihtLiabilityRange: { low: number; high: number } | null;
+  ihtLiabilityLow?: number;
+  ihtLiabilityHigh?: number;
+  ihtRange?: string;  // e.g. "£2.30M – £2.43M" for Pass 2 mandatory phrase
   narrative: string;
   caveats: string[];
 }
@@ -752,30 +761,379 @@ function calculateIHTExposure(
   const ihtMarried = Math.round(Math.max(0, taxableMarried) * 0.40);
 
   const caveats: string[] = [
-    'Based on company net assets only — personal assets not included',
-    'Nil rate band availability depends on marital status and prior usage',
-    'Business Property Relief unlikely to apply (investment holding company)',
-    'Residence Nil Rate Band may reduce liability if main residence is in the estate',
-    'This is an indicative figure — professional tax advice is essential'
+    'Business Property Relief does not apply to property investment companies',
+    'Residence nil rate band (RNRB) of up to £175k per person may also apply but depends on circumstances',
+    'Figures are indicative — formal IHT planning requires specialist tax advice'
   ];
 
-  const lowM = (ihtMarried / 1000000).toFixed(1);
-  const highM = (ihtSingle / 1000000).toFixed(1);
+  const lowM = (ihtMarried / 1000000).toFixed(2);
+  const highM = (ihtSingle / 1000000).toFixed(2);
   const estateM = (netAssets / 1000000).toFixed(1);
+  const ihtRange = `£${lowM}M – £${highM}M`;
 
   const narrative = ihtMarried === ihtSingle
     ? `Potential IHT liability of £${highM}M on an estate of £${estateM}M (after £325k nil rate band)`
-    : `Potential IHT liability of £${lowM}M-£${highM}M on an estate of £${estateM}M (depending on nil rate band availability)`;
+    : `Estimated IHT exposure: £${lowM}M – £${highM}M (depending on nil rate band availability). Business Property Relief does NOT apply to property investment companies.`;
 
   return {
     hasData: true,
     estateValue: netAssets,
     nilRateBand: singleNRB,
+    singleNRB,
+    marriedNRB,
     taxableAmount: taxableSingle,
+    taxableAmountLow: taxableMarried,
+    taxableAmountHigh: taxableSingle,
     ihtLiability: ihtSingle,
     ihtLiabilityRange: { low: ihtMarried, high: ihtSingle },
+    ihtLiabilityLow: ihtMarried,
+    ihtLiabilityHigh: ihtSingle,
+    ihtRange,
     narrative,
     caveats
+  };
+}
+
+// ============================================================================
+// FINANCIAL HEALTH RATIOS (Session 11 — new feature)
+// ============================================================================
+
+interface FinancialRatio {
+  name: string;
+  value: number;
+  formatted: string;
+  category: 'liquidity' | 'leverage' | 'profitability' | 'efficiency';
+  status: 'strong' | 'healthy' | 'monitor' | 'concern' | 'critical';
+  isNoteworthy: boolean;
+  narrativePhrase: string;
+  context: string;
+  priorYear?: number | null;
+  benchmark?: number | null;
+}
+
+interface FinancialHealthSnapshot {
+  hasData: boolean;
+  ratioCount: number;
+  allRatios: FinancialRatio[];
+  noteworthyRatios: FinancialRatio[];
+  overallHealth: 'strong' | 'healthy' | 'mixed' | 'concerning';
+  summaryNarrative: string;
+}
+
+function calculateFinancialHealthSnapshot(
+  financials: ExtractedFinancials,
+  clientTypeLabel: string
+): FinancialHealthSnapshot {
+  const allRatios: FinancialRatio[] = [];
+
+  const turnover = financials.turnover || 0;
+  const operatingProfit = financials.operatingProfit || 0;
+  const netProfit = financials.netProfit ?? (financials as any).profitBeforeTax ?? null;
+  const netAssets = financials.netAssets || 0;
+  const totalAssets = financials.totalAssets || 0;
+  const currentAssets = financials.currentAssets ?? (
+    (financials.cash ?? 0) + (financials.debtors ?? 0) + (financials.otherDebtors ?? 0) +
+    (financials.prepayments ?? 0) + (financials.stock ?? 0)
+  );
+  const currentLiabilities = financials.currentLiabilities ?? null;
+  const stock = financials.stock || 0;
+  const bankLoans = financials.bankLoans ?? financials.longTermLiabilities ?? 0;
+  const interestPaid = financials.interestPaid ?? (financials as any).interestPaid ?? null;
+  const cash = financials.cash ?? null;
+
+  // ========================================================================
+  // LIQUIDITY RATIOS
+  // ========================================================================
+
+  if (currentAssets != null && currentLiabilities != null && currentLiabilities > 0) {
+    const currentRatio = currentAssets / currentLiabilities;
+    const formatted = currentRatio.toFixed(2);
+
+    let status: FinancialRatio['status'] = 'healthy';
+    let isNoteworthy = false;
+    let narrativePhrase = '';
+    let context = '';
+
+    if (currentRatio < 0.8) {
+      status = 'concern';
+      isNoteworthy = true;
+      narrativePhrase = `Current ratio of ${formatted} means current liabilities exceed current assets — short-term liquidity needs attention`;
+      context = 'May need to restructure short-term debt or improve cash collection';
+    } else if (currentRatio < 1.0) {
+      status = 'monitor';
+      isNoteworthy = true;
+      narrativePhrase = `Current ratio of ${formatted} — current liabilities slightly exceed current assets`;
+      context = clientTypeLabel === 'investment_vehicle'
+        ? 'Not unusual for property companies with long-term debt structures, but worth monitoring'
+        : 'Worth monitoring to ensure short-term obligations can be met';
+    } else if (currentRatio > 3.0) {
+      status = 'strong';
+      isNoteworthy = true;
+      narrativePhrase = `Current ratio of ${formatted} — very strong short-term liquidity`;
+      context = 'Significant headroom, though excess liquidity could be deployed more productively';
+    } else {
+      status = currentRatio >= 1.5 ? 'strong' : 'healthy';
+      narrativePhrase = `Current ratio of ${formatted} — ${status === 'strong' ? 'healthy' : 'adequate'} short-term liquidity`;
+      context = 'No immediate liquidity concerns';
+    }
+
+    allRatios.push({
+      name: 'Current Ratio',
+      value: currentRatio,
+      formatted,
+      category: 'liquidity',
+      status,
+      isNoteworthy,
+      narrativePhrase,
+      context
+    });
+
+    // Quick Ratio (Acid Test)
+    const quickRatio = (currentAssets - stock) / currentLiabilities;
+    const qrFormatted = quickRatio.toFixed(2);
+    const stockImpact = Math.abs(currentRatio - quickRatio);
+    const qrNoteworthy = stockImpact > 0.3 && stock > 50000;
+    let qrStatus: FinancialRatio['status'] = quickRatio >= 1.0 ? 'healthy' : quickRatio >= 0.7 ? 'monitor' : 'concern';
+
+    allRatios.push({
+      name: 'Quick Ratio',
+      value: quickRatio,
+      formatted: qrFormatted,
+      category: 'liquidity',
+      status: qrStatus,
+      isNoteworthy: qrNoteworthy,
+      narrativePhrase: qrNoteworthy
+        ? `Quick ratio of ${qrFormatted} (vs current ratio of ${formatted}) — £${Math.round(stock / 1000)}k in stock is tying up working capital`
+        : `Quick ratio of ${qrFormatted}`,
+      context: qrNoteworthy ? 'Stock levels are materially impacting liquidity' : 'Stock not a significant factor'
+    });
+  }
+
+  // ========================================================================
+  // LEVERAGE RATIOS
+  // ========================================================================
+
+  if (bankLoans > 0 && netAssets > 0) {
+    const gearing = (bankLoans / netAssets) * 100;
+    const formatted = `${gearing.toFixed(1)}%`;
+
+    let status: FinancialRatio['status'] = 'healthy';
+    let isNoteworthy = false;
+    let narrativePhrase = '';
+    let context = '';
+
+    if (gearing < 10) {
+      status = 'strong';
+      isNoteworthy = true;
+      narrativePhrase = `Gearing of ${formatted} — extremely conservative debt position`;
+      context = 'Very low leverage could mean capital is sitting idle or there is capacity for strategic borrowing';
+    } else if (gearing < 25) {
+      status = 'healthy';
+      narrativePhrase = `Gearing of ${formatted} — comfortably within healthy range`;
+      context = 'Balanced approach to debt financing';
+    } else if (gearing < 50) {
+      status = 'monitor';
+      isNoteworthy = gearing > 40;
+      narrativePhrase = `Gearing of ${formatted} — moderate leverage`;
+      context = 'Approaching levels where lenders may want closer monitoring';
+    } else {
+      status = gearing > 75 ? 'critical' : 'concern';
+      isNoteworthy = true;
+      narrativePhrase = `Gearing of ${formatted} — high leverage warrants attention`;
+      context = 'Significant debt relative to equity — refinancing risk if asset values fall';
+    }
+
+    allRatios.push({
+      name: 'Gearing',
+      value: gearing,
+      formatted,
+      category: 'leverage',
+      status,
+      isNoteworthy,
+      narrativePhrase,
+      context
+    });
+  }
+
+  if (interestPaid != null && interestPaid > 0 && operatingProfit > 0) {
+    const interestCover = operatingProfit / interestPaid;
+    const formatted = `${interestCover.toFixed(1)}x`;
+
+    let status: FinancialRatio['status'] = 'healthy';
+    let isNoteworthy = false;
+    let narrativePhrase = '';
+    const context = interestCover < 3 ? 'Would be a concern for lenders or refinancing' : 'No debt servicing concerns';
+
+    if (interestCover < 2) {
+      status = 'critical';
+      isNoteworthy = true;
+      narrativePhrase = `Interest cover of ${formatted} — operating profit barely covers debt servicing`;
+    } else if (interestCover < 3) {
+      status = 'concern';
+      isNoteworthy = true;
+      narrativePhrase = `Interest cover of ${formatted} — adequate but leaves limited margin for error`;
+    } else if (interestCover > 10) {
+      status = 'strong';
+      isNoteworthy = true;
+      narrativePhrase = `Interest cover of ${formatted} — debt is very comfortably serviced`;
+    } else {
+      status = interestCover >= 5 ? 'strong' : 'healthy';
+      narrativePhrase = `Interest cover of ${formatted} — healthy debt servicing capacity`;
+    }
+
+    allRatios.push({
+      name: 'Interest Cover',
+      value: interestCover,
+      formatted,
+      category: 'leverage',
+      status,
+      isNoteworthy,
+      narrativePhrase,
+      context
+    });
+  }
+
+  // ========================================================================
+  // PROFITABILITY RATIOS (margin divergence)
+  // ========================================================================
+
+  const operatingMarginPct = financials.operatingMarginPct ?? (turnover > 0 ? (operatingProfit / turnover) * 100 : null);
+  const netMarginPct = financials.netMarginPct ?? (netProfit != null && turnover > 0 ? (netProfit / turnover) * 100 : null);
+
+  if (operatingMarginPct != null && netMarginPct != null) {
+    const divergence = operatingMarginPct - netMarginPct;
+
+    if (Math.abs(divergence) > 15) {
+      let narrativePhrase = '';
+      let context = '';
+
+      if (netMarginPct < 0 && operatingMarginPct > 0) {
+        narrativePhrase = `Net margin of ${netMarginPct.toFixed(1)}% masks operating margin of ${operatingMarginPct.toFixed(1)}% — likely driven by non-cash items (deferred tax, revaluation, exceptional costs)`;
+        context = 'The headline profit figure understates true trading performance';
+      } else if (divergence > 20) {
+        narrativePhrase = `${divergence.toFixed(0)} percentage point gap between operating margin (${operatingMarginPct.toFixed(1)}%) and net margin (${netMarginPct.toFixed(1)}%) — interest, tax, or exceptional items are significant`;
+        context = 'Worth investigating what sits between operating and net profit';
+      }
+
+      if (narrativePhrase) {
+        allRatios.push({
+          name: 'Margin Divergence',
+          value: divergence,
+          formatted: `${divergence.toFixed(1)}pp gap`,
+          category: 'profitability',
+          status: netMarginPct < 0 ? 'monitor' : 'healthy',
+          isNoteworthy: true,
+          narrativePhrase,
+          context
+        });
+      }
+    }
+  }
+
+  if (netProfit != null && netAssets > 0) {
+    const roe = (netProfit / netAssets) * 100;
+    const formatted = `${roe.toFixed(1)}%`;
+    const isNoteworthy = roe < 0 || roe < 2 || roe > 25;
+    let status: FinancialRatio['status'] = 'healthy';
+    if (roe < 0) status = 'monitor';
+    else if (roe < 5) status = 'monitor';
+    else if (roe > 20) status = 'strong';
+
+    allRatios.push({
+      name: 'Return on Equity',
+      value: roe,
+      formatted,
+      category: 'profitability',
+      status,
+      isNoteworthy,
+      narrativePhrase: roe < 0
+        ? `Return on equity of ${formatted} — reflects accounting adjustments rather than poor trading (see margin divergence above)`
+        : `Return on equity of ${formatted}`,
+      context: roe < 0
+        ? "Don't interpret this as poor performance — check what drives the net profit figure"
+        : roe > 20 ? 'Strong returns on capital employed' : 'Adequate returns on capital'
+    });
+  }
+
+  // ========================================================================
+  // EFFICIENCY RATIOS
+  // ========================================================================
+
+  if (turnover > 0 && totalAssets > 0) {
+    const assetTurnover = turnover / totalAssets;
+    const formatted = assetTurnover.toFixed(2);
+    const isNoteworthy = assetTurnover < 0.1 || assetTurnover > 3;
+
+    allRatios.push({
+      name: 'Asset Turnover',
+      value: assetTurnover,
+      formatted,
+      category: 'efficiency',
+      status: assetTurnover < 0.1 ? 'monitor' : 'healthy',
+      isNoteworthy,
+      narrativePhrase: assetTurnover < 0.1
+        ? `Asset turnover of ${formatted} — typical for asset-heavy businesses like property investment, but highlights this is a wealth-holding structure, not a high-activity trading model`
+        : `Asset turnover of ${formatted}`,
+      context: clientTypeLabel === 'investment_vehicle'
+        ? 'Expected for property companies — the value is in the assets, not the trading activity'
+        : assetTurnover < 0.5 ? 'Low asset utilisation — common in asset-heavy industries' : 'Healthy asset utilisation'
+    });
+  }
+
+  // ========================================================================
+  // SELECT NOTEWORTHY RATIOS (max 5)
+  // ========================================================================
+
+  const statusPriority: Record<string, number> = {
+    critical: 1,
+    concern: 2,
+    monitor: 3,
+    strong: 4,
+    healthy: 5
+  };
+  const noteworthyRatios = allRatios
+    .filter(r => r.isNoteworthy)
+    .sort((a, b) => (statusPriority[a.status] || 5) - (statusPriority[b.status] || 5))
+    .slice(0, 5);
+
+  // ========================================================================
+  // OVERALL HEALTH
+  // ========================================================================
+
+  const statusCounts = {
+    critical: allRatios.filter(r => r.status === 'critical').length,
+    concern: allRatios.filter(r => r.status === 'concern').length,
+    monitor: allRatios.filter(r => r.status === 'monitor').length,
+    healthy: allRatios.filter(r => r.status === 'healthy').length,
+    strong: allRatios.filter(r => r.status === 'strong').length
+  };
+
+  let overallHealth: FinancialHealthSnapshot['overallHealth'] = 'healthy';
+  if (statusCounts.critical > 0 || statusCounts.concern >= 2) overallHealth = 'concerning';
+  else if (statusCounts.concern > 0 || statusCounts.monitor >= 2) overallHealth = 'mixed';
+  else if (statusCounts.strong >= 2) overallHealth = 'strong';
+
+  let summaryNarrative = '';
+  if (noteworthyRatios.length === 0) {
+    summaryNarrative = 'Financial health indicators are within normal ranges across the board.';
+  } else {
+    const concerns = noteworthyRatios.filter(r => r.status === 'concern' || r.status === 'critical');
+    const strengths = noteworthyRatios.filter(r => r.status === 'strong');
+    const monitors = noteworthyRatios.filter(r => r.status === 'monitor');
+    const parts: string[] = [];
+    if (concerns.length > 0) parts.push(`Areas requiring attention: ${concerns.map(r => r.name.toLowerCase()).join(', ')}`);
+    if (strengths.length > 0) parts.push(`Strengths: ${strengths.map(r => r.name.toLowerCase()).join(', ')}`);
+    if (monitors.length > 0) parts.push(`Worth monitoring: ${monitors.map(r => r.name.toLowerCase()).join(', ')}`);
+    summaryNarrative = parts.join('. ') + '.';
+  }
+
+  return {
+    hasData: allRatios.length > 0,
+    ratioCount: allRatios.length,
+    allRatios,
+    noteworthyRatios,
+    overallHealth,
+    summaryNarrative
   };
 }
 
@@ -2809,18 +3167,18 @@ function buildPrebuiltPhrases(
     };
   }
 
-  // IHT Exposure phrases (Session 11)
+  // IHT Exposure phrases (Session 11) — use ihtRange when available for precision
   const iht = (analysis as any).ihtExposure;
   if (iht?.hasData) {
-    const rangeText = iht.ihtLiabilityRange
-      ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(1)}M-£${(iht.ihtLiabilityRange.high / 1000000).toFixed(1)}M`
-      : `£${((iht.ihtLiability || 0) / 1000000).toFixed(1)}M`;
+    const rangeText = iht.ihtRange ?? (iht.ihtLiabilityRange
+      ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(2)}M – £${(iht.ihtLiabilityRange.high / 1000000).toFixed(2)}M`
+      : `£${((iht.ihtLiability || 0) / 1000000).toFixed(2)}M`);
     phrases.ihtExposure = {
       headline: `Potential IHT liability: ${rangeText}`,
       estateValue: `£${((iht.estateValue || 0) / 1000000).toFixed(1)}M`,
       range: rangeText,
       narrative: iht.narrative,
-      caveats: 'Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.'
+      caveats: Array.isArray(iht.caveats) ? iht.caveats.join(' ') : 'Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.'
     };
   }
 
@@ -2972,23 +3330,30 @@ Total over ${c.timeHorizon || 2} years: £${totalK}k+
 `;
   }
 
-  // IHT Exposure section (Session 11)
+  // IHT Exposure section (Session 11) — use ihtRange when available for precision
   const iht = (analysis as any).ihtExposure;
   if (iht?.hasData) {
-    const rangeText = iht.ihtLiabilityRange
-      ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(1)}M-£${(iht.ihtLiabilityRange.high / 1000000).toFixed(1)}M`
-      : `£${((iht.ihtLiability || 0) / 1000000).toFixed(1)}M`;
+    const rangeText = iht.ihtRange ?? (iht.ihtLiabilityRange
+      ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(2)}M – £${(iht.ihtLiabilityRange.high / 1000000).toFixed(2)}M`
+      : `£${((iht.ihtLiability || 0) / 1000000).toFixed(2)}M`);
     const estateM = ((iht.estateValue || 0) / 1000000).toFixed(1);
+    const singleNRB = iht.singleNRB ?? 325000;
+    const marriedNRB = iht.marriedNRB ?? 650000;
+    const caveatsList = Array.isArray(iht.caveats) ? iht.caveats : ['Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.'];
     injection += `
-## IHT EXPOSURE (MANDATORY FOR INVESTMENT VEHICLES)
+## IHT EXPOSURE (MANDATORY — USE THESE EXACT FIGURES)
 
-HEADLINE: "Potential IHT liability: ${rangeText}"
-ESTATE VALUE: "£${estateM}M"
-RANGE: "${rangeText}"
-CAVEATS: "Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position."
+Estate value: £${estateM}M
+IHT liability range: ${rangeText}
+Single nil rate band: £${(singleNRB / 1000).toFixed(0)}k
+Married nil rate band: £${(marriedNRB / 1000).toFixed(0)}k (transferable)
 
-⛔ USE THIS EXACT RANGE: "${rangeText}" — do not calculate your own
-⛔ ALWAYS include the caveat about nil rate band and personal assets
+⛔ YOU MUST USE the range "${rangeText}" when discussing IHT exposure.
+⛔ DO NOT say "up to £X" or "significant chunk" — use the calculated range.
+⛔ DO NOT recalculate. These figures include nil rate band deductions.
+
+Caveats to mention:
+${caveatsList.map((c: string) => `- ${c}`).join('\n')}
 
 ---
 `;
@@ -2996,13 +3361,15 @@ CAVEATS: "Based on company net assets. Nil rate band, marital status, and person
 
   // Deferred tax note (Session 11)
   const deferredTaxImpact = (analysis as any).deferredTaxImpact;
-  if (deferredTaxImpact?.isSignificant) {
+  if (deferredTaxImpact?.hasData || deferredTaxImpact?.isSignificant) {
     injection += `
-## DEFERRED TAX NOTE (INCLUDE IF DISCUSSING PROFITABILITY)
+## DEFERRED TAX EXPLANATION (MANDATORY)
 
-"${deferredTaxImpact.explanation}"
+${deferredTaxImpact.explanation}
 
-⛔ If the statutory accounts show a loss, explain it using this phrase.
+⛔ DO NOT describe the business as "loss-making" or "unprofitable."
+⛔ The statutory loss is a non-cash accounting adjustment, not poor trading.
+⛔ ALWAYS explain the difference between operating profit and statutory result.
 
 ---
 `;
@@ -3657,6 +4024,8 @@ serve(async (req) => {
       const totalLiabilities = latest.total_liabilities ?? null;
       const currentLiabilities = latest.current_liabilities ?? null;
       const longTermLiabilities = latest.long_term_liabilities ?? null;
+      const currentAssets = (latest as any).current_assets ?? null;
+      const interestPaid = (latest as any).interest_paid ?? null;
       // Investment vehicle fields (Session 11)
       const investmentProperty = (latest as any).investment_property ?? null;
       const deferredTax = (latest as any).deferred_tax ?? null;
@@ -3717,6 +4086,8 @@ serve(async (req) => {
         totalLiabilities: totalLiabilities != null ? Number(totalLiabilities) : undefined,
         currentLiabilities: currentLiabilities != null ? Number(currentLiabilities) : undefined,
         longTermLiabilities: longTermLiabilities != null ? Number(longTermLiabilities) : undefined,
+        currentAssets: currentAssets != null ? Number(currentAssets) : undefined,
+        interestPaid: interestPaid != null ? Number(interestPaid) : undefined,
         investmentProperty: investmentProperty != null ? Number(investmentProperty) : undefined,
         deferredTax: deferredTax != null ? Number(deferredTax) : undefined,
         bankLoans: bankLoans != null ? Number(bankLoans) : undefined,
@@ -3939,17 +4310,25 @@ serve(async (req) => {
     }
 
     // Deferred tax detection (Session 11)
-    if (extractedFinancials.deferredTax != null && extractedFinancials.netProfit != null &&
-        extractedFinancials.operatingProfit != null && extractedFinancials.operatingProfit > 0 &&
-        extractedFinancials.netProfit < 0) {
-      (comprehensiveAnalysis as any).deferredTaxImpact = {
-        isSignificant: true,
-        deferredTaxProvision: extractedFinancials.deferredTax,
-        operatingProfit: extractedFinancials.operatingProfit,
-        statutoryNetProfit: extractedFinancials.netProfit,
-        explanation: `Statutory loss of £${Math.abs(Math.round(extractedFinancials.netProfit / 1000))}k is driven by a deferred tax adjustment. Underlying operating performance is strong at £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit.`
-      };
-      console.log('[Pass1] ⚠️ Deferred tax impact detected:', (comprehensiveAnalysis as any).deferredTaxImpact.explanation);
+    if (extractedFinancials.operatingProfit != null && extractedFinancials.operatingProfit > 0) {
+      const netProfit = extractedFinancials.netProfit ?? (extractedFinancials as any).profitBeforeTax ?? null;
+      const deferredTax = extractedFinancials.deferredTax ?? null;
+      if (netProfit != null && netProfit < 0) {
+        const deferredK = deferredTax != null ? Math.round(Math.abs(deferredTax) / 1000) : null;
+        const explanation = deferredK != null
+          ? `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k is driven by a £${deferredK}k deferred tax provision (likely on property revaluation). Operating performance is strong at £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit.`
+          : `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k despite £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit — likely driven by non-cash items such as deferred tax on property revaluation.`;
+        (comprehensiveAnalysis as any).deferredTaxImpact = {
+          hasData: true,
+          isSignificant: true,
+          deferredTaxProvision: deferredTax,
+          operatingProfit: extractedFinancials.operatingProfit,
+          statutoryNetProfit: netProfit,
+          netProfit: netProfit,
+          explanation
+        };
+        console.log('[Pass1] 📊 Deferred tax detected:', explanation);
+      }
     }
 
     // Structural 100% gross margin (no cost of sales — property/investment companies) (Session 11)
@@ -4006,6 +4385,26 @@ serve(async (req) => {
         comprehensiveAnalysis.productivity) {
       (comprehensiveAnalysis.productivity as any).suppressInReport = true;
       console.log('[Pass1] 📊 Revenue per head suppressed (investment vehicle or <5 employees)');
+    }
+
+    // ========================================================================
+    // FINANCIAL HEALTH SNAPSHOT (Session 11 — new feature)
+    // Available for ALL clients with at least one set of accounts uploaded
+    // ========================================================================
+    if (extractedFinancials.source !== 'none') {
+      const financialHealthSnapshot = calculateFinancialHealthSnapshot(
+        extractedFinancials,
+        clientType.type
+      );
+      (comprehensiveAnalysis as any).financialHealthSnapshot = financialHealthSnapshot;
+      if (financialHealthSnapshot.hasData) {
+        console.log('[Pass1] 📊 Financial Health Snapshot:', {
+          ratioCount: financialHealthSnapshot.ratioCount,
+          noteworthyCount: financialHealthSnapshot.noteworthyRatios.length,
+          overallHealth: financialHealthSnapshot.overallHealth,
+          noteworthy: financialHealthSnapshot.noteworthyRatios.map(r => `${r.name}: ${r.formatted} (${r.status})`)
+        });
+      }
     }
 
     const destinationClarity = calculateDestinationClarity(discoveryResponses);
