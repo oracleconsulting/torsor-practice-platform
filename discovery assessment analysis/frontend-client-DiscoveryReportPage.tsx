@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { ArrowLeft, Calendar, ChevronRight, Sparkles, Target, TrendingUp, Heart, Clock, Shield, FileDown, Loader2, Quote, AlertTriangle, CheckCircle2, DollarSign, Phone, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Calendar, ChevronRight, Sparkles, Target, TrendingUp, Heart, Clock, Shield, FileDown, Loader2, Quote, AlertTriangle, CheckCircle2, DollarSign, Phone, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { TransformationJourney } from '../../components/discovery/TransformationJourney';
 import { DiscoveryMetricCard, MetricGrid, ROISummaryCard } from '../../components/discovery/DiscoveryMetricCard';
 import { CostOfInactionCard } from '../../components/discovery/DiscoveryInsightCard';
-import { ServiceDetailPopup } from '../../components/ServiceDetailPopup';
+import { ServiceRecommendationPopup } from '../../components/ServiceRecommendationPopup';
 
 // ============================================================================
 // CLIENT-FRIENDLY DISCOVERY REPORT
@@ -16,6 +16,30 @@ import { ServiceDetailPopup } from '../../components/ServiceDetailPopup';
 // 1. New 5-page Pass 1/2 format from discovery_reports
 // 2. Legacy Stage 3 format from client_reports (fallback)
 // ============================================================================
+
+/** Map Discovery recommended_services code or name to service_catalogue.code */
+function discoveryServiceToCatalogueCode(rec: { serviceCode?: string; code?: string; serviceName?: string }): string {
+  const code = (rec.serviceCode || rec.code || '').toUpperCase().replace(/-/g, '_');
+  const map: Record<string, string> = {
+    'BENCHMARKING_DEEP_DIVE': 'benchmarking',
+    'BENCHMARKING': 'benchmarking',
+    'SYSTEMS_AUDIT': 'systems_audit',
+    'GOAL_ALIGNMENT': 'goal_alignment',
+    '365_METHOD': 'goal_alignment',
+    'FRACTIONAL_CFO': 'fractional_cfo',
+    'PROFIT_EXTRACTION': 'profit_extraction',
+    'QUARTERLY_BI': 'quarterly_bi',
+  };
+  if (map[code]) return map[code];
+  const name = (rec.serviceName || '').toLowerCase();
+  if (name.includes('benchmark')) return 'benchmarking';
+  if (name.includes('systems') || name.includes('audit')) return 'systems_audit';
+  if (name.includes('goal') || name.includes('alignment') || name.includes('365')) return 'goal_alignment';
+  if (name.includes('fractional cfo')) return 'fractional_cfo';
+  if (name.includes('profit extraction')) return 'profit_extraction';
+  if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+  return 'benchmarking';
+}
 
 // Timeline dot component for new format
 const TimelineDot = ({ active, label }: { active?: boolean; label: string }) => (
@@ -99,9 +123,10 @@ export default function DiscoveryReportPage() {
   const [newReport, setNewReport] = useState<any>(null);
   const [showCallToAction, setShowCallToAction] = useState(false);
   const [exportingPDF, setExportingPDF] = useState(false);
-  const [expandedPhase, setExpandedPhase] = useState<number>(0);
-  const [selectedService, setSelectedService] = useState<{ code: string; name: string } | null>(null);
+  const [collapsedPhases, setCollapsedPhases] = useState<Set<number>>(new Set());
+  const [popupCatalogueCode, setPopupCatalogueCode] = useState<string | null>(null);
   const [comprehensiveAnalysis, setComprehensiveAnalysis] = useState<any>(null);
+  const [recommendedServices, setRecommendedServices] = useState<any[]>([]);
 
   useEffect(() => {
     loadReport();
@@ -166,12 +191,13 @@ export default function DiscoveryReportPage() {
       console.log('[Report] Found engagement:', engagement);
 
       if (engagement?.id) {
-        // Look for discovery_reports - accept 'generated' or 'published' status
+        // Prefer Pass 2 report that is published for client (ready_for_client); fallback to any generated/published
         const { data: discoveryReport, error: drError } = await supabase
           .from('discovery_reports')
           .select('*')
           .eq('engagement_id', engagement.id)
           .in('status', ['generated', 'published', 'admin_review'])
+          .order('ready_for_client', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -190,6 +216,10 @@ export default function DiscoveryReportPage() {
           // Also store comprehensive_analysis separately for use across formats
           if (discoveryReport.comprehensive_analysis) {
             setComprehensiveAnalysis(discoveryReport.comprehensive_analysis);
+          }
+          // Load recommended services for "How We Can Help" section
+          if (discoveryReport.recommended_services) {
+            setRecommendedServices(discoveryReport.recommended_services);
           }
           setLoading(false);
           return;
@@ -482,7 +512,15 @@ export default function DiscoveryReportPage() {
                     className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm"
                   >
                     <button
-                      onClick={() => setExpandedPhase(expandedPhase === index ? -1 : index)}
+                      type="button"
+                      onClick={() => {
+                        setCollapsedPhases(prev => {
+                          const next = new Set(prev);
+                          if (next.has(index)) next.delete(index);
+                          else next.add(index);
+                          return next;
+                        });
+                      }}
                       className="w-full p-6 text-left hover:bg-slate-50 transition-colors"
                     >
                       <div className="flex items-center justify-between">
@@ -494,15 +532,15 @@ export default function DiscoveryReportPage() {
                             {phase.headline}
                           </h3>
                         </div>
-                        {expandedPhase === index ? (
-                          <ChevronUp className="h-5 w-5 text-slate-400" />
-                        ) : (
+                        {collapsedPhases.has(index) ? (
                           <ChevronDown className="h-5 w-5 text-slate-400" />
+                        ) : (
+                          <ChevronUp className="h-5 w-5 text-slate-400" />
                         )}
                       </div>
                     </button>
                     
-                    {expandedPhase === index && (
+                    {!collapsedPhases.has(index) && (
                       <div className="px-6 pb-6 border-t border-slate-100">
                         {phase.whatChanges && phase.whatChanges.length > 0 && (
                           <div className="mt-4">
@@ -539,30 +577,47 @@ export default function DiscoveryReportPage() {
                         )}
                         
                         {phase.enabledBy && (
-                          <p className="mt-4 text-sm text-slate-400">
+                          <p className="mt-4 pt-4 border-t border-slate-100 text-sm text-slate-500">
                             Enabled by:{' '}
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                // Extract service code from enabledBy or use common mapping
-                                const serviceCodeMap: Record<string, string> = {
+                                const nameToCatalogue: Record<string, string> = {
                                   'Benchmarking & Hidden Value Analysis': 'benchmarking',
                                   'Industry Benchmarking': 'benchmarking',
                                   'Industry Benchmarking (Full Package)': 'benchmarking',
-                                  'Goal Alignment Programme': '365_method',
-                                  'Goal Alignment Programme (Growth)': '365_method',
-                                  'Hidden Value Audit': 'hidden_value_audit',
+                                  'Goal Alignment Programme': 'goal_alignment',
+                                  'Goal Alignment Programme (Growth)': 'goal_alignment',
+                                  'Hidden Value Audit': 'benchmarking',
                                   'Fractional CFO': 'fractional_cfo',
                                   'Systems Audit': 'systems_audit',
+                                  'Systems & Process Audit': 'systems_audit',
+                                  'Business Intelligence': 'quarterly_bi',
+                                  'Management Accounts': 'quarterly_bi',
                                 };
-                                const code = phase.enabledByCode || serviceCodeMap[phase.enabledBy] || 'benchmarking';
-                                setSelectedService({ code, name: phase.enabledBy });
+                                const codeToCatalogue: Record<string, string> = {
+                                  '365_method': 'goal_alignment',
+                                  'benchmarking': 'benchmarking',
+                                  'fractional_cfo': 'fractional_cfo',
+                                  'systems_audit': 'systems_audit',
+                                  'business_intelligence': 'quarterly_bi',
+                                  'hidden_value_audit': 'benchmarking',
+                                  'management_accounts': 'quarterly_bi',
+                                };
+                                const cleanName = phase.enabledBy.replace(/\s*\(£[\d,]+.*$/, '').trim();
+                                const catalogueCode =
+                                  codeToCatalogue[phase.enabledByCode || ''] ||
+                                  nameToCatalogue[cleanName] ||
+                                  nameToCatalogue[phase.enabledBy] ||
+                                  'benchmarking';
+                                setPopupCatalogueCode(catalogueCode);
                               }}
-                              className="text-teal-600 hover:text-teal-700 underline underline-offset-2 hover:no-underline transition-colors"
+                              className="inline-flex items-center gap-1.5 text-teal-600 hover:text-teal-700 font-medium underline underline-offset-2 hover:no-underline transition-colors"
                             >
                               {phase.enabledBy}
+                              <span className="text-xs font-normal opacity-90">— Learn more</span>
                             </button>
-                            {' '}({phase.price})
                           </p>
                         )}
                       </div>
@@ -572,6 +627,8 @@ export default function DiscoveryReportPage() {
               </div>
             </section>
           )}
+
+          {/* How We Can Help / recommended services: admin-only; not shown in client portal */}
 
           {/* ================================================================ */}
           {/* PAGE 4: THE NUMBERS */}
@@ -632,11 +689,16 @@ export default function DiscoveryReportPage() {
                   });
                 }
                 
-                // 3. Gross Margin
+                // 3. Gross Margin (avoid duplicate: value = %, subtext = assessment only)
                 if (page4.grossMarginStrength) {
+                  const gmMatch = page4.grossMarginStrength.match(/([\d.]+%)/);
+                  const gmValue = gmMatch ? gmMatch[1] : page4.grossMarginStrength;
+                  const gmAssessment = page4.grossMarginStrength.includes(' - ')
+                    ? page4.grossMarginStrength.split(' - ')[1]
+                    : (ca?.grossMargin?.assessment ? `${ca.grossMargin.assessment} for industry` : undefined);
                   metrics.push({
-                    icon: '📈', label: 'Gross Margin', value: page4.grossMarginStrength,
-                    subtext: ca?.grossMargin?.assessment ? `${ca.grossMargin.assessment} for industry` : undefined, color: 'blue'
+                    icon: '📈', label: 'Gross Margin', value: gmValue,
+                    subtext: gmAssessment, color: 'blue'
                   });
                 } else if (ca?.grossMargin?.grossMarginPct) {
                   metrics.push({
@@ -739,25 +801,26 @@ export default function DiscoveryReportPage() {
                     <AlertTriangle className="h-5 w-5" />
                     What Staying Here Costs
                   </h3>
-                  <div className="space-y-2">
-                    {page4.costOfStaying.labourInefficiency && (
-                      <div className="flex justify-between text-rose-700">
-                        <span>Labour inefficiency</span>
-                        <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
-                      </div>
-                    )}
-                    {page4.costOfStaying.marginLeakage && (
-                      <div className="flex justify-between text-rose-700">
-                        <span>Margin leakage</span>
-                        <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
-                      </div>
-                    )}
-                    {page4.costOfStaying.yourTimeWasted && (
-                      <div className="flex justify-between text-rose-700">
-                        <span>Your time</span>
-                        <span className="font-medium">{page4.costOfStaying.yourTimeWasted}</span>
-                      </div>
-                    )}
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Labour inefficiency', value: page4.costOfStaying.labourInefficiency },
+                      { label: 'Margin leakage', value: page4.costOfStaying.marginLeakage },
+                      { label: 'Your time', value: page4.costOfStaying.yourTimeWasted },
+                    ].filter(item => item.value).map((item, idx) => {
+                      const value = String(item.value);
+                      const isQuantified = value.length <= 40;
+                      return isQuantified ? (
+                        <div key={idx} className="flex justify-between items-baseline text-rose-700 py-1">
+                          <span className="text-rose-600">{item.label}</span>
+                          <span className="font-semibold text-rose-800">{value}</span>
+                        </div>
+                      ) : (
+                        <div key={idx} className="text-rose-700 py-2 border-b border-rose-100 last:border-b-0">
+                          <span className="font-semibold text-rose-800 text-sm uppercase tracking-wide block mb-1">{item.label}</span>
+                          <span className="text-sm leading-relaxed">{value}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                   {page4.personalCost && (
                     <div className="mt-4 pt-4 border-t border-rose-200">
@@ -790,7 +853,7 @@ export default function DiscoveryReportPage() {
                     
                     {page4.totalYear1 && (
                       <div className="flex justify-between py-3 bg-emerald-50 -mx-6 px-6 mt-2 rounded-b-lg">
-                        <span className="font-medium text-emerald-800">Total Year 1</span>
+                        <span className="font-medium text-emerald-800">{page4.totalYear1Label || 'To start the journey'}</span>
                         <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
                       </div>
                     )}
@@ -932,14 +995,12 @@ export default function DiscoveryReportPage() {
 
         </main>
 
-        {/* Service Detail Popup */}
-        {selectedService && (
-          <ServiceDetailPopup
-            serviceCode={selectedService.code}
-            serviceName={selectedService.name}
-            onClose={() => setSelectedService(null)}
-          />
-        )}
+        {/* Universal service recommendation popup (catalogue) */}
+        <ServiceRecommendationPopup
+          isOpen={!!popupCatalogueCode}
+          onClose={() => setPopupCatalogueCode(null)}
+          serviceCode={popupCatalogueCode || ''}
+        />
 
         {/* Footer */}
         <footer className="bg-slate-800 border-t border-slate-700 mt-12">
@@ -1220,8 +1281,8 @@ export default function DiscoveryReportPage() {
           </section>
         )}
 
-        {/* Recommended Path Forward (Legacy - Keep for backward compatibility if no transformationJourney) */}
-        {(!analysis.transformationJourney || !analysis.transformationJourney.phases || analysis.transformationJourney.phases.length === 0) && investments.length > 0 && (
+        {/* Legacy recommendedInvestments section removed - new 5-page format supersedes it */}
+        {false && (
         <section className="bg-white rounded-2xl shadow-sm p-6 md:p-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">

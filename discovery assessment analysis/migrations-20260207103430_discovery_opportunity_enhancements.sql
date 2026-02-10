@@ -1,4 +1,3 @@
--- COPY - Do not edit. Reference only. Source: supabase/migrations/20260207103430_discovery_opportunity_enhancements.sql
 -- Discovery Opportunity Management Enhancements
 -- Brings discovery to parity with benchmarking system
 
@@ -80,3 +79,4 @@ CREATE INDEX IF NOT EXISTS idx_discovery_opportunities_client_visible
 
 CREATE INDEX IF NOT EXISTS idx_discovery_opportunities_engagement 
   ON discovery_opportunities(engagement_id);
+

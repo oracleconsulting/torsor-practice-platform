@@ -1,7 +1,9 @@
 # Discovery Assessment Analysis - Complete Backup (COPY REFERENCE)
 
-**Created:** February 2026 | **Last synced:** 2026-02-07  
-**Purpose:** Flat reference copy of all Discovery Assessment system files. **Do not edit these files** — edit the live paths in `torsor-practice-platform/` instead. See `COPY_NOTICE.txt` and `DISCOVERY_SYSTEM_LIVE_SUMMARY.md`.
+**Created:** February 2026 | **Last synced:** 2026-02-10  
+**Purpose:** Direct copy of live Discovery files for separate assessment. **Do not edit these files** during live work — edit the live paths and run the sync script to refresh. See `COPY_NOTICE.txt` and `DISCOVERY_SYSTEM_LIVE_SUMMARY.md`.
+
+**To sync after live changes (from repo root):** `./scripts/sync-discovery-assessment-copies.sh`
 
 ---
 
@@ -10,6 +12,8 @@
 | Document | Purpose |
 |----------|---------|
 | [DISCOVERY_SYSTEM_COMPLETE_ARCHITECTURE.md](./DISCOVERY_SYSTEM_COMPLETE_ARCHITECTURE.md) | **START HERE** - Complete architecture reference |
+| [DISCOVERY_SYSTEM_LIVE_SUMMARY.md](./DISCOVERY_SYSTEM_LIVE_SUMMARY.md) | Live paths → flat COPY mapping, financial data priority, migrations |
+| [MIGRATIONS_INDEX.md](./MIGRATIONS_INDEX.md) | Ordered list of discovery + accounts migrations |
 | [SERVICE_LINE_FILES_REFERENCE.md](./SERVICE_LINE_FILES_REFERENCE.md) | **Service lines** - Creation, allocation, pricing (migrations, backend, frontend) |
 | [docs-DISCOVERY_ASSESSMENT_SYSTEM.md](./docs-DISCOVERY_ASSESSMENT_SYSTEM.md) | Assessment structure and questions |
 | [docs-DISCOVERY_AND_ANALYSIS_ARCHITECTURE.md](./docs-DISCOVERY_AND_ANALYSIS_ARCHITECTURE.md) | Data flow and analysis architecture |
@@ -19,11 +23,13 @@
 
 ## File Categories
 
-### 📋 Architecture & Documentation (8 files)
+### 📋 Architecture & Documentation (10 files)
 
 | File | Description |
 |------|-------------|
 | `DISCOVERY_SYSTEM_COMPLETE_ARCHITECTURE.md` | Complete architecture reference (created Feb 2026) |
+| `DISCOVERY_SYSTEM_LIVE_SUMMARY.md` | Live paths → COPY mapping, financial data priority, migrations table |
+| `MIGRATIONS_INDEX.md` | Ordered discovery + accounts migrations index |
 | `docs-DISCOVERY_ASSESSMENT_SYSTEM.md` | Assessment structure, 40 questions |
 | `docs-DISCOVERY_AND_ANALYSIS_ARCHITECTURE.md` | Data flow, Pass 1/Pass 2 architecture |
 | `docs-DISCOVERY_ASSESSMENT_OVERVIEW.md` | Service lines, skills by service |
@@ -105,7 +111,7 @@
 | `shared-llm-cache-copy.ts` | LLM response caching |
 | `shared-llm-cost-tracker-copy.ts` | LLM cost tracking |
 
-### 🗄️ Migrations (13 files)
+### 🗄️ Migrations (15 files)
 
 | File | Migration | Purpose |
 |------|-----------|---------|
@@ -122,6 +128,8 @@
 | `migrations-20260208120000_discovery_three_phase_pipeline.sql` | Feature | Three-phase pipeline |
 | `migrations-20260209120000_reset_discovery_pipeline_for_client.sql` | Utility | Reset pipeline |
 | `migrations-20260209140000_discovery_data_audit.sql` | Utility | Data audit |
+| `migrations-20260210180000_add_staff_costs_client_financial_data.sql` | Feature | Add staff_costs to client_financial_data |
+| `migrations-20260210200000_add_directors_operating_profit_financial_data.sql` | Feature | Add directors_remuneration, operating_profit to client_financial_data |
 
 ### 🖥️ Frontend - Admin Portal (5 files)
 
@@ -160,18 +168,18 @@
 
 | Category | Count |
 |----------|-------|
-| Documentation | 9 |
+| Documentation | 10 |
 | Edge Functions (Main) | 9 |
 | Edge Functions (Supporting) | 12 |
 | Calculators | 12 |
 | Benchmarks | 2 |
 | Types | 2 |
 | Shared Utilities | 5 |
-| Migrations | 13 |
+| Migrations | 15 |
 | Frontend - Admin | 5 |
 | Frontend - Client | 10 |
 | Configuration | 1 |
-| **Total** | **76** |
+| **Total** | **79** |
 
 ---
 

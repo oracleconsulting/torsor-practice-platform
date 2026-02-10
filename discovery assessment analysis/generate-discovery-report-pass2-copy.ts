@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Source: supabase/functions/generate-discovery-report-pass2/index.ts */
 // ============================================================================
 // DISCOVERY REPORT - PASS 2: DESTINATION-FOCUSED NARRATIVE GENERATION
 // ============================================================================
@@ -10,6 +9,65 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
+// Inlined service registry (avoids "Module not found" when Dashboard deploys only index.ts).
+// Canonical: supabase/functions/_shared/service-registry.ts — keep in sync when changing prices/tiers.
+interface TurnoverBand { maxTurnover: number | null; price: number; priceFormatted: string; }
+interface ServiceTier {
+  name: string; tagline: string; pricingModel: 'fixed' | 'turnover-scaled';
+  price?: number; priceFormatted?: string; priceRanges?: TurnoverBand[]; priceFromFormatted?: string;
+  period: 'one-off' | 'monthly' | 'annual'; periodLabel: string;
+  examplePdfUrl?: string; showInPopup: boolean; popupCtaLabel?: string;
+}
+interface ServiceDefinition {
+  code: string; name: string; displayName: string; category: 'foundation' | 'growth' | 'strategic' | 'operational';
+  outcome: string; description: string; keywords: string[]; tiers: ServiceTier[]; defaultTierIndex: number; isActive: boolean;
+}
+const SERVICE_REGISTRY: Record<string, ServiceDefinition> = {
+  business_intelligence: { code: 'business_intelligence', name: 'Business Intelligence', displayName: 'Business Intelligence', category: 'operational', outcome: "You'll Know Your Numbers", description: 'Monthly financial visibility — from knowing where you are to having a strategic financial partner in the room.', keywords: ['business intelligence', 'management account', 'monthly reporting', 'financial', 'numbers', 'cash flow', 'P&L'], tiers: [{ name: 'Clarity', tagline: 'See where you are', pricingModel: 'turnover-scaled', priceRanges: [{ maxTurnover: 750000, price: 2000, priceFormatted: '£2,000' }, { maxTurnover: 2000000, price: 2500, priceFormatted: '£2,500' }, { maxTurnover: 5000000, price: 3000, priceFormatted: '£3,000' }, { maxTurnover: null, price: 3500, priceFormatted: '£3,500' }], priceFromFormatted: 'from £2,000', period: 'monthly', periodLabel: '/month', examplePdfUrl: '/storage/service-examples/business-intelligence-clarity.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Foresight', tagline: 'See where you could be', pricingModel: 'turnover-scaled', priceRanges: [{ maxTurnover: 750000, price: 3000, priceFormatted: '£3,000' }, { maxTurnover: 2000000, price: 3500, priceFormatted: '£3,500' }, { maxTurnover: 5000000, price: 4500, priceFormatted: '£4,500' }, { maxTurnover: null, price: 5000, priceFormatted: '£5,000' }], priceFromFormatted: 'from £3,000', period: 'monthly', periodLabel: '/month', examplePdfUrl: '/storage/service-examples/business-intelligence-foresight.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Strategic', tagline: 'Your financial partner', pricingModel: 'turnover-scaled', priceRanges: [{ maxTurnover: 2000000, price: 5000, priceFormatted: '£5,000' }, { maxTurnover: 5000000, price: 7000, priceFormatted: '£7,000' }, { maxTurnover: null, price: 10000, priceFormatted: '£10,000' }], priceFromFormatted: 'from £5,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: true },
+  benchmarking: { code: 'benchmarking', name: 'Industry Benchmarking', displayName: 'Industry Benchmarking (Full Package)', category: 'foundation', outcome: "You'll Know Where You Stand", description: 'See exactly how your business compares to others in your industry.', keywords: ['benchmark', 'valuation', 'hidden value', 'baseline', 'industry'], tiers: [{ name: 'Tier 1', tagline: 'Industry comparison and baseline', pricingModel: 'fixed', price: 2000, priceFormatted: '£2,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/benchmarking-tier1.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Tier 2', tagline: 'Deep-dive with action plan', pricingModel: 'fixed', price: 4500, priceFormatted: '£4,500', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/benchmarking-tier2.pdf', showInPopup: true, popupCtaLabel: 'View Example' }], defaultTierIndex: 0, isActive: true },
+  systems_audit: { code: 'systems_audit', name: 'Systems & Process Audit', displayName: 'Systems & Process Audit', category: 'foundation', outcome: "You'll See Where The Time Goes", description: 'Map every system, process, and workaround in your business.', keywords: ['systems', 'process', 'efficiency', 'automation', 'audit'], tiers: [{ name: 'Tier 1', tagline: 'Systems map and priority list', pricingModel: 'fixed', price: 2000, priceFormatted: '£2,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/systems-audit-tier1.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Tier 2', tagline: 'Full audit with implementation roadmap', pricingModel: 'fixed', price: 4500, priceFormatted: '£4,500', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/systems-audit-tier2.pdf', showInPopup: true, popupCtaLabel: 'View Example' }], defaultTierIndex: 0, isActive: true },
+  goal_alignment: { code: 'goal_alignment', name: 'Goal Alignment Programme', displayName: 'Goal Alignment Programme', category: 'growth', outcome: "You'll Have Someone In Your Corner", description: 'Quarterly accountability and strategic support.', keywords: ['goal alignment', 'accountability', 'co-pilot', 'support', '365', 'alignment'], tiers: [{ name: 'Lite', tagline: 'Survey + plan + one review', pricingModel: 'fixed', price: 1500, priceFormatted: '£1,500', period: 'annual', periodLabel: '/year', examplePdfUrl: '/storage/service-examples/goal-alignment-lite.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Growth', tagline: 'Quarterly reviews for 12 months', pricingModel: 'fixed', price: 4500, priceFormatted: '£4,500', period: 'annual', periodLabel: '/year', examplePdfUrl: '/storage/service-examples/goal-alignment-growth.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Partner', tagline: 'Strategy day + BSG integration', pricingModel: 'fixed', price: 9000, priceFormatted: '£9,000', period: 'annual', periodLabel: '/year', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 1, isActive: true },
+  business_advisory: { code: 'business_advisory', name: 'Business Advisory & Exit Planning', displayName: 'Business Advisory & Exit Planning', category: 'strategic', outcome: "You'll Know What It's Worth", description: 'Protect and maximise the value you have built.', keywords: ['exit', 'sale', 'succession', 'planning', 'advisory'], tiers: [{ name: 'Tier 1', tagline: 'Valuation and readiness assessment', pricingModel: 'fixed', price: 2000, priceFormatted: '£2,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/business-advisory-tier1.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Tier 2', tagline: 'Full exit strategy and preparation', pricingModel: 'fixed', price: 4000, priceFormatted: '£4,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/business-advisory-tier2.pdf', showInPopup: true, popupCtaLabel: 'View Example' }], defaultTierIndex: 0, isActive: false },
+  automation: { code: 'automation', name: 'Automation Services', displayName: 'Automation Services', category: 'operational', outcome: "The Manual Work Disappears", description: 'Eliminate manual work and unlock your team\'s potential.', keywords: ['automation', 'automate', 'manual', 'integrate', 'workflow'], tiers: [{ name: 'Project', tagline: 'Scoped automation implementation', pricingModel: 'fixed', price: 5000, priceFormatted: '£5,000', period: 'one-off', periodLabel: '', examplePdfUrl: '/storage/service-examples/automation-project.pdf', showInPopup: true, popupCtaLabel: 'View Example' }, { name: 'Retainer', tagline: 'Ongoing automation support', pricingModel: 'fixed', price: 1500, priceFormatted: '£1,500', period: 'monthly', periodLabel: '/month', examplePdfUrl: '/storage/service-examples/automation-retainer.pdf', showInPopup: true, popupCtaLabel: 'View Example' }], defaultTierIndex: 0, isActive: false },
+  fractional_cfo: { code: 'fractional_cfo', name: 'Fractional CFO', displayName: 'Fractional CFO Services', category: 'strategic', outcome: "You'll Have Strategic Financial Leadership", description: 'Part-time strategic finance leadership.', keywords: ['cfo', 'finance director', 'strategic finance', 'fractional cfo'], tiers: [{ name: '2 days/month', tagline: 'Strategic finance leadership', pricingModel: 'fixed', price: 4000, priceFormatted: '£4,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
+  fractional_coo: { code: 'fractional_coo', name: 'Fractional COO', displayName: 'Fractional COO Services', category: 'strategic', outcome: "Someone Else Carries The Load", description: 'Operational leadership to build systems that run without you.', keywords: ['coo', 'operations', 'fractional coo'], tiers: [{ name: '2 days/month', tagline: 'Operational leadership', pricingModel: 'fixed', price: 3750, priceFormatted: '£3,750', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
+  combined_advisory: { code: 'combined_advisory', name: 'Combined CFO/COO Advisory', displayName: 'Combined CFO/COO Advisory', category: 'strategic', outcome: "Complete Business Transformation", description: 'Executive partnership covering both financial and operational strategy.', keywords: ['combined', 'cfo coo', 'executive partnership'], tiers: [{ name: 'Standard', tagline: 'Full executive partnership', pricingModel: 'fixed', price: 6000, priceFormatted: '£6,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
+};
+function getPriceForTurnover(tier: ServiceTier, turnover: number): { price: number; priceFormatted: string } {
+  if (tier.pricingModel === 'fixed') return { price: tier.price!, priceFormatted: tier.priceFormatted! };
+  if (!tier.priceRanges?.length) return { price: 0, priceFormatted: 'TBD' };
+  for (const band of tier.priceRanges) { if (band.maxTurnover === null || turnover <= band.maxTurnover) return { price: band.price, priceFormatted: band.priceFormatted }; }
+  const last = tier.priceRanges[tier.priceRanges.length - 1]; return { price: last.price, priceFormatted: last.priceFormatted };
+}
+function getDefaultTier(code: string): ServiceTier | null { const def = SERVICE_REGISTRY[code]; if (!def) return null; return def.tiers[def.defaultTierIndex] || def.tiers[0] || null; }
+function getTierByName(code: string, tierName: string): ServiceTier | null { const def = SERVICE_REGISTRY[code]; if (!def) return null; return def.tiers.find(t => t.name.toLowerCase() === tierName.toLowerCase()) || null; }
+function getEnabledByString(code: string, options?: { tierName?: string; turnover?: number; deferred?: boolean }): string {
+  const def = SERVICE_REGISTRY[code]; if (!def) return code;
+  const tier = options?.tierName ? getTierByName(code, options.tierName) : getDefaultTier(code); if (!tier) return def.displayName;
+  const { priceFormatted } = options?.turnover ? getPriceForTurnover(tier, options.turnover) : tier.pricingModel === 'fixed' ? { priceFormatted: tier.priceFormatted! } : { priceFormatted: tier.priceFromFormatted || 'TBD' };
+  const tierLabel = def.tiers.length > 1 ? ` (${tier.name})` : ''; const priceLabel = `${priceFormatted}${tier.periodLabel}`; const deferredSuffix = options?.deferred ? ' — when ready' : '';
+  return `${def.displayName}${tierLabel} (${priceLabel}${deferredSuffix})`;
+}
+function getOutcome(code: string): string { return SERVICE_REGISTRY[code]?.outcome || 'Business Transformation'; }
+function detectServiceCode(text: string): string | null {
+  if (!text) return null; const lower = text.toLowerCase();
+  if (lower.includes('business intelligence') || lower.includes('management account')) return 'business_intelligence';
+  if (lower.includes('benchmark')) return 'benchmarking'; if (lower.includes('system') && (lower.includes('audit') || lower.includes('process'))) return 'systems_audit';
+  if (lower.includes('goal') || lower.includes('alignment') || lower.includes('365')) return 'goal_alignment';
+  if (lower.includes('combined') && (lower.includes('cfo') || lower.includes('coo'))) return 'combined_advisory';
+  if (lower.includes('fractional cfo') || (lower.includes('cfo') && !lower.includes('coo'))) return 'fractional_cfo';
+  if (lower.includes('fractional coo') || (lower.includes('coo') && !lower.includes('cfo'))) return 'fractional_coo';
+  if (lower.includes('automation') || lower.includes('automate')) return 'automation'; if (lower.includes('exit') || lower.includes('advisory')) return 'business_advisory';
+  return null;
+}
+function getLegacyServiceDetail(code: string, turnover?: number): { name: string; price: string; priceType: string; outcome: string } | null {
+  const def = SERVICE_REGISTRY[code]; if (!def) return null; const tier = getDefaultTier(code); if (!tier) return null;
+  const { priceFormatted } = turnover ? getPriceForTurnover(tier, turnover) : tier.pricingModel === 'fixed' ? { priceFormatted: tier.priceFormatted! } : { priceFormatted: tier.priceFromFormatted || 'TBD' };
+  return { name: def.displayName, price: priceFormatted, priceType: tier.period === 'one-off' ? 'one-time' : tier.period, outcome: def.outcome };
+}
+const LEGACY_CODE_MAP: Record<string, string> = { '365_method': 'goal_alignment', 'management_accounts': 'business_intelligence' };
+function resolveServiceCode(code: string): string { return LEGACY_CODE_MAP[code] || code; }
 
 // Use Opus for premium narrative quality
 const PASS2_MODEL = 'anthropic/claude-opus-4.5';
@@ -37,6 +95,12 @@ interface ComprehensiveAnalysis {
   hiddenAssets: any;
   grossMargin: any;
   achievements: any;
+  yearOnYearComparisons?: {
+    turnover?: { current?: number; prior?: number; change?: number };
+    operatingProfit?: { current?: number; prior?: number; change?: number };
+    netProfit?: { current?: number; prior?: number; change?: number };
+  };
+  clientRevenueConcentration?: Record<string, any>;
 }
 
 interface DestinationClarityAnalysis {
@@ -567,172 +631,6 @@ GOOD (diverse):
 }
 
 // ============================================================================
-// SERVICE PRICING AND OUTCOMES (Services as footnotes)
-// Defaults used if database fetch fails - canonical source is service_line_metadata
-// ============================================================================
-
-interface ServiceDetail {
-  name: string;
-  price: string;
-  priceType: 'monthly' | 'one-time' | 'annual';
-  outcome: string;  // The destination, not the service
-}
-
-const DEFAULT_SERVICE_DETAILS: Record<string, ServiceDetail> = {
-  'management_accounts': {
-    name: 'Management Accounts',
-    price: '£650',
-    priceType: 'monthly',
-    outcome: "You'll Know Your Numbers"
-  },
-  'systems_audit': {
-    name: 'Systems & Process Audit',
-    price: '£2,000',
-    priceType: 'one-time',
-    outcome: "You'll See Where The Time Goes"
-  },
-  '365_method': {
-    name: 'Goal Alignment Programme (Growth)',
-    price: '£4,500',
-    priceType: 'annual',
-    outcome: "You'll Have Someone In Your Corner"
-  },
-  'goal_alignment': {
-    name: 'Goal Alignment Programme (Growth)',
-    price: '£4,500',
-    priceType: 'annual',
-    outcome: "You'll Have Someone In Your Corner"
-  },
-  'automation': {
-    name: 'Automation Services',
-    price: '£5,000',
-    priceType: 'one-time',
-    outcome: "The Manual Work Disappears"
-  },
-  'fractional_cfo': {
-    name: 'Fractional CFO Services',
-    price: '£4,000',
-    priceType: 'monthly',
-    outcome: "You'll Have Strategic Financial Leadership"
-  },
-  'fractional_coo': {
-    name: 'Fractional COO Services',
-    price: '£3,750',
-    priceType: 'monthly',
-    outcome: "Someone Else Carries The Load"
-  },
-  'combined_advisory': {
-    name: 'Combined CFO/COO Advisory',
-    price: '£6,000',
-    priceType: 'monthly',
-    outcome: "Complete Business Transformation"
-  },
-  'business_advisory': {
-    name: 'Business Advisory & Exit Planning',
-    price: '£2,000', // BLOCKED - currently in development, but priced for future
-    priceType: 'one-time',
-    outcome: "You'll Know What It's Worth"
-  },
-  'benchmarking': {
-    name: 'Industry Benchmarking (Full Package)',
-    price: '£2,000',
-    priceType: 'one-time',
-    outcome: "You'll Know Where You Stand"
-  }
-  // Tier 1: Benchmarking £2,000, Systems Audit £2,000. Goal Alignment £4,500/year.
-  // DO NOT list Benchmarking and Hidden Value Audit as separate line items.
-};
-
-// Outcome mappings (destination-focused language)
-const SERVICE_OUTCOMES: Record<string, string> = {
-  'management_accounts': "You'll Know Your Numbers",
-  'systems_audit': "You'll See Where The Time Goes",
-  '365_method': "You'll Have Someone In Your Corner",
-  'goal_alignment': "You'll Have Someone In Your Corner",
-  'automation': "The Manual Work Disappears",
-  'fractional_cfo': "You'll Have Strategic Financial Leadership",
-  'fractional_coo': "Someone Else Carries The Load",
-  'combined_advisory': "Complete Business Transformation",
-  'business_advisory': "You'll Know What It's Worth",
-  'benchmarking': "You'll Know Where You Stand",  // Includes Hidden Value Analysis
-};
-
-// Fetch service details from database, falling back to defaults
-async function fetchServiceDetails(supabase: any, practiceId?: string): Promise<Record<string, ServiceDetail>> {
-  try {
-    // First try the new service_pricing table if we have a practice ID
-    if (practiceId) {
-      const { data: pricingData, error: pricingError } = await supabase
-        .rpc('get_service_pricing', { p_practice_id: practiceId });
-      
-      if (!pricingError && pricingData && Object.keys(pricingData).length > 0) {
-        console.log('Using service pricing from database for practice:', practiceId);
-        
-        const serviceDetails: Record<string, ServiceDetail> = {};
-        
-        for (const [code, service] of Object.entries(pricingData as Record<string, any>)) {
-          const primaryTier = service.tiers?.[0];
-          if (primaryTier) {
-            const priceType = primaryTier.frequency === 'monthly' ? 'monthly' 
-              : primaryTier.frequency === 'annual' ? 'annual' 
-              : 'one-time';
-            
-            serviceDetails[code] = {
-              name: service.name,
-              price: `£${primaryTier.price.toLocaleString()}`,
-              priceType,
-              outcome: SERVICE_OUTCOMES[code] || DEFAULT_SERVICE_DETAILS[code]?.outcome || 'Business Transformation'
-            };
-          }
-        }
-        
-        // Merge with defaults for any missing services
-        return { ...DEFAULT_SERVICE_DETAILS, ...serviceDetails };
-      }
-    }
-    
-    // Fallback to service_line_metadata table
-    const { data, error } = await supabase
-      .from('service_line_metadata')
-      .select('code, display_name, name, pricing')
-      .eq('status', 'ready');
-    
-    if (error || !data) {
-      console.log('Using default service details (DB fetch failed):', error?.message);
-      return DEFAULT_SERVICE_DETAILS;
-    }
-    
-    const serviceDetails: Record<string, ServiceDetail> = {};
-    
-    for (const service of data) {
-      const code = service.code;
-      const pricing = service.pricing?.[0]; // Get primary pricing tier
-      
-      if (pricing) {
-        const priceType = pricing.frequency === 'monthly' ? 'monthly' 
-          : pricing.frequency === 'annual' ? 'annual' 
-          : 'one-time';
-        
-        serviceDetails[code] = {
-          name: service.display_name || service.name,
-          price: `£${pricing.amount.toLocaleString()}`,
-          priceType,
-          outcome: SERVICE_OUTCOMES[code] || DEFAULT_SERVICE_DETAILS[code]?.outcome || 'Business Transformation'
-        };
-      } else if (DEFAULT_SERVICE_DETAILS[code]) {
-        serviceDetails[code] = DEFAULT_SERVICE_DETAILS[code];
-      }
-    }
-    
-    // Merge with defaults for any missing services
-    return { ...DEFAULT_SERVICE_DETAILS, ...serviceDetails };
-  } catch (err) {
-    console.error('Error fetching service details:', err);
-    return DEFAULT_SERVICE_DETAILS;
-  }
-}
-
-// ============================================================================
 // DATA COMPLETENESS CHECKER
 // ============================================================================
 
@@ -855,94 +753,6 @@ serve(async (req) => {
     }
 
     // ========================================================================
-    // SERVICE CATALOG - CANONICAL SERVICE DEFINITIONS
-    // LLM selects which services are relevant, but cannot change names/prices
-    // ========================================================================
-    
-    interface ServiceLine {
-      id: string;
-      name: string;
-      displayName: string;
-      price: number;
-      priceFormatted: string;
-      tier: string;
-      description: string;
-      keywords: string[];
-    }
-    
-    const SERVICE_CATALOG: Record<string, ServiceLine> = {
-      'benchmarking': {
-        id: 'benchmarking',
-        name: 'Industry Benchmarking (Full Package)',
-        displayName: 'Industry Benchmarking (Full Package)',
-        price: 2000,
-        priceFormatted: '£2,000',
-        tier: 'foundation',
-        description: 'Agency-specific performance benchmarks, financial comparison, competitive positioning',
-        keywords: ['benchmark', 'valuation', 'hidden value', 'what its worth', 'baseline', 'industry']
-      },
-      'goal_alignment_growth': {
-        id: 'goal_alignment_growth',
-        name: 'Goal Alignment Programme',
-        displayName: 'Goal Alignment Programme (Growth)',
-        price: 4500,
-        priceFormatted: '£4,500',
-        tier: 'growth',
-        description: 'Quarterly accountability and strategic support',
-        keywords: ['goal alignment', 'accountability', 'co-pilot', 'corner', 'support', 'growth']
-      },
-      'goal_alignment_scale': {
-        id: 'goal_alignment_scale',
-        name: 'Goal Alignment Programme',
-        displayName: 'Goal Alignment Programme (Scale)',
-        price: 7500,
-        priceFormatted: '£7,500',
-        tier: 'scale',
-        description: 'Intensive strategic partnership',
-        keywords: ['scale', 'intensive', 'transformation']
-      },
-      'systems_audit': {
-        id: 'systems_audit',
-        name: 'Systems & Process Audit',
-        displayName: 'Systems & Process Audit',
-        price: 2000,
-        priceFormatted: '£2,000',
-        tier: 'foundation',
-        description: 'Map every system, process, and workaround — identify what to fix first',
-        keywords: ['systems', 'process', 'efficiency', 'automation', 'audit']
-      },
-      'ma_monthly': {
-        id: 'ma_monthly',
-        name: 'Management Accounts',
-        displayName: 'Management Accounts (Monthly)',
-        price: 500,
-        priceFormatted: '£500/month',
-        tier: 'ongoing',
-        description: 'Monthly financial reporting and insights',
-        keywords: ['management accounts', 'monthly', 'reporting', 'financials']
-      },
-      'fractional_cfo': {
-        id: 'fractional_cfo',
-        name: 'Fractional CFO',
-        displayName: 'Fractional CFO',
-        price: 2500,
-        priceFormatted: '£2,500/month',
-        tier: 'strategic',
-        description: 'Part-time strategic finance leadership',
-        keywords: ['cfo', 'finance director', 'strategic finance', 'fractional']
-      },
-      'exit_planning': {
-        id: 'exit_planning',
-        name: 'Exit Planning',
-        displayName: 'Exit Planning & Preparation',
-        price: 5000,
-        priceFormatted: '£5,000',
-        tier: 'strategic',
-        description: 'Comprehensive exit strategy development',
-        keywords: ['exit', 'sale', 'succession', 'planning']
-      }
-    };
-    
     // ========================================================================
     // NON-NEGOTIABLE CONSTANTS - SYSTEM DEFINES, LLM CANNOT OVERRIDE
     // ========================================================================
@@ -964,110 +774,91 @@ serve(async (req) => {
         followsOnHoliday: "staff issues keep finding you, even on holiday"
       }
     };
-    
+
     // ========================================================================
-    // SERVICE MATCHING FUNCTIONS
+    // CLEAN JOURNEY PHASES — hardcoded enabled-by strings
+    // The LLM cannot be trusted to format these consistently.
+    // We detect the service by keyword and overwrite the ENTIRE string.
+    // Then we strip any remaining stutter patterns as a safety net.
     // ========================================================================
-    
-    function matchServiceToCatalog(llmServiceName: string): ServiceLine | null {
-      if (!llmServiceName) return null;
-      const normalized = llmServiceName.toLowerCase();
-      
-      // Direct match by keywords
-      for (const [id, service] of Object.entries(SERVICE_CATALOG)) {
-        for (const keyword of service.keywords) {
-          if (normalized.includes(keyword)) {
-            return service;
-          }
-        }
-      }
-      
-      // Fallback: fuzzy match on name
-      for (const [id, service] of Object.entries(SERVICE_CATALOG)) {
-        const firstWord = service.name.toLowerCase().split(' ')[0];
-        if (normalized.includes(firstWord)) {
-          return service;
-        }
-      }
-      
-      console.warn(`[Pass2] ⚠️ Could not match service: "${llmServiceName}"`);
-      return null;
-    }
-    
-    function enforceServiceCatalog(journeyPhases: any[]): any[] {
-      if (!journeyPhases || !Array.isArray(journeyPhases)) return journeyPhases;
-      
-      return journeyPhases.map(phase => {
-        const serviceText = phase.enabledBy || phase.service || phase.serviceName || '';
-        const matched = matchServiceToCatalog(serviceText);
-        
-        if (matched) {
-          console.log(`[Pass2] ✅ Matched "${serviceText}" → ${matched.displayName} (${matched.priceFormatted})`);
-          return {
-            ...phase,
-            enabledBy: matched.displayName,
-            service: matched.name,
-            serviceId: matched.id,
-            price: matched.priceFormatted  // Use formatted string for display
-          };
-        }
-        
-        return phase;
-      });
-    }
-    
-    // Hardcoded enabled-by strings — we know exactly what these should say
-    const ENABLED_BY_STRINGS: Record<string, { phase1: string; deferred: string }> = {
-      'benchmarking': {
-        phase1: 'Industry Benchmarking (Full Package) (£2,000)',
-        deferred: 'Industry Benchmarking (Full Package) (£2,000 — when ready)'
-      },
-      'systems_audit': {
-        phase1: 'Systems & Process Audit (£2,000)',
-        deferred: 'Systems & Process Audit (£2,000 — when ready)'
-      },
-      'systems_and_process': {
-        phase1: 'Systems & Process Audit (£2,000)',
-        deferred: 'Systems & Process Audit (£2,000 — when ready)'
-      },
-      '365_method': {
-        phase1: 'Goal Alignment Programme (Growth) (£4,500/year)',
-        deferred: 'Goal Alignment Programme (Growth) (£4,500/year — when ready)'
-      },
-      'goal_alignment': {
-        phase1: 'Goal Alignment Programme (Growth) (£4,500/year)',
-        deferred: 'Goal Alignment Programme (Growth) (£4,500/year — when ready)'
-      },
-      'management_accounts': {
-        phase1: 'Management Accounts (£750/month)',
-        deferred: 'Management Accounts (£750/month — when ready)'
-      },
-      'fractional_cfo': {
-        phase1: 'Fractional CFO (£2,000/month)',
-        deferred: 'Fractional CFO (£2,000/month — when ready)'
-      },
-      'fractional_coo': {
-        phase1: 'Fractional COO (£2,000/month)',
-        deferred: 'Fractional COO (£2,000/month — when ready)'
-      },
+
+    // Canonical enabled-by strings — the ONLY acceptable output
+    const CANONICAL_ENABLED_BY: Record<string, { phase1: string; deferred: string }> = {
+      'benchmarking':        { phase1: 'Industry Benchmarking (Full Package) (£2,000 - £4,500)',              deferred: 'Industry Benchmarking (Full Package) (£2,000 - £4,500 — when ready)' },
+      'systems_audit':       { phase1: 'Systems & Process Audit (£2,000 - £4,500)',                           deferred: 'Systems & Process Audit (£2,000 - £4,500 — when ready)' },
+      'goal_alignment':      { phase1: 'Goal Alignment Programme (£1,500 - £9,000/year)',                        deferred: 'Goal Alignment Programme (£1,500 - £9,000/year — when ready)' },
+      'management_accounts': { phase1: 'Management Accounts (from £650/month)',                               deferred: 'Management Accounts (from £650/month — when ready)' },
+      'business_intelligence': { phase1: 'Business Intelligence (from £2,000/month)',                           deferred: 'Business Intelligence (from £2,000/month — when ready)' },
+      'fractional_cfo':      { phase1: 'Fractional CFO (£4,000/month)',                                      deferred: 'Fractional CFO (£4,000/month — when ready)' },
+      'fractional_coo':      { phase1: 'Fractional COO (£3,750/month)',                                        deferred: 'Fractional COO (£3,750/month — when ready)' },
+      'business_advisory':   { phase1: 'Business Advisory & Exit Planning (£2,000 - £4,000)',                 deferred: 'Business Advisory & Exit Planning (£2,000 - £4,000 — when ready)' },
+      'automation':          { phase1: 'Automation Services (£1,500 - £5,000)',                                 deferred: 'Automation Services (£1,500 - £5,000 — when ready)' },
     };
 
-    function cleanJourneyPhases(journeyData: any): any {
+    function detectServiceFromText(text: string): string | null {
+      if (!text) return null;
+      const lower = text.toLowerCase();
+
+      if (lower.includes('benchmark'))                                    return 'benchmarking';
+      if (lower.includes('system') && (lower.includes('audit') || lower.includes('process'))) return 'systems_audit';
+      if (lower.includes('goal') || lower.includes('alignment') || lower.includes('365')) return 'goal_alignment';
+      if (lower.includes('management account'))                           return 'management_accounts';
+      if (lower.includes('business intelligence'))                        return 'business_intelligence';
+      if (lower.includes('fractional cfo') || (lower.includes('cfo') && !lower.includes('coo'))) return 'fractional_cfo';
+      if (lower.includes('fractional coo') || (lower.includes('coo') && !lower.includes('cfo'))) return 'fractional_coo';
+      if (lower.includes('business advisory') || lower.includes('exit planning')) return 'business_advisory';
+      if (lower.includes('automation'))                                   return 'automation';
+
+      return null;
+    }
+
+    /**
+     * Strip stutter patterns from any string — safety net
+     * Catches: "(£2,000) (£2,000)", "(£2,000 — when ready) (£2,000 — when ready — when ready)",
+     *          "(Tier 1)", "(Tier 2)", doubled "when ready", etc.
+     */
+    function stripStutter(text: string): string {
+      if (!text) return text;
+
+      let result = text;
+
+      // Remove "(Tier N)" — not client-facing
+      result = result.replace(/\s*\(Tier\s*\d+\)\s*/gi, ' ');
+
+      // Remove duplicate price brackets: "(£X,XXX) (£X,XXX)" → "(£X,XXX)"
+      result = result.replace(/(\(£[\d,]+(?:\/\w+)?\))\s*\(£[\d,]+(?:\/\w+)?\)/g, '$1');
+
+      // Remove duplicate "when ready" patterns:
+      // "(£X — when ready) (£X — when ready — when ready)" → "(£X — when ready)"
+      result = result.replace(/(\(£[\d,]+(?:\/\w+)?\s*—\s*when ready\))\s*\(£[\d,]+(?:\s*—\s*when ready)*(?:\/\w+)?(?:\s*—\s*when ready)*\)/gi, '$1');
+
+      // Clean up any remaining "— when ready — when ready" to just "— when ready"
+      result = result.replace(/(—\s*when ready)\s*—\s*when ready/gi, '$1');
+
+      // Clean up "when ready/year — when ready" → just use the canonical
+      result = result.replace(/when ready\/year\s*—\s*when ready/gi, 'when ready');
+
+      // Clean up double spaces
+      result = result.replace(/\s{2,}/g, ' ').trim();
+
+      return result;
+    }
+
+    function cleanJourneyPhases(journeyData: any, _clientTurnover?: number): any {
       if (!journeyData) return journeyData;
 
-      // Handle both .phases array and direct phase properties
       const phases = journeyData.phases ||
-                 [journeyData.phase1, journeyData.phase2, journeyData.phase3].filter(Boolean);
+        [journeyData.phase1, journeyData.phase2, journeyData.phase3].filter(Boolean);
 
       if (!phases || !Array.isArray(phases) || phases.length === 0) {
-        console.log('[Pass2] cleanJourneyPhases: no phases array found, keys:', Object.keys(journeyData));
+        console.log('[Pass2] cleanJourneyPhases: no phases found');
         return journeyData;
       }
 
       console.log(`[Pass2] cleanJourneyPhases: processing ${phases.length} phases`);
 
       phases.forEach((phase: any, index: number) => {
-        // Try every possible field name for the enabled-by line
+        // Find the enabled-by field
         const fieldNames = ['enabledBy', 'enabled_by', 'service', 'serviceLine', 'enabledByService'];
         let fieldName: string | null = null;
         let currentValue = '';
@@ -1081,38 +872,31 @@ serve(async (req) => {
         }
 
         if (!fieldName) {
-          console.log(`[Pass2] Phase ${index}: no enabled-by field found. Keys: ${Object.keys(phase).join(', ')}`);
+          console.log(`[Pass2] Phase ${index}: no enabled-by field found`);
           return;
         }
 
-        console.log(`[Pass2] Phase ${index} BEFORE: ${currentValue}`);
+        console.log(`[Pass2] Phase ${index} BEFORE: "${currentValue}"`);
 
-        // Detect which service this phase is about by checking for keywords
-        let detectedService: string | null = null;
-        const lower = currentValue.toLowerCase();
+        // Step 1: Try to detect service and hardcode the correct string
+        const detectedCode = phase.enabledByCode || detectServiceFromText(currentValue);
 
-        if (lower.includes('benchmark')) detectedService = 'benchmarking';
-        else if (lower.includes('system') && (lower.includes('audit') || lower.includes('process'))) detectedService = 'systems_audit';
-        else if (lower.includes('goal') || lower.includes('alignment') || lower.includes('365')) detectedService = 'goal_alignment';
-        else if (lower.includes('management account')) detectedService = 'management_accounts';
-        else if (lower.includes('fractional cfo') || lower.includes('cfo')) detectedService = 'fractional_cfo';
-        else if (lower.includes('fractional coo') || lower.includes('coo')) detectedService = 'fractional_coo';
+        if (detectedCode && CANONICAL_ENABLED_BY[detectedCode]) {
+          const isDeferred = index > 0; // Phase 0 = firm price, Phase 1+ = "when ready"
+          const canonical = isDeferred
+            ? CANONICAL_ENABLED_BY[detectedCode].deferred
+            : CANONICAL_ENABLED_BY[detectedCode].phase1;
 
-        if (detectedService && ENABLED_BY_STRINGS[detectedService]) {
-          // Phase 0 (first phase) = firm price, no "when ready"
-          // Phase 1+ = deferred, "when ready"
-          const replacement = index === 0
-            ? ENABLED_BY_STRINGS[detectedService].phase1
-            : ENABLED_BY_STRINGS[detectedService].deferred;
-
-          phase[fieldName] = replacement;
-          console.log(`[Pass2] Phase ${index} AFTER: ${replacement}`);
+          phase[fieldName] = canonical;
+          phase.enabledByCode = detectedCode;
+          console.log(`[Pass2] Phase ${index} AFTER (canonical): "${canonical}"`);
         } else {
-          console.log(`[Pass2] Phase ${index}: could not detect service from "${currentValue}"`);
+          // Step 2: Couldn't detect service — apply stutter stripping as fallback
+          phase[fieldName] = stripStutter(currentValue);
+          console.log(`[Pass2] Phase ${index} AFTER (stripped): "${phase[fieldName]}"`);
         }
       });
 
-      // Write back if we used the phases array
       if (journeyData.phases) {
         journeyData.phases = phases;
       }
@@ -1124,11 +908,11 @@ serve(async (req) => {
     function cleanAllEnabledByStrings(jsonStr: string): string {
       const cleanups: [RegExp, string][] = [
         [/Enabled by:\s*Industry Benchmarking[^"\\]*/g,
-         'Enabled by: Industry Benchmarking (Full Package) (£2,000)'],
+         'Enabled by: Industry Benchmarking (Full Package) (£2,000 - £4,500)'],
         [/Enabled by:\s*Systems\s*(?:&|and)\s*Process Audit[^"\\]*/g,
-         'Enabled by: Systems & Process Audit (£2,000 — when ready)'],
+         'Enabled by: Systems & Process Audit (£2,000 - £4,500 — when ready)'],
         [/Enabled by:\s*Goal Alignment Programme[^"\\]*/g,
-         'Enabled by: Goal Alignment Programme (Growth) (£4,500/year — when ready)'],
+         'Enabled by: Goal Alignment Programme (£1,500 - £9,000/year — when ready)'],
       ];
       let cleaned = jsonStr;
       for (const [pattern, replacement] of cleanups) {
@@ -1261,7 +1045,7 @@ serve(async (req) => {
     }
 
     console.log('[Pass2] Starting for engagement:', engagementId);
-    console.log('[Pass2] 📋 Loaded service catalog:', Object.keys(SERVICE_CATALOG).length, 'services');
+    console.log('[Pass2] 📋 Service registry:', Object.keys(SERVICE_REGISTRY).length, 'services');
     const startTime = Date.now();
 
     // Update status
@@ -1308,10 +1092,7 @@ serve(async (req) => {
     console.log(`[Pass2] Advisor pinned services: ${pinnedServices.join(', ') || 'none'}`);
     console.log(`[Pass2] Advisor blocked services: ${blockedServicesFromAdvisor.join(', ') || 'none'}`);
 
-    // Fetch service pricing from database (single source of truth)
-    // Pass practice_id to use practice-specific pricing if available
-    const SERVICE_DETAILS = await fetchServiceDetails(supabase, engagement.practice_id);
-    console.log('[Pass2] Loaded service details for', Object.keys(SERVICE_DETAILS).length, 'services');
+    // SERVICE_DETAILS built from registry after validatedPayroll (see below)
 
     // ========================================================================
     // FETCH VALIDATED FINANCIAL DATA
@@ -1337,6 +1118,18 @@ serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    // Try to get from client_financial_data (accounts upload path)
+    const { data: clientFinancialDataRows } = await supabase
+      .from('client_financial_data')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('fiscal_year', { ascending: false })
+      .limit(3);
+
+    if (clientFinancialDataRows?.length) {
+      console.log('[Pass2] ✅ Found', clientFinancialDataRows.length, 'years in client_financial_data');
+    }
     
     // Extract validated payroll data
     let validatedPayroll: {
@@ -1431,13 +1224,42 @@ serve(async (req) => {
         console.log('[Pass2] Calculated payroll from client_financial_context:', validatedPayroll);
       }
     }
+    // Priority 3: Use client_financial_data (accounts upload path)
+    else if (clientFinancialDataRows && clientFinancialDataRows.length > 0) {
+      const latest = clientFinancialDataRows[0];
+      const turnover = latest.revenue;
+      const staffCosts = (latest as any).staff_costs;
+      if (turnover && staffCosts) {
+        const staffCostsPct = (staffCosts / turnover) * 100;
+        const benchmarkPct = 28;
+        const excessPct = Math.max(0, staffCostsPct - benchmarkPct);
+        const excessAmount = Math.round((excessPct / 100) * turnover);
+        validatedPayroll = {
+          turnover,
+          staffCosts,
+          staffCostsPct,
+          benchmarkPct,
+          excessPct,
+          excessAmount,
+          calculation: `£${staffCosts.toLocaleString()} ÷ £${turnover.toLocaleString()} = ${staffCostsPct.toFixed(1)}%. Excess: ${excessPct.toFixed(1)}% = £${excessAmount.toLocaleString()}`
+        };
+        console.log('[Pass2] ✅ Calculated payroll from client_financial_data:', validatedPayroll);
+      } else if (turnover) {
+        validatedPayroll = {
+          ...validatedPayroll,
+          turnover,
+        };
+        console.log('[Pass2] ⚠️ Have turnover from client_financial_data but no staff costs');
+      }
+    }
     
     // ========================================================================
     // ENHANCEMENT 3: Build Enhanced Financial Data Section
     // ========================================================================
     let financialDataSection = '';
-    if (validatedPayroll.turnover && validatedPayroll.staffCosts) {
-      financialDataSection = `
+    if (validatedPayroll.turnover) {
+      if (validatedPayroll.staffCosts) {
+        financialDataSection = `
 
 ============================================================================
 🔢 VALIDATED FINANCIAL DATA - USE THESE EXACT FIGURES
@@ -1458,6 +1280,18 @@ CALCULATION: ${validatedPayroll.calculation || 'See above'}
 - When mentioning staff costs %, use ${validatedPayroll.staffCostsPct?.toFixed(1)}% - NOT any other figure
 - When formatting large numbers, use "k" suffix ONCE (e.g., "£193k" NOT "£193kk")
 `;
+      } else {
+        financialDataSection = `
+
+============================================================================
+🔢 VALIDATED FINANCIAL DATA (PARTIAL)
+============================================================================
+TURNOVER: £${validatedPayroll.turnover.toLocaleString()}
+STAFF COSTS: Not available from accounts — do not guess specific amounts.
+When discussing staffing: reference the team size and productivity instead of cost percentages.
+`;
+        console.log('[Pass2] ⚠️ Partial financial data — turnover known but staff costs unavailable');
+      }
     } else {
       financialDataSection = `
 
@@ -1471,6 +1305,18 @@ No validated financial data available. When discussing financial figures:
 `;
       console.log('[Pass2] ⚠️ No validated financial data available - LLM should not invent figures');
     }
+
+    const clientTurnover = validatedPayroll?.turnover ?? null;
+    const SERVICE_DETAILS: Record<string, { name: string; price: string; priceType: string; outcome: string }> = {};
+    for (const code of Object.keys(SERVICE_REGISTRY)) {
+      const resolved = resolveServiceCode(code);
+      const d = getLegacyServiceDetail(resolved, clientTurnover ?? undefined);
+      if (d) SERVICE_DETAILS[resolved] = d;
+    }
+    for (const [legacy, canonical] of Object.entries(LEGACY_CODE_MAP)) {
+      if (SERVICE_DETAILS[canonical] && !SERVICE_DETAILS[legacy]) (SERVICE_DETAILS as Record<string, { name: string; price: string; priceType: string; outcome: string }>)[legacy] = SERVICE_DETAILS[canonical];
+    }
+    console.log('[Pass2] Loaded service details from registry for', Object.keys(SERVICE_DETAILS).length, 'services');
 
     // Fetch Pass 1 results
     const { data: report, error: reportError } = await supabase
@@ -1558,7 +1404,15 @@ No validated financial data available. When discussing financial figures:
       hasPrebuiltPhrases: !!prebuiltPhrases,
       hasPromptInjection: !!pass2PromptInjection
     });
-    
+
+    console.log('[Pass2] 🔍 CoI data from Pass 1:', JSON.stringify({
+      hasCoI: !!comprehensiveAnalysis?.costOfInaction,
+      totalAnnual: comprehensiveAnalysis?.costOfInaction?.totalAnnual,
+      totalOverHorizon: comprehensiveAnalysis?.costOfInaction?.totalOverHorizon,
+      componentCount: comprehensiveAnalysis?.costOfInaction?.components?.length,
+      components: comprehensiveAnalysis?.costOfInaction?.components?.map((c: any) => `${c.category}: £${Math.round(c.annualCost / 1000)}k`)
+    }, null, 2));
+
     // If we have pre-built prompt injection from structured calculations, log it
     if (pass2PromptInjection) {
       console.log('[Pass2] ✅ Using structured pre-built phrases from Pass 1 v3.0');
@@ -1663,6 +1517,55 @@ No validated financial data available. When discussing financial figures:
       console.log('[Pass2] ✅ Built cost of inaction phrase from Pass 1:', preBuiltPhrases.costOfInaction);
     }
     
+    // YoY GROWTH PHRASES — prefer page4_numbers.yearOnYearComparisons (where Pass 1 saves), else comprehensive_analysis
+    const yoy = (report?.page4_numbers as Record<string, any> | null)?.yearOnYearComparisons || comprehensiveAnalysis?.yearOnYearComparisons;
+
+    // OPERATING PROFIT GROWTH
+    const opYoY = yoy?.operatingProfit || comprehensiveAnalysis?.yearOnYearComparisons?.operatingProfit;
+    if (opYoY?.current != null && opYoY?.prior != null && opYoY.prior > 0) {
+      const opCurrent = opYoY.current;
+      const opPrior = opYoY.prior;
+      const growthPct = (((opCurrent - opPrior) / opPrior) * 100).toFixed(1);
+      const priorK = Math.round(opPrior / 1000);
+      const currentK = Math.round(opCurrent / 1000);
+      preBuiltPhrases.operatingProfitGrowthPct = `${growthPct}%`;
+      preBuiltPhrases.operatingProfitGrowthNarrative = `operating profit up ${growthPct}% year-on-year (£${priorK}k → £${currentK}k)`;
+      preBuiltPhrases.operatingProfitGrowth = `${growthPct}%`;
+      console.log('[Pass2] ✅ Built operating profit growth phrase:', preBuiltPhrases.operatingProfitGrowthNarrative);
+    }
+
+    // REVENUE GROWTH
+    const revYoY = yoy?.turnover || comprehensiveAnalysis?.yearOnYearComparisons?.turnover;
+    if (revYoY?.current != null && revYoY?.prior != null && revYoY.prior > 0) {
+      const revCurrent = revYoY.current;
+      const revPrior = revYoY.prior;
+      const revGrowthPct = (((revCurrent - revPrior) / revPrior) * 100).toFixed(1);
+      const formatAmount = (v: number) => v >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : `£${Math.round(v / 1000)}k`;
+      preBuiltPhrases.revenueGrowth = `${revGrowthPct}%`;
+      preBuiltPhrases.revenueGrowthNarrative = `revenue up ${revGrowthPct}% year-on-year (${formatAmount(revPrior)} → ${formatAmount(revCurrent)})`;
+      preBuiltPhrases.turnoverScale = formatAmount(revCurrent);
+      console.log('[Pass2] ✅ Built revenue growth phrase:', preBuiltPhrases.revenueGrowthNarrative);
+    }
+
+    // NET PROFIT GROWTH
+    const netYoY = yoy?.netProfit || comprehensiveAnalysis?.yearOnYearComparisons?.netProfit;
+    if (netYoY?.prior && netYoY.prior > 0 && netYoY.current != null && netYoY.change != null) {
+      const netGrowthPct = ((netYoY.change / netYoY.prior) * 100).toFixed(1);
+      preBuiltPhrases.netProfitGrowth = `${netGrowthPct}%`;
+      console.log('[Pass2] ✅ Built net profit growth:', preBuiltPhrases.netProfitGrowth);
+    }
+
+    // BUSINESS SCALE (for anchoring the report)
+    const turnoverForScale = revYoY?.current ?? validatedPayroll?.turnover ?? comprehensiveAnalysis?.payroll?.turnover;
+    const empCount = comprehensiveAnalysis?.productivity?.employeeCount ?? comprehensiveAnalysis?.productivity?.headcount ?? comprehensiveAnalysis?.payroll?.employeeCount;
+    if (turnoverForScale) {
+      const scaleM = (Number(turnoverForScale) / 1000000).toFixed(1);
+      preBuiltPhrases.businessScale = empCount
+        ? `a £${scaleM}M business with ${empCount} staff`
+        : `a £${scaleM}M business`;
+      console.log('[Pass2] ✅ Built business scale phrase:', preBuiltPhrases.businessScale);
+    }
+
     // ========================================================================
     // BUILD ULTRA-MANDATORY PHRASES SECTION FOR PROMPT
     // ========================================================================
@@ -1762,6 +1665,35 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
 ⏱️ COST OF INACTION (USE THIS PHRASE):
 ────────────────────────────────────────────────────────────────────────────
 ► "Cost of inaction: ${preBuiltPhrases.costOfInaction}"
+
+`;
+      }
+      
+      if (preBuiltPhrases.operatingProfitGrowthNarrative) {
+        mandatoryPhrasesSection += `
+📈 OPERATING PROFIT GROWTH (USE THIS EXACT PHRASE):
+════════════════════════════════════════════════════════════════════════════════
+► "${preBuiltPhrases.operatingProfitGrowthNarrative}"
+
+⛔ DO NOT calculate operating profit growth yourself — use the phrase above VERBATIM
+⛔ DO NOT round differently or use a different percentage
+
+`;
+      }
+      if (preBuiltPhrases.revenueGrowthNarrative) {
+        mandatoryPhrasesSection += `
+📈 REVENUE GROWTH (USE THIS EXACT PHRASE):
+════════════════════════════════════════════════════════════════════════════════
+► "${preBuiltPhrases.revenueGrowthNarrative}"
+
+`;
+      }
+      if (preBuiltPhrases.businessScale) {
+        mandatoryPhrasesSection += `
+🏢 BUSINESS SCALE (MENTION in page2 opening paragraph):
+════════════════════════════════════════════════════════════════════════════════
+► "This is ${preBuiltPhrases.businessScale}"
+⛔ You MUST anchor the reader with the business scale in the Reality section opening.
 
 `;
       }
@@ -1875,6 +1807,26 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
    Don't just focus on gaps - acknowledge what's working.
 `;
     }
+
+    // Pre-calculated growth and scale (LLM must not calculate)
+    if (preBuiltPhrases.operatingProfitGrowthNarrative) {
+      financialDataSection += `
+⛔ OPERATING PROFIT: ${preBuiltPhrases.operatingProfitGrowthNarrative}
+DO NOT calculate this yourself. Use this exact phrase when discussing operating profit growth.
+`;
+    }
+    if (preBuiltPhrases.revenueGrowthNarrative) {
+      financialDataSection += `
+⛔ REVENUE GROWTH: ${preBuiltPhrases.revenueGrowthNarrative}
+DO NOT calculate this yourself. Use this exact phrase.
+`;
+    }
+    if (preBuiltPhrases.businessScale) {
+      financialDataSection += `
+⛔ BUSINESS SCALE: This is ${preBuiltPhrases.businessScale}.
+Mention the business scale in the Reality section to anchor the reader.
+`;
+    }
     
     // ========================================================================
     // FIX 7: CLIENT REVENUE CONCENTRATION DATA INJECTION
@@ -1936,6 +1888,25 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
     console.log(`  - Clarity Score: ${pass1ClarityScore}`);
     console.log(`  - Gap Score: ${pass1GapScore}`);
     
+    /**
+     * Strip stutter from price strings.
+     * "£2,000 — when ready — when ready — when ready" → "£2,000"
+     * "£4,500 — when ready/year — when ready" → "£4,500/year"
+     * Returns ONLY the raw price and period.
+     */
+    function cleanPrice(raw: string): string {
+      if (!raw) return '';
+      const priceMatch = raw.match(/£[\d,]+(?:\s*\/\s*(?:month|year|quarter))?/);
+      if (priceMatch) {
+        return priceMatch[0].replace(/\s+/g, '');
+      }
+      let price = raw;
+      price = price.replace(/\s*—\s*when ready/gi, '');
+      price = price.replace(/\s*when ready/gi, '');
+      price = price.replace(/\s*—\s*$/g, '');
+      return price.trim();
+    }
+
     // Build a map of service -> exact price from Pass 1
     const pass1ServicePrices: Record<string, { service: string; tier: string; price: string }> = {};
     
@@ -1948,7 +1919,7 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
         pass1ServicePrices[code] = {
           service: inv.service || inv.serviceName || code,
           tier: inv.recommendedTier || inv.tier || '',
-          price: inv.investment || inv.price || ''
+          price: cleanPrice(inv.investment || inv.price || '')
         };
       }
     }
@@ -1960,7 +1931,7 @@ ${pass1Achievements.achievements.map((a: any) => `- ${a.achievement}: ${a.eviden
         pass1ServicePrices[code] = {
           service: phase.enabledBy || code,
           tier: phase.tier || '',
-          price: phase.price || phase.investment || ''
+          price: cleanPrice(phase.price || phase.investment || '')
         };
       }
     }
@@ -2032,8 +2003,11 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       .eq('is_for_ai_analysis', true);
 
     // Build the prompt
-    const clientName = engagement.client?.name?.split(' ')[0] || 'they'; // First name only
-    const fullName = engagement.client?.name || 'Client';
+    // Sanitise: strip trailing punctuation (e.g. "Jack," → "Jack")
+    const rawFirst = engagement.client?.name?.split(' ')[0] || '';
+    const clientName = rawFirst.replace(/[,;:.!?]+$/, '') || 'they';
+    const rawFull = engagement.client?.name || 'Client';
+    const fullName = rawFull.replace(/[,;:.!?]+$/, '') || rawFull;
     const companyName = engagement.client?.client_company || 'their business';
     const emotionalAnchors = report.emotional_anchors || {};
     const patterns = report.detection_patterns || {};
@@ -3371,7 +3345,9 @@ Before returning, verify:
       if (pass1Total && narratives.page4_numbers) {
         const oldTotal = narratives.page4_numbers.totalYear1;
         narratives.page4_numbers.totalYear1 = pass1Total;
-        
+        if (!narratives.page4_numbers.totalYear1Label) {
+          narratives.page4_numbers.totalYear1Label = 'To start the journey';
+        }
         if (oldTotal !== pass1Total) {
           console.log(`[Pass2] Fixed totalYear1 from "${oldTotal}" → "${pass1Total}"`);
         }
@@ -3379,7 +3355,128 @@ Before returning, verify:
       
       console.log('[Pass2] ✅ Pass 1 service prices enforced');
     }
-    
+
+    // ========================================================================
+    // FINAL SAFETY NET: strip stutter from ALL enabled-by fields
+    // This catches anything that cleanJourneyPhases missed
+    // ========================================================================
+    if (narratives.page3_journey?.phases) {
+      for (const phase of narratives.page3_journey.phases) {
+        for (const field of ['enabledBy', 'enabled_by', 'service', 'serviceLine']) {
+          if (phase[field] && typeof phase[field] === 'string') {
+            const before = phase[field];
+            phase[field] = stripStutter(phase[field]);
+            if (before !== phase[field]) {
+              console.log(`[Pass2] 🧹 Final stutter strip: "${before}" → "${phase[field]}"`);
+            }
+          }
+        }
+      }
+    }
+
+    // ========================================================================
+    // MECHANICAL RETURNS CALCULATION
+    // The LLM cannot reliably calculate returns. We compute from Pass 1 CoI.
+    // ========================================================================
+
+    const coiData = comprehensiveAnalysis?.costOfInaction;
+    const totalInvestmentYear1 = (() => {
+      // Parse the total year 1 investment from Pass 1
+      const totalStr = pass1Total || narratives.page4_numbers?.totalYear1 || '';
+      const match = totalStr.replace(/[,£]/g, '').match(/(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    })();
+
+    if (coiData && coiData.totalAnnual > 0 && totalInvestmentYear1 > 0 && narratives.page4_numbers) {
+      const coiAnnual = coiData.totalAnnual;
+      const coiComponents = coiData.components || [];
+      const timeHorizon = coiData.timeHorizon || 3;
+
+      // Conservative: 30% of estimated annual CoI recovered in Year 1
+      // Realistic: 60% of estimated annual CoI recovered in Year 1
+      const conservativeRecovery = Math.round(coiAnnual * 0.3);
+      const realisticRecovery = Math.round(coiAnnual * 0.6);
+
+      // Build component breakdown
+      const founderTime = coiComponents.find((c: any) => c.category?.includes('Founder'));
+      const concentration = coiComponents.find((c: any) => c.category?.includes('Concentration'));
+      const growth = coiComponents.find((c: any) => c.category?.includes('Growth') || c.category?.includes('Delayed'));
+      const payrollExcess = coiComponents.find((c: any) => c.category?.includes('Payroll'));
+
+      const conservativeReturn = {
+        labourGains: payrollExcess ? `£${Math.round(payrollExcess.annualCost * 0.3 / 1000)}k` : null,
+        marginRecovery: (founderTime || concentration)
+          ? `£${Math.round(((founderTime?.annualCost || 0) + (concentration?.annualCost || 0)) * 0.3 / 1000)}k`
+          : null,
+        timeReclaimed: founderTime ? `${Math.round(8 * 0.3)} hours/week freed up` : null,
+        total: `£${Math.round(conservativeRecovery / 1000)}k`
+      };
+
+      const realisticReturn = {
+        labourGains: payrollExcess ? `£${Math.round(payrollExcess.annualCost * 0.6 / 1000)}k` : null,
+        marginRecovery: (founderTime || concentration || growth)
+          ? `£${Math.round(((founderTime?.annualCost || 0) + (concentration?.annualCost || 0) + (growth?.annualCost || 0)) * 0.6 / 1000)}k`
+          : null,
+        timeReclaimed: founderTime ? `${Math.round(8 * 0.6)} hours/week freed up` : null,
+        total: `£${Math.round(realisticRecovery / 1000)}k`
+      };
+
+      // Calculate payback period
+      const monthsToPayback = totalInvestmentYear1 > 0
+        ? Math.ceil(totalInvestmentYear1 / (realisticRecovery / 12))
+        : null;
+      const paybackStr = monthsToPayback
+        ? `${monthsToPayback}-${Math.min(monthsToPayback + 2, 12)} months`
+        : null;
+
+      // Only override if LLM left returns empty or set canCalculate: false
+      const existingReturns = narratives.page4_numbers.returns;
+      const isReturnEmpty = !existingReturns
+        || existingReturns.canCalculate === false
+        || !existingReturns.conservative?.total
+        || existingReturns.conservative?.total === 'null'
+        || existingReturns.conservative?.total === '';
+
+      if (isReturnEmpty) {
+        narratives.page4_numbers.returns = {
+          canCalculate: true,
+          conservative: conservativeReturn,
+          realistic: realisticReturn
+        };
+
+        if (!narratives.page4_numbers.paybackPeriod || narratives.page4_numbers.paybackPeriod.includes('confirm')) {
+          narratives.page4_numbers.paybackPeriod = paybackStr || 'Within first year';
+        }
+
+        console.log(`[Pass2] 📊 Mechanical returns computed from CoI data:`);
+        console.log(`  - CoI annual: £${Math.round(coiAnnual / 1000)}k (${coiComponents.length} components)`);
+        console.log(`  - Investment Year 1: £${Math.round(totalInvestmentYear1 / 1000)}k`);
+        console.log(`  - Conservative: ${conservativeReturn.total}`);
+        console.log(`  - Realistic: ${realisticReturn.total}`);
+        console.log(`  - Payback: ${paybackStr || 'TBC'}`);
+      } else {
+        console.log(`[Pass2] Returns already populated by LLM — skipping mechanical override`);
+      }
+    } else {
+      console.log(`[Pass2] ⚠️ Cannot compute returns: coiAnnual=${coiData?.totalAnnual || 0}, investment=${totalInvestmentYear1}`);
+
+      if (narratives.page4_numbers) {
+        const r = narratives.page4_numbers.returns;
+        const hasLLMReturns = r?.conservative?.total &&
+                              r.conservative.total !== 'null' &&
+                              r.conservative.total !== '' &&
+                              !r.conservative.total.toLowerCase().includes('confirm');
+
+        if (!hasLLMReturns) {
+          narratives.page4_numbers.returns = null;
+          if (narratives.page4_numbers.paybackPeriod?.toLowerCase().includes('confirm')) {
+            narratives.page4_numbers.paybackPeriod = null;
+          }
+          console.log(`[Pass2] Removed empty returns and TBC payback to prevent blank UI`);
+        }
+      }
+    }
+
     // ========================================================================
     // CRITICAL: Override LLM scores with Pass 1's calculated scores
     // The LLM should NOT recalculate these - they're data, not narrative
@@ -3409,9 +3506,14 @@ Before returning, verify:
     // LLM selects which services are relevant, but system defines names/prices
     // ========================================================================
     if (narratives.page3_journey?.phases) {
-      console.log('[Pass2] 🔧 Enforcing service catalog on journey phases...');
-      narratives.page3_journey.phases = enforceServiceCatalog(narratives.page3_journey.phases);
-      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey);
+      console.log('[Pass2] 🔧 Normalising journey phases from registry...');
+      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey, clientTurnover ?? undefined);
+      // Clean price/investment fields on journey phases to prevent stutter accumulation
+      for (const phase of narratives.page3_journey.phases) {
+        if (phase.price) phase.price = cleanPrice(phase.price);
+        if (phase.investment) phase.investment = cleanPrice(phase.investment);
+      }
+      console.log('[Pass2] 🧹 Cleaned price/investment fields on journey phases');
       // Total Year 1 = Phase 1 commitment only (phases 2+ are "when ready")
       const firstPhase = narratives.page3_journey.phases[0];
       const firstPriceStr = firstPhase?.price || firstPhase?.investmentAmount || '';
@@ -3419,6 +3521,7 @@ Before returning, verify:
       const firstPhasePrice = firstPriceMatch ? parseInt(firstPriceMatch[0].replace(/,/g, ''), 10) : 0;
       if (firstPhasePrice > 0 && narratives.page4_numbers) {
         narratives.page4_numbers.totalYear1 = `£${firstPhasePrice.toLocaleString()}`;
+        narratives.page4_numbers.totalYear1Label = 'To start the journey';
         narratives.page4_numbers.toStartTheJourney = `£${firstPhasePrice.toLocaleString()}`;
         console.log('[Pass2] ✅ Total Year 1 commitment (Phase 1 only):', narratives.page4_numbers.totalYear1);
       }
@@ -3528,6 +3631,7 @@ Before returning, verify:
         const firstPhasePrice = firstPriceMatch ? parseInt(firstPriceMatch[0].replace(/,/g, ''), 10) : 0;
         
         narratives.page4_numbers.totalYear1 = `£${firstPhasePrice.toLocaleString()}`;
+        narratives.page4_numbers.totalYear1Label = 'To start the journey';
         narratives.page4_numbers.toStartTheJourney = `£${firstPhasePrice.toLocaleString()}`;
         
         // Fix investment breakdown display
@@ -3838,8 +3942,9 @@ Before returning, verify:
 
     // Use valid database status values (admin_review is NOT a valid status)
     // Valid: pending, pass1_processing, pass1_complete, pass2_processing, generated, approved, published
-    const reportStatus = 'generated';  // Always 'generated' after Pass 2 completes
-    const engagementStatus = 'pass2_complete';  // Use ready_for_client flag to indicate review needed
+    // Auto-publish so client portal shows Pass 2 report without a separate "Share" step
+    const reportStatus = 'published';
+    const engagementStatus = 'published';
 
     console.log(`[Pass2] Setting status to: ${reportStatus} (data completeness: ${dataCompleteness.score}%)`);
 
@@ -3866,7 +3971,7 @@ Before returning, verify:
     // Final cleanup: remove any duplicate "when ready" stutter in full payload before save
     narratives = cleanWhenReadyStutter(narratives);
     if (narratives?.page3_journey) {
-      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey);
+      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey, clientTurnover ?? undefined);
     }
     // Brute-force: clean any "Enabled by:" stutter in the entire JSON before save
     const reportJsonStr = JSON.stringify(narratives);
@@ -3895,7 +4000,8 @@ Before returning, verify:
         missing_critical_data: dataCompleteness.missingCritical,
         missing_important_data: dataCompleteness.missingImportant,
         admin_actions_needed: dataCompleteness.adminActionRequired,
-        ready_for_client: dataCompleteness.canGenerateClientReport,
+        ready_for_client: true,
+        published_to_client_at: new Date().toISOString(),
         llm_model: PASS2_MODEL,
         llm_tokens_used: tokensUsed,
         llm_cost: estimatedCost,

@@ -1,4 +1,3 @@
--- COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md
 -- ============================================================================
 -- DISCOVERY LEARNING SYSTEM
 -- Enables admin comments on analysis sections and builds a perpetual 

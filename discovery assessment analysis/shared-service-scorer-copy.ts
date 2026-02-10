@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 /**
  * Service scoring utility for discovery assessments
  * Handles flexible field names for backwards compatibility

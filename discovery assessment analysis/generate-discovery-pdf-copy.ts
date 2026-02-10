@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 /**
  * Discovery Assessment PDF Report Generator
  * 
@@ -149,7 +148,7 @@ Deno.serve(async (req) => {
     const html = buildReportHTML(reportData);
 
     // Generate filename
-    const clientName = reportData.client?.name || 'Client';
+    const clientName = (reportData.client?.name || 'Client').replace(/[,;:.!?]+$/, '');
     const date = new Date().toISOString().split('T')[0];
     const filename = `Discovery_Analysis_${clientName.replace(/\s+/g, '_')}_${date}`;
 
@@ -531,8 +530,8 @@ function buildReportHTML(data: ReportData): string {
   // ========================================================================
   const analysis = cleanupObjectText(data.analysis);
   
-  const clientName = client?.name || 'Client';
-  const companyName = client?.client_company || clientName;
+  const clientName = (client?.name || 'Client').replace(/[,;:.!?]+$/, '');
+  const companyName = (client?.client_company || clientName).replace(/[,;:.!?]+$/, '') || clientName;
   const practiceName = practice?.name || 'Your Accounting Practice';
   
   // Log what data we're using to build the PDF
@@ -600,9 +599,10 @@ function getReportStyles(): string {
       box-sizing: border-box;
     }
     
+    /* Print: define printable area so content fits even with browser margins */
     @page {
       size: A4;
-      margin: 0;
+      margin: 15mm;
     }
     
     body {
@@ -611,20 +611,30 @@ function getReportStyles(): string {
       line-height: 1.6;
       color: #1e293b;
       background: white;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
     
     .page {
-      page-break-after: always;
-      min-height: 100vh;
-      padding: 50px;
+      padding: 40px 50px;
       position: relative;
+      width: 100%;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+    
+    .page.force-break {
+      page-break-after: always;
     }
     
     .page:last-child {
       page-break-after: auto;
     }
     
-    /* Cover Page */
+    /* Cover Page — only full-height page */
     .cover-page {
       display: flex;
       flex-direction: column;
@@ -634,6 +644,9 @@ function getReportStyles(): string {
       background: linear-gradient(135deg, #047857 0%, #059669 50%, #10b981 100%);
       color: white;
       padding: 60px;
+      min-height: 100vh;
+      page-break-after: always;
+      max-width: 100%;
     }
     
     .cover-logo {
@@ -653,12 +666,13 @@ function getReportStyles(): string {
       font-weight: 700;
       margin-bottom: 16px;
       letter-spacing: -1px;
+      max-width: 100%;
     }
     
     .cover-subtitle {
       font-size: 18pt;
       opacity: 0.9;
-      margin-bottom: 60px;
+      margin-bottom: 40px;
       font-weight: 400;
     }
     
@@ -666,6 +680,7 @@ function getReportStyles(): string {
       font-size: 28pt;
       font-weight: 600;
       margin-bottom: 8px;
+      max-width: 100%;
     }
     
     .cover-company {
@@ -739,6 +754,7 @@ function getReportStyles(): string {
       grid-template-columns: repeat(3, 1fr);
       gap: 20px;
       margin: 30px 0;
+      max-width: 100%;
     }
     
     .metric-card {
@@ -787,6 +803,8 @@ function getReportStyles(): string {
       font-weight: 700;
       color: #0f172a;
       line-height: 1.1;
+      word-break: break-word;
+      overflow-wrap: break-word;
     }
     
     .metric-value.positive { color: #059669; }
@@ -942,19 +960,24 @@ function getReportStyles(): string {
     /* Investment Table */
     .investment-table {
       width: 100%;
+      max-width: 100%;
       border-collapse: collapse;
       margin: 20px 0;
       background: white;
       border-radius: 12px;
       overflow: hidden;
       box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      table-layout: fixed;
     }
     
     .investment-table th,
     .investment-table td {
-      padding: 16px 20px;
+      padding: 12px 14px;
       text-align: left;
       border-bottom: 1px solid #e2e8f0;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
     
     .investment-table th {
@@ -979,6 +1002,13 @@ function getReportStyles(): string {
       color: #047857;
       font-size: 12pt;
     }
+    
+    .investment-table th:first-child,
+    .investment-table td:first-child { width: 26%; min-width: 0; }
+    .investment-table th:nth-child(2),
+    .investment-table td:nth-child(2) { width: 54%; min-width: 0; }
+    .investment-table th:last-child,
+    .investment-table td:last-child { width: 20%; min-width: 0; }
     
     .text-right { text-align: right; }
     .font-bold { font-weight: 700; }
@@ -1032,8 +1062,6 @@ function getReportStyles(): string {
     .closing-page {
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      min-height: 100vh;
     }
     
     .closing-message {
@@ -1083,29 +1111,64 @@ function getReportStyles(): string {
       text-decoration: none;
     }
     
-    /* Page Footer */
+    /* Page Footer — flow-based to avoid overlap with content */
     .page-footer {
-      position: absolute;
-      bottom: 30px;
-      left: 50px;
-      right: 50px;
       display: flex;
       justify-content: space-between;
       font-size: 8pt;
       color: #94a3b8;
       border-top: 1px solid #e2e8f0;
       padding-top: 15px;
+      margin-top: 30px;
     }
     
-    /* Print Styles */
+    /* Print Styles: prevent overflow and control breaks */
     @media print {
-      .page {
+      html, body {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+        overflow-x: hidden;
+      }
+      
+      .cover-page {
         page-break-after: always;
       }
       
-      body {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
+      .page {
+        padding: 0 5mm;
+        min-height: 0;
+        max-height: none;
+        overflow: visible;
+      }
+      
+      .page:last-child {
+        page-break-after: auto;
+      }
+      
+      /* Keep cards and sections from splitting across pages where possible */
+      .metric-card,
+      .journey-phase,
+      .gap-card,
+      .destination-hero,
+      .cta-box {
+        page-break-inside: avoid;
+      }
+      
+      /* Slightly smaller type in print to fit */
+      body { font-size: 10pt; }
+      .metric-value { font-size: 22pt; }
+      .section-title { font-size: 20pt; }
+      .cover-title { font-size: 36pt; }
+      .cover-client { font-size: 24pt; }
+      
+      .investment-table th,
+      .investment-table td {
+        padding: 8px 10px;
+        font-size: 9pt;
       }
     }
   `;
@@ -1201,12 +1264,12 @@ function buildExecutiveSummary(analysis: any): string {
         </div>
         <div class="metric-card">
           <div class="metric-label">Projected Return</div>
-          <div class="metric-value positive">${projectedReturn}</div>
+          <div class="${String(projectedReturn).length > 30 ? 'metric-context' : 'metric-value positive'}" style="${String(projectedReturn).length > 30 ? 'font-size: 11pt; font-weight: 600; color: #059669; line-height: 1.5;' : ''}">${projectedReturn}</div>
           <div class="metric-context">First year benefit</div>
         </div>
         <div class="metric-card">
           <div class="metric-label">Payback Period</div>
-          <div class="metric-value">${paybackPeriod}</div>
+          <div class="${String(paybackPeriod).length > 30 ? 'metric-context' : 'metric-value'}" style="${String(paybackPeriod).length > 30 ? 'font-size: 11pt; font-weight: 600; color: #1e293b; line-height: 1.5;' : ''}">${paybackPeriod}</div>
           <div class="metric-context">Time to break even</div>
         </div>
       </div>
@@ -1235,7 +1298,7 @@ function buildTransformationJourney(analysis: any): string {
   }
   
   return `
-    <div class="page">
+    <div class="page force-break">
       <div class="section-header">
         <div class="section-label">Your Transformation</div>
         <h2 class="section-title">${journey.journeyLabel || 'The Journey Ahead'}</h2>
@@ -1291,14 +1354,13 @@ function buildTransformationJourney(analysis: any): string {
                 </div>
               ` : ''}
               
-              ${phase.enabledBy || phase.investment ? `
+              ${phase.enabledBy ? `
                 <div style="display: flex; align-items: center; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
-                  ${phase.enabledBy ? `
-                    <span style="font-size: 10pt; color: #64748b;">Enabled by: <strong style="color: #1e293b;">${phase.enabledBy}</strong></span>
-                  ` : ''}
-                  ${phase.investment ? `
-                    <div class="phase-investment">${phase.investment}</div>
-                  ` : ''}
+                  <span style="font-size: 10pt; color: #64748b;">Enabled by: <strong style="color: #1e293b;">${phase.enabledBy}</strong></span>
+                </div>
+              ` : phase.investment ? `
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0;">
+                  <div class="phase-investment">${phase.investment}</div>
                 </div>
               ` : ''}
             </div>
@@ -1442,10 +1504,13 @@ function buildInvestmentBreakdown(analysis: any): string {
           </tr>
         </thead>
         <tbody>
-          ${investments.map((inv: any) => `
+          ${investments.map((inv: any) => {
+            let serviceName = String(inv.service || inv.phase || inv.serviceName || inv.name || 'Service');
+            serviceName = serviceName.replace(/\s*\(£[\d,]+(?:\/\w+)?(?:\s*[—-]\s*when ready)?\)\s*$/, '');
+            return `
             <tr>
               <td>
-                <strong>${inv.service || inv.phase || inv.serviceName || inv.name || 'Service'}</strong>
+                <strong>${serviceName}</strong>
                 ${inv.tier ? `<br><small style="color: #059669; font-weight: 500;">${inv.tier}</small>` : ''}
               </td>
               <td style="color: #64748b; font-size: 10pt;">
@@ -1453,7 +1518,8 @@ function buildInvestmentBreakdown(analysis: any): string {
               </td>
               <td class="text-right font-bold">${inv.investment || inv.amount || inv.price || '—'}</td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
           <tr class="total-row">
             <td colspan="2"><strong>Total First Year Investment</strong></td>
             <td class="text-right">${displayTotal}</td>
@@ -1579,7 +1645,7 @@ function buildGapAnalysis(analysis: any): string {
   }
   
   return `
-    <div class="page">
+    <div class="page force-break">
       <div class="section-header">
         <div class="section-label">Gap Analysis</div>
         <h2 class="section-title">${gapAnalysis.headline || "What's Holding You Back"}</h2>
@@ -1811,21 +1877,37 @@ function buildGapAnalysis(analysis: any): string {
   `;
 }
 
+/**
+ * Safely convert any value to a displayable string.
+ * Handles: strings, objects with text/narrative/content fields, arrays, nulls.
+ */
+function safeString(value: any): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value.map(safeString).filter(Boolean).join(' ');
+  if (typeof value === 'object') {
+    return value.text || value.narrative || value.content || value.description ||
+           value.headline || value.message || value.summary ||
+           JSON.stringify(value).replace(/[{}"]/g, '').replace(/,/g, '. ').replace(/:/g, ': ');
+  }
+  return String(value);
+}
+
 function buildClosingPage(analysis: any, practiceName: string): string {
   const closing = analysis.closingMessage || {};
   const rawPages = analysis._rawPages || {};
   const page5 = rawPages.page5 || {};
   
-  // Use FULL closing content from page5
-  const thisWeek = closing.personalNote || page5.thisWeek || '';
-  const firstStep = closing.callToAction || page5.firstStep || '';
-  const closingQuote = closing.closingQuote || page5.closingQuote || '';
-  const closingNarrative = closing.closingNarrative || page5.personalMessage || page5.closingNarrative || '';
-  const investment = closing.investment || page5.investment || analysis.investmentSummary?.totalFirstYearInvestment || '';
-  const fullCTA = closing.fullCTA || page5.fullCTA || page5.callToAction || '';
+  // Use FULL closing content from page5 — safeString() prevents [object Object]
+  const thisWeek = safeString(closing.personalNote || page5.thisWeek || '');
+  const firstStep = safeString(closing.callToAction || page5.firstStep || '');
+  const closingQuote = safeString(closing.closingQuote || page5.closingQuote || '');
+  const closingNarrative = safeString(closing.closingNarrative || page5.personalMessage || page5.closingNarrative || '');
+  const investment = safeString(closing.investment || page5.investment || analysis.investmentSummary?.totalFirstYearInvestment || '');
+  const fullCTA = safeString(closing.fullCTA || page5.fullCTA || page5.callToAction || '');
   
   return `
-    <div class="page closing-page">
+    <div class="page closing-page force-break">
       <div class="section-header">
         <div class="section-label">Next Steps</div>
         <h2 class="section-title">${page5.headerLine || 'Ready to Begin?'}</h2>

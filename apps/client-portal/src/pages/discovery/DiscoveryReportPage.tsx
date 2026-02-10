@@ -664,7 +664,8 @@ export default function DiscoveryReportPage() {
                 if (page4.indicativeValuation) {
                   metrics.push({
                     icon: '💰', label: 'Indicative Value', value: page4.indicativeValuation,
-                    subtext: 'Enterprise value range', color: 'emerald'
+                    subtext: page4.valuationMethod === 'net_asset_value' ? 'Net asset value' : 'Enterprise value range',
+                    color: 'emerald'
                   });
                 } else if (ca?.valuation?.enterpriseValueLow && ca?.valuation?.enterpriseValueHigh) {
                   metrics.push({
@@ -696,9 +697,12 @@ export default function DiscoveryReportPage() {
                   const gmAssessment = page4.grossMarginStrength.includes(' - ')
                     ? page4.grossMarginStrength.split(' - ')[1]
                     : (ca?.grossMargin?.assessment ? `${ca.grossMargin.assessment} for industry` : undefined);
+                  const extraNote = (page4 as any).grossMarginIsStructural && (page4 as any).operatingMarginPct
+                    ? `No cost of sales — operating margin of ${(page4 as any).operatingMarginPct}% is the meaningful measure`
+                    : undefined;
                   metrics.push({
                     icon: '📈', label: 'Gross Margin', value: gmValue,
-                    subtext: gmAssessment, color: 'blue'
+                    subtext: gmAssessment, color: 'blue', ...(extraNote && { extraNote })
                   });
                 } else if (ca?.grossMargin?.grossMarginPct) {
                   metrics.push({
@@ -710,10 +714,12 @@ export default function DiscoveryReportPage() {
                 // 4. Exit Readiness
                 if (ca?.exitReadiness?.score) {
                   const pct = Math.round((ca.exitReadiness.score / ca.exitReadiness.maxScore) * 100);
+                  const exitSubtext = (page4 as any).exitReadinessNote
+                    ?? (ca.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
+                        ca.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed');
                   metrics.push({
                     icon: '🚪', label: 'Exit Readiness', value: `${pct}%`,
-                    subtext: ca.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
-                             ca.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed', color: 'orange'
+                    subtext: exitSubtext, color: 'orange'
                   });
                 }
                 
@@ -738,8 +744,8 @@ export default function DiscoveryReportPage() {
                   });
                 }
                 
-                // 7. Productivity
-                if (ca?.productivity?.hasData && ca.productivity.revenuePerHead) {
+                // 7. Productivity (suppressed for investment vehicles / small teams)
+                if (!(page4 as any).productivitySuppressed && ca?.productivity?.hasData && ca.productivity.revenuePerHead) {
                   const gap = ca.productivity.benchmarkRPH ? 
                     Math.round(((ca.productivity.benchmarkRPH - ca.productivity.revenuePerHead) / ca.productivity.benchmarkRPH) * 100) : null;
                   metrics.push({
@@ -773,9 +779,14 @@ export default function DiscoveryReportPage() {
                         <p className={`text-sm text-${m.color}-600 mb-1`}>{m.icon} {m.label}</p>
                         <p className={`text-xl font-bold text-${m.color}-800`}>{m.value}</p>
                         {m.subtext && <p className="text-xs text-gray-500 mt-1">{m.subtext}</p>}
+                        {(m as any).extraNote && <p className="text-xs text-slate-500 mt-1">{(m as any).extraNote}</p>}
                       </div>
                     ))}
                   </div>
+                  {/* NAV-based valuation note for investment vehicles */}
+                  {(page4 as any).valuationMethod === 'net_asset_value' && (page4 as any).valuationNote && (
+                    <p className="text-xs text-slate-500 mt-3 italic">{(page4 as any).valuationNote}</p>
+                  )}
                   
                   {/* Data Quality Indicator */}
                   {ca?.dataQuality && (

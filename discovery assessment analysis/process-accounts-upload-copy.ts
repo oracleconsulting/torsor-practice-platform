@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // Note: No PDF library - Deno edge functions don't support Node.js fs module
@@ -45,8 +44,170 @@ interface ExtractedFinancialData {
   creditor_days?: number;
   employee_count?: number;
   revenue_per_employee?: number;
+  staff_costs?: number;
+  directors_remuneration?: number;
+  operating_profit?: number;
   confidence: number;
   notes: string[];
+}
+
+// ─── Structured CSV parsing (multi-year financial tables) ───────────────────
+const METRIC_LABELS: { patterns: RegExp[]; field: keyof ExtractedFinancialData }[] = [
+  { patterns: [/^revenue$|^turnover$|^sales$|^total\s+income$|^total\s+turnover$|^revenue\s*\(/i], field: 'revenue' },
+  { patterns: [/^cost\s+of\s+sales$|^direct\s+costs$|^cost\s+of\s+goods\s+sold$|^total\s+cost\s+of\s+sales$/i], field: 'cost_of_sales' },
+  { patterns: [/^gross\s+profit$/i], field: 'gross_profit' },
+  { patterns: [/^operating\s+expenses$|^admin\s+expenses$|^overheads$|^total\s+expenses$|^total\s+administrative\s+costs$/i], field: 'operating_expenses' },
+  { patterns: [/^ebitda$|^operating\s+profit$/i], field: 'ebitda' },
+  { patterns: [/^depreciation$/i], field: 'depreciation' },
+  { patterns: [/^amortisation$/i], field: 'amortisation' },
+  { patterns: [/^interest$|^interest\s+paid$/i], field: 'interest_paid' },
+  { patterns: [/^tax$|^corporation\s+tax$/i], field: 'tax' },
+  { patterns: [/^net\s+profit$|^profit\s+after\s+tax$|^pat$|^profit\s+for\s+the\s+year$|^current\s+year\s+earnings$/i], field: 'net_profit' },
+  { patterns: [/^debtors$|^trade\s+debtors$|^receivables$|^accounts\s+receivable$/i], field: 'debtors' },
+  { patterns: [/^creditors$|^trade\s+creditors$|^payables$|^accounts\s+payable$/i], field: 'creditors' },
+  { patterns: [/^cash$|^cash\s+at\s+bank$|^total\s+cash$|^cash\s+position$/i], field: 'cash' },
+  { patterns: [/^current\s+assets$|^total\s+current\s+assets$/i], field: 'current_assets' },
+  { patterns: [/^fixed\s+assets$|^tangible\s+assets$|^net\s+fixed\s+assets$/i], field: 'fixed_assets' },
+  { patterns: [/^total\s+assets$/i], field: 'total_assets' },
+  { patterns: [/^current\s+liabilities$|^total\s+current\s+liabilities$/i], field: 'current_liabilities' },
+  { patterns: [/^total\s+liabilities$/i], field: 'total_liabilities' },
+  { patterns: [/^net\s+assets$|^shareholders?\s+funds?$|^total\s+equity$/i], field: 'net_assets' },
+  { patterns: [/^employees?$|^employee\s+count$/i], field: 'employee_count' },
+  { patterns: [/^stock$|^inventory$/i], field: 'stock' },
+  { patterns: [/^staff\s+costs\s+total$|^total\s+staff\s+costs$|^staff\s+salaries$|^staff\s+costs$|^payroll$|^wages\s+and\s+salaries$/i], field: 'staff_costs' },
+];
+
+function parseCSVToGrid(text: string): string[][] {
+  const rows: string[][] = [];
+  let current: string[] = [];
+  let inQuotes = false;
+  let cell = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') {
+      inQuotes = !inQuotes;
+    } else if (inQuotes) {
+      cell += c;
+    } else if (c === ',' || c === '\t' || c === ';') {
+      current.push(cell.trim());
+      cell = '';
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      current.push(cell.trim());
+      cell = '';
+      if (current.some(x => x.length > 0)) rows.push(current);
+      current = [];
+    } else {
+      cell += c;
+    }
+  }
+  if (cell.length > 0 || current.length > 0) {
+    current.push(cell.trim());
+    if (current.some(x => x.length > 0)) rows.push(current);
+  }
+  return rows;
+}
+
+function parseNumber(val: string | undefined): number | null {
+  if (val == null || val === '') return null;
+  const s = String(val).trim();
+  if (/^n\/a$|^-$/i.test(s)) return null;
+  const cleaned = s.replace(/[£$,\s%]/g, '');
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? null : n;
+}
+
+function detectYearColumns(headerRow: string[]): { year: number; colIndex: number }[] {
+  const result: { year: number; colIndex: number }[] = [];
+  const seen = new Set<number>();
+  const currentYear = new Date().getFullYear();
+  for (let col = 0; col < headerRow.length; col++) {
+    const cell = (headerRow[col] || '').trim();
+    const yearMatch = cell.match(/(\d{4})/);
+    if (yearMatch) {
+      const y = parseInt(yearMatch[1], 10);
+      if (y >= 2000 && y <= currentYear + 1 && !seen.has(y)) {
+        result.push({ year: y, colIndex: col });
+        seen.add(y);
+      }
+    } else if (/^year\s*(\d)?$/i.test(cell) || /^fy\s*(\d{4})?$/i.test(cell)) {
+      const y = parseInt(cell.replace(/\D/g, ''), 10) || currentYear;
+      if (y >= 2000 && y <= currentYear + 1 && !seen.has(y)) {
+        result.push({ year: y, colIndex: col });
+        seen.add(y);
+      }
+    }
+  }
+  return result.sort((a, b) => a.year - b.year);
+}
+
+function getFieldForRowLabel(label: string): keyof ExtractedFinancialData | null {
+  const normalized = label
+    .replace(/\s*\([^)]*\)\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  for (const { patterns, field } of METRIC_LABELS) {
+    if (patterns.some(p => p.test(normalized))) return field;
+  }
+  return null;
+}
+
+function findYearColumnsForRow(grid: string[][], rowIndex: number): { year: number; colIndex: number }[] {
+  const maxLookBack = 5;
+  for (let b = 1; b <= maxLookBack && rowIndex - b >= 0; b++) {
+    const headerRow = grid[rowIndex - b].map(c => c.replace(/^["']|["']$/g, '').trim());
+    const yearCols = detectYearColumns(headerRow);
+    if (yearCols.length >= 1) return yearCols;
+  }
+  return [];
+}
+
+function tryParseStructuredCSV(csvText: string): ExtractedFinancialData[] | null {
+  const normalized = csvText.replace(/^\uFEFF/, '').trim();
+  const grid = parseCSVToGrid(normalized);
+  if (grid.length < 2) return null;
+
+  const yearsMap = new Map<number, Partial<ExtractedFinancialData>>();
+  const currentYear = new Date().getFullYear();
+
+  for (let r = 0; r < grid.length; r++) {
+    const row = grid[r];
+    // Try first four columns as label (Section, Subsection, Item, Description) so formats like
+    // "KEY RATIOS, Cost Structure, Staff Costs Total, ..." match on "Staff Costs Total"
+    let field: keyof ExtractedFinancialData | null = null;
+    for (let c = 0; c < 4 && c < row.length; c++) {
+      const label = (row[c] || '').replace(/^["']|["']$/g, '').trim();
+      if (!label || /^=+$/.test(label)) continue;
+      field = getFieldForRowLabel(label);
+      if (field && field !== 'confidence' && field !== 'notes') break;
+    }
+    if (!field) continue;
+
+    const yearCols = findYearColumnsForRow(grid, r);
+    if (yearCols.length === 0) continue;
+
+    for (const { year, colIndex } of yearCols) {
+      if (year < 2000 || year > currentYear + 1) continue;
+      if (!yearsMap.has(year)) {
+        yearsMap.set(year, { fiscal_year: year, confidence: 0.9, notes: [] });
+      }
+      const val = parseNumber(row[colIndex]);
+      if (val === null) continue;
+      const entry = yearsMap.get(year)!;
+      (entry as any)[field] = val;
+    }
+  }
+
+  const result: ExtractedFinancialData[] = [];
+  Array.from(yearsMap.values()).forEach((entry) => {
+    const e = entry as ExtractedFinancialData;
+    const hasData = e.revenue != null || e.gross_profit != null || e.net_profit != null || e.ebitda != null ||
+      e.total_assets != null || e.net_assets != null || e.cash != null || e.debtors != null || e.cost_of_sales != null;
+    if (hasData) {
+      result.push({ ...e, confidence: e.confidence ?? 0.9, notes: e.notes || [] });
+    }
+  });
+  return result.length > 0 ? result.sort((a, b) => a.fiscal_year - b.fiscal_year) : null;
 }
 
 serve(async (req) => {
@@ -104,7 +265,7 @@ serve(async (req) => {
       console.log('[Accounts Process] Using Vision API for PDF extraction...');
       extractedYears = await extractFromPDFWithVision(fileData, upload.fiscal_year, openrouterKey);
     } else {
-      // For CSV/Excel, extract text and use LLM
+      // For CSV/Excel, extract text then try structured CSV parse (CSV only) or LLM
       let extractedText = '';
       if (upload.file_type === 'csv') {
         extractedText = await fileData.text();
@@ -119,8 +280,20 @@ serve(async (req) => {
       console.log(`[Accounts Process] Extracted ${extractedText.length} characters of text`);
       console.log(`[Accounts Process] Text preview: ${extractedText.slice(0, 500)}...`);
       
-      // Extract all years from the document
-      extractedYears = await extractFinancialDataWithLLM(extractedText, upload.fiscal_year, openrouterKey);
+      if (upload.file_type === 'csv') {
+        const structured = tryParseStructuredCSV(extractedText);
+        if (structured && structured.length > 0) {
+          const withData = structured.filter(y => y.revenue != null || y.gross_profit != null || y.net_profit != null);
+          if (withData.length > 0) {
+            console.log(`[Accounts Process] Structured CSV parse: ${structured.length} year(s), ${withData.length} with key metrics`);
+            extractedYears = structured;
+          }
+        }
+      }
+      
+      if (extractedYears.length === 0) {
+        extractedYears = await extractFinancialDataWithLLM(extractedText, upload.fiscal_year, openrouterKey);
+      }
     }
 
     console.log(`[Accounts Process] Extraction complete, found ${extractedYears.length} year(s) of data`);
@@ -189,6 +362,9 @@ serve(async (req) => {
           creditor_days: financialData.creditor_days,
           employee_count: financialData.employee_count,
           revenue_per_employee: financialData.revenue_per_employee,
+          staff_costs: financialData.staff_costs,
+          directors_remuneration: financialData.directors_remuneration,
+          operating_profit: financialData.operating_profit,
           data_source: 'upload',
           confidence_score: financialData.confidence,
           notes: financialData.notes?.join('\n') || null
@@ -514,6 +690,9 @@ function parseFinancialJson(content: string): ExtractedFinancialData[] {
       tax: year.tax || year.corporation_tax,
       net_profit: year.net_profit || year.profit_after_tax,
       net_margin_pct: year.net_margin_pct,
+      operating_profit: year.operating_profit,
+      staff_costs: year.staff_costs,
+      directors_remuneration: year.directors_remuneration,
       debtors: year.debtors || year.trade_debtors || year.receivables,
       creditors: year.creditors || year.trade_creditors || year.payables,
       cash: year.cash || year.cash_at_bank,
@@ -600,6 +779,9 @@ REQUIRED - P&L:
 - interest_paid: Interest expense (as positive number)
 - tax: Tax charge
 - net_profit: Profit after tax
+- operating_profit: Operating profit / profit before interest and tax (if stated separately from EBITDA)
+- staff_costs: TOTAL staff costs (directors remuneration + staff wages + national insurance + pension costs). Critical — look in admin expenses schedule, notes, or key ratios. Sum all staff-related costs.
+- directors_remuneration: Directors' pay/remuneration (often in notes or admin schedule)
 
 BALANCE SHEET (if available):
 - debtors: Trade debtors / receivables

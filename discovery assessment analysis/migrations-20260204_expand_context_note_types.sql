@@ -1,4 +1,3 @@
--- COPY - Do not edit. Reference only. Source: supabase/migrations/20260204_expand_context_note_types.sql
 -- ============================================================================
 -- EXPAND CONTEXT NOTE TYPES
 -- ============================================================================

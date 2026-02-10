@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Reference only. Source: apps/client-portal/src/pages/discovery/DiscoveryFollowUpPage.tsx */
 // ============================================================================
 // DISCOVERY FOLLOW-UP PAGE
 // ============================================================================
@@ -86,6 +85,7 @@ const FOLLOW_UP_QUESTIONS: Record<string, FollowUpQuestion[]> = {
       required: false
     }
   ],
+  
   funded_startup: [
     {
       id: 'fs_funding_stage',
@@ -145,6 +145,7 @@ const FOLLOW_UP_QUESTIONS: Record<string, FollowUpQuestion[]> = {
       required: false
     }
   ],
+  
   trading_agency: [
     {
       id: 'ta_team_structure',
@@ -209,6 +210,7 @@ const FOLLOW_UP_QUESTIONS: Record<string, FollowUpQuestion[]> = {
       required: true
     }
   ],
+  
   professional_practice: [
     {
       id: 'pp_practice_structure',
@@ -278,19 +280,23 @@ export default function DiscoveryFollowUpPage() {
   const { clientSession } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  
   const [clientType, setClientType] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [responses, setResponses] = useState<Record<string, any>>({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [saving, setSaving] = useState(false);
-
+  
+  // Get client type from URL param or fetch from report
   useEffect(() => {
     const loadClientType = async () => {
       if (!clientSession?.clientId) {
         navigate('/dashboard');
         return;
       }
+      
+      // Check URL param first (for manual links)
       const typeParam = searchParams.get('type');
       if (typeParam && FOLLOW_UP_QUESTIONS[typeParam]) {
         setClientType(typeParam);
@@ -298,7 +304,10 @@ export default function DiscoveryFollowUpPage() {
         setLoading(false);
         return;
       }
+      
+      // Otherwise, fetch from discovery report
       try {
+        // Get the most recent discovery engagement
         const { data: engagement } = await supabase
           .from('discovery_engagements')
           .select('id')
@@ -306,20 +315,25 @@ export default function DiscoveryFollowUpPage() {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
+        
         if (engagement) {
+          // Get the report to find client type
           const { data: report } = await supabase
             .from('discovery_reports')
             .select('client_type')
             .eq('engagement_id', engagement.id)
             .maybeSingle();
+          
           if (report?.client_type && FOLLOW_UP_QUESTIONS[report.client_type]) {
             setClientType(report.client_type);
             await loadSavedResponses(report.client_type);
           } else {
+            // No follow-up needed for this client type
             navigate('/discovery/complete');
             return;
           }
         } else {
+          // No engagement found, redirect
           navigate('/dashboard');
           return;
         }
@@ -328,13 +342,16 @@ export default function DiscoveryFollowUpPage() {
         navigate('/dashboard');
         return;
       }
+      
       setLoading(false);
     };
+    
     loadClientType();
   }, [clientSession, searchParams, navigate]);
-
+  
   const loadSavedResponses = async (type: string) => {
     if (!clientSession?.clientId) return;
+    
     try {
       const { data: discovery } = await supabase
         .from('destination_discovery')
@@ -343,6 +360,7 @@ export default function DiscoveryFollowUpPage() {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      
       if (discovery?.follow_up_responses && typeof discovery.follow_up_responses === 'object') {
         setResponses(discovery.follow_up_responses);
       }
@@ -350,11 +368,13 @@ export default function DiscoveryFollowUpPage() {
       console.error('Error loading saved follow-up responses:', error);
     }
   };
-
+  
   const saveResponses = async () => {
     if (!clientSession?.clientId || !clientType) return;
+    
     setSaving(true);
     try {
+      // Find the discovery record
       const { data: discovery } = await supabase
         .from('destination_discovery')
         .select('id')
@@ -362,6 +382,7 @@ export default function DiscoveryFollowUpPage() {
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      
       if (discovery?.id) {
         await supabase
           .from('destination_discovery')
@@ -374,12 +395,16 @@ export default function DiscoveryFollowUpPage() {
       setSaving(false);
     }
   };
-
+  
   const handleSubmit = async () => {
     if (!clientSession?.clientId || !clientType) return;
+    
     setSubmitting(true);
     try {
+      // Save final responses
       await saveResponses();
+      
+      // Navigate to completion
       navigate('/discovery/complete');
     } catch (error) {
       console.error('Error submitting follow-up:', error);
@@ -388,7 +413,7 @@ export default function DiscoveryFollowUpPage() {
       setSubmitting(false);
     }
   };
-
+  
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -396,50 +421,57 @@ export default function DiscoveryFollowUpPage() {
       </div>
     );
   }
-
+  
   if (!clientType || !FOLLOW_UP_QUESTIONS[clientType]) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
           <p className="text-gray-600">No follow-up questions required for your business type.</p>
-          <button onClick={() => navigate('/dashboard')} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg"
+          >
             Back to Dashboard
           </button>
         </div>
       </div>
     );
   }
-
+  
   const questions = FOLLOW_UP_QUESTIONS[clientType];
   const currentQuestion = questions[currentQuestionIndex];
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
-  const canProceed = currentQuestion.required
-    ? responses[currentQuestion.id] !== undefined && responses[currentQuestion.id] !== '' &&
+  const canProceed = currentQuestion.required 
+    ? responses[currentQuestion.id] !== undefined && responses[currentQuestion.id] !== '' && 
       (!Array.isArray(responses[currentQuestion.id]) || responses[currentQuestion.id].length > 0)
     : true;
-
+  
   const handleNext = () => {
     if (isLastQuestion) {
       handleSubmit();
     } else {
       setCurrentQuestionIndex(prev => prev + 1);
       window.scrollTo(0, 0);
+      // Auto-save progress
       saveResponses();
     }
   };
-
+  
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(prev => prev - 1);
       window.scrollTo(0, 0);
     }
   };
-
+  
   const handleResponseChange = (questionId: string, value: any) => {
-    setResponses(prev => ({ ...prev, [questionId]: value }));
+    setResponses(prev => ({
+      ...prev,
+      [questionId]: value
+    }));
   };
-
+  
   const getClientTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       investment_vehicle: 'Property/Investment Portfolio',
@@ -449,39 +481,52 @@ export default function DiscoveryFollowUpPage() {
     };
     return labels[type] || type;
   };
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
       <div className="max-w-3xl mx-auto px-4 py-8">
+        {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-center mb-6">
             <Logo variant="light" size="md" />
           </div>
+          
           <div className="text-center mb-6">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">A Few More Questions</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">
+              A Few More Questions
+            </h1>
             <p className="text-lg text-gray-600">
               To make sure we get the right picture for your {getClientTypeLabel(clientType)} business
             </p>
           </div>
+          
+          {/* Progress */}
           <div className="mb-6">
             <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
               <span>Question {currentQuestionIndex + 1} of {questions.length}</span>
               <span>{Math.round(((currentQuestionIndex + 1) / questions.length) * 100)}%</span>
             </div>
             <div className="w-full h-2 bg-gray-200 rounded-full">
-              <div
+              <div 
                 className="h-full bg-blue-600 rounded-full transition-all duration-300"
                 style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
               />
             </div>
           </div>
         </div>
-
+        
+        {/* Question Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 mb-6">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">{currentQuestion.question}</h2>
-            {currentQuestion.required && <span className="text-sm text-red-500">Required</span>}
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              {currentQuestion.question}
+            </h2>
+            {currentQuestion.required && (
+              <span className="text-sm text-red-500">Required</span>
+            )}
           </div>
+          
+          {/* Answer Input */}
           <div className="space-y-4">
             {currentQuestion.type === 'text' && (
               <textarea
@@ -493,10 +538,14 @@ export default function DiscoveryFollowUpPage() {
                 rows={6}
               />
             )}
+            
             {currentQuestion.type === 'single' && currentQuestion.options && (
               <div className="space-y-2">
                 {currentQuestion.options.map((option) => (
-                  <label key={option} className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                  <label
+                    key={option}
+                    className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                  >
                     <input
                       type="radio"
                       name={currentQuestion.id}
@@ -510,20 +559,29 @@ export default function DiscoveryFollowUpPage() {
                 ))}
               </div>
             )}
+            
             {currentQuestion.type === 'multi' && currentQuestion.options && (
               <div className="space-y-2">
                 {currentQuestion.options.map((option) => {
                   const selected = Array.isArray(responses[currentQuestion.id])
                     ? responses[currentQuestion.id].includes(option)
                     : false;
+                  
                   return (
-                    <label key={option} className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                    <label
+                      key={option}
+                      className="flex items-center p-4 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                    >
                       <input
                         type="checkbox"
                         checked={selected}
                         onChange={(e) => {
-                          const current = Array.isArray(responses[currentQuestion.id]) ? responses[currentQuestion.id] : [];
-                          const updated = e.target.checked ? [...current, option] : current.filter((v: string) => v !== option);
+                          const current = Array.isArray(responses[currentQuestion.id])
+                            ? responses[currentQuestion.id]
+                            : [];
+                          const updated = e.target.checked
+                            ? [...current, option]
+                            : current.filter((v: string) => v !== option);
                           handleResponseChange(currentQuestion.id, updated);
                         }}
                         className="w-4 h-4 text-blue-600 focus:ring-blue-500"
@@ -534,6 +592,7 @@ export default function DiscoveryFollowUpPage() {
                 })}
               </div>
             )}
+            
             {currentQuestion.char_limit && (
               <p className="text-sm text-gray-500 text-right">
                 {(responses[currentQuestion.id]?.length || 0)} / {currentQuestion.char_limit} characters
@@ -541,32 +600,47 @@ export default function DiscoveryFollowUpPage() {
             )}
           </div>
         </div>
-
+        
+        {/* Navigation */}
         <div className="flex items-center justify-between">
           <button
             onClick={handlePrevious}
             disabled={currentQuestionIndex === 0}
             className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ChevronLeft className="w-5 h-5" /> Previous
+            <ChevronLeft className="w-5 h-5" />
+            Previous
           </button>
+          
           <button
             onClick={handleNext}
             disabled={!canProceed || submitting}
             className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {submitting ? (
-              <><Loader2 className="w-5 h-5 animate-spin" /> Saving...</>
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Saving...
+              </>
             ) : isLastQuestion ? (
-              <><CheckCircle className="w-5 h-5" /> Complete</>
+              <>
+                Complete
+                <CheckCircle className="w-5 h-5" />
+              </>
             ) : (
-              <><ChevronRight className="w-5 h-5" /> Continue</>
+              <>
+                Continue
+                <ChevronRight className="w-5 h-5" />
+              </>
             )}
           </button>
         </div>
+        
+        {/* Save indicator */}
         {saving && (
           <div className="mt-4 text-center text-sm text-gray-500 flex items-center justify-center gap-2">
-            <Save className="w-4 h-4" /> Saving progress...
+            <Save className="w-4 h-4" />
+            Saving progress...
           </div>
         )}
       </div>

@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Source: supabase/functions/_shared/service-scorer-v2.ts */
 /**
  * Service Scoring Engine v2.0
  * ============================================================================
@@ -39,10 +38,10 @@ export interface ScoringResult {
   recommendations: ServiceScore[];
 }
 
-// Service definitions
+// Service definitions (canonical codes — registry uses business_intelligence, goal_alignment)
 const SERVICES = [
-  { code: '365_method', name: 'Goal Alignment Programme' },
-  { code: 'management_accounts', name: 'Management Accounts' },
+  { code: 'goal_alignment', name: 'Goal Alignment Programme' },
+  { code: 'business_intelligence', name: 'Business Intelligence' },
   { code: 'systems_audit', name: 'Systems Audit' },
   { code: 'automation', name: 'Automation Services' },
   { code: 'fractional_cfo', name: 'Fractional CFO' },
@@ -114,13 +113,13 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const vision = getLower(responses.dd_five_year_vision);
   if (vision) {
     if (containsAny(vision, KEYWORD_SETS.lifestyle_role)) {
-      addPoints('365_method', 20, 'Vision: operator-to-investor language');
+      addPoints('goal_alignment', 20, 'Vision: operator-to-investor language');
     }
     if (containsAny(vision, ['sell', 'exit', 'legacy', 'succession', 'sold'])) {
       addPoints('business_advisory', 15, 'Vision: exit/legacy language');
     }
     if (containsAny(vision, KEYWORD_SETS.lifestyle_personal)) {
-      addPoints('365_method', 10, 'Vision: lifestyle priorities');
+      addPoints('goal_alignment', 10, 'Vision: lifestyle priorities');
     }
     if (containsAny(vision, ['team runs', 'without me', 'optional', 'freedom', 'don\'t need to'])) {
       addPoints('systems_audit', 15, 'Vision: business running without founder');
@@ -136,7 +135,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
     'Building something I can sell for a life-changing amount': { services: ['business_advisory'], points: [25] },
     'Creating a business that runs profitably without me': { services: ['systems_audit', 'fractional_coo'], points: [20, 15] },
     'Growing to dominate my market/niche': { services: ['benchmarking'], points: [15] },
-    'Having complete control over my time and income': { services: ['365_method'], points: [20] },
+    'Having complete control over my time and income': { services: ['goal_alignment'], points: [20] },
     'Building a legacy that outlasts me': { services: ['business_advisory'], points: [20] },
   };
   if (successDef && successTriggers[successDef]) {
@@ -149,7 +148,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const nonNegArray = Array.isArray(nonNegs) ? nonNegs : [nonNegs];
   nonNegArray.forEach((item: string) => {
     if (['More time with family/loved ones', 'Better health and energy', 'Doing work that excites me', 'Making a real difference / impact'].includes(item)) {
-      addPoints('365_method', 10, `Non-negotiable: "${item}"`);
+      addPoints('goal_alignment', 10, `Non-negotiable: "${item}"`);
     }
     if (item === 'Less day-to-day stress' || item === 'Geographic freedom / work from anywhere') {
       addPoints('systems_audit', 10, `Non-negotiable: "${item}"`);
@@ -174,10 +173,10 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
       addPoints('automation', 15, 'Unlimited change: automation opportunity');
     }
     if (containsAny(unlimited, KEYWORD_SETS.financial)) {
-      addPoints('management_accounts', 15, 'Unlimited change: financial focus');
+      addPoints('business_intelligence', 15, 'Unlimited change: financial focus');
     }
     if (containsAny(unlimited, KEYWORD_SETS.strategy)) {
-      addPoints('365_method', 15, 'Unlimited change: strategy/clarity focus');
+      addPoints('goal_alignment', 15, 'Unlimited change: strategy/clarity focus');
     }
     if (containsAny(unlimited, KEYWORD_SETS.exit)) {
       addPoints('business_advisory', 15, 'Unlimited change: exit/value focus');
@@ -188,8 +187,8 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const exitMindset = responses.dd_exit_mindset;
   const exitMindsetTriggers: Record<string, { services: string[]; points: number[] }> = {
     'I think about it but haven\'t planned': { services: ['business_advisory'], points: [15] },
-    'I\'d love to but can\'t see how': { services: ['business_advisory', '365_method'], points: [20, 10] },
-    'The thought terrifies me': { services: ['business_advisory', '365_method'], points: [25, 15] },
+    'I\'d love to but can\'t see how': { services: ['business_advisory', 'goal_alignment'], points: [20, 10] },
+    'The thought terrifies me': { services: ['business_advisory', 'goal_alignment'], points: [25, 15] },
     'I\'ve never really considered it': { services: ['business_advisory'], points: [10] },
   };
   if (exitMindset && exitMindsetTriggers[exitMindset]) {
@@ -200,10 +199,10 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   // Q2.1 - Weekly Hours
   const hours = responses.dd_weekly_hours;
   const hoursTriggers: Record<string, { services: string[]; points: number[] }> = {
-    '50-60 hours': { services: ['365_method'], points: [5] },
-    '60-70 hours': { services: ['365_method', 'systems_audit'], points: [15, 10] },
-    '70+ hours': { services: ['365_method', 'systems_audit'], points: [20, 15] },
-    'I\'ve stopped counting': { services: ['365_method', 'systems_audit'], points: [25, 15] },
+    '50-60 hours': { services: ['goal_alignment'], points: [5] },
+    '60-70 hours': { services: ['goal_alignment', 'systems_audit'], points: [15, 10] },
+    '70+ hours': { services: ['goal_alignment', 'systems_audit'], points: [20, 15] },
+    'I\'ve stopped counting': { services: ['goal_alignment', 'systems_audit'], points: [25, 15] },
   };
   if (hours && hoursTriggers[hours]) {
     const t = hoursTriggers[hours];
@@ -213,8 +212,8 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   // Q2.2 - Firefighting Ratio
   const timeAlloc = responses.dd_time_allocation;
   const timeAllocTriggers: Record<string, { services: string[]; points: number[] }> = {
-    '90% firefighting / 10% strategic': { services: ['systems_audit', '365_method'], points: [25, 20] },
-    '70% firefighting / 30% strategic': { services: ['systems_audit', '365_method'], points: [20, 15] },
+    '90% firefighting / 10% strategic': { services: ['systems_audit', 'goal_alignment'], points: [25, 20] },
+    '70% firefighting / 30% strategic': { services: ['systems_audit', 'goal_alignment'], points: [20, 15] },
     '50% firefighting / 50% strategic': { services: ['systems_audit'], points: [10] },
   };
   if (timeAlloc && timeAllocTriggers[timeAlloc]) {
@@ -225,10 +224,10 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   // Q2.3 - Last Real Break
   const lastBreak = responses.dd_last_real_break;
   const lastBreakTriggers: Record<string, { services: string[]; points: number[] }> = {
-    '1-2 years ago': { services: ['365_method'], points: [10] },
-    'More than 2 years ago': { services: ['365_method', 'systems_audit'], points: [15, 10] },
-    'I honestly can\'t remember': { services: ['365_method', 'systems_audit'], points: [20, 15] },
-    'I\'ve never done that': { services: ['365_method', 'systems_audit'], points: [25, 20] },
+    '1-2 years ago': { services: ['goal_alignment'], points: [10] },
+    'More than 2 years ago': { services: ['goal_alignment', 'systems_audit'], points: [15, 10] },
+    'I honestly can\'t remember': { services: ['goal_alignment', 'systems_audit'], points: [20, 15] },
+    'I\'ve never done that': { services: ['goal_alignment', 'systems_audit'], points: [25, 20] },
   };
   if (lastBreak && lastBreakTriggers[lastBreak]) {
     const t = lastBreakTriggers[lastBreak];
@@ -256,7 +255,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
       addPoints('automation', 10, 'Emergency log: system failures');
     }
     if (containsAny(emergencyLog, ['cash', 'payment', 'invoice', 'bank'])) {
-      addPoints('management_accounts', 15, 'Emergency log: financial emergencies');
+      addPoints('business_intelligence', 15, 'Emergency log: financial emergencies');
     }
     // Substantial response bonus
     if (emergencyLog.length > 50) {
@@ -271,7 +270,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
     'My team - we\'re stretched thin': { services: ['fractional_coo'], points: [25] },
     'Our systems and processes': { services: ['systems_audit', 'automation'], points: [25, 20] },
     'Quality would suffer': { services: ['systems_audit'], points: [15] },
-    'Cash flow would be squeezed': { services: ['fractional_cfo', 'management_accounts'], points: [25, 20] },
+    'Cash flow would be squeezed': { services: ['fractional_cfo', 'business_intelligence'], points: [25, 20] },
   };
   if (scalingConstraint && scalingTriggers[scalingConstraint]) {
     const t = scalingTriggers[scalingConstraint];
@@ -281,13 +280,13 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   // Q2.6 - Sleep Thief
   const sleepThief = responses.dd_sleep_thief;
   const sleepTriggers: Record<string, { services: string[]; points: number[] }> = {
-    'Cash flow and paying bills': { services: ['management_accounts', 'fractional_cfo'], points: [25, 15] },
+    'Cash flow and paying bills': { services: ['business_intelligence', 'fractional_cfo'], points: [25, 15] },
     'A specific client or project problem': { services: ['systems_audit'], points: [10] },
     'A team member situation': { services: ['fractional_coo'], points: [25] },
-    'Not knowing my numbers': { services: ['management_accounts'], points: [30] },
+    'Not knowing my numbers': { services: ['business_intelligence'], points: [30] },
     'Fear of something going wrong that I can\'t see coming': { services: ['systems_audit'], points: [20] },
     'Competition or market changes': { services: ['benchmarking'], points: [20] },
-    'My own health or burnout': { services: ['365_method'], points: [25] },
+    'My own health or burnout': { services: ['goal_alignment'], points: [25] },
   };
   if (sleepThief && sleepTriggers[sleepThief]) {
     const t = sleepTriggers[sleepThief];
@@ -305,13 +304,13 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
       addPoints('automation', 10, 'Core frustration: manual work');
     }
     if (containsAny(coreFrustration, KEYWORD_SETS.financial)) {
-      addPoints('management_accounts', 15, 'Core frustration: financial issues');
+      addPoints('business_intelligence', 15, 'Core frustration: financial issues');
     }
     if (containsAny(coreFrustration, KEYWORD_SETS.burnout)) {
-      addPoints('365_method', 15, 'Core frustration: burnout indicators');
+      addPoints('goal_alignment', 15, 'Core frustration: burnout indicators');
     }
     if (containsAny(coreFrustration, ['grow', 'scale', 'stuck', 'plateau', 'stagnant'])) {
-      addPoints('365_method', 10, 'Core frustration: growth plateau');
+      addPoints('goal_alignment', 10, 'Core frustration: growth plateau');
       addPoints('benchmarking', 10, 'Core frustration: growth plateau');
     }
     if (containsAny(coreFrustration, KEYWORD_SETS.competition)) {
@@ -364,30 +363,30 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const hiddenFromTeam = getLower(responses.dd_hidden_from_team);
   if (hiddenFromTeam) {
     if (containsAny(hiddenFromTeam, ['profit', 'loss', 'margin', 'losing money', 'not profitable'])) {
-      addPoints('management_accounts', 20, 'Hidden: profitability concerns');
+      addPoints('business_intelligence', 20, 'Hidden: profitability concerns');
     }
     if (containsAny(hiddenFromTeam, ['cash', 'runway', 'debt', 'owe', 'overdraft', 'loan'])) {
-      addPoints('management_accounts', 20, 'Hidden: cash/debt concerns');
+      addPoints('business_intelligence', 20, 'Hidden: cash/debt concerns');
       addPoints('fractional_cfo', 15, 'Hidden: financial stress');
     }
     if (containsAny(hiddenFromTeam, ['sell', 'exit', 'close', 'quit', 'give up'])) {
       addPoints('business_advisory', 20, 'Hidden: exit thoughts');
     }
     if (containsAny(hiddenFromTeam, ['stress', 'burnout', 'overwhelm', 'struggle', 'breaking'])) {
-      addPoints('365_method', 15, 'Hidden: personal struggles');
+      addPoints('goal_alignment', 15, 'Hidden: personal struggles');
     }
     if (containsAny(hiddenFromTeam, ['worried', 'scared', 'afraid', 'terrified'])) {
-      addPoints('365_method', 15, 'Hidden: fear/worry');
+      addPoints('goal_alignment', 15, 'Hidden: fear/worry');
     }
   }
 
   // Q3.5 - External Perspective
   const externalView = responses.dd_external_perspective;
   const externalTriggers: Record<string, { services: string[]; points: number[] }> = {
-    'They worry about me sometimes': { services: ['365_method'], points: [10] },
-    'They\'ve given up complaining': { services: ['365_method'], points: [15] },
-    'It\'s a significant source of tension': { services: ['365_method'], points: [20] },
-    'They\'d say I\'m married to my business': { services: ['365_method'], points: [25] },
+    'They worry about me sometimes': { services: ['goal_alignment'], points: [10] },
+    'They\'ve given up complaining': { services: ['goal_alignment'], points: [15] },
+    'It\'s a significant source of tension': { services: ['goal_alignment'], points: [20] },
+    'They\'d say I\'m married to my business': { services: ['goal_alignment'], points: [25] },
   };
   if (externalView && externalTriggers[externalView]) {
     const t = externalTriggers[externalView];
@@ -404,13 +403,13 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
       addPoints('business_advisory', 15, 'Avoided: partnership conversation');
     }
     if (containsAny(avoided, ['money', 'price', 'raise', 'fees', 'charge'])) {
-      addPoints('management_accounts', 10, 'Avoided: pricing conversation');
+      addPoints('business_intelligence', 10, 'Avoided: pricing conversation');
     }
     if (containsAny(avoided, ['exit', 'sell', 'future', 'retire'])) {
       addPoints('business_advisory', 15, 'Avoided: exit conversation');
     }
     if (containsAny(avoided, ['myself', 'burnout', 'health', 'stop'])) {
-      addPoints('365_method', 15, 'Avoided: personal conversation');
+      addPoints('goal_alignment', 15, 'Avoided: personal conversation');
     }
   }
 
@@ -418,10 +417,10 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const hardTruth = getLower(responses.dd_hard_truth);
   if (hardTruth) {
     if (containsAny(hardTruth, ['profitable', 'margin', 'losing', 'money', 'bleeding'])) {
-      addPoints('management_accounts', 20, 'Hard truth: profitability');
+      addPoints('business_intelligence', 20, 'Hard truth: profitability');
     }
     if (containsAny(hardTruth, ['scale', 'grow', 'stuck', 'plateau', 'ceiling'])) {
-      addPoints('365_method', 15, 'Hard truth: growth plateau');
+      addPoints('goal_alignment', 15, 'Hard truth: growth plateau');
       addPoints('systems_audit', 10, 'Hard truth: scaling issues');
     }
     if (containsAny(hardTruth, ['me', 'founder', 'dependent', 'essential', 'can\'t leave'])) {
@@ -440,15 +439,15 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const relationship = getLower(responses.dd_relationship_mirror);
   if (relationship) {
     if (containsAny(relationship, KEYWORD_SETS.trapped)) {
-      addPoints('365_method', 25, 'Relationship: feels trapped');
+      addPoints('goal_alignment', 25, 'Relationship: feels trapped');
       addPoints('business_advisory', 15, 'Relationship: trapped/exit consideration');
     }
     if (containsAny(relationship, KEYWORD_SETS.exhausted)) {
-      addPoints('365_method', 20, 'Relationship: exhausted');
+      addPoints('goal_alignment', 20, 'Relationship: exhausted');
       addPoints('systems_audit', 15, 'Relationship: demanding systems');
     }
     if (containsAny(relationship, ['love affair gone stale', 'lost spark', 'bored'])) {
-      addPoints('365_method', 15, 'Relationship: disengaged');
+      addPoints('goal_alignment', 15, 'Relationship: disengaged');
     }
   }
 
@@ -456,27 +455,27 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const sacrifice = getLower(responses.dd_sacrifice_list);
   if (sacrifice) {
     if (containsAny(sacrifice, ['family', 'children', 'kids', 'wife', 'husband', 'marriage'])) {
-      addPoints('365_method', 20, 'Sacrificed: family time');
+      addPoints('goal_alignment', 20, 'Sacrificed: family time');
     }
     if (containsAny(sacrifice, ['health', 'fitness', 'weight', 'sleep', 'exercise'])) {
-      addPoints('365_method', 20, 'Sacrificed: health');
+      addPoints('goal_alignment', 20, 'Sacrificed: health');
     }
     if (containsAny(sacrifice, ['holiday', 'vacation', 'travel', 'break', 'time off'])) {
-      addPoints('365_method', 15, 'Sacrificed: breaks');
+      addPoints('goal_alignment', 15, 'Sacrificed: breaks');
       addPoints('systems_audit', 10, 'Sacrificed: unable to step away');
     }
     if (containsAny(sacrifice, ['friends', 'social', 'relationships', 'hobbies'])) {
-      addPoints('365_method', 15, 'Sacrificed: social life');
+      addPoints('goal_alignment', 15, 'Sacrificed: social life');
     }
     if (containsAny(sacrifice, ['money', 'savings', 'pension', 'security'])) {
       addPoints('fractional_cfo', 15, 'Sacrificed: financial security');
     }
     if (containsAny(sacrifice, ['everything', 'all of it', 'too much'])) {
-      addPoints('365_method', 25, 'Sacrificed: everything');
+      addPoints('goal_alignment', 25, 'Sacrificed: everything');
     }
     // Substantial sacrifice bonus
     if (sacrifice.length > 100) {
-      addPoints('365_method', 10, 'Sacrificed: significant personal cost');
+      addPoints('goal_alignment', 10, 'Sacrificed: significant personal cost');
     }
   }
 
@@ -484,7 +483,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const suspected = getLower(responses.dd_suspected_truth);
   if (suspected) {
     if (containsAny(suspected, ['margin', 'profit', 'losing', 'cost', 'pricing', 'undercharging'])) {
-      addPoints('management_accounts', 25, 'Suspects: margin/profit issues');
+      addPoints('business_intelligence', 25, 'Suspects: margin/profit issues');
     }
     if (containsAny(suspected, ['underperform', 'behind', 'compared', 'competitor', 'industry'])) {
       addPoints('benchmarking', 20, 'Suspects: underperformance');
@@ -504,7 +503,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const magicFix = getLower(responses.dd_magic_fix);
   if (magicFix) {
     if (containsAny(magicFix, ['numbers', 'accounts', 'financial', 'visibility', 'dashboard'])) {
-      addPoints('management_accounts', 25, 'Magic fix: financial visibility');
+      addPoints('business_intelligence', 25, 'Magic fix: financial visibility');
     }
     if (containsAny(magicFix, ['team', 'hire', 'people', 'manager', 'delegate'])) {
       addPoints('fractional_coo', 25, 'Magic fix: team/people');
@@ -514,7 +513,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
       addPoints('automation', 20, 'Magic fix: automation');
     }
     if (containsAny(magicFix, ['plan', 'strategy', 'direction', 'clarity', 'focus'])) {
-      addPoints('365_method', 25, 'Magic fix: clarity/strategy');
+      addPoints('goal_alignment', 25, 'Magic fix: clarity/strategy');
     }
     if (containsAny(magicFix, ['sell', 'exit', 'value', 'buyer'])) {
       addPoints('business_advisory', 25, 'Magic fix: exit/sale');
@@ -523,7 +522,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
       addPoints('benchmarking', 15, 'Magic fix: growth');
     }
     if (containsAny(magicFix, ['time', 'freedom', 'step back', 'holiday'])) {
-      addPoints('365_method', 20, 'Magic fix: freedom');
+      addPoints('goal_alignment', 20, 'Magic fix: freedom');
       addPoints('systems_audit', 15, 'Magic fix: ability to step back');
     }
   }
@@ -532,10 +531,10 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const finalInsight = getLower(responses.dd_final_insight);
   if (finalInsight && finalInsight.length > 20) {
     // Scan for any service-related keywords and add small bonus
-    if (containsAny(finalInsight, KEYWORD_SETS.financial)) addPoints('management_accounts', 10, 'Final insight: financial focus');
+    if (containsAny(finalInsight, KEYWORD_SETS.financial)) addPoints('business_intelligence', 10, 'Final insight: financial focus');
     if (containsAny(finalInsight, KEYWORD_SETS.team)) addPoints('fractional_coo', 10, 'Final insight: team focus');
     if (containsAny(finalInsight, KEYWORD_SETS.systems)) addPoints('systems_audit', 10, 'Final insight: systems focus');
-    if (containsAny(finalInsight, KEYWORD_SETS.strategy)) addPoints('365_method', 10, 'Final insight: strategy focus');
+    if (containsAny(finalInsight, KEYWORD_SETS.strategy)) addPoints('goal_alignment', 10, 'Final insight: strategy focus');
     if (containsAny(finalInsight, KEYWORD_SETS.exit)) addPoints('business_advisory', 10, 'Final insight: exit focus');
   }
 
@@ -546,9 +545,9 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   // SD Q1.1 - Financial Confidence
   const finConfidence = responses.sd_financial_confidence;
   const finConfTriggers: Record<string, { services: string[]; points: number[] }> = {
-    'Uncertain - I\'m often surprised': { services: ['management_accounts'], points: [25] },
-    'Not confident - I mostly guess': { services: ['management_accounts'], points: [30] },
-    'I avoid financial decisions because I don\'t trust the data': { services: ['management_accounts', 'fractional_cfo'], points: [30, 15] },
+    'Uncertain - I\'m often surprised': { services: ['business_intelligence'], points: [25] },
+    'Not confident - I mostly guess': { services: ['business_intelligence'], points: [30] },
+    'I avoid financial decisions because I don\'t trust the data': { services: ['business_intelligence', 'fractional_cfo'], points: [30, 15] },
   };
   if (finConfidence && finConfTriggers[finConfidence]) {
     const t = finConfTriggers[finConfidence];
@@ -558,9 +557,9 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   // SD Q1.2 - Numbers Into Action
   const numbersAction = responses.sd_numbers_action_frequency;
   const numbersActionTriggers: Record<string, { services: string[]; points: number[] }> = {
-    'Quarterly - when accounts come through': { services: ['management_accounts'], points: [20] },
-    'Rarely - I don\'t find them useful': { services: ['management_accounts'], points: [25] },
-    'Never - I don\'t get meaningful management information': { services: ['management_accounts'], points: [30] },
+    'Quarterly - when accounts come through': { services: ['business_intelligence'], points: [20] },
+    'Rarely - I don\'t find them useful': { services: ['business_intelligence'], points: [25] },
+    'Never - I don\'t get meaningful management information': { services: ['business_intelligence'], points: [30] },
   };
   if (numbersAction && numbersActionTriggers[numbersAction]) {
     const t = numbersActionTriggers[numbersAction];
@@ -613,7 +612,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
     }
     if (task === 'Generating reports manually') {
       addPoints('automation', 15, 'Manual task: report generation');
-      addPoints('management_accounts', 10, 'Manual task: report generation');
+      addPoints('business_intelligence', 10, 'Manual task: report generation');
     }
     if (task === 'Processing invoices') {
       addPoints('automation', 20, 'Manual task: invoice processing');
@@ -630,7 +629,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
     }
     if (task === 'Reconciling data between systems') {
       addPoints('automation', 20, 'Manual task: reconciliation');
-      addPoints('management_accounts', 15, 'Manual task: reconciliation');
+      addPoints('business_intelligence', 15, 'Manual task: reconciliation');
     }
   });
 
@@ -639,7 +638,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   const problemSpeedTriggers: Record<string, { services: string[]; points: number[] }> = {
     'Days later - when problems compound': { services: ['systems_audit'], points: [20] },
     'Often too late - when customers complain': { services: ['systems_audit'], points: [25] },
-    'We\'re often blindsided': { services: ['systems_audit', 'management_accounts'], points: [30, 15] },
+    'We\'re often blindsided': { services: ['systems_audit', 'business_intelligence'], points: [30, 15] },
   };
   if (problemSpeed && problemSpeedTriggers[problemSpeed]) {
     const t = problemSpeedTriggers[problemSpeed];
@@ -649,10 +648,10 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   // SD Q3.1 - Plan Clarity
   const planClarity = responses.sd_plan_clarity;
   const planClarityTriggers: Record<string, { services: string[]; points: number[] }> = {
-    'Sort of - I know what I want to achieve': { services: ['365_method'], points: [10] },
-    'I have goals but not a real plan': { services: ['365_method'], points: [20] },
-    'I\'m too busy to plan': { services: ['365_method'], points: [25] },
-    'I\'ve given up on planning - things always change': { services: ['365_method'], points: [25] },
+    'Sort of - I know what I want to achieve': { services: ['goal_alignment'], points: [10] },
+    'I have goals but not a real plan': { services: ['goal_alignment'], points: [20] },
+    'I\'m too busy to plan': { services: ['goal_alignment'], points: [25] },
+    'I\'ve given up on planning - things always change': { services: ['goal_alignment'], points: [25] },
   };
   if (planClarity && planClarityTriggers[planClarity]) {
     const t = planClarityTriggers[planClarity];
@@ -662,8 +661,8 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   // SD Q3.2 - Accountability Source
   const accountability = responses.sd_accountability_source;
   const accountabilityTriggers: Record<string, { services: string[]; points: number[] }> = {
-    'My spouse/family (informally)': { services: ['365_method'], points: [15] },
-    'No one - just me': { services: ['365_method'], points: [20] },
+    'My spouse/family (informally)': { services: ['goal_alignment'], points: [15] },
+    'No one - just me': { services: ['goal_alignment'], points: [20] },
   };
   if (accountability && accountabilityTriggers[accountability]) {
     const t = accountabilityTriggers[accountability];
@@ -673,7 +672,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
   // SD Q3.3 - Growth Blocker
   const growthBlocker = responses.sd_growth_blocker;
   const growthBlockerTriggers: Record<string, { services: string[]; points: number[] }> = {
-    'Lack of clarity on where to focus': { services: ['365_method'], points: [25] },
+    'Lack of clarity on where to focus': { services: ['goal_alignment'], points: [25] },
     'Not enough leads or customers': { services: ['benchmarking'], points: [10] },
     'Can\'t deliver more without breaking things': { services: ['systems_audit', 'automation'], points: [25, 15] },
     'Don\'t have the right people': { services: ['fractional_coo'], points: [25] },
@@ -753,7 +752,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
       addPoints('systems_audit', 15, 'Operational frustration: time/bottlenecks');
     }
     if (containsAny(opsFrustration, ['reports', 'numbers', 'data', 'spreadsheet'])) {
-      addPoints('management_accounts', 15, 'Operational frustration: reporting');
+      addPoints('business_intelligence', 15, 'Operational frustration: reporting');
       addPoints('automation', 10, 'Operational frustration: reporting');
     }
   }
@@ -802,8 +801,8 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
 
   if (patterns.burnoutFlags >= 3) {
     patterns.burnoutDetected = true;
-    scores['365_method'].score = Math.round(scores['365_method'].score * 1.4);
-    scores['365_method'].triggers.push('Burnout pattern detected (3+ indicators)');
+    scores['goal_alignment'].score = Math.round(scores['goal_alignment'].score * 1.4);
+    scores['goal_alignment'].triggers.push('Burnout pattern detected (3+ indicators)');
   }
 
   // Capital Raising Detection
@@ -824,7 +823,7 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
     patterns.capitalRaisingDetected = true;
     scores['fractional_cfo'].score = Math.round(scores['fractional_cfo'].score * 1.5);
     scores['fractional_cfo'].triggers.push('Capital raising pattern detected');
-    scores['management_accounts'].score = Math.round(scores['management_accounts'].score * 1.3);
+    scores['business_intelligence'].score = Math.round(scores['business_intelligence'].score * 1.3);
     scores['business_advisory'].score = Math.round(scores['business_advisory'].score * 1.3);
   }
 
@@ -849,8 +848,8 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
 
   if (patterns.lifestyleSignals.length >= 3) {
     patterns.lifestyleTransformationDetected = true;
-    scores['365_method'].score = Math.round(scores['365_method'].score * 1.5);
-    scores['365_method'].triggers.push('Lifestyle transformation pattern detected');
+    scores['goal_alignment'].score = Math.round(scores['goal_alignment'].score * 1.5);
+    scores['goal_alignment'].triggers.push('Lifestyle transformation pattern detected');
     scores['fractional_coo'].score = Math.round(scores['fractional_coo'].score * 1.3);
     scores['systems_audit'].score = Math.round(scores['systems_audit'].score * 1.2);
   }

@@ -1,4 +1,3 @@
--- COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md
 -- ============================================================================
 -- FIX: Discovery Reports RLS Policy for Client Access
 -- ============================================================================

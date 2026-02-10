@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Source: supabase/functions/generate-discovery-report-pass1/index.ts */
 // ============================================================================
 // DISCOVERY REPORT - PASS 1: EXTRACTION & SCORING + 8-DIMENSION ANALYSIS
 // Includes: Business Type Classification, Financial Analysis, Service Scoring
@@ -73,9 +72,14 @@ interface ValuationAnalysis {
   baseMultipleHigh: number;
   adjustedMultipleLow: number;
   adjustedMultipleHigh: number;
+  earningsBase?: number;
+  earningsLabel?: string;
+  ebitdaValuationLow?: number | null;
+  ebitdaValuationHigh?: number | null;
+  opProfitValuationLow?: number | null;
+  opProfitValuationHigh?: number | null;
   conservativeValue: number | null;
   optimisticValue: number | null;
-  // NEW: Include hidden assets in total enterprise value
   hiddenAssets: HiddenAsset[];
   totalHiddenAssetsValue: number;
   enterpriseValueLow: number | null;
@@ -625,8 +629,8 @@ function classifyBusinessType(
     allText.includes('tight') ||
     allText.includes('sleep')
   );
-  const mentionsCashStruggle = responses.dd_sleep_thief?.toLowerCase()?.includes('cash') ||
-                                responses.dd_core_frustration?.toLowerCase()?.includes('cash');
+  const mentionsCashStruggle = String(responses.dd_sleep_thief ?? '').toLowerCase().includes('cash') ||
+                                String(responses.dd_core_frustration ?? '').toLowerCase().includes('cash');
   
   if (cashAnxiety || mentionsCashStruggle) {
     signals.push('Cash flow anxiety detected - recommend starting small');
@@ -1150,21 +1154,41 @@ function analyseValuation(
   // Ensure minimums
   adjustedLow = Math.max(adjustedLow, 1.5);
   adjustedHigh = Math.max(adjustedHigh, 2.0);
+
+  // Prefer EBITDA when depreciation is a significant proportion of operating profit (asset-heavy businesses)
+  const opProfit = financials.operatingProfit || 0;
+  const ebitda = financials.ebitda || 0;
+  const depreciation = ebitda - opProfit; // approximate: ebitda = opProfit + depreciation + amortisation
+  const useEbitda = ebitda > 0 && opProfit > 0 && depreciation > (opProfit * 0.3);
+  const earningsBase = useEbitda ? ebitda : (opProfit || ebitda || 0);
+  const earningsLabel = useEbitda ? 'EBITDA' : 'Operating Profit';
+
+  console.log('[Pass1] 💰 Valuation earnings base:', {
+    earningsLabel,
+    earningsBase: earningsBase.toLocaleString(),
+    operatingProfit: opProfit.toLocaleString(),
+    ebitda: ebitda.toLocaleString(),
+    depreciation: depreciation.toLocaleString(),
+    reason: useEbitda ? 'Asset-heavy: depreciation > 30% of OP' : 'Standard: using operating profit'
+  });
   
-  // Calculate values
-  const earningsBase = financials.operatingProfit || financials.ebitda || 0;
+  // Calculate values using chosen earnings base
   const conservativeValue = earningsBase > 0 ? Math.round(earningsBase * adjustedLow) : null;
   const optimisticValue = earningsBase > 0 ? Math.round(earningsBase * adjustedHigh) : null;
+  const ebitdaValuationLow = ebitda > 0 ? Math.round(ebitda * adjustedLow) : null;
+  const ebitdaValuationHigh = ebitda > 0 ? Math.round(ebitda * adjustedHigh) : null;
+  const opProfitValuationLow = opProfit > 0 ? Math.round(opProfit * adjustedLow) : null;
+  const opProfitValuationHigh = opProfit > 0 ? Math.round(opProfit * adjustedHigh) : null;
   
   // NEW: Add hidden assets to get total enterprise value
   const totalHiddenAssetsValue = hiddenAssets.totalHiddenAssets || 0;
   const enterpriseValueLow = conservativeValue ? conservativeValue + totalHiddenAssetsValue : null;
   const enterpriseValueHigh = optimisticValue ? optimisticValue + totalHiddenAssetsValue : null;
   
-  // Build narrative
+  // Build narrative with dynamic label
   let narrative = '';
   if (earningsBase > 0) {
-    narrative = `Operating profit £${(earningsBase/1000).toFixed(0)}k × ${adjustedLow.toFixed(1)}-${adjustedHigh.toFixed(1)}x = £${conservativeValue ? (conservativeValue/1000000).toFixed(1) : '?'}M-£${optimisticValue ? (optimisticValue/1000000).toFixed(1) : '?'}M earnings-based valuation. `;
+    narrative = `${earningsLabel} £${(earningsBase/1000).toFixed(0)}k × ${adjustedLow.toFixed(1)}-${adjustedHigh.toFixed(1)}x = £${conservativeValue ? (conservativeValue/1000000).toFixed(1) : '?'}M-£${optimisticValue ? (optimisticValue/1000000).toFixed(1) : '?'}M earnings-based valuation. `;
     if (totalHiddenAssetsValue > 0) {
       narrative += `Plus hidden assets £${(totalHiddenAssetsValue/1000).toFixed(0)}k = total enterprise value £${enterpriseValueLow ? (enterpriseValueLow/1000000).toFixed(1) : '?'}M-£${enterpriseValueHigh ? (enterpriseValueHigh/1000000).toFixed(1) : '?'}M.`;
     }
@@ -1184,6 +1208,12 @@ function analyseValuation(
     baseMultipleHigh: baseMultiple.high,
     adjustedMultipleLow: adjustedLow,
     adjustedMultipleHigh: adjustedHigh,
+    earningsBase,
+    earningsLabel,
+    ebitdaValuationLow,
+    ebitdaValuationHigh,
+    opProfitValuationLow,
+    opProfitValuationHigh,
     conservativeValue,
     optimisticValue,
     hiddenAssets: hiddenAssets.assets,
@@ -2321,9 +2351,11 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
   // ============================================================================
   
   // Helper to get first non-empty value
-  const getFirst = (...vals: (string | undefined)[]): string => {
+  const getFirst = (...vals: (string | unknown)[]): string => {
     for (const v of vals) {
-      if (v && typeof v === 'string' && v.trim().length > 0) return v.trim();
+      if (v == null) continue;
+      const s = typeof v === 'string' ? v : Array.isArray(v) ? v.join(' ') : String(v);
+      if (s.trim().length > 0) return s.trim();
     }
     return '';
   };
@@ -2938,24 +2970,79 @@ serve(async (req) => {
     console.log('[Pass1] Loaded context notes:', contextNoteTexts.length, 'notes');
 
     // ========================================================================
-    // FETCH FINANCIAL CONTEXT
+    // FETCH FINANCIAL DATA — Priority 1: context, then 2: client_financial_data, then 3: client_reports
     // ========================================================================
-    
+    // Priority 1: client_financial_context — single-period LLM extraction from documents (process-client-context)
+    // Priority 2: client_financial_data — multi-year structured data from CSV upload (process-accounts-upload)
+    // Priority 3: client_reports — legacy discovery_analysis financialContext
+    // ========================================================================
+
     const { data: financialContext } = await supabase
       .from('client_financial_context')
       .select('*')
       .eq('client_id', engagement.client_id)
       .order('period_end_date', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     // ========================================================================
-    // EXTRACT FINANCIALS - COMPREHENSIVE EXTRACTION
-    // Pulls from both table columns AND extracted_insights JSONB
+    // FALLBACK: client_financial_data (from process-accounts-upload)
+    // Fetched only when no client_financial_context — preferred over client_reports (clean structured columns).
     // ========================================================================
-    
+    let financialDataRows: any[] | null = null;
+    if (!financialContext) {
+      const { data: cfdRows } = await supabase
+        .from('client_financial_data')
+        .select('*')
+        .eq('client_id', engagement.client_id)
+        .order('fiscal_year', { ascending: false })
+        .limit(3);
+      if (cfdRows && cfdRows.length > 0) {
+        financialDataRows = cfdRows;
+        console.log('[Pass1] ✅ Found', cfdRows.length, 'years in client_financial_data:',
+          cfdRows.map((r: any) => `FY${r.fiscal_year}: £${r.revenue?.toLocaleString()}`));
+      } else {
+        console.log('[Pass1] ⚠️ No client_financial_data found');
+      }
+    }
+
+    // ========================================================================
+    // FALLBACK: client_reports (from generate-discovery-analysis / legacy path)
+    // When neither client_financial_context nor client_financial_data has data
+    // ========================================================================
+    let clientReportFallback: any = null;
+    if (!financialContext && (!financialDataRows || financialDataRows.length === 0)) {
+      console.log('[Pass1] ⚠️ No structured financial data, checking client_reports...');
+      const { data: reportRow } = await supabase
+        .from('client_reports')
+        .select('report_data')
+        .eq('client_id', engagement.client_id)
+        .eq('report_type', 'discovery_analysis')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (reportRow?.report_data?.analysis?.financialContext) {
+        clientReportFallback = reportRow.report_data.analysis.financialContext;
+        console.log('[Pass1] ✅ Found financial data in client_reports (legacy path)');
+      } else {
+        console.log('[Pass1] ⚠️ No client_reports financialContext found either');
+      }
+    }
+
+    console.log('[Pass1] 📊 Financial data sources:', {
+      hasFinancialContext: !!financialContext,
+      financialContextRevenue: financialContext?.revenue ?? financialContext?.turnover ?? 'none',
+      financialDataRows: financialDataRows?.length || 0,
+      latestFinancialDataYear: financialDataRows?.[0]?.fiscal_year || 'none',
+      hasClientReportFallback: !!clientReportFallback,
+    });
+
+    // ========================================================================
+    // EXTRACT FINANCIALS — Priority 1: context, 2: client_financial_data, 3: client_reports
+    // ========================================================================
+
     let extractedFinancials: ExtractedFinancials = { source: 'none' };
-    
+
     if (financialContext) {
       // ========================================================================
       // PARSE extracted_insights - Handle double-encoded JSON strings
@@ -3327,8 +3414,236 @@ serve(async (req) => {
         
         console.log('[Pass1] Available fields:', extractedFields.join(', '));
       }
+    } else if (financialDataRows && financialDataRows.length > 0) {
+      // ========================================================================
+      // BUILD FINANCIALS FROM client_financial_data (accounts upload path)
+      // This table has clean structured columns per fiscal year.
+      // Operating profit is NOT a column — derive from ebitda or gross_profit.
+      // Staff costs are NOT a column — payroll analysis will be limited (unless recovered from upload).
+      // ========================================================================
+      const latest = financialDataRows[0];
+      const prior = financialDataRows.length > 1 ? financialDataRows[1] : null;
+
+      const turnover = latest.revenue || 0;
+      const turnoverPriorYear = prior?.revenue ?? null;
+      const turnoverGrowth = turnoverPriorYear && turnoverPriorYear > 0
+        ? ((turnover - turnoverPriorYear) / turnoverPriorYear * 100)
+        : null;
+
+      const grossProfit = latest.gross_profit ?? null;
+      const grossProfitPriorYear = prior?.gross_profit ?? null;
+      const grossMarginPct = latest.gross_margin_pct ??
+        (grossProfit && turnover ? (grossProfit / turnover * 100) : null);
+
+      const deriveOperatingProfit = (row: any): number | null => {
+        if (row.operating_profit != null) return row.operating_profit;
+        if (row.ebitda != null && row.depreciation != null) {
+          return row.ebitda - (row.depreciation || 0) - (row.amortisation || 0);
+        }
+        if (row.gross_profit != null && row.operating_expenses != null) {
+          return row.gross_profit - row.operating_expenses;
+        }
+        return null;
+      };
+
+      const operatingProfit = deriveOperatingProfit(latest);
+      const operatingProfitPriorYear = prior ? deriveOperatingProfit(prior) : null;
+      const operatingMarginPct = operatingProfit != null && turnover
+        ? (operatingProfit / turnover * 100) : null;
+
+      const netProfit = latest.net_profit ?? null;
+      const netProfitPriorYear = prior?.net_profit ?? null;
+      const netMarginPct = latest.net_margin_pct ??
+        (netProfit != null && turnover ? (netProfit / turnover * 100) : null);
+
+      const employeeCount = latest.employee_count ?? null;
+      const employeeCountPriorYear = prior?.employee_count ?? null;
+      const revenuePerEmployee = latest.revenue_per_employee ??
+        (employeeCount && turnover ? Math.round(turnover / employeeCount) : null);
+
+      const cash = latest.cash ?? null;
+      const cashPriorYear = prior?.cash ?? null;
+      const netAssets = latest.net_assets ?? null;
+      const totalAssets = latest.total_assets ?? null;
+      const fixedAssets = latest.fixed_assets ?? null;
+      const debtors = latest.debtors ?? null;
+      const debtorsPriorYear = prior?.debtors ?? null;
+      const creditors = latest.creditors ?? null;
+      const creditorsPriorYear = prior?.creditors ?? null;
+      const stock = latest.stock ?? null;
+      const stockPriorYear = prior?.stock ?? null;
+
+      const debtorDays = latest.debtor_days ??
+        (debtors && turnover ? Math.round(debtors / turnover * 365) : null);
+      const creditorDays = latest.creditor_days ?? null;
+      const ebitda = latest.ebitda ?? null;
+      const totalLiabilities = latest.total_liabilities ?? null;
+      const currentLiabilities = latest.current_liabilities ?? null;
+      const longTermLiabilities = latest.long_term_liabilities ?? null;
+      const costOfSales = latest.cost_of_sales ?? null;
+      const costOfSalesPriorYear = prior?.cost_of_sales ?? null;
+
+      const multiYearEarnings = financialDataRows
+        .filter((y: any) => y.revenue)
+        .map((y: any) => ({
+          year: y.fiscal_year,
+          earnings: y.net_profit ?? y.ebitda ?? 0,
+          revenue: y.revenue,
+          grossProfit: y.gross_profit,
+          operatingProfit: deriveOperatingProfit(y),
+          netProfit: y.net_profit,
+          employeeCount: y.employee_count,
+        }))
+        .sort((a: any, b: any) => a.year - b.year);
+
+      extractedFinancials = {
+        source: 'client_financial_data',
+        turnover: Number(turnover) || 0,
+        turnoverPriorYear: turnoverPriorYear != null ? Number(turnoverPriorYear) : undefined,
+        turnoverGrowth: turnoverGrowth != null ? Number(turnoverGrowth) : undefined,
+        grossProfit: grossProfit != null ? Number(grossProfit) : undefined,
+        grossProfitPriorYear: grossProfitPriorYear != null ? Number(grossProfitPriorYear) : undefined,
+        grossMarginPct: grossMarginPct != null ? Number(grossMarginPct) : undefined,
+        operatingProfit: operatingProfit != null ? Number(operatingProfit) : undefined,
+        operatingProfitPriorYear: operatingProfitPriorYear != null ? Number(operatingProfitPriorYear) : undefined,
+        operatingMarginPct: operatingMarginPct != null ? Number(operatingMarginPct) : undefined,
+        netProfit: netProfit != null ? Number(netProfit) : undefined,
+        netProfitPriorYear: netProfitPriorYear != null ? Number(netProfitPriorYear) : undefined,
+        netMarginPct: netMarginPct != null ? Number(netMarginPct) : undefined,
+        ebitda: ebitda != null ? Number(ebitda) : undefined,
+        costOfSales: costOfSales != null ? Number(costOfSales) : undefined,
+        costOfSalesPriorYear: costOfSalesPriorYear != null ? Number(costOfSalesPriorYear) : undefined,
+        totalStaffCosts: (latest as any).staff_costs != null ? Number((latest as any).staff_costs) : undefined,
+        staffCostsPercentOfRevenue: (latest as any).staff_costs != null && turnover
+          ? (Number((latest as any).staff_costs) / Number(turnover) * 100) : undefined,
+        directorsRemuneration: (latest as any).directors_remuneration != null ? Number((latest as any).directors_remuneration) : undefined,
+        employeeCount: employeeCount != null ? Number(employeeCount) : undefined,
+        employeeCountPriorYear: employeeCountPriorYear != null ? Number(employeeCountPriorYear) : undefined,
+        revenuePerEmployee: revenuePerEmployee != null ? Number(revenuePerEmployee) : undefined,
+        netAssets: netAssets != null ? Number(netAssets) : undefined,
+        totalAssets: totalAssets != null ? Number(totalAssets) : undefined,
+        fixedAssets: fixedAssets != null ? Number(fixedAssets) : undefined,
+        cash: cash != null ? Number(cash) : undefined,
+        cashPriorYear: cashPriorYear != null ? Number(cashPriorYear) : undefined,
+        stock: stock != null ? Number(stock) : undefined,
+        stockPriorYear: stockPriorYear != null ? Number(stockPriorYear) : undefined,
+        debtors: debtors != null ? Number(debtors) : undefined,
+        debtorsPriorYear: debtorsPriorYear != null ? Number(debtorsPriorYear) : undefined,
+        creditors: creditors != null ? Number(creditors) : undefined,
+        creditorsPriorYear: creditorsPriorYear != null ? Number(creditorsPriorYear) : undefined,
+        debtorDays: debtorDays != null ? Number(debtorDays) : undefined,
+        creditorDays: creditorDays != null ? Number(creditorDays) : undefined,
+        totalLiabilities: totalLiabilities != null ? Number(totalLiabilities) : undefined,
+        currentLiabilities: currentLiabilities != null ? Number(currentLiabilities) : undefined,
+        longTermLiabilities: longTermLiabilities != null ? Number(longTermLiabilities) : undefined,
+        multiYearEarnings,
+      };
+
+      const extractedFields = Object.entries(extractedFinancials)
+        .filter(([_, v]) => v !== undefined && v !== null)
+        .map(([k, _]) => k);
+      console.log('[Pass1] ✅ Built financials from client_financial_data (' +
+        extractedFields.length + ' fields from ' + financialDataRows.length + ' years)');
+      console.log('[Pass1] Key figures:', {
+        turnover, turnoverPriorYear, turnoverGrowth: turnoverGrowth != null ? turnoverGrowth.toFixed(1) : null,
+        grossProfit, grossMarginPct: grossMarginPct != null ? grossMarginPct.toFixed(1) : null,
+        operatingProfit, operatingProfitPriorYear,
+        operatingProfitGrowth: operatingProfitPriorYear && operatingProfitPriorYear > 0 && operatingProfit != null
+          ? ((operatingProfit - operatingProfitPriorYear) / operatingProfitPriorYear * 100).toFixed(1) + '%'
+          : 'N/A',
+        netProfit, employeeCount, revenuePerEmployee,
+      });
+      console.log('[Pass1] ⚠️ Note: staff_costs not available from client_financial_data — payroll analysis will be limited');
+
+      // ========================================================================
+      // BONUS: Try to recover staff costs from the upload's raw extraction
+      // ========================================================================
+      try {
+        const { data: uploadRecord } = await supabase
+          .from('client_accounts_uploads')
+          .select('raw_extraction')
+          .eq('client_id', engagement.client_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (uploadRecord?.raw_extraction?.years) {
+          const years = uploadRecord.raw_extraction.years as any[];
+          const latestUploadYear = years
+            .sort((a: any, b: any) => (b.fiscal_year || 0) - (a.fiscal_year || 0))[0];
+          const notes = latestUploadYear?.notes as string[] | undefined;
+          const staffCostsNote = notes?.find((n: string) => n.toLowerCase().includes('staff cost'));
+          const staffCostsMatch = staffCostsNote?.match(/[\d,]+/);
+          if (staffCostsMatch) {
+            const staffCosts = parseInt(staffCostsMatch[0].replace(/,/g, ''), 10);
+            const turnoverNum = Number(turnover) || 0;
+            if (staffCosts > 10000 && turnoverNum > 0 && staffCosts < turnoverNum) {
+              (extractedFinancials as any).totalStaffCosts = staffCosts;
+              (extractedFinancials as any).staffCostsPercentOfRevenue = (staffCosts / turnoverNum * 100);
+              console.log('[Pass1] ✅ Recovered staff costs from upload notes:', staffCosts);
+            }
+          }
+        }
+      } catch (e) {
+        console.log('[Pass1] Could not recover staff costs from upload record:', e);
+      }
+    } else if (clientReportFallback && typeof clientReportFallback === 'object') {
+      // ========================================================================
+      // BUILD FINANCIALS FROM client_reports.report_data.analysis.financialContext (legacy)
+      // ========================================================================
+      const fc = clientReportFallback;
+      const turnover = fc.turnover ?? fc.revenue ?? 0;
+      const turnoverPriorYear = fc.turnover_prior_year ?? fc.prior_year_turnover ?? fc.turnoverPriorYear ?? null;
+      const grossProfit = fc.gross_profit ?? fc.grossProfit ?? null;
+      const operatingProfit = fc.operating_profit ?? fc.operatingProfit ?? fc.ebitda ?? null;
+      const netProfit = fc.net_profit ?? fc.netProfit ?? fc.profit_after_tax ?? null;
+      const totalStaffCosts = fc.staff_costs ?? fc.total_staff_costs ?? fc.staff_cost ?? fc.employee_costs ?? null;
+      const employeeCount = fc.employee_count ?? fc.staff_count ?? fc.average_employees ?? null;
+      const grossMarginPct = fc.gross_margin_pct ?? (grossProfit && turnover ? (grossProfit / turnover) * 100 : null);
+      const netMarginPct = fc.net_margin_pct ?? (netProfit && turnover ? (netProfit / turnover) * 100 : null);
+      const turnoverGrowth = turnover && turnoverPriorYear && turnoverPriorYear > 0
+        ? ((turnover - turnoverPriorYear) / turnoverPriorYear * 100) : null;
+      const staffCostsPercentOfRevenue = totalStaffCosts && turnover ? (totalStaffCosts / turnover * 100) : null;
+      const revenuePerEmployee = employeeCount && turnover ? turnover / employeeCount : null;
+
+      extractedFinancials = {
+        source: 'client_reports',
+        turnover: Number(turnover) || 0,
+        turnoverPriorYear: turnoverPriorYear != null ? Number(turnoverPriorYear) : undefined,
+        turnoverGrowth: turnoverGrowth != null ? Number(turnoverGrowth) : undefined,
+        grossProfit: grossProfit != null ? Number(grossProfit) : undefined,
+        grossProfitPriorYear: undefined,
+        grossMarginPct: grossMarginPct != null ? Number(grossMarginPct) : undefined,
+        operatingProfit: operatingProfit != null ? Number(operatingProfit) : undefined,
+        operatingProfitPriorYear: undefined,
+        operatingMarginPct: operatingProfit && turnover ? (Number(operatingProfit) / turnover * 100) : undefined,
+        netProfit: netProfit != null ? Number(netProfit) : undefined,
+        netProfitPriorYear: undefined,
+        netMarginPct: netMarginPct != null ? Number(netMarginPct) : undefined,
+        ebitda: fc.ebitda != null ? Number(fc.ebitda) : undefined,
+        costOfSales: fc.cost_of_sales ?? fc.costOfSales ?? undefined,
+        costOfSalesPriorYear: undefined,
+        totalStaffCosts: totalStaffCosts != null ? Number(totalStaffCosts) : undefined,
+        staffCostsPercentOfRevenue: staffCostsPercentOfRevenue != null ? Number(staffCostsPercentOfRevenue) : undefined,
+        employeeCount: employeeCount != null ? Number(employeeCount) : undefined,
+        employeeCountPriorYear: undefined,
+        revenuePerEmployee: revenuePerEmployee != null ? Number(revenuePerEmployee) : undefined,
+        netAssets: fc.net_assets ?? fc.netAssets ?? undefined,
+        totalAssets: fc.total_assets ?? fc.totalAssets ?? undefined,
+        fixedAssets: fc.fixed_assets ?? fc.fixedAssets ?? undefined,
+        cash: fc.cash ?? fc.cash_position ?? fc.cash_at_bank ?? undefined,
+        debtors: fc.debtors ?? fc.trade_debtors ?? undefined,
+        creditors: fc.creditors ?? fc.trade_creditors ?? undefined,
+        stock: fc.stock ?? fc.inventory ?? undefined,
+      };
+      console.log('[Pass1] ✅ Built financials from client_reports:', {
+        turnover: extractedFinancials.turnover,
+        operatingProfit: extractedFinancials.operatingProfit,
+        totalStaffCosts: extractedFinancials.totalStaffCosts,
+        employeeCount: extractedFinancials.employeeCount,
+      });
     }
-    
+
     // ========================================================================
     // CLASSIFY BUSINESS TYPE FIRST (BEFORE CALCULATORS)
     // ========================================================================

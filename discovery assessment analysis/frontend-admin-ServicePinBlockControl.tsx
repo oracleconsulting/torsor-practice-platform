@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Source: src/components/discovery/ServicePinBlockControl.tsx */
 /**
  * Service Pin/Block Control
  * 

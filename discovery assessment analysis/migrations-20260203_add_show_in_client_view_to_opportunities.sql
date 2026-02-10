@@ -1,4 +1,3 @@
--- COPY - Do not edit. Reference only. Source: supabase/migrations/20260203_add_show_in_client_view_to_opportunities.sql
 -- ============================================================================
 -- ADD show_in_client_view COLUMN TO discovery_opportunities
 -- ============================================================================

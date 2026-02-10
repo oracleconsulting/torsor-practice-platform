@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 // ============================================================================
 // INDUSTRY BENCHMARKS - UK SME Standards
 // ============================================================================
@@ -393,4 +392,3 @@ export function getRevenuePerHeadStatus(
   if (revenuePerHead >= benchmark.revenuePerHead.low) return 'typical';
   return 'concerning';
 }
-

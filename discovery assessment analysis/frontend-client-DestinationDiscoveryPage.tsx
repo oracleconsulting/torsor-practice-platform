@@ -430,6 +430,50 @@ export default function DestinationDiscoveryPage() {
         localStorage.removeItem(`discovery_responses_${clientSession.clientId}`);
       }
 
+      // Check if follow-up questions are needed based on client type
+      // Wait a moment for Pass 1 to complete classification
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Check if engagement exists and has a report with client type
+      const { data: engagement } = await supabase
+        .from('discovery_engagements')
+        .select('id')
+        .eq('client_id', clientSession.clientId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (engagement) {
+        const { data: report } = await supabase
+          .from('discovery_reports')
+          .select('client_type')
+          .eq('engagement_id', engagement.id)
+          .maybeSingle();
+        
+        // Check if this client type requires follow-up questions
+        const followUpTypes = ['investment_vehicle', 'funded_startup', 'trading_agency', 'professional_practice'];
+        if (report?.client_type && followUpTypes.includes(report.client_type)) {
+          // Check if follow-up responses already exist
+          const { data: discovery } = await supabase
+            .from('destination_discovery')
+            .select('follow_up_responses')
+            .eq('client_id', clientSession.clientId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          // Only redirect to follow-up if responses don't exist or are empty
+          const hasFollowUpResponses = discovery?.follow_up_responses && 
+            typeof discovery.follow_up_responses === 'object' &&
+            Object.keys(discovery.follow_up_responses).length > 0;
+          
+          if (!hasFollowUpResponses) {
+            navigate(`/discovery/follow-up?type=${report.client_type}`);
+            return;
+          }
+        }
+      }
+
       // Redirect to thank you page (practice team sees recommendations)
       navigate('/discovery/complete');
     } catch (err) {

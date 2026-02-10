@@ -45,6 +45,12 @@ interface ExtractedFinancialData {
   employee_count?: number;
   revenue_per_employee?: number;
   staff_costs?: number;
+  directors_remuneration?: number;
+  operating_profit?: number;
+  // Investment vehicle fields (added Session 11)
+  investment_property?: number;
+  deferred_tax?: number;
+  bank_loans?: number;
   confidence: number;
   notes: string[];
 }
@@ -55,7 +61,8 @@ const METRIC_LABELS: { patterns: RegExp[]; field: keyof ExtractedFinancialData }
   { patterns: [/^cost\s+of\s+sales$|^direct\s+costs$|^cost\s+of\s+goods\s+sold$|^total\s+cost\s+of\s+sales$/i], field: 'cost_of_sales' },
   { patterns: [/^gross\s+profit$/i], field: 'gross_profit' },
   { patterns: [/^operating\s+expenses$|^admin\s+expenses$|^overheads$|^total\s+expenses$|^total\s+administrative\s+costs$/i], field: 'operating_expenses' },
-  { patterns: [/^ebitda$|^operating\s+profit$/i], field: 'ebitda' },
+  { patterns: [/^ebitda$/i], field: 'ebitda' },
+  { patterns: [/^operating\s+profit$|^profit\s+from\s+operations$|^operating\s+surplus$/i], field: 'operating_profit' },
   { patterns: [/^depreciation$/i], field: 'depreciation' },
   { patterns: [/^amortisation$/i], field: 'amortisation' },
   { patterns: [/^interest$|^interest\s+paid$/i], field: 'interest_paid' },
@@ -73,6 +80,11 @@ const METRIC_LABELS: { patterns: RegExp[]; field: keyof ExtractedFinancialData }
   { patterns: [/^employees?$|^employee\s+count$/i], field: 'employee_count' },
   { patterns: [/^stock$|^inventory$/i], field: 'stock' },
   { patterns: [/^staff\s+costs\s+total$|^total\s+staff\s+costs$|^staff\s+salaries$|^staff\s+costs$|^payroll$|^wages\s+and\s+salaries$/i], field: 'staff_costs' },
+  { patterns: [/^directors?\s+remuneration$|^directors?\s+pay$|^directors?\s+emoluments$/i], field: 'directors_remuneration' },
+  { patterns: [/^investment\s+propert(y|ies)$|^investment\s+property\s+at\s+valuation$/i], field: 'investment_property' },
+  { patterns: [/^deferred\s+tax$|^deferred\s+taxation$|^provisions?\s+for\s+liabilities$/i], field: 'deferred_tax' },
+  { patterns: [/^bank\s+loans?$|^bank\s+borrowings?$/i], field: 'bank_loans' },
+  { patterns: [/^long[\s-]?term\s+liabilities$|^creditors.*after.*one\s+year$/i], field: 'long_term_liabilities' },
 ];
 
 function parseCSVToGrid(text: string): string[][] {
@@ -361,6 +373,11 @@ serve(async (req) => {
           employee_count: financialData.employee_count,
           revenue_per_employee: financialData.revenue_per_employee,
           staff_costs: financialData.staff_costs,
+          directors_remuneration: financialData.directors_remuneration,
+          operating_profit: financialData.operating_profit,
+          investment_property: financialData.investment_property,
+          deferred_tax: financialData.deferred_tax,
+          bank_loans: financialData.bank_loans,
           data_source: 'upload',
           confidence_score: financialData.confidence,
           notes: financialData.notes?.join('\n') || null
@@ -607,6 +624,9 @@ EXTRACT FOR EACH FISCAL YEAR:
 - cash: Cash at bank
 - fixed_assets: Tangible/fixed assets
 - net_assets: Net assets/shareholders funds
+- investment_property: Investment property at fair value (if present - property companies)
+- deferred_tax: Deferred tax provision
+- bank_loans: Bank loans (long-term)
 - confidence: 0.0-1.0 based on data clarity
 
 RESPOND WITH JSON ARRAY ONLY:
@@ -686,6 +706,12 @@ function parseFinancialJson(content: string): ExtractedFinancialData[] {
       tax: year.tax || year.corporation_tax,
       net_profit: year.net_profit || year.profit_after_tax,
       net_margin_pct: year.net_margin_pct,
+      operating_profit: year.operating_profit,
+      staff_costs: year.staff_costs,
+      directors_remuneration: year.directors_remuneration,
+      investment_property: year.investment_property,
+      deferred_tax: year.deferred_tax,
+      bank_loans: year.bank_loans,
       debtors: year.debtors || year.trade_debtors || year.receivables,
       creditors: year.creditors || year.trade_creditors || year.payables,
       cash: year.cash || year.cash_at_bank,
@@ -772,15 +798,21 @@ REQUIRED - P&L:
 - interest_paid: Interest expense (as positive number)
 - tax: Tax charge
 - net_profit: Profit after tax
+- operating_profit: Operating profit / profit before interest and tax (if stated separately from EBITDA)
+- staff_costs: TOTAL staff costs (directors remuneration + staff wages + national insurance + pension costs). Critical — look in admin expenses schedule, notes, or key ratios. Sum all staff-related costs.
+- directors_remuneration: Directors' pay/remuneration (often in notes or admin schedule)
 
 BALANCE SHEET (if available):
 - debtors: Trade debtors / receivables
-- creditors: Trade creditors / payables  
+- creditors: Trade creditors / payables
 - cash: Cash and cash equivalents
 - current_assets: Total current assets
 - current_liabilities: Total current liabilities
-- fixed_assets: Fixed/non-current assets
+- fixed_assets: Fixed/non-current assets (EXCLUDING investment property)
 - net_assets: Total net assets
+- investment_property: Investment property at fair value (property investment companies - often the largest balance sheet item)
+- bank_loans: Bank loans (from creditors due after one year)
+- deferred_tax: Deferred tax provision (often large for property companies due to revaluation)
 
 OTHER:
 - employee_count: Number of employees (often in notes)

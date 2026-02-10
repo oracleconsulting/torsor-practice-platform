@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 /**
  * Discovery Responses PDF Generator
  * 
@@ -173,16 +172,28 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Fetch report to derive display status (so cover shows "Report Ready" not "In Progress" when done)
+    const { data: report } = await supabase
+      .from('discovery_reports')
+      .select('id, status, destination_report')
+      .eq('engagement_id', engagement.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const displayStatus = getDisplayStatus(engagement, report);
+
     // Build HTML
     const html = buildResponsesHTML({
       client,
       responses,
       engagement,
-      practiceName: client?.practice?.name || 'Your Accounting Practice'
+      practiceName: client?.practice?.name || 'Your Accounting Practice',
+      report,
+      displayStatus
     });
 
     // Generate filename
-    const clientName = client?.name || 'Client';
+    const clientName = (client?.name || 'Client').replace(/[,;:.!?]+$/, '');
     const date = new Date().toISOString().split('T')[0];
     const filename = `Discovery_Responses_${clientName.replace(/\s+/g, '_')}_${date}`;
 
@@ -216,15 +227,27 @@ interface BuildHTMLParams {
   responses: Record<string, any>;
   engagement: any;
   practiceName: string;
+  report?: any;
+  displayStatus?: string;
 }
 
-function buildResponsesHTML({ client, responses, engagement, practiceName }: BuildHTMLParams): string {
-  const clientName = client?.name || 'Client';
-  const companyName = client?.client_company || clientName;
+function getDisplayStatus(engagement: any, report: any): string {
+  if (report?.status === 'published') return 'Published';
+  if (report?.destination_report) return 'Report Ready';
+  if (engagement?.status === 'pass2_complete') return 'Analysis Complete';
+  if (engagement?.status === 'pass1_complete') return 'Data Processed';
+  if (engagement?.discovery?.status === 'completed') return 'Completed';
+  if (engagement?.discovery?.responses && Object.keys(engagement.discovery.responses).length > 0) return 'Assessment Complete';
+  return 'In Progress';
+}
+
+function buildResponsesHTML({ client, responses, engagement, practiceName, report, displayStatus }: BuildHTMLParams): string {
+  const clientName = (client?.name || 'Client').replace(/[,;:.!?]+$/, '');
+  const companyName = (client?.client_company || clientName).replace(/[,;:.!?]+$/, '') || clientName;
   const completedAt = engagement?.completed_at || engagement?.discovery?.completed_at;
-  const completionDate = completedAt 
+  const completionDate = completedAt
     ? new Date(completedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
-    : 'In Progress';
+    : displayStatus || 'In Progress';
 
   // Count answered questions
   return `

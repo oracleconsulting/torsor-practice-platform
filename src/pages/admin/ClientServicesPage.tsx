@@ -4923,6 +4923,9 @@ function DiscoveryClientModal({
                                     return '—';
                                   })()}
                                 </p>
+                                {destinationReport.page4_numbers?.valuationMethod === 'net_asset_value' && destinationReport.page4_numbers?.valuationNote && (
+                                  <p className="text-xs text-slate-500 mt-1 italic">{destinationReport.page4_numbers.valuationNote}</p>
+                                )}
                               </div>
                             )}
                             
@@ -4963,6 +4966,9 @@ function DiscoveryClientModal({
                                     {grossMargin.assessment} for industry
                                   </p>
                                 )}
+                                {destinationReport.page4_numbers?.grossMarginIsStructural && destinationReport.page4_numbers?.operatingMarginPct && (
+                                  <p className="text-xs text-slate-500 mt-1">No cost of sales — operating margin of {destinationReport.page4_numbers.operatingMarginPct}% is the meaningful measure</p>
+                                )}
                               </div>
                             )}
                             
@@ -4975,8 +4981,8 @@ function DiscoveryClientModal({
                                               ca.exitReadiness.maxScore) * 100)}%
                                 </p>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  {ca.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
-                                   ca.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed'}
+                                  {destinationReport.page4_numbers?.exitReadinessNote ?? (ca.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
+                                   ca.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed')}
                                 </p>
                               </div>
                             )}
@@ -5757,6 +5763,9 @@ function DiscoveryClientModal({
                                                     return '—';
                                                   })()}
                                                 </p>
+                                                {page4.valuationMethod === 'net_asset_value' && page4.valuationNote && (
+                                                  <p className="text-xs text-slate-500 mt-1 italic">{page4.valuationNote}</p>
+                                                )}
                                               </div>
                                             </div>
                                           )}
@@ -5805,6 +5814,9 @@ function DiscoveryClientModal({
                                                     return '';
                                                   })()}
                                                 </p>
+                                                {page4.grossMarginIsStructural && page4.operatingMarginPct && (
+                                                  <p className="text-xs text-slate-500 mt-1">No cost of sales — operating margin of {page4.operatingMarginPct}% is the meaningful measure</p>
+                                                )}
                                               </div>
                                             </div>
                                           )}
@@ -5820,8 +5832,8 @@ function DiscoveryClientModal({
                                                     destinationReport.comprehensive_analysis.exitReadiness.maxScore) * 100)}%
                                                 </p>
                                                 <p className="text-xs text-orange-700 mt-1">
-                                                  {destinationReport.comprehensive_analysis.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
-                                                   destinationReport.comprehensive_analysis.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed'}
+                                                  {page4.exitReadinessNote ?? (destinationReport.comprehensive_analysis.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
+                                                   destinationReport.comprehensive_analysis.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed')}
                                                 </p>
                                               </div>
                                             </div>
@@ -5871,8 +5883,8 @@ function DiscoveryClientModal({
                                             </div>
                                           )}
                                           
-                                          {/* Productivity - Revenue per Head */}
-                                          {destinationReport?.comprehensive_analysis?.productivity?.hasData && (
+                                          {/* Productivity - Revenue per Head (suppressed for investment vehicles / small teams) */}
+                                          {!destinationReport?.page4_numbers?.productivitySuppressed && destinationReport?.comprehensive_analysis?.productivity?.hasData && (
                                             <div className="flex items-start gap-3">
                                               <span className="text-lg">⚡</span>
                                               <div>

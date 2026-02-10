@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 // =============================================================================
 // ANTI-AI-SLOP WRITING STYLE GUIDE
 // Include in all client-facing LLM prompts

@@ -1,4 +1,3 @@
--- COPY - Do not edit. Source: supabase/migrations/20260208120000_discovery_three_phase_pipeline.sql
 -- ============================================================================
 -- Discovery Three-Phase Pipeline
 -- ============================================================================

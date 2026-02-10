@@ -21,7 +21,9 @@ If the modal’s `client_id` and the `client_id` on `discovery_engagements` don�
 | **discovery_opportunities** | `engagement_id` = engagement.id | **Analysis tab**: “Service Opportunities” list (e.g. 12 items with £25K, etc.). |
 | **client_reports** | `client_id`, `report_type = 'discovery_analysis'`, latest by `created_at` | **Analysis tab**: “Loaded existing report”, Export PDF, Share with Client. |
 | **client_context** | `client_id`, `context_type = 'document'` | **Documents tab**: uploaded document content (e.g. Polar London text). |
-| **client_financial_context** | `client_id` | Used by Pass 1 extraction; not shown directly in modal. |
+| **client_financial_context** | `client_id` | Used by Pass 1/2; priority 1 for financial figures. Not shown directly in modal. |
+| **client_financial_data** | `client_id`, `fiscal_year` | Extracted from accounts upload (process-accounts-upload). Priority 2 for financial figures. One row per year; includes revenue, staff_costs, directors_remuneration, operating_profit. |
+| **client_accounts_uploads** | `client_id` | Uploaded account files; processing status; links to extracted rows in client_financial_data. |
 | **destination_discovery** | `client_id` (or email match) | **Responses** tab + analysis_notes. *Kept by reset.* |
 | **client_context_notes** | `client_id` | **Context Notes** tab. *Kept by reset.* |
 | **discovery_analysis_comments** | `engagement_id` | Learning/comments. *Cleared by reset.* |

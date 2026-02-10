@@ -1,4 +1,3 @@
--- COPY - Do not edit. Source: supabase/migrations/20260209120000_reset_discovery_pipeline_for_client.sql
 -- ============================================================================
 -- RESET DISCOVERY PIPELINE FOR A CLIENT (keep responses, wipe generated data)
 -- ============================================================================

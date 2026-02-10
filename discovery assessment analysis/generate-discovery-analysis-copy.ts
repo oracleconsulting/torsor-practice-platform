@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 // ============================================================================
 // GENERATE DISCOVERY ANALYSIS - Part 2 of 2-stage report generation
 // ============================================================================
@@ -7295,7 +7294,7 @@ Return ONLY a valid JSON object (no markdown, no explanation, just the JSON):
     "calculated": ["list of calculated figures with working shown"]
   },
   "executiveSummary": {
-    "headline": "Destination vs current reality in one sentence (e.g., 'You're building for legacy but operating in chaos.')",
+    "headline": "Destination vs current reality in one sentence. CRITICAL: Use the client's ACTUAL stated goal — if they said £5M revenue, say £5M revenue NOT £5M exit. If exit timeline is 3+ years, frame as growth/transformation, NOT exit. (e.g., 'You're building for £5M revenue but operating at half a million with the wrong structure.')",
     "situationInTheirWords": "2-3 sentences using their EXACT quotes",
     "destinationVision": "The life they described - ONE specific detail, not a list",
     "currentReality": "Where they are now - concrete, not abstract",

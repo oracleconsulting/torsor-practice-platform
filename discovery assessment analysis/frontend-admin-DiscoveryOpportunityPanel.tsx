@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Source: src/components/discovery/DiscoveryOpportunityPanel.tsx */
 /**
  * Discovery Opportunity Panel
  * 

@@ -1,4 +1,3 @@
-/* COPY - Do not edit. Reference only. Source: see DISCOVERY_SYSTEM_LIVE_SUMMARY.md */
 // ============================================================================
 // DISCOVERY ADMIN MODAL
 // ============================================================================
@@ -39,14 +38,16 @@ import {
   CheckCircle2,
   DollarSign,
   Phone,
-  Eye
+  Eye,
+  Info
 } from 'lucide-react';
-import { EnabledByLink } from '../ServiceDetailPopup';
+import { ServiceRecommendationPopup } from '../shared/ServiceRecommendationPopup';
 import { 
   LearningReviewPanel, 
   useAnalysisComments 
 } from './AnalysisCommentSystem';
 import { DiscoveryOpportunityPanel } from './DiscoveryOpportunityPanel';
+import { ServicePinBlockControl } from './ServicePinBlockControl';
 
 interface DiscoveryAdminModalProps {
   clientId: string;
@@ -75,6 +76,32 @@ const SERVICE_ICONS: Record<string, any> = {
   'benchmarking': BarChart3,
 };
 
+/** Map Discovery recommended_services code or name to service_catalogue.code */
+function discoveryServiceToCatalogueCode(rec: { serviceCode?: string; code?: string; serviceName?: string }): string {
+  const code = (rec.serviceCode || rec.code || '').toUpperCase().replace(/-/g, '_');
+  const map: Record<string, string> = {
+    'BENCHMARKING_DEEP_DIVE': 'benchmarking',
+    'BENCHMARKING': 'benchmarking',
+    'SYSTEMS_AUDIT': 'systems_audit',
+    'GOAL_ALIGNMENT': 'goal_alignment',
+    '365_METHOD': 'goal_alignment',
+    'FRACTIONAL_CFO': 'fractional_cfo',
+    'PROFIT_EXTRACTION': 'profit_extraction',
+    'QUARTERLY_BI': 'quarterly_bi',
+    'MANAGEMENT_ACCOUNTS': 'quarterly_bi',
+    'HIDDEN_VALUE_AUDIT': 'benchmarking',
+  };
+  if (map[code]) return map[code];
+  const name = (rec.serviceName || '').toLowerCase();
+  if (name.includes('benchmark')) return 'benchmarking';
+  if (name.includes('systems') || name.includes('audit')) return 'systems_audit';
+  if (name.includes('goal') || name.includes('alignment') || name.includes('365')) return 'goal_alignment';
+  if (name.includes('fractional cfo')) return 'fractional_cfo';
+  if (name.includes('profit extraction')) return 'profit_extraction';
+  if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+  return 'benchmarking';
+}
+
 export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalProps) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
@@ -89,7 +116,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   const [clientName, setClientName] = useState('');
   
   const [generating, setGenerating] = useState(false);
-  const [generatingPass, setGeneratingPass] = useState<1 | 2 | 3 | null>(null);
+  const [generatingPass, setGeneratingPass] = useState<1 | 2 | 3 | 4 | null>(null);
   const [viewMode, setViewMode] = useState<'admin' | 'script' | 'client'>('admin');
   const [publishing, setPublishing] = useState(false);
   
@@ -108,6 +135,16 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   // Document upload
   const [uploading, setUploading] = useState(false);
   
+  // Admin context fields
+  const [adminBusinessType, setAdminBusinessType] = useState<string>('auto-detect');
+  const [adminContextNote, setAdminContextNote] = useState<string>('');
+  const [cashConstrained, setCashConstrained] = useState<boolean>(false);
+  const [urgentDecision, setUrgentDecision] = useState<boolean>(false);
+  const [urgentDecisionDetail, setUrgentDecisionDetail] = useState<string>('');
+  
+  // Service recommendation popup (universal catalogue)
+  const [popupServiceCode, setPopupServiceCode] = useState<string | null>(null);
+
   // Analysis comments (for learning system)
   const { 
     comments: analysisComments, 
@@ -149,17 +186,90 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
 
       if (engagementData) {
         setEngagement(engagementData);
+        
+        // Load admin context values
+        setAdminBusinessType(engagementData.admin_business_type || 'auto-detect');
+        setAdminContextNote(engagementData.admin_context_note || '');
+        const flags = engagementData.admin_flags || {};
+        setCashConstrained(flags.cash_constrained || false);
+        setUrgentDecision(flags.urgent_decision || false);
+        setUrgentDecisionDetail(flags.urgent_decision_detail || '');
 
         // Fetch discovery responses
+        // Try by discovery_id first, then fallback to client_id
+        let discoveryData = null;
+        
+        console.log('[DiscoveryAdminModal] Fetching discovery responses:', {
+          engagementId: engagementData.id,
+          discoveryId: engagementData.discovery_id,
+          clientId: clientId
+        });
+        
         if (engagementData.discovery_id) {
-          const { data: discoveryData } = await supabase
+          const { data, error } = await supabase
             .from('destination_discovery')
             .select('*')
             .eq('id', engagementData.discovery_id)
-            .single();
+            .maybeSingle();
           
-          setDiscovery(discoveryData);
+          if (error) {
+            console.error('[DiscoveryAdminModal] Error fetching by discovery_id:', error);
+          } else {
+            discoveryData = data;
+            console.log('[DiscoveryAdminModal] Found discovery by discovery_id:', {
+              hasData: !!discoveryData,
+              hasResponses: !!(discoveryData?.responses),
+              responseCount: discoveryData?.responses ? Object.keys(discoveryData.responses).length : 0
+            });
+          }
         }
+        
+        // Fallback: If no discovery_id or no data found, try fetching by client_id
+        // This handles cases where discovery_id wasn't set but responses exist
+        if (!discoveryData || !discoveryData.responses || Object.keys(discoveryData.responses || {}).length === 0) {
+          console.log('[DiscoveryAdminModal] Trying fallback fetch by client_id...');
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('destination_discovery')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          if (fallbackError) {
+            console.error('[DiscoveryAdminModal] Error fetching by client_id:', fallbackError);
+          } else if (fallbackData) {
+            console.log('[DiscoveryAdminModal] Found discovery by client_id:', {
+              id: fallbackData.id,
+              hasResponses: !!(fallbackData.responses),
+              responseCount: fallbackData.responses ? Object.keys(fallbackData.responses).length : 0
+            });
+            
+            // Only use fallback if it has responses
+            if (fallbackData.responses && Object.keys(fallbackData.responses).length > 0) {
+              discoveryData = fallbackData;
+              
+              // Update engagement with the correct discovery_id if it was missing
+              if (!engagementData.discovery_id && fallbackData.id) {
+                console.log('[DiscoveryAdminModal] Updating engagement with discovery_id:', fallbackData.id);
+                const { error: updateError } = await supabase
+                  .from('discovery_engagements')
+                  .update({ discovery_id: fallbackData.id })
+                  .eq('id', engagementData.id);
+                
+                if (updateError) {
+                  console.error('[DiscoveryAdminModal] Error updating engagement discovery_id:', updateError);
+                }
+              }
+            }
+          }
+        }
+        
+        if (!discoveryData || !discoveryData.responses || Object.keys(discoveryData.responses || {}).length === 0) {
+          console.warn('[DiscoveryAdminModal] No discovery responses found for client:', clientId);
+        }
+        
+        setDiscovery(discoveryData);
 
         // Fetch report
         const { data: reportData } = await supabase
@@ -179,14 +289,22 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
         
         setContextNotes(notesData || []);
 
-        // Fetch documents
-        const { data: docsData } = await supabase
+        // Fetch documents: unified list from client_accounts_uploads (financial) + discovery_uploaded_documents (other)
+        const { data: accountsUploads } = await supabase
+          .from('client_accounts_uploads')
+          .select('id, file_name, file_type, status, created_at')
+          .eq('engagement_id', engagementData.id)
+          .order('created_at', { ascending: false });
+        const { data: legacyDocs } = await supabase
           .from('discovery_uploaded_documents')
           .select('*')
           .eq('engagement_id', engagementData.id)
           .order('uploaded_at', { ascending: false });
-        
-        setDocuments(docsData || []);
+        const merged = [
+          ...(accountsUploads || []).map((u: any) => ({ id: u.id, filename: u.file_name, document_type: 'Financial data', uploaded_at: u.created_at, status: u.status, from_accounts: true })),
+          ...(legacyDocs || []).map((d: any) => ({ ...d, document_type: d.document_type || 'Document', from_accounts: false }))
+        ].sort((a: any, b: any) => new Date(b.uploaded_at || b.created_at).getTime() - new Date(a.uploaded_at || a.created_at).getTime());
+        setDocuments(merged);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -195,67 +313,115 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     }
   };
 
-  const handleRunPass1 = async () => {
+  // Phase 1: Deep Analysis (prepare-data → advisory-deep-dive → generate-analysis)
+  const handlePhase1 = async () => {
     if (!engagement) return;
-    
     setGenerating(true);
     setGeneratingPass(1);
-    
     try {
-      const { data, error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
+      const { data: prepData, error: prepError } = await supabase.functions.invoke('prepare-discovery-data', {
         body: { engagementId: engagement.id }
       });
+      if (prepError) throw prepError;
 
-      if (error) throw error;
-      
-      console.log('Pass 1 complete:', data);
+      const { error: ddError } = await supabase.functions.invoke('advisory-deep-dive', {
+        body: { engagementId: engagement.id, preparedData: prepData }
+      });
+      if (ddError) throw ddError;
+
+      const { error: analysisError } = await supabase.functions.invoke('generate-discovery-analysis', {
+        body: { engagementId: engagement.id, preparedData: prepData }
+      });
+      if (analysisError) throw analysisError;
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'analysis_complete', analysis_completed_at: new Date().toISOString() })
+        .eq('id', engagement.id);
+
       await fetchData();
     } catch (error: any) {
-      console.error('Pass 1 error:', error);
-      alert(`Error running analysis: ${error.message}`);
+      console.error('Phase 1 error:', error);
+      alert(`Deep analysis failed: ${error.message}`);
     } finally {
       setGenerating(false);
       setGeneratingPass(null);
     }
   };
 
-  const handleRunPass2 = async () => {
+  // Phase 2: Score + Opportunities (pass1 → generate-discovery-opportunities)
+  const handlePhase2 = async () => {
     if (!engagement) return;
-    
     setGenerating(true);
     setGeneratingPass(2);
-    
     try {
-      const { data, error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+      const { error: p1Error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
         body: { engagementId: engagement.id }
       });
+      if (p1Error) throw p1Error;
 
-      if (error) throw error;
-      
-      console.log('Pass 2 complete:', data);
-      
-      // Automatically run Pass 3 (Opportunities) after Pass 2 succeeds
       setGeneratingPass(3);
-      console.log('Starting Pass 3 (Opportunities)...');
-      
-      const { data: pass3Data, error: pass3Error } = await supabase.functions.invoke('generate-discovery-opportunities', {
+      const { error: p3Error } = await supabase.functions.invoke('generate-discovery-opportunities', {
         body: { engagementId: engagement.id }
       });
-      
-      if (pass3Error) {
-        console.warn('Pass 3 warning (non-fatal):', pass3Error);
-        // Pass 3 failure is non-fatal - report is still valid
-      } else {
-        console.log('Pass 3 complete:', pass3Data);
-      }
-      
+      if (p3Error) console.warn('Opportunities warning:', p3Error);
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'opportunities_complete', opportunities_completed_at: new Date().toISOString() })
+        .eq('id', engagement.id);
+
       await fetchData();
     } catch (error: any) {
-      console.error('Pass 2 error:', error);
-      alert(`Error generating narrative: ${error.message}`);
+      console.error('Phase 2 error:', error);
+      alert(`Scoring failed: ${error.message}`);
     } finally {
       setGenerating(false);
       setGeneratingPass(null);
+    }
+  };
+
+  // Phase 3: Narrative Report (pass2 only)
+  const handlePhase3 = async () => {
+    if (!engagement) return;
+    setGenerating(true);
+    setGeneratingPass(4);
+    try {
+      const { error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+        body: { engagementId: engagement.id }
+      });
+      if (error) throw error;
+
+      await supabase
+        .from('discovery_engagements')
+        .update({ status: 'pass2_complete', pass2_completed_at: new Date().toISOString() })
+        .eq('id', engagement.id);
+
+      await fetchData();
+    } catch (error: any) {
+      console.error('Phase 3 error:', error);
+      alert(`Report generation failed: ${error.message}`);
+    } finally {
+      setGenerating(false);
+      setGeneratingPass(null);
+    }
+  };
+
+  // Standalone: Regenerate opportunities only
+  const handleRegenerateOpportunities = async () => {
+    if (!engagement) return;
+    setGenerating(true);
+    try {
+      const { error } = await supabase.functions.invoke('generate-discovery-opportunities', {
+        body: { engagementId: engagement.id }
+      });
+      if (error) throw error;
+      await fetchData();
+    } catch (error: any) {
+      console.error('Opportunities regen error:', error);
+      alert(`Failed: ${error.message}`);
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -504,18 +670,50 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!engagement || !event.target.files?.length) return;
-    
+
+    const file = event.target.files[0];
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    const isFinancial = ['pdf', 'csv', 'xlsx', 'xls'].includes(ext);
+
     setUploading(true);
     try {
-      const file = event.target.files[0];
+      if (isFinancial && engagement.client_id && engagement.practice_id) {
+        // Unified path: one table (client_accounts_uploads), one processor, one data store (client_financial_data)
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            resolve(result.includes(',') ? result.split(',')[1]! : result);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const { data, error } = await supabase.functions.invoke('upload-client-accounts', {
+          body: {
+            clientId: engagement.client_id,
+            practiceId: engagement.practice_id,
+            fileName: file.name,
+            fileType: ext,
+            fileSize: file.size,
+            fileBase64: base64,
+            engagementId: engagement.id,
+            source: 'discovery',
+          },
+        });
+
+        if (error) throw error;
+        if (data && !data.success) throw new Error(data.error || 'Upload failed');
+        await fetchData();
+        return;
+      }
+
+      // Non-financial or fallback: legacy discovery document storage (display only)
       const filePath = `${engagement.id}/${Date.now()}_${file.name}`;
-      
       const { error: uploadError } = await supabase.storage
         .from('discovery-documents')
         .upload(filePath, file);
-
       if (uploadError) throw uploadError;
-
       const { error: insertError } = await supabase
         .from('discovery_uploaded_documents')
         .insert({
@@ -527,9 +725,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
           uploaded_by: user?.id,
           is_for_ai_analysis: true
         });
-
       if (insertError) throw insertError;
-      
       await fetchData();
     } catch (error: any) {
       alert(`Error uploading: ${error.message}`);
@@ -913,15 +1109,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     if (nameLower.includes('exit')) return 'exit_planning';
     return 'discovery';
   };
-  
-  // Normalize service names
-  const getDisplayName = (name: string) => {
-    if (name.toLowerCase().includes('365 alignment') || name.toLowerCase().includes('365 method')) {
-      return 'Goal Alignment Programme';
-    }
-    return name;
-  };
-  
+
   const renderClientPreview = () => {
     const dest = report?.destination_report;
     const page1 = dest?.page1_destination || report?.page1_destination;
@@ -1158,14 +1346,19 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                         </div>
                       )}
                       
-                      {/* Enabled By - CLICKABLE SERVICE LINK */}
+                      {/* Enabled By - opens universal service recommendation popup */}
                       {phase.enabledBy && (
                         <div className="mt-4 pt-4 border-t border-slate-100">
-                          <EnabledByLink
-                            serviceCode={getServiceCode(phase.enabledBy, phase.enabledByCode)}
-                            serviceName={getDisplayName(phase.enabledBy)}
-                            price={phase.price || phase.investment}
-                          />
+                          <button
+                            type="button"
+                            onClick={() => setPopupServiceCode(discoveryServiceToCatalogueCode({
+                              serviceCode: phase.enabledByCode || getServiceCode(phase.enabledBy, phase.enabledByCode),
+                              serviceName: phase.enabledBy,
+                            }))}
+                            className="text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors cursor-pointer underline-offset-2 hover:underline"
+                          >
+                            Enabled by: {phase.enabledBy}
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1199,18 +1392,36 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                 </h3>
                 
                 <div className="space-y-2 mb-4">
-                  {page4.costOfStaying.labourInefficiency && (
-                    <div className="flex justify-between text-rose-700">
-                      <span>Labour inefficiency</span>
-                      <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
-                    </div>
-                  )}
-                  {page4.costOfStaying.marginLeakage && (
-                    <div className="flex justify-between text-rose-700">
-                      <span>Margin leakage</span>
-                      <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
-                    </div>
-                  )}
+                  {page4.costOfStaying.labourInefficiency && (() => {
+                    const value = page4.costOfStaying.labourInefficiency;
+                    const isShort = String(value).length <= 30;
+                    return isShort ? (
+                      <div className="flex justify-between text-rose-700">
+                        <span>Labour inefficiency</span>
+                        <span className="font-medium">{value}</span>
+                      </div>
+                    ) : (
+                      <div className="text-rose-700 mb-3">
+                        <span className="font-semibold block mb-1">Labour inefficiency</span>
+                        <span className="text-sm">{value}</span>
+                      </div>
+                    );
+                  })()}
+                  {page4.costOfStaying.marginLeakage && (() => {
+                    const value = page4.costOfStaying.marginLeakage;
+                    const isShort = String(value).length <= 30;
+                    return isShort ? (
+                      <div className="flex justify-between text-rose-700">
+                        <span>Margin leakage</span>
+                        <span className="font-medium">{value}</span>
+                      </div>
+                    ) : (
+                      <div className="text-rose-700 mb-3">
+                        <span className="font-semibold block mb-1">Margin leakage</span>
+                        <span className="text-sm">{value}</span>
+                      </div>
+                    );
+                  })()}
                 </div>
                 
                 {page4.personalCost && (
@@ -1248,7 +1459,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   {page4.totalYear1 && (
                     <div className="flex justify-between py-3 bg-emerald-50 -mx-6 px-6 mt-2 rounded-b-lg">
                       <span className="font-medium text-emerald-800">
-                        Total Year 1
+                        {page4.totalYear1Label || 'To start the journey'}
                       </span>
                       <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
                     </div>
@@ -1293,6 +1504,79 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   </div>
                 )}
               </div>
+            )}
+          </section>
+        )}
+
+        {/* ================================================================ */}
+        {/* HOW WE CAN HELP — Synthesised from Pass 3 */}
+        {/* ================================================================ */}
+        {report?.recommended_services && report.recommended_services.length > 0 && (
+          <section className="mb-16">
+            <div className="mb-8">
+              <p className="text-sm font-medium text-amber-600 uppercase tracking-widest mb-2">
+                How We Can Help
+              </p>
+              <h2 className="text-2xl font-serif font-light text-slate-800">
+                Services Matched To Your Situation
+              </h2>
+              <p className="text-slate-500 mt-2">
+                Based on everything you've shared, here's where we can make the biggest difference
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              {report.recommended_services.map((rec: any, idx: number) => (
+                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-slate-800">{rec.serviceName}</h3>
+                      <p className="text-slate-600 mt-2 leading-relaxed">{rec.whyThisMatters}</p>
+                      
+                      {rec.addresses && rec.addresses.length > 1 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                            What this addresses:
+                          </p>
+                          <div className="space-y-1">
+                            {rec.addresses.map((a: string, i: number) => (
+                              <p key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                                <span className="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                                {a}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-right ml-6 flex-shrink-0 flex flex-col items-end gap-2">
+                      <p className="text-lg font-semibold text-amber-600">{rec.displayPrice}</p>
+                      {rec.totalValueAtStake > 0 && (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          ↗ £{rec.totalValueAtStake.toLocaleString()} potential
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPopupServiceCode(discoveryServiceToCatalogueCode(rec))}
+                        className="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700 font-medium"
+                      >
+                        <Info className="h-4 w-4" />
+                        Learn more
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Hidden count */}
+            {report?.opportunity_assessment?.totalOpportunities > report.recommended_services.length && (
+              <p className="text-center text-sm text-slate-500 mt-6 italic">
+                {report.opportunity_assessment.totalOpportunities - report.recommended_services.length} additional 
+                opportunities identified that your advisor will discuss with you.
+              </p>
             )}
           </section>
         )}
@@ -1372,6 +1656,79 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   </p>
                 )}
               </div>
+            )}
+          </section>
+        )}
+
+        {/* ================================================================ */}
+        {/* HOW WE CAN HELP — Synthesised from Pass 3 */}
+        {/* ================================================================ */}
+        {report?.recommended_services && report.recommended_services.length > 0 && (
+          <section className="mb-16">
+            <div className="mb-8">
+              <p className="text-sm font-medium text-amber-600 uppercase tracking-widest mb-2">
+                How We Can Help
+              </p>
+              <h2 className="text-2xl font-serif font-light text-slate-800">
+                Services Matched To Your Situation
+              </h2>
+              <p className="text-slate-500 mt-2">
+                Based on everything you've shared, here's where we can make the biggest difference
+              </p>
+            </div>
+            
+            <div className="space-y-4">
+              {report.recommended_services.map((rec: any, idx: number) => (
+                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-slate-800">{rec.serviceName}</h3>
+                      <p className="text-slate-600 mt-2 leading-relaxed">{rec.whyThisMatters}</p>
+                      
+                      {rec.addresses && rec.addresses.length > 1 && (
+                        <div className="mt-4">
+                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                            What this addresses:
+                          </p>
+                          <div className="space-y-1">
+                            {rec.addresses.map((a: string, i: number) => (
+                              <p key={i} className="text-sm text-slate-600 flex items-start gap-2">
+                                <span className="text-emerald-500 mt-0.5 flex-shrink-0">✓</span>
+                                {a}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-right ml-6 flex-shrink-0 flex flex-col items-end gap-2">
+                      <p className="text-lg font-semibold text-amber-600">{rec.displayPrice}</p>
+                      {rec.totalValueAtStake > 0 && (
+                        <p className="text-xs text-emerald-600 mt-1">
+                          ↗ £{rec.totalValueAtStake.toLocaleString()} potential
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setPopupServiceCode(discoveryServiceToCatalogueCode(rec))}
+                        className="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700 font-medium"
+                      >
+                        <Info className="h-4 w-4" />
+                        Learn more
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Hidden count */}
+            {report?.opportunity_assessment?.totalOpportunities > report.recommended_services.length && (
+              <p className="text-center text-sm text-slate-500 mt-6 italic">
+                {report.opportunity_assessment.totalOpportunities - report.recommended_services.length} additional 
+                opportunities identified that your advisor will discuss with you.
+              </p>
             )}
           </section>
         )}
@@ -1595,7 +1952,12 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                           <FileText className="h-5 w-5 text-blue-500" />
                           <div>
                             <p className="font-medium">{doc.filename}</p>
-                            <p className="text-sm text-gray-500">{doc.document_type}</p>
+                            <p className="text-sm text-gray-500">
+                              {doc.document_type}
+                              {doc.from_accounts && doc.status && (
+                                <span className="ml-2 text-xs text-gray-400">({doc.status})</span>
+                              )}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -1630,6 +1992,24 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                     ))}
                   </div>
                 )}
+
+                {/* Service Preferences for Pass 3 */}
+                <div className="mt-8 border-t pt-6">
+                  <h4 className="text-md font-semibold mb-3 flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-blue-600" />
+                    Service Preferences (affects Pass 3)
+                  </h4>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Pin services you want included, or block services you want excluded from opportunity analysis.
+                  </p>
+                  
+                  <ServicePinBlockControl
+                    engagementId={engagement?.id || ''}
+                    pinnedServices={engagement?.pinned_services || []}
+                    blockedServices={engagement?.blocked_services || []}
+                    onUpdate={fetchData}
+                  />
+                </div>
 
                 {/* Add Context Modal */}
                 {showAddContext && (
@@ -1713,6 +2093,100 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
             {/* Report Tab */}
             {activeTab === 'report' && (
               <div className="space-y-6">
+                {/* Client Context Section */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-6">
+                  <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-4 flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Client Context
+                  </h3>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mb-4">
+                    Provide context to guide classification and recommendations. These settings are saved before generating the report.
+                  </p>
+                  
+                  <div className="space-y-4">
+                    {/* Business Type Dropdown */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Business Type
+                      </label>
+                      <select
+                        value={adminBusinessType}
+                        onChange={(e) => setAdminBusinessType(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      >
+                        <option value="auto-detect">Auto-detect (default)</option>
+                        <option value="trading_product">Trading (Product/Manufacturing)</option>
+                        <option value="trading_agency">Agency/Creative Services</option>
+                        <option value="investment_vehicle">Property/Investment Portfolio</option>
+                        <option value="funded_startup">Funded Startup</option>
+                        <option value="professional_practice">Professional Practice</option>
+                        <option value="lifestyle_business">Lifestyle Business</option>
+                      </select>
+                      {adminBusinessType !== 'auto-detect' && (
+                        <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                          This will override auto-detection with 95% confidence
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Adviser Context Text Field */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Adviser Context
+                      </label>
+                      <textarea
+                        value={adminContextNote}
+                        onChange={(e) => setAdminContextNote(e.target.value)}
+                        placeholder="Brief context about this client..."
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 h-24 resize-none"
+                      />
+                    </div>
+                    
+                    {/* Checkbox Flags */}
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={cashConstrained}
+                          onChange={(e) => setCashConstrained(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          Cash-strapped (cap investment recommendations)
+                        </span>
+                      </label>
+                      
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={urgentDecision}
+                          onChange={(e) => setUrgentDecision(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">
+                          Urgent decision pending
+                        </span>
+                      </label>
+                      
+                      {/* Urgent Decision Detail (conditional) */}
+                      {urgentDecision && (
+                        <div className="ml-6">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Urgent Decision Detail
+                          </label>
+                          <input
+                            type="text"
+                            value={urgentDecisionDetail}
+                            onChange={(e) => setUrgentDecisionDetail(e.target.value)}
+                            placeholder="e.g., Senior hire decision needed this week"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
                 {/* Actions Bar */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1744,32 +2218,44 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {/* Pass 1 Button */}
+                    {/* Phase 1: Deep Analysis */}
                     <button
-                      onClick={handleRunPass1}
+                      onClick={handlePhase1}
                       disabled={generating || !discovery || engagement?.status === 'pending_responses'}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
                     >
                       {generatingPass === 1 ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <RefreshCw className="h-4 w-4" />
                       )}
-                      {report?.service_scores ? 'Re-run Analysis' : 'Run Analysis'}
+                      {generatingPass === 1 ? 'Analysing...' : '1. Analyse'}
                     </button>
-                    
-                    {/* Pass 2 + 3 Button */}
+                    {/* Phase 2: Score + Opportunities */}
                     <button
-                      onClick={handleRunPass2}
-                      disabled={generating || !report?.service_scores}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                      onClick={handlePhase2}
+                      disabled={generating || !['analysis_complete', 'opportunities_complete', 'pass2_complete'].includes(engagement?.status || '')}
+                      className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 flex items-center gap-2"
                     >
                       {(generatingPass === 2 || generatingPass === 3) ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
+                        <BarChart3 className="h-4 w-4" />
+                      )}
+                      {generatingPass === 3 ? 'Finding Opportunities...' : '2. Score'}
+                    </button>
+                    {/* Phase 3: Narrative Report */}
+                    <button
+                      onClick={handlePhase3}
+                      disabled={generating || !['opportunities_complete', 'pass2_complete'].includes(engagement?.status || '')}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {generatingPass === 4 ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
                         <Sparkles className="h-4 w-4" />
                       )}
-                      {generatingPass === 3 ? 'Finding Opportunities...' : 'Generate Report'}
+                      {generatingPass === 4 ? 'Writing...' : '3. Report'}
                     </button>
                     
                     {/* Publish Button */}
@@ -1970,11 +2456,24 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold">Identified Opportunities</h3>
+                    <h3 className="text-lg font-semibold">Service Opportunities</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Review and manage opportunities identified by Pass 3. Mark which ones to show in client view.
+                      Review and manage opportunities identified by Phase 2. Mark which ones to show in client view.
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleRegenerateOpportunities}
+                    disabled={generating}
+                    className="px-3 py-1.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800/40 text-sm font-medium flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {generating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    Regenerate Opportunities
+                  </button>
                 </div>
                 
                 <DiscoveryOpportunityPanel 
@@ -2014,6 +2513,12 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
           </div>
         </div>
       </div>
+
+      <ServiceRecommendationPopup
+        isOpen={!!popupServiceCode}
+        onClose={() => setPopupServiceCode(null)}
+        serviceCode={popupServiceCode || ''}
+      />
     </div>
   );
 }

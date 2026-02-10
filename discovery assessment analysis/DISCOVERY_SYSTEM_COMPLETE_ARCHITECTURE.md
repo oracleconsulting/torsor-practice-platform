@@ -126,6 +126,20 @@ The Discovery Assessment System is a comprehensive multi-stage pipeline that:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### 2.1 Financial Data Sources (Pass 1 / Pass 2)
+
+Pass 1 and Pass 2 resolve financial figures using a **three-source priority**:
+
+| Priority | Source | Populated by | Notes |
+|----------|--------|--------------|--------|
+| **1** | `client_financial_context` | `process-client-context` (admin notes / manual) | Single “current year” row per client. |
+| **2** | `client_financial_data` | `process-accounts-upload` (CSV/PDF accounts upload) | One row per `(client_id, fiscal_year)`. Includes `revenue`, `staff_costs`, `directors_remuneration`, `operating_profit`, EBITDA, P&amp;L, balance sheet. Used for multi-year YoY and validated payroll. |
+| **3** | `client_reports.report_data.analysis.financialContext` | Legacy discovery analysis | Fallback when 1 and 2 are empty. |
+
+- **Pass 1** reads in that order; can derive operating profit from EBITDA when needed; optional staff-cost recovery from upload notes.
+- **Pass 2** builds validated payroll and narrative figures from Pass 1 outputs, then context, then **client_financial_data**, then client_reports. Can show a partial financial section when only turnover exists in `client_financial_data`.
+- **Valuation:** When depreciation &gt; 30% of operating profit (asset-heavy), Pass 1 uses EBITDA as earnings base; valuation type stores both EBITDA and operating-profit ranges.
+
 ---
 
 ## 3. Edge Functions
@@ -149,7 +163,7 @@ The Discovery Assessment System is a comprehensive multi-stage pipeline that:
 |----------|---------|---------|
 | `parse-document` | Extract text from uploads | Document upload |
 | `process-documents` | Process multiple documents | Batch upload |
-| `process-accounts-upload` | Parse financial accounts | CSV/PDF upload |
+| `process-accounts-upload` | Parse financial accounts; upsert `client_financial_data` (revenue, staff_costs, directors_remuneration, operating_profit, etc.) | CSV/PDF upload |
 | `detect-assessment-patterns` | AI pattern detection | Pass 1 |
 | `generate-service-recommendations` | Rule-based service scoring | Pass 1 |
 | `advisory-deep-dive` | Secondary service evaluation | Admin review |
@@ -320,6 +334,34 @@ CREATE TABLE assessment_patterns (
     model_used TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Accounts upload & extracted financial data (20260120 + 20260210180000 + 20260210200000)
+CREATE TABLE client_accounts_uploads (
+    id UUID PRIMARY KEY,
+    client_id UUID NOT NULL REFERENCES practice_members(id),
+    practice_id UUID NOT NULL REFERENCES practices(id),
+    file_name TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    status TEXT DEFAULT 'pending',
+    raw_extraction JSONB,
+    ...
+);
+
+CREATE TABLE client_financial_data (
+    id UUID PRIMARY KEY,
+    client_id UUID NOT NULL,
+    practice_id UUID NOT NULL,
+    upload_id UUID REFERENCES client_accounts_uploads(id),
+    fiscal_year INTEGER NOT NULL,
+    revenue DECIMAL(15,2),
+    staff_costs DECIMAL(15,2),           -- 20260210180000
+    directors_remuneration NUMERIC,      -- 20260210200000
+    operating_profit NUMERIC,            -- 20260210200000
+    ebitda DECIMAL(15,2),
+    net_profit DECIMAL(15,2),
+    -- ... P&L, balance sheet, working capital, employee_count, etc.
+    UNIQUE(client_id, fiscal_year)
+);
 ```
 
 ---
@@ -328,16 +370,20 @@ CREATE TABLE assessment_patterns (
 
 | Migration | Purpose | Date |
 |-----------|---------|------|
+| `20251223_fix_destination_discovery_duplicates.sql` | Duplicate prevention | Dec 2025 |
 | `20260115_discovery_assessment_v2.sql` | Core discovery tables | Jan 2026 |
 | `20260115_discovery_report_system.sql` | Report generation system | Jan 2026 |
 | `20260115_discovery_destination_focused.sql` | Destination-focused questions | Jan 2026 |
 | `20260115_migrate_legacy_discovery.sql` | Legacy data migration | Jan 2026 |
 | `20260115_discovery_data_completeness.sql` | Data validation | Jan 2026 |
 | `20260115_fix_discovery_trigger.sql` | Trigger fixes | Jan 2026 |
+| `20260120_accounts_upload.sql` | `client_accounts_uploads`, `client_financial_data` (P&L, balance sheet, revenue, etc.) | Jan 2026 |
 | `20260123_discovery_learning_system.sql` | Learning/feedback loop | Jan 2026 |
 | `20260125_discovery_7dimension_analysis.sql` | 7-dimension analysis | Jan 2026 |
 | `20260129_fix_discovery_reports_client_rls.sql` | Client portal RLS | Jan 2026 |
-| `20251223_fix_destination_discovery_duplicates.sql` | Duplicate prevention | Dec 2025 |
+| `20260210180000_add_staff_costs_client_financial_data.sql` | Add `staff_costs` to `client_financial_data` | Feb 2026 |
+| `20260210200000_add_directors_operating_profit_financial_data.sql` | Add `directors_remuneration`, `operating_profit` to `client_financial_data` | Feb 2026 |
+| (plus 20260203–20260209 discovery pipeline, audit, reset, etc.) | Opportunities, context, three-phase, audit | Feb 2026 |
 
 ---
 

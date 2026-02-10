@@ -1,13 +1,16 @@
 # Discovery Assessment System — Live Summary (Flat Reference)
 
-**Last synced:** 2026-02-07  
-**Purpose:** Single flat reference for the currently deployed Discovery Assessment system. All code/SQL in this folder are **COPIES**; edit only the live paths in the repo.
+**Last synced:** 2026-02-10  
+**Purpose:** Direct copy of live Discovery files for separate assessment (e.g. in another Claude project). **Do not edit these files** during live work; edit the live paths below and re-run the sync script to refresh.
+
+**Sync script (run from repo root after live changes):**  
+`./scripts/sync-discovery-assessment-copies.sh`
 
 ---
 
 ## COPY NOTICE
 
-**Every `.ts`, `.tsx`, `.sql` file in this folder is a COPY.** Do not edit these files. Edit the source paths in `torsor-practice-platform/` instead. See `COPY_NOTICE.txt` and each file’s header for the live source path.
+**Every `.ts`, `.tsx`, `.sql` file here is a direct copy of live.** Do not edit them. Edit the live paths in `torsor-practice-platform/` and run the sync script above to update this folder. See `COPY_NOTICE.txt`.
 
 ---
 
@@ -15,7 +18,8 @@
 
 - **Flow:** Client → 40 destination questions → (optional) type-specific follow-up → document upload → **Pass 1** (deterministic calc) → **Pass 2** (LLM narrative) → **Pass 3** (opportunities + pin/block) → Report + PDF + client portal.
 - **Principles:** Calculate once (Pass 1), narrate forever (Pass 2). Pass 3 respects advisor **pinned_services** (must include) and **blocked_services** (must exclude) on `discovery_engagements`.
-- **Key tables:** `discovery_engagements`, `destination_discovery`, `discovery_reports`, `discovery_opportunities`, `service_concepts`, `client_context` / `client_context_notes`, `services`.
+- **Key tables:** `discovery_engagements`, `destination_discovery`, `discovery_reports`, `discovery_opportunities`, `service_concepts`, `client_context` / `client_context_notes`, `services`, `client_financial_context`, `client_financial_data`, `client_accounts_uploads`, `client_reports`.
+- **Financial data (Pass 1 / Pass 2):** Priority 1 = `client_financial_context` (process-client-context); Priority 2 = `client_financial_data` (process-accounts-upload, multi-year per fiscal_year, includes `staff_costs`, `directors_remuneration`, `operating_profit`); Priority 3 = `client_reports.report_data.analysis.financialContext` (legacy). Pass 2 builds validated payroll from discovery_reports → client_financial_context → **client_financial_data** → client_reports.
 
 ---
 
@@ -87,6 +91,15 @@ Pass1 subfolder files (flattened):
 | `20260208120000_discovery_three_phase_pipeline.sql` | `migrations-20260208120000_discovery_three_phase_pipeline.sql` |
 | `20260209120000_reset_discovery_pipeline_for_client.sql` | `migrations-20260209120000_reset_discovery_pipeline_for_client.sql` |
 | `20260209140000_discovery_data_audit.sql` | `migrations-20260209140000_discovery_data_audit.sql` |
+| `20260120_accounts_upload.sql` | (no COPY in folder) — creates `client_accounts_uploads`, `client_financial_data` |
+| `20260210180000_add_staff_costs_client_financial_data.sql` | `migrations-20260210180000_add_staff_costs_client_financial_data.sql` |
+| `20260210200000_add_directors_operating_profit_financial_data.sql` | `migrations-20260210200000_add_directors_operating_profit_financial_data.sql` |
+
+### Scripts (source: `scripts/`)
+
+| Live path | Purpose |
+|-----------|---------|
+| `scripts/diagnose-discovery-financial-data.sql` | Diagnostic: client_financial_data, client_financial_context, Pass 1 report state (has_analysis, has_payroll, etc.) |
 
 ### Frontend – Admin (source: `src/` or `src/components/discovery/`)
 

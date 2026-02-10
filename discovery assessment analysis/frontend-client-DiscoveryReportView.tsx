@@ -26,6 +26,7 @@ import {
   DollarSign,
   Phone
 } from 'lucide-react';
+import { ServiceRecommendationPopup } from './ServiceRecommendationPopup';
 
 interface DiscoveryReportViewProps {
   clientId: string;
@@ -41,11 +42,32 @@ const TimelineDot = ({ active, label }: { active?: boolean; label: string }) => 
   </div>
 );
 
+/** Map journey phase enabledBy / enabledByCode to service_catalogue.code */
+function journeyPhaseToCatalogueCode(phase: { enabledBy?: string; enabledByCode?: string }): string {
+  const code = (phase.enabledByCode || '').toUpperCase().replace(/-/g, '_');
+  const map: Record<string, string> = {
+    'BENCHMARKING': 'benchmarking', 'BENCHMARKING_DEEP_DIVE': 'benchmarking',
+    'SYSTEMS_AUDIT': 'systems_audit', 'GOAL_ALIGNMENT': 'goal_alignment', '365_METHOD': 'goal_alignment',
+    'FRACTIONAL_CFO': 'fractional_cfo', 'PROFIT_EXTRACTION': 'profit_extraction', 'QUARTERLY_BI': 'quarterly_bi',
+    'MANAGEMENT_ACCOUNTS': 'quarterly_bi', 'HIDDEN_VALUE_AUDIT': 'benchmarking',
+  };
+  if (map[code]) return map[code];
+  const name = (phase.enabledBy || '').toLowerCase();
+  if (name.includes('benchmark')) return 'benchmarking';
+  if (name.includes('systems') || name.includes('audit')) return 'systems_audit';
+  if (name.includes('goal') || name.includes('alignment') || name.includes('365')) return 'goal_alignment';
+  if (name.includes('fractional cfo')) return 'fractional_cfo';
+  if (name.includes('profit extraction')) return 'profit_extraction';
+  if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+  return 'benchmarking';
+}
+
 export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedPhase, setExpandedPhase] = useState<number>(0);
+  const [popupCatalogueCode, setPopupCatalogueCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (clientId) {
@@ -362,10 +384,18 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
                       </div>
                     )}
                     
-                    {/* Service Footnote */}
+                    {/* Service Footnote — clickable to open universal service popup */}
                     {phase.enabledBy && (
-                      <p className="mt-4 text-sm text-slate-400">
-                        Enabled by: {phase.enabledBy} ({phase.price})
+                      <p className="mt-4 pt-4 border-t border-slate-100 text-sm text-slate-500">
+                        Enabled by:{' '}
+                        <button
+                          type="button"
+                          onClick={() => setPopupCatalogueCode(journeyPhaseToCatalogueCode(phase))}
+                          className="inline-flex items-center gap-1.5 text-teal-600 hover:text-teal-700 font-medium underline underline-offset-2 hover:no-underline transition-colors"
+                        >
+                          {phase.enabledBy}
+                          <span className="text-xs font-normal opacity-90">— Learn more</span>
+                        </button>
                       </p>
                     )}
                   </div>
@@ -440,37 +470,81 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
             {/* FALLBACK: LLM-generated narrative if no calculated data */}
             {!page4.financialInsights?.payroll && page4.costOfStaying && (
               <div className="space-y-2 mb-4">
-                {page4.costOfStaying.labourInefficiency && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Labour inefficiency</span>
-                    <span className="font-medium">{page4.costOfStaying.labourInefficiency}</span>
-                  </div>
-                )}
-                {page4.costOfStaying.marginLeakage && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Margin leakage</span>
-                    <span className="font-medium">{page4.costOfStaying.marginLeakage}</span>
-                  </div>
-                )}
-                {page4.costOfStaying.yourTimeWasted && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Your time on work below your pay grade</span>
-                    <span className="font-medium">{page4.costOfStaying.yourTimeWasted}</span>
-                  </div>
-                )}
-                {page4.costOfStaying.businessValueImpact && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Business value without you</span>
-                    <span className="font-medium">{page4.costOfStaying.businessValueImpact}</span>
-                  </div>
-                )}
-                {/* LLM narrative fields */}
-                {page4.costOfStaying.annualFinancialCost && (
-                  <div className="flex justify-between text-rose-700">
-                    <span>Annual cost</span>
-                    <span className="font-medium">{page4.costOfStaying.annualFinancialCost}</span>
-                  </div>
-                )}
+                {page4.costOfStaying.labourInefficiency && (() => {
+                  const value = page4.costOfStaying.labourInefficiency;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Labour inefficiency</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Labour inefficiency</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
+                {page4.costOfStaying.marginLeakage && (() => {
+                  const value = page4.costOfStaying.marginLeakage;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Margin leakage</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Margin leakage</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
+                {page4.costOfStaying.yourTimeWasted && (() => {
+                  const value = page4.costOfStaying.yourTimeWasted;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Your time on work below your pay grade</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Your time on work below your pay grade</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
+                {page4.costOfStaying.businessValueImpact && (() => {
+                  const value = page4.costOfStaying.businessValueImpact;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Business value without you</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Business value without you</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
+                {page4.costOfStaying.annualFinancialCost && (() => {
+                  const value = page4.costOfStaying.annualFinancialCost;
+                  const isShort = String(value).length <= 30;
+                  return isShort ? (
+                    <div className="flex justify-between text-rose-700">
+                      <span>Annual cost</span>
+                      <span className="font-medium">{value}</span>
+                    </div>
+                  ) : (
+                    <div className="text-rose-700 mb-3">
+                      <span className="font-semibold block mb-1">Annual cost</span>
+                      <span className="text-sm">{value}</span>
+                    </div>
+                  );
+                })()}
               </div>
             )}
             
@@ -509,7 +583,7 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
                 {page4.totalYear1 && (
                   <div className="flex justify-between py-3 bg-emerald-50 -mx-6 px-6 mt-2 rounded-b-lg">
                     <span className="font-medium text-emerald-800">
-                      Total Year 1: {page4.totalYear1Label || 'Foundation for freedom'}
+                      {page4.totalYear1Label || 'To start the journey'}
                     </span>
                     <span className="font-bold text-emerald-800">{page4.totalYear1}</span>
                   </div>
@@ -675,6 +749,11 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
         </section>
       )}
 
+      <ServiceRecommendationPopup
+        isOpen={!!popupCatalogueCode}
+        onClose={() => setPopupCatalogueCode(null)}
+        serviceCode={popupCatalogueCode || ''}
+      />
     </div>
   );
 }

@@ -328,6 +328,26 @@ This client owns investment properties, NOT a trading business. EVERYTHING chang
 - Succession planning (who manages when they step back?)
 - Property management delegation
 - Will/trust structuring
+
+**IHT:**
+- ⛔ DO NOT calculate IHT yourself — use the pre-calculated range from Pass 1
+- ⛔ DO NOT say "£X at 40%" without mentioning nil rate band
+- ✅ Present the range and caveat: "depending on nil rate band availability and personal circumstances"
+- ✅ Flag that Business Property Relief does NOT apply to property investment companies
+
+**EMPLOYEE COUNT:**
+- If prebuilt phrase says "2 people (including director)" — DO NOT say "one-man band"
+- ✅ Say "the strategic burden sits with you" or "operational decisions all run through you"
+- ✅ You can acknowledge delegation frustration without claiming they're completely alone
+
+**GROSS MARGIN:**
+- If grossMarginIsStructural is true — DO NOT say "excellent gross margin" or praise 100% GM
+- ✅ Say "100% gross margin is structural — no cost of sales. The meaningful measure is operating margin of X%"
+- ✅ Lead with operating margin as the profitability metric
+
+**DEFERRED TAX:**
+- If deferredTaxImpact is provided, use it when discussing profitability
+- ✅ Acknowledge that the statutory accounts show a loss, but explain the underlying performance is strong
 `,
 
     'funded_startup': `
@@ -1118,6 +1138,18 @@ serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    // Try to get from client_financial_data (accounts upload path)
+    const { data: clientFinancialDataRows } = await supabase
+      .from('client_financial_data')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('fiscal_year', { ascending: false })
+      .limit(3);
+
+    if (clientFinancialDataRows?.length) {
+      console.log('[Pass2] ✅ Found', clientFinancialDataRows.length, 'years in client_financial_data');
+    }
     
     // Extract validated payroll data
     let validatedPayroll: {
@@ -1212,13 +1244,42 @@ serve(async (req) => {
         console.log('[Pass2] Calculated payroll from client_financial_context:', validatedPayroll);
       }
     }
+    // Priority 3: Use client_financial_data (accounts upload path)
+    else if (clientFinancialDataRows && clientFinancialDataRows.length > 0) {
+      const latest = clientFinancialDataRows[0];
+      const turnover = latest.revenue;
+      const staffCosts = (latest as any).staff_costs;
+      if (turnover && staffCosts) {
+        const staffCostsPct = (staffCosts / turnover) * 100;
+        const benchmarkPct = 28;
+        const excessPct = Math.max(0, staffCostsPct - benchmarkPct);
+        const excessAmount = Math.round((excessPct / 100) * turnover);
+        validatedPayroll = {
+          turnover,
+          staffCosts,
+          staffCostsPct,
+          benchmarkPct,
+          excessPct,
+          excessAmount,
+          calculation: `£${staffCosts.toLocaleString()} ÷ £${turnover.toLocaleString()} = ${staffCostsPct.toFixed(1)}%. Excess: ${excessPct.toFixed(1)}% = £${excessAmount.toLocaleString()}`
+        };
+        console.log('[Pass2] ✅ Calculated payroll from client_financial_data:', validatedPayroll);
+      } else if (turnover) {
+        validatedPayroll = {
+          ...validatedPayroll,
+          turnover,
+        };
+        console.log('[Pass2] ⚠️ Have turnover from client_financial_data but no staff costs');
+      }
+    }
     
     // ========================================================================
     // ENHANCEMENT 3: Build Enhanced Financial Data Section
     // ========================================================================
     let financialDataSection = '';
-    if (validatedPayroll.turnover && validatedPayroll.staffCosts) {
-      financialDataSection = `
+    if (validatedPayroll.turnover) {
+      if (validatedPayroll.staffCosts) {
+        financialDataSection = `
 
 ============================================================================
 🔢 VALIDATED FINANCIAL DATA - USE THESE EXACT FIGURES
@@ -1239,6 +1300,18 @@ CALCULATION: ${validatedPayroll.calculation || 'See above'}
 - When mentioning staff costs %, use ${validatedPayroll.staffCostsPct?.toFixed(1)}% - NOT any other figure
 - When formatting large numbers, use "k" suffix ONCE (e.g., "£193k" NOT "£193kk")
 `;
+      } else {
+        financialDataSection = `
+
+============================================================================
+🔢 VALIDATED FINANCIAL DATA (PARTIAL)
+============================================================================
+TURNOVER: £${validatedPayroll.turnover.toLocaleString()}
+STAFF COSTS: Not available from accounts — do not guess specific amounts.
+When discussing staffing: reference the team size and productivity instead of cost percentages.
+`;
+        console.log('[Pass2] ⚠️ Partial financial data — turnover known but staff costs unavailable');
+      }
     } else {
       financialDataSection = `
 
@@ -1429,8 +1502,14 @@ No validated financial data available. When discussing financial figures:
       console.log('[Pass2] ✅ Built hidden assets phrase from Pass 1:', preBuiltPhrases.hiddenAssetsTotal, '-', preBuiltPhrases.hiddenAssetsBreakdown);
     }
     
-    // GROSS MARGIN PHRASE (show if healthy or better)
-    if (comprehensiveAnalysis?.grossMargin?.grossMarginPct) {
+    // GROSS MARGIN PHRASE (show if healthy or better) — or structural 100% for investment vehicles (Session 11)
+    const grossMarginStrengthOverride = (comprehensiveAnalysis as any)?.grossMarginStrengthOverride;
+    const grossMarginIsStructural = (comprehensiveAnalysis as any)?.grossMarginIsStructural;
+    if (grossMarginIsStructural && grossMarginStrengthOverride) {
+      preBuiltPhrases.grossMarginStrength = grossMarginStrengthOverride;
+      (preBuiltPhrases as any).grossMarginIsStructural = 'true';
+      console.log('[Pass2] ✅ Structural gross margin phrase:', preBuiltPhrases.grossMarginStrength);
+    } else if (comprehensiveAnalysis?.grossMargin?.grossMarginPct) {
       const gm = comprehensiveAnalysis.grossMargin;
       const assessment = gm.assessment || (gm.grossMarginPct > 50 ? 'excellent' : gm.grossMarginPct > 40 ? 'healthy' : 'typical');
       
@@ -1441,6 +1520,31 @@ No validated financial data available. When discussing financial figures:
         
         console.log('[Pass2] ✅ Built gross margin phrase from Pass 1:', preBuiltPhrases.grossMarginStrength);
       }
+    }
+    
+    // IHT Exposure phrases (Session 11)
+    const iht = (comprehensiveAnalysis as any)?.ihtExposure;
+    if (iht?.hasData) {
+      const rangeText = iht.ihtLiabilityRange
+        ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(1)}M-£${(iht.ihtLiabilityRange.high / 1000000).toFixed(1)}M`
+        : `£${((iht.ihtLiability || 0) / 1000000).toFixed(1)}M`;
+      (preBuiltPhrases as any).ihtHeadline = `Potential IHT liability: ${rangeText}`;
+      (preBuiltPhrases as any).ihtRange = rangeText;
+      (preBuiltPhrases as any).ihtEstateValue = `£${((iht.estateValue || 0) / 1000000).toFixed(1)}M`;
+      (preBuiltPhrases as any).ihtCaveats = 'Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.';
+    }
+    
+    // Deferred tax impact (Session 11)
+    const deferredTaxImpact = (comprehensiveAnalysis as any)?.deferredTaxImpact;
+    if (deferredTaxImpact?.isSignificant) {
+      (preBuiltPhrases as any).deferredTaxExplanation = deferredTaxImpact.explanation;
+    }
+    
+    // Employee count context (Session 11)
+    const employeeCountContext = (comprehensiveAnalysis as any)?.employeeCountContext;
+    if (employeeCountContext) {
+      (preBuiltPhrases as any).employeeCountContext = employeeCountContext;
+      (preBuiltPhrases as any).isNotSoloPractitioner = (comprehensiveAnalysis as any)?.isNotSoloPractitioner || 'false';
     }
     
     // PRODUCTIVITY PHRASE
@@ -1464,31 +1568,38 @@ No validated financial data available. When discussing financial figures:
       console.log('[Pass2] ✅ Built cost of inaction phrase from Pass 1:', preBuiltPhrases.costOfInaction);
     }
     
-    // OPERATING PROFIT GROWTH (pre-calculated — LLM must not calculate this)
-    const opYoY = comprehensiveAnalysis?.yearOnYearComparisons?.operatingProfit;
-    if (opYoY?.prior && opYoY.prior > 0 && opYoY.current != null && opYoY.change != null) {
-      const growthPct = ((opYoY.change / opYoY.prior) * 100).toFixed(1);
-      const priorK = Math.round(opYoY.prior / 1000);
-      const currentK = Math.round(opYoY.current / 1000);
+    // YoY GROWTH PHRASES — prefer page4_numbers.yearOnYearComparisons (where Pass 1 saves), else comprehensive_analysis
+    const yoy = (report?.page4_numbers as Record<string, any> | null)?.yearOnYearComparisons || comprehensiveAnalysis?.yearOnYearComparisons;
+
+    // OPERATING PROFIT GROWTH
+    const opYoY = yoy?.operatingProfit || comprehensiveAnalysis?.yearOnYearComparisons?.operatingProfit;
+    if (opYoY?.current != null && opYoY?.prior != null && opYoY.prior > 0) {
+      const opCurrent = opYoY.current;
+      const opPrior = opYoY.prior;
+      const growthPct = (((opCurrent - opPrior) / opPrior) * 100).toFixed(1);
+      const priorK = Math.round(opPrior / 1000);
+      const currentK = Math.round(opCurrent / 1000);
       preBuiltPhrases.operatingProfitGrowthPct = `${growthPct}%`;
       preBuiltPhrases.operatingProfitGrowthNarrative = `operating profit up ${growthPct}% year-on-year (£${priorK}k → £${currentK}k)`;
-      console.log('[Pass2] ✅ Built operating profit growth phrase from Pass 1:', preBuiltPhrases.operatingProfitGrowthNarrative);
+      preBuiltPhrases.operatingProfitGrowth = `${growthPct}%`;
+      console.log('[Pass2] ✅ Built operating profit growth phrase:', preBuiltPhrases.operatingProfitGrowthNarrative);
     }
 
-    // REVENUE GROWTH (pre-calculated)
-    const revYoY = comprehensiveAnalysis?.yearOnYearComparisons?.turnover;
-    if (revYoY?.prior && revYoY.prior > 0 && revYoY.current != null && revYoY.change != null) {
-      const revGrowthPct = ((revYoY.change / revYoY.prior) * 100).toFixed(1);
-      const revM = (revYoY.current / 1000000).toFixed(1);
-      const revPriorM = (revYoY.prior / 1000000).toFixed(1);
+    // REVENUE GROWTH
+    const revYoY = yoy?.turnover || comprehensiveAnalysis?.yearOnYearComparisons?.turnover;
+    if (revYoY?.current != null && revYoY?.prior != null && revYoY.prior > 0) {
+      const revCurrent = revYoY.current;
+      const revPrior = revYoY.prior;
+      const revGrowthPct = (((revCurrent - revPrior) / revPrior) * 100).toFixed(1);
+      const formatAmount = (v: number) => v >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : `£${Math.round(v / 1000)}k`;
       preBuiltPhrases.revenueGrowth = `${revGrowthPct}%`;
-      preBuiltPhrases.revenueGrowthNarrative = `revenue up ${revGrowthPct}% year-on-year (£${revPriorM}M → £${revM}M)`;
-      preBuiltPhrases.turnoverScale = `£${revM}M turnover`;
-      console.log('[Pass2] ✅ Built revenue growth:', preBuiltPhrases.revenueGrowthNarrative);
+      preBuiltPhrases.revenueGrowthNarrative = `revenue up ${revGrowthPct}% year-on-year (${formatAmount(revPrior)} → ${formatAmount(revCurrent)})`;
+      preBuiltPhrases.turnoverScale = formatAmount(revCurrent);
+      console.log('[Pass2] ✅ Built revenue growth phrase:', preBuiltPhrases.revenueGrowthNarrative);
     }
 
-    // NET PROFIT GROWTH (pre-calculated)
-    const netYoY = comprehensiveAnalysis?.yearOnYearComparisons?.netProfit;
+    // NET PROFIT GROWTH
+    const netYoY = yoy?.netProfit || comprehensiveAnalysis?.yearOnYearComparisons?.netProfit;
     if (netYoY?.prior && netYoY.prior > 0 && netYoY.current != null && netYoY.change != null) {
       const netGrowthPct = ((netYoY.change / netYoY.prior) * 100).toFixed(1);
       preBuiltPhrases.netProfitGrowth = `${netGrowthPct}%`;
@@ -1496,14 +1607,14 @@ No validated financial data available. When discussing financial figures:
     }
 
     // BUSINESS SCALE (for anchoring the report)
-    const turnoverForScale = validatedPayroll?.turnover ?? revYoY?.current ?? comprehensiveAnalysis?.payroll?.turnover;
-    const empCount = comprehensiveAnalysis?.payroll?.employeeCount ?? comprehensiveAnalysis?.productivity?.employeeCount;
+    const turnoverForScale = revYoY?.current ?? validatedPayroll?.turnover ?? comprehensiveAnalysis?.payroll?.turnover;
+    const empCount = comprehensiveAnalysis?.productivity?.employeeCount ?? comprehensiveAnalysis?.productivity?.headcount ?? comprehensiveAnalysis?.payroll?.employeeCount;
     if (turnoverForScale) {
-      const revM = (turnoverForScale / 1000000).toFixed(1);
+      const scaleM = (Number(turnoverForScale) / 1000000).toFixed(1);
       preBuiltPhrases.businessScale = empCount
-        ? `a £${revM}M business with ${empCount} staff`
-        : `a £${revM}M business`;
-      console.log('[Pass2] ✅ Built business scale:', preBuiltPhrases.businessScale);
+        ? `a £${scaleM}M business with ${empCount} staff`
+        : `a £${scaleM}M business`;
+      console.log('[Pass2] ✅ Built business scale phrase:', preBuiltPhrases.businessScale);
     }
 
     // ========================================================================
@@ -1570,7 +1681,7 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
    "The business could be worth [valuation range]. Plus ${preBuiltPhrases.hiddenAssetsTotal} in hidden assets 
    sitting outside the earnings valuation - ${preBuiltPhrases.hiddenAssetsBreakdown}. 
    This is cash/property a buyer pays for SEPARATELY, on top of the earnings multiple. 
-   But the real return? [Their emotional goal - walking away on their terms, etc.]"
+   [Then connect to their emotional goal in their own words. DO NOT include the phrase \"But the real return?\" - the frontend adds this automatically.]"
 
 ⛔ DO NOT just say "hidden assets" without explaining what they are and why they matter.
 
@@ -1586,6 +1697,31 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
 ⛔ This is a POSITIVE - acknowledge it BEFORE discussing gaps in page2_gaps.openingLine
 ⛔ Include "grossMarginStrength": "${preBuiltPhrases.grossMarginStrength}" in page4_numbers
 ⛔ This strength supports a higher gap score (7+ with good foundations)
+
+`;
+      }
+      
+      // Employee count context (Session 11)
+      if ((preBuiltPhrases as any).employeeCountContext) {
+        mandatoryPhrasesSection += `
+👥 EMPLOYEE COUNT (DO NOT say "one-man band" if more than 1):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+► "${(preBuiltPhrases as any).employeeCountContext}"
+${(preBuiltPhrases as any).isNotSoloPractitioner === 'true'
+  ? '⛔ DO NOT call them a "one-man band". Say "the strategic burden sits with you" instead.'
+  : ''}
+
+`;
+      }
+      
+      // Structural gross margin override (Session 11)
+      if ((preBuiltPhrases as any).grossMarginIsStructural === 'true') {
+        mandatoryPhrasesSection += `
+📊 GROSS MARGIN IS STRUCTURAL (DO NOT praise 100% GM):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+► "${preBuiltPhrases.grossMarginStrength}"
+⛔ DO NOT say "excellent gross margin" — 100% GM with no cost of sales is structural, not performance.
+✅ Use operating margin as the profitability headline instead.
 
 `;
       }
@@ -1611,12 +1747,29 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
       
       if (preBuiltPhrases.operatingProfitGrowthNarrative) {
         mandatoryPhrasesSection += `
-📈 OPERATING PROFIT GROWTH (PRE-CALCULATED — DO NOT CALCULATE YOURSELF):
-────────────────────────────────────────────────────────────────────────────
+📈 OPERATING PROFIT GROWTH (USE THIS EXACT PHRASE):
+════════════════════════════════════════════════════════════════════════════════
 ► "${preBuiltPhrases.operatingProfitGrowthNarrative}"
 
-⛔ When mentioning operating profit growth or YoY profit, you MUST use this exact phrase.
-⛔ DO NOT calculate the percentage yourself — use: ${preBuiltPhrases.operatingProfitGrowthPct}
+⛔ DO NOT calculate operating profit growth yourself — use the phrase above VERBATIM
+⛔ DO NOT round differently or use a different percentage
+
+`;
+      }
+      if (preBuiltPhrases.revenueGrowthNarrative) {
+        mandatoryPhrasesSection += `
+📈 REVENUE GROWTH (USE THIS EXACT PHRASE):
+════════════════════════════════════════════════════════════════════════════════
+► "${preBuiltPhrases.revenueGrowthNarrative}"
+
+`;
+      }
+      if (preBuiltPhrases.businessScale) {
+        mandatoryPhrasesSection += `
+🏢 BUSINESS SCALE (MENTION in page2 opening paragraph):
+════════════════════════════════════════════════════════════════════════════════
+► "This is ${preBuiltPhrases.businessScale}"
+⛔ You MUST anchor the reader with the business scale in the Reality section opening.
 
 `;
       }
@@ -2703,7 +2856,7 @@ Return a JSON object with this exact structure:
       }
     },
     "paybackPeriod": "X-Y months",
-    "realReturn": "REQUIRED FORMAT: 'The business could be worth [valuation]. Plus [hidden assets total] in hidden assets sitting outside the earnings valuation - [breakdown, e.g. excess cash on the balance sheet]. This is value a buyer pays for SEPARATELY. But the real return? [Their emotional goal in their words].'"
+    "realReturn": "REQUIRED FORMAT: 'The business could be worth [valuation]. Plus [hidden assets total] in hidden assets sitting outside the earnings valuation - [breakdown]. This is value a buyer pays for SEPARATELY. [Then connect to their emotional goal in their own words - what this means for their life, their family, their freedom. DO NOT start with or include the phrase \"But the real return?\" - the frontend adds this automatically.]'"
   },
   
   "page5_nextSteps": {
@@ -3503,6 +3656,52 @@ Before returning, verify:
         narratives.page4_numbers.grossMarginStrength = preBuiltPhrases.grossMarginStrength;
         console.log('[Pass2] 📊 Added grossMarginStrength to page4_numbers:', preBuiltPhrases.grossMarginStrength);
       }
+      
+      // Productivity suppressed for investment vehicles / small teams (Session 11)
+      if ((comprehensiveAnalysis as any)?.productivity?.suppressInReport) {
+        (narratives.page4_numbers as any).productivitySuppressed = true;
+      }
+      
+      // Structural GM and operating margin for frontend (Session 11)
+      if ((preBuiltPhrases as any).grossMarginIsStructural === 'true') {
+        (narratives.page4_numbers as any).grossMarginIsStructural = true;
+        const opMargin = (comprehensiveAnalysis as any)?.operatingMarginPct;
+        (narratives.page4_numbers as any).operatingMarginPct = opMargin != null ? String(opMargin.toFixed(1)) : null;
+      }
+    }
+
+    // For investment vehicles: override valuation with NAV when assets dwarf earnings (Session 11)
+    if (clientType === 'investment_vehicle' && assetValuation?.hasData) {
+      const navValue = assetValuation.netAssets ?? (assetValuation as any).totalAssetValue;
+      const earningsValue = comprehensiveAnalysis?.valuation?.conservativeValue;
+      if (navValue && earningsValue && navValue > earningsValue * 3 && narratives.page4_numbers) {
+        const navM = (navValue / 1000000).toFixed(1);
+        const earnLowM = (earningsValue / 1000000).toFixed(1);
+        const earnHighM = ((comprehensiveAnalysis?.valuation?.optimisticValue || earningsValue) / 1000000).toFixed(1);
+        (narratives.page4_numbers as any).indicativeValuation = `£${navM}M (net asset value)`;
+        (narratives.page4_numbers as any).valuationMethod = 'net_asset_value';
+        (narratives.page4_numbers as any).valuationNote =
+          `For a property investment company, value is asset-based, not earnings-based. ` +
+          `The earnings-based range (£${earnLowM}M-£${earnHighM}M) significantly understates the company's worth.`;
+        console.log('[Pass2] 🏠 Overrode valuation with NAV for investment vehicle:', navM + 'M');
+      }
+    }
+
+    // Reframe exit readiness for investment vehicles (Session 11)
+    if (clientType === 'investment_vehicle' && narratives.page4_numbers?.exitReadiness) {
+      (narratives.page4_numbers as any).exitReadinessNote =
+        'For a property company, exit means asset disposal, company dissolution, or share transfer — not a trade sale.';
+      console.log('[Pass2] 🏠 Added exit readiness context for investment vehicle');
+    }
+
+    // Strip "But the real return?" from realReturn if the LLM included it
+    // (the frontend hardcodes this as a prefix — having it in the data creates duplication)
+    if (narratives.page4_numbers?.realReturn) {
+      narratives.page4_numbers.realReturn = narratives.page4_numbers.realReturn
+        .replace(/^But the real return\?\s*/i, '')
+        .replace(/\.\s*But the real return\?\s*/i, '. ')
+        .trim();
+      console.log('[Pass2] 🧹 Stripped "But the real return?" from realReturn to prevent frontend duplication');
     }
     
     // ========================================================================
