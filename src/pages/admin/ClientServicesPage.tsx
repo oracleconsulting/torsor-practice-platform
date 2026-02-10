@@ -2349,6 +2349,8 @@ function DiscoveryClientModal({
       'SYSTEMS_AUDIT': 'systems_audit', 'GOAL_ALIGNMENT': 'goal_alignment', '365_METHOD': 'goal_alignment',
       'FRACTIONAL_CFO': 'fractional_cfo', 'PROFIT_EXTRACTION': 'profit_extraction', 'QUARTERLY_BI': 'quarterly_bi',
       'MANAGEMENT_ACCOUNTS': 'quarterly_bi', 'HIDDEN_VALUE_AUDIT': 'benchmarking',
+      'IHT_PLANNING': 'iht_planning', 'PROPERTY_HEALTH_CHECK': 'property_health_check',
+      'WEALTH_TRANSFER_STRATEGY': 'wealth_transfer_strategy', 'PROPERTY_MANAGEMENT_SOURCING': 'property_management_sourcing',
     };
     if (map[code]) return map[code];
     const name = (phase.enabledBy || '').toLowerCase();
@@ -2358,6 +2360,10 @@ function DiscoveryClientModal({
     if (name.includes('fractional cfo')) return 'fractional_cfo';
     if (name.includes('profit extraction')) return 'profit_extraction';
     if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+    if (name.includes('iht') || name.includes('inheritance')) return 'iht_planning';
+    if (name.includes('property') && name.includes('health')) return 'property_health_check';
+    if (name.includes('wealth') && name.includes('transfer')) return 'wealth_transfer_strategy';
+    if (name.includes('property') && name.includes('management') && name.includes('sourcing')) return 'property_management_sourcing';
     return 'benchmarking';
   };
 

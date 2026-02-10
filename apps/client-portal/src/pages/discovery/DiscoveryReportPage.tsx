@@ -595,6 +595,10 @@ export default function DiscoveryReportPage() {
                                   'Systems & Process Audit': 'systems_audit',
                                   'Business Intelligence': 'quarterly_bi',
                                   'Management Accounts': 'quarterly_bi',
+                                  'IHT Planning Workshop': 'iht_planning',
+                                  'Property Portfolio Health Check': 'property_health_check',
+                                  'Family Wealth Transfer Strategy': 'wealth_transfer_strategy',
+                                  'Property Management Sourcing': 'property_management_sourcing',
                                 };
                                 const codeToCatalogue: Record<string, string> = {
                                   '365_method': 'goal_alignment',
@@ -604,6 +608,10 @@ export default function DiscoveryReportPage() {
                                   'business_intelligence': 'quarterly_bi',
                                   'hidden_value_audit': 'benchmarking',
                                   'management_accounts': 'quarterly_bi',
+                                  'iht_planning': 'iht_planning',
+                                  'property_health_check': 'property_health_check',
+                                  'wealth_transfer_strategy': 'wealth_transfer_strategy',
+                                  'property_management_sourcing': 'property_management_sourcing',
                                 };
                                 const cleanName = phase.enabledBy.replace(/\s*\(£[\d,]+.*$/, '').trim();
                                 const catalogueCode =

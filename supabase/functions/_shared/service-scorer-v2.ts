@@ -49,6 +49,10 @@ const SERVICES = [
   { code: 'combined_advisory', name: 'Combined CFO/COO Advisory' },
   { code: 'business_advisory', name: 'Business Advisory & Exit Planning' },
   { code: 'benchmarking', name: 'Benchmarking Services' },
+  { code: 'iht_planning', name: 'IHT Planning Workshop' },
+  { code: 'property_health_check', name: 'Property Portfolio Health Check' },
+  { code: 'wealth_transfer_strategy', name: 'Family Wealth Transfer Strategy' },
+  { code: 'property_management_sourcing', name: 'Property Management Sourcing' },
 ];
 
 // Helper to safely get lowercase string
@@ -887,6 +891,17 @@ export function scoreServicesFromDiscovery(responses: Record<string, any>): Scor
       'Combined: Both CFO and COO needs detected',
     ];
   }
+
+  // Investment vehicle services (Session 11) — keyword-based scoring
+  const allText = JSON.stringify(responses).toLowerCase();
+  const ihtKeywords = ['inheritance', 'iht', 'estate', 'wealth transfer', 'pass on', 'will', 'trust', 'gifting'];
+  if (containsAny(allText, ihtKeywords)) addPoints('iht_planning', 30, 'IHT/inheritance language detected');
+  const propertyKeywords = ['property', 'portfolio', 'rental', 'tenant', 'landlord', 'yield', 'investment property'];
+  if (containsAny(allText, propertyKeywords)) addPoints('property_health_check', 25, 'Property portfolio language detected');
+  const successionKeywords = ['succession', 'next generation', 'family', 'legacy', 'children', 'hand over'];
+  if (containsAny(allText, successionKeywords)) addPoints('wealth_transfer_strategy', 25, 'Succession/wealth transfer language detected');
+  const delegationKeywords = ['delegate', 'someone to', 'reliable person', 'property manager', 'hand off', 'step back'];
+  if (containsAny(allText, delegationKeywords)) addPoints('property_management_sourcing', 20, 'Delegation/property management language detected');
 
   // ═══════════════════════════════════════════════════════════════════════════
   // FINALIZE SCORES

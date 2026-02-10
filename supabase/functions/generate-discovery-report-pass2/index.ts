@@ -33,6 +33,11 @@ const SERVICE_REGISTRY: Record<string, ServiceDefinition> = {
   fractional_cfo: { code: 'fractional_cfo', name: 'Fractional CFO', displayName: 'Fractional CFO Services', category: 'strategic', outcome: "You'll Have Strategic Financial Leadership", description: 'Part-time strategic finance leadership.', keywords: ['cfo', 'finance director', 'strategic finance', 'fractional cfo'], tiers: [{ name: '2 days/month', tagline: 'Strategic finance leadership', pricingModel: 'fixed', price: 4000, priceFormatted: '£4,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
   fractional_coo: { code: 'fractional_coo', name: 'Fractional COO', displayName: 'Fractional COO Services', category: 'strategic', outcome: "Someone Else Carries The Load", description: 'Operational leadership to build systems that run without you.', keywords: ['coo', 'operations', 'fractional coo'], tiers: [{ name: '2 days/month', tagline: 'Operational leadership', pricingModel: 'fixed', price: 3750, priceFormatted: '£3,750', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
   combined_advisory: { code: 'combined_advisory', name: 'Combined CFO/COO Advisory', displayName: 'Combined CFO/COO Advisory', category: 'strategic', outcome: "Complete Business Transformation", description: 'Executive partnership covering both financial and operational strategy.', keywords: ['combined', 'cfo coo', 'executive partnership'], tiers: [{ name: 'Standard', tagline: 'Full executive partnership', pricingModel: 'fixed', price: 6000, priceFormatted: '£6,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
+  // Investment vehicle services (Session 11)
+  iht_planning: { code: 'iht_planning', name: 'IHT Planning Workshop', displayName: 'IHT Planning Workshop', category: 'strategic', outcome: "You'll Know What's At Risk", description: 'Map your inheritance tax exposure and create an action plan', keywords: ['iht', 'inheritance', 'estate', 'wealth transfer', 'trust', 'gifting'], tiers: [{ name: 'Workshop', tagline: 'IHT exposure and action plan', pricingModel: 'fixed', price: 2500, priceFormatted: '£2,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
+  property_health_check: { code: 'property_health_check', name: 'Property Portfolio Health Check', displayName: 'Property Portfolio Health Check', category: 'strategic', outcome: "You'll See Which Properties Earn Their Keep", description: 'Property-by-property performance analysis and rationalisation strategy', keywords: ['property', 'portfolio', 'yield', 'rationalisation'], tiers: [{ name: 'Health Check', tagline: 'Yield and rationalisation', pricingModel: 'fixed', price: 3500, priceFormatted: '£3,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
+  wealth_transfer_strategy: { code: 'wealth_transfer_strategy', name: 'Family Wealth Transfer Strategy', displayName: 'Family Wealth Transfer Strategy', category: 'strategic', outcome: "Your Family Is Protected", description: 'Comprehensive succession planning for investment portfolios', keywords: ['wealth transfer', 'succession', 'family', 'legacy'], tiers: [{ name: 'Strategy', tagline: 'Succession and family governance', pricingModel: 'fixed', price: 5500, priceFormatted: '£5,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
+  property_management_sourcing: { code: 'property_management_sourcing', name: 'Property Management Sourcing', displayName: 'Property Management Sourcing', category: 'operational', outcome: "You'll Have a Reliable Property Manager", description: 'Find and vet a reliable property management partner', keywords: ['property manager', 'delegate', 'sourcing'], tiers: [{ name: 'Sourcing', tagline: 'Find and vet property manager', pricingModel: 'fixed', price: 1500, priceFormatted: '£1,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
 };
 function getPriceForTurnover(tier: ServiceTier, turnover: number): { price: number; priceFormatted: string } {
   if (tier.pricingModel === 'fixed') return { price: tier.price!, priceFormatted: tier.priceFormatted! };
@@ -813,6 +818,11 @@ serve(async (req) => {
       'fractional_coo':      { phase1: 'Fractional COO (£3,750/month)',                                        deferred: 'Fractional COO (£3,750/month — when ready)' },
       'business_advisory':   { phase1: 'Business Advisory & Exit Planning (£2,000 - £4,000)',                 deferred: 'Business Advisory & Exit Planning (£2,000 - £4,000 — when ready)' },
       'automation':          { phase1: 'Automation Services (£1,500 - £5,000)',                                 deferred: 'Automation Services (£1,500 - £5,000 — when ready)' },
+      // Investment vehicle services (Session 11)
+      'iht_planning': { phase1: 'IHT Planning Workshop (£2,500)', deferred: 'IHT Planning Workshop (£2,500 — when ready)' },
+      'property_health_check': { phase1: 'Property Portfolio Health Check (£3,500)', deferred: 'Property Portfolio Health Check (£3,500 — when ready)' },
+      'wealth_transfer_strategy': { phase1: 'Family Wealth Transfer Strategy (£5,500)', deferred: 'Family Wealth Transfer Strategy (£5,500 — when ready)' },
+      'property_management_sourcing': { phase1: 'Property Management Sourcing (£1,500)', deferred: 'Property Management Sourcing (£1,500 — when ready)' },
     };
 
     function detectServiceFromText(text: string): string | null {
@@ -828,6 +838,10 @@ serve(async (req) => {
       if (lower.includes('fractional coo') || (lower.includes('coo') && !lower.includes('cfo'))) return 'fractional_coo';
       if (lower.includes('business advisory') || lower.includes('exit planning')) return 'business_advisory';
       if (lower.includes('automation'))                                   return 'automation';
+      if (lower.includes('iht') || (lower.includes('inheritance') && lower.includes('planning'))) return 'iht_planning';
+      if (lower.includes('property') && lower.includes('health check')) return 'property_health_check';
+      if (lower.includes('wealth transfer') || (lower.includes('family') && lower.includes('wealth'))) return 'wealth_transfer_strategy';
+      if (lower.includes('property') && lower.includes('management') && lower.includes('sourcing')) return 'property_management_sourcing';
 
       return null;
     }
@@ -2210,6 +2224,70 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
         score: r.score,
         triggers: r.triggers
       }));
+
+    // ========================================================================
+    // FOR INVESTMENT VEHICLES: Force wealth protection service ordering
+    // (Session 11 — runs BEFORE exit-focused check)
+    // ========================================================================
+    const isInvestmentVehicle = clientType === 'investment_vehicle';
+
+    if (isInvestmentVehicle) {
+      console.log(`[Pass2] 🏠 INVESTMENT VEHICLE: Forcing wealth protection service order`);
+
+      const investmentVehicleServices = [];
+
+      // PHASE 1: IHT Planning Workshop — ALWAYS first for wealth protection
+      investmentVehicleServices.push({
+        code: 'iht_planning',
+        ...SERVICE_DETAILS['iht_planning'],
+        score: 95,
+        triggers: ['investment_vehicle', 'iht_exposure', 'wealth_protection'],
+        phase: 1,
+        rationale: 'IHT exposure is the highest-priority risk for investment vehicles'
+      });
+
+      // PHASE 2: Property Portfolio Health Check
+      investmentVehicleServices.push({
+        code: 'property_health_check',
+        ...SERVICE_DETAILS['property_health_check'],
+        score: 90,
+        triggers: ['investment_vehicle', 'portfolio_performance', 'rationalisation'],
+        phase: 2,
+        rationale: 'Property-level data needed for rationalisation and delegation decisions'
+      });
+
+      // PHASE 3: Family Wealth Transfer Strategy
+      investmentVehicleServices.push({
+        code: 'wealth_transfer_strategy',
+        ...SERVICE_DETAILS['wealth_transfer_strategy'],
+        score: 85,
+        triggers: ['investment_vehicle', 'succession', 'family_wealth'],
+        phase: 3,
+        rationale: 'Long-term succession and wealth transfer planning'
+      });
+
+      // Check if advisor has pinned any additional services
+      for (const pinnedCode of pinnedServices) {
+        const alreadyIncluded = investmentVehicleServices.some((s: { code: string }) => s.code === pinnedCode);
+        if (!alreadyIncluded && !blockedServices.includes(pinnedCode)) {
+          const serviceDetail = SERVICE_DETAILS[pinnedCode];
+          if (serviceDetail) {
+            investmentVehicleServices.push({
+              code: pinnedCode,
+              ...serviceDetail,
+              score: 80,
+              triggers: ['advisor_pinned'],
+              pinnedByAdvisor: true
+            });
+            console.log(`[Pass2] Added advisor-pinned service for investment vehicle: ${pinnedCode}`);
+          }
+        }
+      }
+
+      // Override the recommended services
+      recommendedServices = investmentVehicleServices;
+      console.log(`[Pass2] INVESTMENT VEHICLE SERVICE ORDER: ${recommendedServices.map((s: { phase?: number; code?: string }) => `${(s as { phase?: number }).phase || '?'}. ${(s as { code?: string }).code}`).join(', ')}`);
+    }
     
     // ========================================================================
     // FOR EXIT-FOCUSED CLIENTS: Force correct service ordering
@@ -2382,6 +2460,87 @@ ${blockedServicesFromAdvisor.map((code: string) => {
   return detail ? `- ${(detail as { name?: string }).name} (${code})` : `- ${code}`;
 }).join('\n')}
 ` : '';
+
+    // Build MANDATORY PRICING section by client type (Session 11 — investment vehicle)
+    const mandatoryPricingSection = isInvestmentVehicle
+      ? `
+PAGE 4 — THE INVESTMENT:
+
+MANDATORY PRICING (INVESTMENT VEHICLE — these override standard prices):
+- IHT Planning Workshop: £2,500 (one-off) — Phase 1
+- Property Portfolio Health Check: £3,500 (one-off) — Phase 2
+- Family Wealth Transfer Strategy: £5,500 (one-off) — Phase 3
+- Property Management Sourcing: £1,500 (one-off) — optional/parallel
+
+EXACT SERVICE PRICING (use these figures, do not invent prices):
+- IHT Planning Workshop: £2,500 (one-off)
+- Property Portfolio Health Check: £3,500 (one-off)
+- Family Wealth Transfer Strategy: £5,500 (one-off)
+- Property Management Sourcing: £1,500 (one-off)
+
+PRICING RULES:
+1. Total Year 1 cost = Phase 1 only = £2,500. Phases 2-3 are "when ready."
+2. The "first step" price in Page 5 must be £2,500.
+3. Do NOT reference Benchmarking, Systems Audit, or Goal Alignment pricing.
+
+PHASE STRUCTURE:
+- Phase 1 (Month 1-3): IHT Planning Workshop — £2,500
+- Phase 2 (Month 3-6): Property Portfolio Health Check — £3,500 (when ready)
+- Phase 3 (Month 6-12): Family Wealth Transfer Strategy — £5,500 (when ready)
+
+ENABLED BY FORMAT:
+- Phase 1: "Enabled by: IHT Planning Workshop (£2,500)"
+- Phase 2: "Enabled by: Property Portfolio Health Check (£3,500 — when ready)"
+- Phase 3: "Enabled by: Family Wealth Transfer Strategy (£5,500 — when ready)"
+
+DELIVERABLE BOUNDARIES:
+- IHT Planning delivers: IHT exposure calculation, nil rate band analysis, BPR exclusion mapping, trust/gifting options, action plan for solicitor, tax advisor introduction
+- Property Health Check delivers: yield analysis by property, LTV review, maintenance cost trends, tenant assessment, rationalisation recommendations, portfolio projection
+- Wealth Transfer delivers: family governance, next-gen readiness, trust structuring, management succession plan, advisor coordination, family communication planning
+- Property Management Sourcing delivers: brief development, candidate evaluation, reference checks, contract negotiation support
+
+Do NOT mix these. IHT Planning does NOT do property-level yield analysis. Property Health Check does NOT do succession planning.
+
+PAGE 5 — NEXT STEPS:
+
+The "Your First Step" section must recommend ONLY the Phase 1 service (IHT Planning Workshop at £2,500).
+Do NOT bundle phases. The price in the call-to-action must be £2,500.
+`
+      : `
+PAGE 4 — THE INVESTMENT:
+
+MANDATORY PRICING (these override any other prices you see in the data):
+- Systems & Process Audit: £2,000 (NOT £1,500 — this has been updated)
+- Industry Benchmarking (Full Package): £2,000
+- Goal Alignment Programme (Growth): £4,500/year
+
+EXACT SERVICE PRICING (use these figures, do not invent prices):
+- Industry Benchmarking (Full Package): £2,000 (one-off)
+- Systems & Process Audit: £2,000 (one-off)
+- Goal Alignment Programme (Growth): £4,500/year (ongoing)
+
+PRICING RULES:
+1. Total Year 1 cost should reflect ONLY the firm Phase 1 commitment (e.g., £2,000), NOT the sum of all phases. The client is committing to Phase 1 only. Phases 2 and 3 are next steps.
+2. List each phase with its price; phases 2+ are offered when the client is ready.
+3. The "first step" price in Page 5 must match the Phase 1 price exactly.
+4. Do NOT bundle Phase 1 + Phase 2 into a single price. They are separate engagements.
+
+Example format:
+- Months 1-3: Know where you stand — £2,000
+- Months 3-6: See where the time goes — £2,000 (when ready)
+- Months 6-12: Someone in your corner — £4,500/year (when ready)
+- Total Year 1 commitment: £2,000
+
+PAGE 5 — NEXT STEPS:
+
+The "Your First Step" section must recommend ONLY the Phase 1 service.
+Do NOT bundle Phase 1 + Phase 2 into the first step.
+The price in the call-to-action must match Phase 1's price exactly.
+
+If Phase 1 is Benchmarking at £2,000, the CTA should be "£2,000 to know where you stand" — NOT "£3,500 for benchmarking and systems audit."
+
+The systems audit comes AFTER the client has seen the benchmarking results and decided to proceed. Bundling them together undermines the "start small, prove value" approach.
+`;
 
     // ============================================================================
     // THE MASTER PROMPT - Destination-Focused Discovery Report
@@ -2715,39 +2874,7 @@ DELIVERABLE BOUNDARIES:
 
 Do NOT mix these. If a bullet point describes "mapping operational systems" or "where time disappears", that belongs in the Systems Audit phase, NOT the Benchmarking phase.
 
-PAGE 4 — THE INVESTMENT:
-
-MANDATORY PRICING (these override any other prices you see in the data):
-- Systems & Process Audit: £2,000 (NOT £1,500 — this has been updated)
-- Industry Benchmarking (Full Package): £2,000
-- Goal Alignment Programme (Growth): £4,500/year
-
-EXACT SERVICE PRICING (use these figures, do not invent prices):
-- Industry Benchmarking (Full Package): £2,000 (one-off)
-- Systems & Process Audit: £2,000 (one-off)
-- Goal Alignment Programme (Growth): £4,500/year (ongoing)
-
-PRICING RULES:
-1. Total Year 1 cost should reflect ONLY the firm Phase 1 commitment (e.g., £2,000), NOT the sum of all phases. The client is committing to Phase 1 only. Phases 2 and 3 are next steps.
-2. List each phase with its price; phases 2+ are offered when the client is ready.
-3. The "first step" price in Page 5 must match the Phase 1 price exactly.
-4. Do NOT bundle Phase 1 + Phase 2 into a single price. They are separate engagements.
-
-Example format:
-- Months 1-3: Know where you stand — £2,000
-- Months 3-6: See where the time goes — £2,000 (when ready)
-- Months 6-12: Someone in your corner — £4,500/year (when ready)
-- Total Year 1 commitment: £2,000
-
-PAGE 5 — NEXT STEPS:
-
-The "Your First Step" section must recommend ONLY the Phase 1 service.
-Do NOT bundle Phase 1 + Phase 2 into the first step.
-The price in the call-to-action must match Phase 1's price exactly.
-
-If Phase 1 is Benchmarking at £2,000, the CTA should be "£2,000 to know where you stand" — NOT "£3,500 for benchmarking and systems audit."
-
-The systems audit comes AFTER the client has seen the benchmarking results and decided to proceed. Bundling them together undermines the "start small, prove value" approach.
+${mandatoryPricingSection}
 
 ============================================================================
 PAGE 1 — YOUR VISION / THE TUESDAY:
@@ -4099,6 +4226,29 @@ Before returning, verify:
     const reportJsonStr = JSON.stringify(narratives);
     const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
     narratives = JSON.parse(cleanedStr);
+
+    // ========================================================================
+    // QUOTE VERIFICATION (Session 11)
+    // Detect potential fabricated quotes by checking if quoted text appears
+    // in the original assessment responses
+    // ========================================================================
+    const allResponseText = JSON.stringify(discoveryResponses).toLowerCase();
+    const narrativeText = JSON.stringify(narratives);
+    const directQuotes = narrativeText.match(/"([^"]{10,80})"/g) || [];
+    for (const quote of directQuotes) {
+      const cleanQuote = quote.replace(/^"|"$/g, '').toLowerCase().trim();
+      if (cleanQuote.length < 15) continue;
+      if (cleanQuote.startsWith('inheritance planning')) continue;
+      if (cleanQuote.startsWith('having a highly reliable')) continue;
+      if (cleanQuote.startsWith('not having someone')) continue;
+      if (cleanQuote.startsWith('holidays and time')) continue;
+      if (cleanQuote.startsWith('giving it up')) continue;
+      if (cleanQuote.startsWith('nothing with respect')) continue;
+      if (cleanQuote.startsWith('a normal marriage')) continue;
+      if (!allResponseText.includes(cleanQuote)) {
+        console.warn(`[Pass2] ⚠️ POTENTIAL FABRICATED QUOTE: "${cleanQuote}" — not found in assessment responses`);
+      }
+    }
 
     // Update report with Pass 2 results
     console.log('[Pass2] 📝 Final headline being saved:', narratives.meta?.headline);

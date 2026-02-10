@@ -34,6 +34,10 @@ const SERVICE_REGISTRY: Record<string, ServiceDefinition> = {
   fractional_cfo: { code: 'fractional_cfo', name: 'Fractional CFO', displayName: 'Fractional CFO Services', category: 'strategic', outcome: "You'll Have Strategic Financial Leadership", description: 'Part-time strategic finance.', keywords: ['cfo', 'finance director', 'strategic finance'], tiers: [{ name: '2 days/month', tagline: 'Strategic finance leadership', pricingModel: 'fixed', price: 4000, priceFormatted: '£4,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
   fractional_coo: { code: 'fractional_coo', name: 'Fractional COO', displayName: 'Fractional COO Services', category: 'strategic', outcome: "Someone Else Carries The Load", description: 'Operational leadership.', keywords: ['coo', 'operations', 'fractional coo'], tiers: [{ name: '2 days/month', tagline: 'Operational leadership', pricingModel: 'fixed', price: 3750, priceFormatted: '£3,750', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
   combined_advisory: { code: 'combined_advisory', name: 'Combined CFO/COO Advisory', displayName: 'Combined CFO/COO Advisory', category: 'strategic', outcome: "Complete Business Transformation", description: 'Executive partnership.', keywords: ['combined', 'cfo coo', 'executive partnership'], tiers: [{ name: 'Standard', tagline: 'Full executive partnership', pricingModel: 'fixed', price: 6000, priceFormatted: '£6,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
+  iht_planning: { code: 'iht_planning', name: 'IHT Planning Workshop', displayName: 'IHT Planning Workshop', category: 'strategic', outcome: "You'll Know What's At Risk", description: 'Map IHT exposure and create an action plan.', keywords: ['iht', 'inheritance', 'estate', 'wealth transfer'], tiers: [{ name: 'Workshop', tagline: 'IHT exposure and action plan', pricingModel: 'fixed', price: 2500, priceFormatted: '£2,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
+  property_health_check: { code: 'property_health_check', name: 'Property Portfolio Health Check', displayName: 'Property Portfolio Health Check', category: 'strategic', outcome: "You'll See Which Properties Earn Their Keep", description: 'Property-level performance and rationalisation.', keywords: ['property', 'portfolio', 'yield', 'rationalisation'], tiers: [{ name: 'Health Check', tagline: 'Yield and rationalisation', pricingModel: 'fixed', price: 3500, priceFormatted: '£3,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
+  wealth_transfer_strategy: { code: 'wealth_transfer_strategy', name: 'Family Wealth Transfer Strategy', displayName: 'Family Wealth Transfer Strategy', category: 'strategic', outcome: "Your Family Is Protected", description: 'Succession planning for investment portfolios.', keywords: ['wealth transfer', 'succession', 'family', 'legacy'], tiers: [{ name: 'Strategy', tagline: 'Succession and family governance', pricingModel: 'fixed', price: 5500, priceFormatted: '£5,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
+  property_management_sourcing: { code: 'property_management_sourcing', name: 'Property Management Sourcing', displayName: 'Property Management Sourcing', category: 'operational', outcome: "You'll Have a Reliable Property Manager", description: 'Find and vet a property management partner.', keywords: ['property manager', 'delegate', 'sourcing'], tiers: [{ name: 'Sourcing', tagline: 'Find and vet property manager', pricingModel: 'fixed', price: 1500, priceFormatted: '£1,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
 };
 const LEGACY_CODE_MAP: Record<string, string> = { '365_method': 'goal_alignment', 'management_accounts': 'business_intelligence' };
 function resolveServiceCode(code: string): string { return LEGACY_CODE_MAP[code] || code; }
@@ -598,7 +602,8 @@ function getClientTypeRules(type: ClientBusinessType, overrides: FrameworkOverri
     'investment_vehicle': `
 ## ⚠️ CLIENT TYPE RULES: INVESTMENT VEHICLE
 
-⛔ DO NOT recommend: benchmarking, systems_audit, management_accounts, 365_method
+⛔ DO NOT recommend: benchmarking, systems_audit, management_accounts, 365_method, goal_alignment, business_intelligence, fractional_coo
+✅ RECOMMEND ONLY: iht_planning, property_health_check, wealth_transfer_strategy, property_management_sourcing
 ✅ FOCUS ON: IHT planning, succession, property management, wealth transfer
 ✅ This client KNOWS their value (asset-based: £${overrides?.maxRecommendedInvestment ? 'N/A' : 'see asset valuation'}). Don't say "you don't know what you're worth".
 ✅ Frame as "wealth protection" not "transformation"`,
@@ -955,21 +960,34 @@ function postProcessOpportunities(analysis: any, clientData: ClientData, service
     }
   }
   
+  // Alias map: LLM may return one code while inappropriate list uses another (Session 11)
+  const inappropriateAlias: Record<string, string> = {
+    goal_alignment: '365_method',
+    '365_method': 'goal_alignment',
+    business_intelligence: 'management_accounts',
+    management_accounts: 'business_intelligence',
+  };
+  const inappropriateSet = new Set(inappropriateServices.map((s: string) => s.toLowerCase()));
+
   opportunities = opportunities.filter((opp: any) => {
     const serviceCode = (opp.serviceMapping?.existingService?.code || '').toLowerCase();
-    if (serviceCode && inappropriateServices.some((s: string) => s.toLowerCase() === serviceCode)) {
+    const isInappropriate = serviceCode && (
+      inappropriateSet.has(serviceCode) ||
+      (inappropriateAlias[serviceCode] && inappropriateSet.has(inappropriateAlias[serviceCode].toLowerCase()))
+    );
+    if (isInappropriate) {
       blockedServices.push({
         code: serviceCode,
         reason: `Inappropriate for ${clientData.clientType} client type`,
         opportunityCode: opp.code
       });
-      // Don't filter out - just remove the service mapping
       opp.serviceMapping.existingService = null;
       opp.serviceMapping.newConceptNeeded = {
         suggestedName: `${clientData.clientType}-specific alternative`,
         problemItSolves: opp.title,
         triggeredBy: 'Existing service inappropriate for client type'
       };
+      console.log(`[Pass3] 🚫 FILTERED inappropriate service: ${serviceCode} — on inappropriateServices list for ${clientData.clientType}`);
     }
     return true;
   });
@@ -1150,12 +1168,37 @@ function generateRecommendedServices(
     'must_address_now': 0, 'next_3_months': 1, 'next_12_months': 2, 'when_ready': 3 
   };
   
+  // Hard filter: remove inappropriate services (Session 11 — LLM ignores prompt-based DO NOT recommend)
+  const inappropriateServices = clientData.frameworkOverrides?.inappropriateServices || [];
+  if (inappropriateServices.length > 0) {
+    const inappropriateSet = new Set(inappropriateServices.map((s: string) => s.toLowerCase()));
+    const aliasMap: Record<string, string> = {
+      goal_alignment: '365_method', '365_method': 'goal_alignment',
+      business_intelligence: 'management_accounts', management_accounts: 'business_intelligence',
+    };
+    const beforeCount = recommended.length;
+    const filtered = recommended.filter((r: any) => {
+      const code = (r.serviceCode || '').toLowerCase();
+      const isInappropriate = inappropriateSet.has(code) ||
+        (aliasMap[code] && inappropriateSet.has(aliasMap[code].toLowerCase()));
+      if (isInappropriate) {
+        console.log(`[Pass3] 🚫 Hard filter removed inappropriate service: ${code} (${r.serviceName}) — on inappropriateServices list for ${clientData.clientType}`);
+      }
+      return !isInappropriate;
+    });
+    if (filtered.length !== beforeCount) {
+      console.log(`[Pass3] Hard filter removed ${beforeCount - filtered.length} inappropriate services. ${filtered.length} remaining.`);
+    }
+    recommended.length = 0;
+    recommended.push(...filtered);
+  }
+
   recommended.sort((a, b) => {
     const pDiff = (priorityOrder[a.priority] || 4) - (priorityOrder[b.priority] || 4);
     if (pDiff !== 0) return pDiff;
     return b.totalValueAtStake - a.totalValueAtStake;
   });
-  
+
   console.log(`[GenerateRecommendedServices] Created ${recommended.length} synthesised recommendations`);
   return recommended;
 }

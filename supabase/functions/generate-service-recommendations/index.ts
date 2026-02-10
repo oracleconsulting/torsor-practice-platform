@@ -51,6 +51,10 @@ const SCORING_SERVICES = [
   { code: 'combined_advisory', name: 'Combined CFO/COO Advisory' },
   { code: 'business_advisory', name: 'Business Advisory & Exit Planning' },
   { code: 'benchmarking', name: 'Benchmarking Services' },
+  { code: 'iht_planning', name: 'IHT Planning Workshop' },
+  { code: 'property_health_check', name: 'Property Portfolio Health Check' },
+  { code: 'wealth_transfer_strategy', name: 'Family Wealth Transfer Strategy' },
+  { code: 'property_management_sourcing', name: 'Property Management Sourcing' },
 ];
 
 function getLower(value: any): string {
@@ -508,6 +512,17 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
     scores['combined_advisory'].score = Math.round((scores['fractional_cfo'].score + scores['fractional_coo'].score) / 2);
     scores['combined_advisory'].triggers = [...scores['fractional_cfo'].triggers.slice(0, 3), ...scores['fractional_coo'].triggers.slice(0, 3), 'Combined: Both CFO and COO needs'];
   }
+
+  // Investment vehicle services (Session 11)
+  const allText = JSON.stringify(responses).toLowerCase();
+  const ihtKeywords = ['inheritance', 'iht', 'estate', 'wealth transfer', 'pass on', 'will', 'trust', 'gifting'];
+  if (ihtKeywords.some(kw => allText.includes(kw))) addPoints('iht_planning', 30, 'IHT/inheritance language detected');
+  const propertyKeywords = ['property', 'portfolio', 'rental', 'tenant', 'landlord', 'yield', 'investment property'];
+  if (propertyKeywords.some(kw => allText.includes(kw))) addPoints('property_health_check', 25, 'Property portfolio language detected');
+  const successionKeywords = ['succession', 'next generation', 'family', 'legacy', 'children', 'hand over'];
+  if (successionKeywords.some(kw => allText.includes(kw))) addPoints('wealth_transfer_strategy', 25, 'Succession/wealth transfer language detected');
+  const delegationKeywords = ['delegate', 'someone to', 'reliable person', 'property manager', 'hand off', 'step back'];
+  if (delegationKeywords.some(kw => allText.includes(kw))) addPoints('property_management_sourcing', 20, 'Delegation/property management language detected');
 
   // FINALIZE SCORES
   for (const code of Object.keys(scores)) {

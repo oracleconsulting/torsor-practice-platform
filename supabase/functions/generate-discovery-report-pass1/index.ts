@@ -2405,7 +2405,11 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
     { code: 'fractional_cfo', name: 'Fractional CFO Services' },
     { code: 'fractional_coo', name: 'Fractional COO Services' },
     { code: 'automation', name: 'Automation Services' },
-    { code: 'business_advisory', name: 'Business Advisory & Exit Planning' }
+    { code: 'business_advisory', name: 'Business Advisory & Exit Planning' },
+    { code: 'iht_planning', name: 'IHT Planning Workshop' },
+    { code: 'property_health_check', name: 'Property Portfolio Health Check' },
+    { code: 'wealth_transfer_strategy', name: 'Family Wealth Transfer Strategy' },
+    { code: 'property_management_sourcing', name: 'Property Management Sourcing' },
   ];
   
   services.forEach(s => {
@@ -2656,7 +2660,37 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
     scores['fractional_coo'].score += 20;
     scores['fractional_coo'].triggers.push('People management issues');
   }
-  
+
+  // Investment vehicle services (Session 11)
+  const ihtKeywords = ['inheritance', 'iht', 'estate', 'wealth transfer', 'pass on', 'will', 'trust', 'gifting'];
+  if (ihtKeywords.some(kw => allText.includes(kw))) {
+    if (scores['iht_planning']) {
+      scores['iht_planning'].score += 30;
+      scores['iht_planning'].triggers.push('IHT/inheritance language detected');
+    }
+  }
+  const propertyKeywords = ['property', 'portfolio', 'rental', 'tenant', 'landlord', 'yield', 'investment property'];
+  if (propertyKeywords.some(kw => allText.includes(kw))) {
+    if (scores['property_health_check']) {
+      scores['property_health_check'].score += 25;
+      scores['property_health_check'].triggers.push('Property portfolio language detected');
+    }
+  }
+  const successionKeywords = ['succession', 'next generation', 'family', 'legacy', 'children', 'hand over'];
+  if (successionKeywords.some(kw => allText.includes(kw))) {
+    if (scores['wealth_transfer_strategy']) {
+      scores['wealth_transfer_strategy'].score += 25;
+      scores['wealth_transfer_strategy'].triggers.push('Succession/wealth transfer language detected');
+    }
+  }
+  const delegationKeywords = ['delegate', 'someone to', 'reliable person', 'property manager', 'hand off', 'step back'];
+  if (delegationKeywords.some(kw => allText.includes(kw))) {
+    if (scores['property_management_sourcing']) {
+      scores['property_management_sourcing'].score += 20;
+      scores['property_management_sourcing'].triggers.push('Delegation/property management language detected');
+    }
+  }
+
   const urgencyMultiplier = isInCrisis ? 1.5 : isExitFocused ? 1.2 : 1.0;
   
   // Build recommendations
@@ -4009,13 +4043,38 @@ serve(async (req) => {
 
     const scoringResult = scoreServicesFromDiscovery(discoveryResponses);
 
-    const primaryRecommendations = scoringResult.recommendations
+    let primaryRecommendations = scoringResult.recommendations
       .filter(r => r.recommended)
       .slice(0, 3);
-    
-    const secondaryRecommendations = scoringResult.recommendations
+
+    let secondaryRecommendations = scoringResult.recommendations
       .filter(r => r.recommended)
       .slice(3);
+
+    let page3Journey: { title: string; phases: any[] } | null = null;
+
+    // ========================================================================
+    // INVESTMENT VEHICLE: Override recommendations and build page3_journey
+    // (Session 11 — the scorer doesn't know about these services)
+    // ========================================================================
+    if (clientType.type === 'investment_vehicle') {
+      primaryRecommendations = [
+        { code: 'iht_planning', name: 'IHT Planning Workshop', score: 95, recommended: true },
+        { code: 'property_health_check', name: 'Property Portfolio Health Check', score: 90, recommended: true },
+        { code: 'wealth_transfer_strategy', name: 'Family Wealth Transfer Strategy', score: 85, recommended: true },
+      ];
+      secondaryRecommendations = [];
+      page3Journey = {
+        title: 'From Here to Protected',
+        phases: [
+          { phase: 1, timeframe: 'Month 1-3', title: "You'll Know What's At Risk", service: 'iht_planning', serviceId: 'iht_planning', enabledBy: 'IHT Planning Workshop (£2,500)', enabledByCode: 'iht_planning', price: '£2,500' },
+          { phase: 2, timeframe: 'Month 3-6', title: "You'll See Which Properties Earn Their Keep", service: 'property_health_check', serviceId: 'property_health_check', enabledBy: 'Property Portfolio Health Check (£3,500 — when ready)', enabledByCode: 'property_health_check', price: '£3,500' },
+          { phase: 3, timeframe: 'Month 6-12', title: "Your Family Is Protected", service: 'wealth_transfer_strategy', serviceId: 'wealth_transfer_strategy', enabledBy: 'Family Wealth Transfer Strategy (£5,500 — when ready)', enabledByCode: 'wealth_transfer_strategy', price: '£5,500' },
+        ],
+      };
+      console.log('[Pass1] 🏠 Investment vehicle primary_recommendations overridden:', primaryRecommendations.map((r: { code: string }) => r.code));
+      console.log('[Pass1] 🏠 Investment vehicle journey phases built');
+    }
 
     const processingTime = Date.now() - startTime;
 
@@ -4145,6 +4204,9 @@ serve(async (req) => {
       // pass2_prompt_injection: pass2PromptInjection,
       // prebuilt_phrases: prebuiltPhrases
     };
+    if (page3Journey) {
+      reportData.page3_journey = page3Journey;
+    }
 
     // DEBUG: Log exactly what comprehensive_analysis contains before saving
     console.log('[Pass1] 🔍 SAVING comprehensive_analysis:', {
