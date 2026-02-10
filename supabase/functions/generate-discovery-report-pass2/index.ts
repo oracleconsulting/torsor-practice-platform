@@ -2598,9 +2598,24 @@ The advisor has reviewed the following opportunities and marked some as client-v
 Your journey phases (Page 3) MUST reference the pinned/recommended services.
 Your gap analysis (Page 2) should align with the opportunity themes below.
 
-${(curatedOpportunities || []).map((o: { severity?: string; title?: string; category?: string; financial_impact_amount?: number; show_in_client_view?: boolean; opportunity_code?: string }) =>
-  `- [${(o.severity || '').toUpperCase()}] ${o.title || 'Untitled'} (${o.category || 'General'}) — £${Number(o.financial_impact_amount || 0).toLocaleString()} impact${o.show_in_client_view ? ' [CLIENT VISIBLE]' : ''}${(o.opportunity_code || '').startsWith('pinned_') ? ' [ADVISOR PINNED]' : ''}`
-).join('\n')}
+IMPORTANT: For each gap on Page 2, you MUST include a "quickWin" field — a specific,
+actionable thing the client can do BEFORE the first meeting. These come from the
+opportunity quick_win fields below. Copy them nearly verbatim — do NOT paraphrase
+or embellish. Quick wins are pre-calculated advice, not narrative suggestions.
+
+IMPORTANT: For each phase on Page 3, you MUST include a "scopeNote" field — a single
+sentence explaining what the service does NOT include. This builds trust by being honest
+about boundaries. These come from the service_fit_limitation fields below.
+
+${(curatedOpportunities || []).map((o: any) => {
+  let entry = `[${(o.severity || '').toUpperCase()}] ${o.title || 'Untitled'} (${o.category || 'General'}) — £${Number(o.financial_impact_amount || 0).toLocaleString()} impact`;
+  if (o.show_in_client_view) entry += ' [CLIENT VISIBLE]';
+  if ((o.opportunity_code || '').startsWith('pinned_')) entry += ' [ADVISOR PINNED]';
+  if (o.quick_win) entry += `\n  QUICK WIN: ${o.quick_win}`;
+  if (o.service_fit_limitation) entry += `\n  SCOPE LIMITATION: ${o.service_fit_limitation}`;
+  if (o.life_impact) entry += `\n  CLIENT IMPACT: ${o.life_impact}`;
+  return entry;
+}).join('\n\n')}
 
 PINNED SERVICES (advisor wants these in the journey):
 ${pinnedServices.map((code: string) => {
@@ -2694,6 +2709,24 @@ The price in the call-to-action must match Phase 1's price exactly.
 If Phase 1 is Benchmarking at £2,000, the CTA should be "£2,000 to know where you stand" — NOT "£3,500 for benchmarking and systems audit."
 
 The systems audit comes AFTER the client has seen the benchmarking results and decided to proceed. Bundling them together undermines the "start small, prove value" approach.
+
+PAGE 5 — NEXT STEPS (continued):
+
+QUICK WIN FIRST: The "This Week" section must LEAD with the most actionable quick win
+from the opportunities — something the client can do BEFORE the first paid engagement.
+For example: "Gather your will, trust details, and beneficiary list before your lawyer meeting."
+
+The quick win goes in the "thisWeek.tone" field — reframe it as preparation advice,
+not a task list. E.g.: "Before we even meet, there's something you can do that will
+make our first conversation twice as productive: [quick win]."
+
+RECOMMENDED STEPS: If the opportunities include specific "QUICK WIN" fields, incorporate
+the top 2-3 as preparation steps in the thisWeek.tone. The client should feel they've
+already started the journey before any money changes hands.
+
+DO NOT reference services that are not in the journey phases. If the journey has
+IHT Planning → Property Health Check → Wealth Transfer Strategy, the next steps
+must reference THOSE services, not Benchmarking or Hidden Value Audit or Systems Audit.
 `;
 
     // ============================================================================
@@ -3073,7 +3106,8 @@ Return a JSON object with this exact structure:
         "timeImpact": "Specific hours or pattern",
         "financialImpact": "Specific amount or 'Unknown - you suspect significant'",
         "emotionalImpact": "The personal/relationship/health cost",
-        "shiftRequired": "One sentence describing what needs to change"
+        "shiftRequired": "One sentence describing what needs to change",
+        "quickWin": "A specific, actionable thing the client can do THIS WEEK before any paid engagement. Copy from the matching opportunity's QUICK WIN above. If no matching opportunity has a quick win, use null."
       }
     ]
   },
@@ -3098,7 +3132,8 @@ Return a JSON object with this exact structure:
         "feelsLike": "Emotional description using their language and metaphors. What the transformation FEELS like.",
         "outcome": "Single sentence: the tangible result they can point to",
         "enabledBy": "Service Name (footnote only)",
-        "price": "£X/month or £X one-time"
+        "price": "£X/month or £X one-time",
+        "scopeNote": "One sentence explaining what this service does NOT include, and who handles that part. Copy from the matching opportunity's SCOPE LIMITATION. E.g. 'This workshop gives you the strategy — your solicitor handles legal drafting and trust administration.' If no limitation, use null."
       }
     ]
   },
@@ -3410,6 +3445,10 @@ Before returning, verify:
           if (!gap.shiftRequired) {
             gap.shiftRequired = gap.shift || gap.recommendation || gap.action || gap.fix || '';
           }
+          // Map quickWin field (Option C — hybrid opportunity surfacing)
+          if (!gap.quickWin) {
+            gap.quickWin = gap.quick_win || gap.beforeWeMeet || gap.homework || null;
+          }
         }
       }
       
@@ -3434,6 +3473,10 @@ Before returning, verify:
         // Map whatChanges to array if it's a string
         if (typeof phase.whatChanges === 'string') {
           phase.whatChanges = [phase.whatChanges];
+        }
+        // Map scopeNote field (Option C — hybrid opportunity surfacing)
+        if (!phase.scopeNote) {
+          phase.scopeNote = phase.scope_note || phase.limitation || phase.scopeClarity || null;
         }
       }
       console.log('[Pass2] ✅ Page 3 phase field mapping applied:', {
@@ -4463,6 +4506,25 @@ Before returning, verify:
         console.warn(`[Pass2] ⚠️ POTENTIAL FABRICATED QUOTE: "${cleanQuote}" — not found in assessment responses`);
       }
     }
+
+    // Snapshot client-visible opportunities into the report (Option C — hybrid surfacing)
+    const clientVisibleSnapshot = (curatedOpportunities || [])
+      .filter((o: any) => o.show_in_client_view)
+      .map((o: any) => ({
+        id: o.id,
+        title: o.title,
+        description: o.description,
+        category: o.category,
+        severity: o.severity,
+        financial_impact_amount: o.financial_impact_amount,
+        life_impact: o.life_impact,
+        quick_win: o.quick_win,
+        service_fit_limitation: o.service_fit_limitation,
+        service_name: o.service?.name || null,
+        service_price: o.service?.price_amount || null,
+      }));
+    narratives.client_visible_opportunities = clientVisibleSnapshot;
+    console.log(`[Pass2] 📋 Snapshotted ${clientVisibleSnapshot.length} client-visible opportunities into report`);
 
     // Update report with Pass 2 results
     console.log('[Pass2] 📝 Final headline being saved:', narratives.meta?.headline);

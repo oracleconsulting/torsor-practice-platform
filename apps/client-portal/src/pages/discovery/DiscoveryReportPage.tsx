@@ -127,6 +127,7 @@ export default function DiscoveryReportPage() {
   const [popupCatalogueCode, setPopupCatalogueCode] = useState<string | null>(null);
   const [comprehensiveAnalysis, setComprehensiveAnalysis] = useState<any>(null);
   const [recommendedServices, setRecommendedServices] = useState<any[]>([]);
+  const [opportunities, setOpportunities] = useState<any[]>([]);
 
   useEffect(() => {
     loadReport();
@@ -220,6 +221,32 @@ export default function DiscoveryReportPage() {
           // Load recommended services for "How We Can Help" section
           if (discoveryReport.recommended_services) {
             setRecommendedServices(discoveryReport.recommended_services);
+          }
+          // Load client-visible opportunities (Option C — hybrid surfacing)
+          const snapshotOpps = discoveryReport?.destination_report?.client_visible_opportunities
+            ?? discoveryReport?.client_visible_opportunities
+            ?? [];
+          if (snapshotOpps.length > 0) {
+            setOpportunities(snapshotOpps);
+            console.log(`[DiscoveryReport] Loaded ${snapshotOpps.length} opportunities from report snapshot`);
+          } else {
+            try {
+              const { data: liveOpps } = await supabase
+                .from('discovery_opportunities')
+                .select(`
+                  id, title, description, category, severity,
+                  financial_impact_amount, life_impact, quick_win,
+                  service_fit_limitation, opportunity_code,
+                  service:services(id, code, name, price_amount, price_period)
+                `)
+                .eq('engagement_id', engagement.id)
+                .eq('show_in_client_view', true)
+                .order('severity', { ascending: true });
+              setOpportunities(liveOpps || []);
+              console.log(`[DiscoveryReport] Loaded ${liveOpps?.length ?? 0} opportunities from live table`);
+            } catch (err) {
+              console.warn('[DiscoveryReport] Could not load live opportunities:', err);
+            }
           }
           setLoading(false);
           return;
@@ -506,6 +533,40 @@ export default function DiscoveryReportPage() {
                           <p className="text-emerald-800">{gap.shiftRequired}</p>
                         </div>
                       )}
+
+                      {/* Quick Win — actionable homework from matching opportunity or Pass 2 (Option C) */}
+                      {(() => {
+                        const directQuickWin = gap.quickWin || gap.quick_win;
+                        if (directQuickWin) {
+                          return (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+                              <p className="text-sm font-medium text-amber-800 mb-1 flex items-center gap-1.5">
+                                <span>💡</span> Before we even meet
+                              </p>
+                              <p className="text-sm text-amber-900 leading-relaxed">{directQuickWin}</p>
+                            </div>
+                          );
+                        }
+                        if (opportunities.length > 0) {
+                          const gapLower = (gap.title || '').toLowerCase();
+                          const matched = opportunities.find((opp: any) => {
+                            const oppLower = (opp.title || '').toLowerCase();
+                            const keywords = gapLower.split(/\s+/).filter((w: string) => w.length > 4);
+                            return keywords.some((word: string) => oppLower.includes(word));
+                          });
+                          if (matched?.quick_win) {
+                            return (
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+                                <p className="text-sm font-medium text-amber-800 mb-1 flex items-center gap-1.5">
+                                  <span>💡</span> Before we even meet
+                                </p>
+                                <p className="text-sm text-amber-900 leading-relaxed">{matched.quick_win}</p>
+                              </div>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -667,6 +728,32 @@ export default function DiscoveryReportPage() {
                             </button>
                           </p>
                         )}
+                        {/* Scope Note — what this service doesn't include (Option C) */}
+                        {(() => {
+                          const scopeNote = phase.scopeNote || phase.scope_note;
+                          if (scopeNote) {
+                            return (
+                              <p className="mt-2 text-xs text-slate-400 italic leading-relaxed">
+                                {scopeNote}
+                              </p>
+                            );
+                          }
+                          if (opportunities.length > 0) {
+                            const enabledLower = (phase.enabledBy || '').toLowerCase();
+                            const matched = opportunities.find((opp: any) => {
+                              const serviceName = (opp.service_name || opp.service?.name || '').toLowerCase();
+                              return serviceName && enabledLower.includes(serviceName.split('(')[0].trim());
+                            });
+                            if (matched?.service_fit_limitation) {
+                              return (
+                                <p className="mt-2 text-xs text-slate-400 italic leading-relaxed">
+                                  {matched.service_fit_limitation}
+                                </p>
+                              );
+                            }
+                          }
+                          return null;
+                        })()}
                       </div>
                     )}
                   </div>
@@ -675,7 +762,104 @@ export default function DiscoveryReportPage() {
             </section>
           )}
 
-          {/* How We Can Help / recommended services: admin-only; not shown in client portal */}
+          {/* ================================================================ */}
+          {/* OPPORTUNITIES — Client-visible opportunities from admin curation (Option C) */}
+          {/* ================================================================ */}
+          {opportunities.length > 0 && (
+            <section className="mb-16">
+              <div className="mb-8">
+                <p className="text-sm font-medium text-purple-600 uppercase tracking-widest mb-2">
+                  Opportunities Identified
+                </p>
+                <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+                  What We&apos;ve Found For You
+                </h2>
+                <p className="mt-3 text-slate-500 text-sm leading-relaxed">
+                  These are specific areas where we can help — some urgent, some when you&apos;re ready.
+                  Each includes something you can do before we even meet.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {opportunities.map((opp: any) => {
+                  const severityConfig: Record<string, { border: string; badge: string; badgeBg: string; icon: string }> = {
+                    critical: { border: 'border-red-200', badge: 'text-red-700', badgeBg: 'bg-red-100', icon: '🔴' },
+                    high: { border: 'border-orange-200', badge: 'text-orange-700', badgeBg: 'bg-orange-100', icon: '🟠' },
+                    medium: { border: 'border-yellow-200', badge: 'text-yellow-700', badgeBg: 'bg-yellow-100', icon: '🟡' },
+                    low: { border: 'border-blue-200', badge: 'text-blue-700', badgeBg: 'bg-blue-100', icon: '🔵' },
+                    opportunity: { border: 'border-emerald-200', badge: 'text-emerald-700', badgeBg: 'bg-emerald-100', icon: '💡' },
+                  };
+                  const config = severityConfig[opp.severity] || severityConfig.medium;
+                  const serviceName = opp.service_name || opp.service?.name;
+                  const servicePrice = opp.service_price ?? opp.service?.price_amount;
+
+                  return (
+                    <div
+                      key={opp.id}
+                      className={`bg-white rounded-xl border ${config.border} overflow-hidden shadow-sm`}
+                    >
+                      <div className="p-6">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${config.badgeBg} ${config.badge}`}>
+                              {config.icon} {(opp.severity || 'medium').toUpperCase()}
+                            </span>
+                            {opp.category && (
+                              <span className="text-xs text-slate-400">{opp.category}</span>
+                            )}
+                          </div>
+                          {opp.financial_impact_amount > 0 && (
+                            <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+                              £{Number(opp.financial_impact_amount).toLocaleString()} at stake
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="text-lg font-medium text-slate-800 mb-3">
+                          {opp.title}
+                        </h3>
+
+                        {opp.life_impact && (
+                          <p className="text-slate-600 leading-relaxed mb-4 text-sm">
+                            {opp.life_impact}
+                          </p>
+                        )}
+
+                        {opp.quick_win && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                            <p className="text-sm font-medium text-amber-800 mb-1 flex items-center gap-1.5">
+                              <span>💡</span> Before we meet
+                            </p>
+                            <p className="text-sm text-amber-900 leading-relaxed">
+                              {opp.quick_win}
+                            </p>
+                          </div>
+                        )}
+
+                        {serviceName && (
+                          <div className="pt-3 border-t border-slate-100">
+                            <span className="text-sm font-medium text-blue-700">
+                              → {serviceName}
+                              {servicePrice != null && servicePrice !== '' && (
+                                <span className="text-slate-500 font-normal ml-1">
+                                  (£{Number(servicePrice).toLocaleString()})
+                                </span>
+                              )}
+                            </span>
+                            {opp.service_fit_limitation && (
+                              <p className="mt-1.5 text-xs text-slate-400 italic leading-relaxed">
+                                Note: {opp.service_fit_limitation}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* ================================================================ */}
           {/* PAGE 4: THE NUMBERS */}
