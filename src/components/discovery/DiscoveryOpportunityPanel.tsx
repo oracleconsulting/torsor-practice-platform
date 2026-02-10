@@ -477,22 +477,6 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setBuilderModalData({
-                                    conceptId: opp.concept?.id,
-                                    opportunityId: opp.id,
-                                    initialSourceName: opp.concept?.suggested_name || opp.title,
-                                  });
-                                  setBuilderModalOpen(true);
-                                }}
-                                className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-1"
-                                title="Generate full blueprint (assessment, scoring, narrative)"
-                              >
-                                <Wrench className="w-4 h-4" />
-                                Build Full Service Line
-                              </button>
-                              <button
                                 onClick={(e) => { e.stopPropagation(); handleCreateService(opp.id, opp.concept?.id); }}
                                 className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1"
                               >
@@ -524,6 +508,25 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
                           </div>
                         </div>
                       )}
+                      {/* Send any opportunity to Service Line Builder (with or without concept) */}
+                      <div className="pt-2 border-t border-gray-200 flex justify-end">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBuilderModalData({
+                              conceptId: opp.concept?.id ?? undefined,
+                              opportunityId: opp.id,
+                              initialSourceName: opp.concept?.suggested_name || opp.title,
+                            });
+                            setBuilderModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-1"
+                          title="Generate full blueprint (triggers, skills, assessment, narrative) for this opportunity"
+                        >
+                          <Wrench className="w-4 h-4" />
+                          Build Full Service Line
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
