@@ -1383,6 +1383,11 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
               </h2>
             </div>
 
+            {/* NAV-based valuation note for investment vehicles (Session 11) */}
+            {page4.valuationMethod === 'net_asset_value' && page4.valuationNote && (
+              <p className="text-xs text-slate-500 mt-1 mb-4 italic">{page4.valuationNote}</p>
+            )}
+
             {/* Cost of Staying */}
             {page4.costOfStaying && (
               <div className="bg-rose-50 rounded-xl p-6 mb-6 border border-rose-100">

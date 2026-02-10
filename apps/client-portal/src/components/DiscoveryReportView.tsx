@@ -426,6 +426,11 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
             </h2>
           </div>
 
+          {/* NAV-based valuation note for investment vehicles (Session 11) */}
+          {(page4 as any).valuationMethod === 'net_asset_value' && (page4 as any).valuationNote && (
+            <p className="text-xs text-slate-500 mt-1 mb-4 italic">{(page4 as any).valuationNote}</p>
+          )}
+
           {/* Cost of Staying - Uses calculated financialInsights when available */}
           <div className="bg-rose-50 rounded-xl p-6 mb-6 border border-rose-100">
             <h3 className="text-lg font-medium text-rose-800 mb-4 flex items-center gap-2">
