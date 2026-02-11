@@ -128,6 +128,7 @@ export default function DiscoveryReportPage() {
   const [comprehensiveAnalysis, setComprehensiveAnalysis] = useState<any>(null);
   const [recommendedServices, setRecommendedServices] = useState<any[]>([]);
   const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [expandedFinancialIndicator, setExpandedFinancialIndicator] = useState<string | null>(null);
 
   useEffect(() => {
     loadReport();
@@ -222,16 +223,19 @@ export default function DiscoveryReportPage() {
           if (discoveryReport.recommended_services) {
             setRecommendedServices(discoveryReport.recommended_services);
           }
-          // Load client-visible opportunities (Option C — hybrid surfacing)
-          const snapshotOpps = discoveryReport?.destination_report?.client_visible_opportunities
-            ?? discoveryReport?.client_visible_opportunities
-            ?? [];
+
+          // ================================================================
+          // Load client-visible opportunities
+          // ================================================================
+          const reportData = discoveryReport.destination_report || discoveryReport;
+          const snapshotOpps = reportData?.client_visible_opportunities || [];
+
           if (snapshotOpps.length > 0) {
             setOpportunities(snapshotOpps);
-            console.log(`[DiscoveryReport] Loaded ${snapshotOpps.length} opportunities from report snapshot`);
+            console.log(`[Report] 📋 Loaded ${snapshotOpps.length} opportunities from report snapshot`);
           } else {
             try {
-              const { data: liveOpps } = await supabase
+              const { data: liveOpps, error: oppsError } = await supabase
                 .from('discovery_opportunities')
                 .select(`
                   id, title, description, category, severity,
@@ -242,12 +246,18 @@ export default function DiscoveryReportPage() {
                 .eq('engagement_id', engagement.id)
                 .eq('show_in_client_view', true)
                 .order('severity', { ascending: true });
-              setOpportunities(liveOpps || []);
-              console.log(`[DiscoveryReport] Loaded ${liveOpps?.length ?? 0} opportunities from live table`);
+
+              if (oppsError) {
+                console.warn('[Report] ⚠️ Could not load live opportunities:', oppsError.message);
+              } else {
+                setOpportunities(liveOpps || []);
+                console.log(`[Report] 📋 Loaded ${liveOpps?.length || 0} opportunities from live table`);
+              }
             } catch (err) {
-              console.warn('[DiscoveryReport] Could not load live opportunities:', err);
+              console.warn('[Report] ⚠️ Opportunity loading failed:', err);
             }
           }
+
           setLoading(false);
           return;
         }
@@ -1061,16 +1071,33 @@ export default function DiscoveryReportPage() {
                           </span>
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string }, idx: number) => (
+                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string }, idx: number) => (
                             <div key={idx} className="bg-white/60 rounded-lg p-3">
                               <div className="flex items-center justify-between mb-1">
                                 <span className="text-xs text-gray-500">{ratio.name}</span>
-                                <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
-                                  {ratio.status}
+                                <span className="flex items-center gap-1">
+                                  {ratio.whatItMeans && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedFinancialIndicator(expandedFinancialIndicator === ratio.name ? null : ratio.name)}
+                                      className="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded"
+                                      aria-label="What this means"
+                                    >
+                                      <Info className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
+                                    {ratio.status}
+                                  </span>
                                 </span>
                               </div>
                               <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
                               <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
+                              {expandedFinancialIndicator === ratio.name && ratio.whatItMeans && (
+                                <div className="mt-2 p-2 bg-slate-50 rounded text-xs text-slate-600 leading-relaxed">
+                                  {ratio.whatItMeans}
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -1942,7 +1969,7 @@ export default function DiscoveryReportPage() {
                       </span>
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string }, idx: number) => (
+                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string }, idx: number) => (
                         <div key={idx} className="bg-white/60 rounded-lg p-3">
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs text-gray-500">{ratio.name}</span>
@@ -1952,6 +1979,9 @@ export default function DiscoveryReportPage() {
                           </div>
                           <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
                           <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
+                          {ratio.whatItMeans && (
+                            <p className="text-xs text-slate-400 mt-1 italic">{ratio.whatItMeans}</p>
+                          )}
                         </div>
                       ))}
                     </div>

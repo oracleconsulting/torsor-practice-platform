@@ -811,6 +811,8 @@ interface FinancialRatio {
   isNoteworthy: boolean;
   narrativePhrase: string;
   context: string;
+  /** Plain-English explanation for client (investment_vehicle / context-aware) */
+  whatItMeans?: string;
   priorYear?: number | null;
   benchmark?: number | null;
 }
@@ -858,11 +860,15 @@ function calculateFinancialHealthSnapshot(
     let narrativePhrase = '';
     let context = '';
 
+    let whatItMeans: string | undefined;
     if (currentRatio < 0.8) {
       status = 'concern';
       isNoteworthy = true;
       narrativePhrase = `Current ratio of ${formatted} means current liabilities exceed current assets — short-term liquidity needs attention`;
       context = 'May need to restructure short-term debt or improve cash collection';
+      if (clientTypeLabel === 'investment_vehicle') {
+        whatItMeans = `For every £1 you owe in the next 12 months, you have ${(currentRatio * 100).toFixed(0)}p available. This is common for property companies where mortgage payments fall due regularly but rental income is steady. Worth reviewing with your accountant to ensure no short-term cash pressure.`;
+      }
     } else if (currentRatio < 1.0) {
       status = 'monitor';
       isNoteworthy = true;
@@ -870,6 +876,9 @@ function calculateFinancialHealthSnapshot(
       context = clientTypeLabel === 'investment_vehicle'
         ? 'Not unusual for property companies with long-term debt structures, but worth monitoring'
         : 'Worth monitoring to ensure short-term obligations can be met';
+      if (clientTypeLabel === 'investment_vehicle') {
+        whatItMeans = `Your short-term debts slightly exceed your short-term assets — not unusual for a property investment company, but worth monitoring.`;
+      }
     } else if (currentRatio > 3.0) {
       status = 'strong';
       isNoteworthy = true;
@@ -889,7 +898,8 @@ function calculateFinancialHealthSnapshot(
       status,
       isNoteworthy,
       narrativePhrase,
-      context
+      context,
+      ...(whatItMeans && { whatItMeans })
     });
 
     // Quick Ratio (Acid Test)
@@ -925,12 +935,16 @@ function calculateFinancialHealthSnapshot(
     let isNoteworthy = false;
     let narrativePhrase = '';
     let context = '';
+    let gearingWhatItMeans: string | undefined;
 
     if (gearing < 10) {
       status = 'strong';
       isNoteworthy = true;
       narrativePhrase = `Gearing of ${formatted} — extremely conservative debt position`;
       context = 'Very low leverage could mean capital is sitting idle or there is capacity for strategic borrowing';
+      if (clientTypeLabel === 'investment_vehicle') {
+        gearingWhatItMeans = `You've built a significant portfolio with only ${formatted} of debt — that's extremely conservative. You own almost everything outright, which gives you security and flexibility. There's significant borrowing capacity available if you ever wanted to reinvest or restructure for IHT purposes.`;
+      }
     } else if (gearing < 25) {
       status = 'healthy';
       narrativePhrase = `Gearing of ${formatted} — comfortably within healthy range`;
@@ -955,7 +969,8 @@ function calculateFinancialHealthSnapshot(
       status,
       isNoteworthy,
       narrativePhrase,
-      context
+      context,
+      ...(gearingWhatItMeans && { whatItMeans: gearingWhatItMeans })
     });
   }
 
@@ -1010,13 +1025,22 @@ function calculateFinancialHealthSnapshot(
     if (Math.abs(divergence) > 15) {
       let narrativePhrase = '';
       let context = '';
+      let marginWhatItMeans: string | undefined;
 
       if (netMarginPct < 0 && operatingMarginPct > 0) {
         narrativePhrase = `Net margin of ${netMarginPct.toFixed(1)}% masks operating margin of ${operatingMarginPct.toFixed(1)}% — likely driven by non-cash items (deferred tax, revaluation, exceptional costs)`;
         context = 'The headline profit figure understates true trading performance';
+        if (clientTypeLabel === 'investment_vehicle') {
+          const grossPct = financials.grossMarginPct ?? 100;
+          marginWhatItMeans = `Your gross margin is ${grossPct.toFixed(0)}% (${grossPct >= 99 ? 'no cost of sales — normal for rental income' : 'after direct costs'}) but your operating margin is ${operatingMarginPct.toFixed(1)}%. The ${divergence.toFixed(1)} percentage point gap is your running costs: maintenance, insurance, management, and professional fees. Your actual trading is healthy — the negative net figure is an accounting artefact, not poor performance.`;
+        }
       } else if (divergence > 20) {
         narrativePhrase = `${divergence.toFixed(0)} percentage point gap between operating margin (${operatingMarginPct.toFixed(1)}%) and net margin (${netMarginPct.toFixed(1)}%) — interest, tax, or exceptional items are significant`;
         context = 'Worth investigating what sits between operating and net profit';
+        if (clientTypeLabel === 'investment_vehicle') {
+          const grossPct = financials.grossMarginPct ?? 100;
+          marginWhatItMeans = `Your gross margin is ${grossPct.toFixed(0)}% (${grossPct >= 99 ? 'no cost of sales — normal for rental income' : 'after direct costs'}) and your operating margin is ${operatingMarginPct.toFixed(1)}%. The ${divergence.toFixed(1)}pp gap represents your running costs. At ${operatingMarginPct.toFixed(1)}% operating margin, you keep a solid share of every pound of rent as profit.`;
+        }
       }
 
       if (narrativePhrase) {
@@ -1028,7 +1052,8 @@ function calculateFinancialHealthSnapshot(
           status: netMarginPct < 0 ? 'monitor' : 'healthy',
           isNoteworthy: true,
           narrativePhrase,
-          context
+          context,
+          ...(marginWhatItMeans && { whatItMeans: marginWhatItMeans })
         });
       }
     }
@@ -1043,6 +1068,16 @@ function calculateFinancialHealthSnapshot(
     else if (roe < 5) status = 'monitor';
     else if (roe > 20) status = 'strong';
 
+    const hasLargeDivergence = operatingMarginPct != null && netMarginPct != null && Math.abs(operatingMarginPct - netMarginPct) > 15;
+    let roeWhatItMeans: string | undefined;
+    if (clientTypeLabel === 'investment_vehicle' && roe < 0 && hasLargeDivergence) {
+      roeWhatItMeans = "This looks alarming but it's misleading. The statutory accounts show a loss because of non-cash items (e.g. deferred tax on property revaluation). Your actual operating profit is healthy — the report's margin divergence section explains the gap. Ignore this headline number; your properties are performing.";
+    } else if (clientTypeLabel === 'investment_vehicle' && roe < 0) {
+      roeWhatItMeans = "Don't interpret this as poor performance. The negative figure is likely an accounting artefact (e.g. deferred tax on revaluation). Your actual cash returns may be healthy.";
+    } else if (clientTypeLabel === 'investment_vehicle' && roe >= 0 && roe < 5) {
+      roeWhatItMeans = 'For property investment, capital growth often matters more than income yield. This number reflects the income return on equity; asset values may be growing separately.';
+    }
+
     allRatios.push({
       name: 'Return on Equity',
       value: roe,
@@ -1055,7 +1090,8 @@ function calculateFinancialHealthSnapshot(
         : `Return on equity of ${formatted}`,
       context: roe < 0
         ? "Don't interpret this as poor performance — check what drives the net profit figure"
-        : roe > 20 ? 'Strong returns on capital employed' : 'Adequate returns on capital'
+        : roe > 20 ? 'Strong returns on capital employed' : 'Adequate returns on capital',
+      ...(roeWhatItMeans && { whatItMeans: roeWhatItMeans })
     });
   }
 
