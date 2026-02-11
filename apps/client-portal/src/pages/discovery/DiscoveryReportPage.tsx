@@ -151,10 +151,10 @@ function getPlainEnglish(
   }
 
   if (label === 'Margin Divergence') {
-    const grossMargin = ca?.grossMargin?.grossMarginPct ?? ca?.financials?.grossMarginPct ?? 100;
     const operatingMargin = ca?.profitability?.operatingMarginPct ?? ca?.financials?.operatingMarginPct ?? 47.6;
     const gap = Number.isFinite(numValue) ? numValue : 56.5;
-    return `Your rental income has no direct costs (100% gross margin — normal for property), but after running costs like maintenance, insurance, and management fees, you keep ${operatingMargin.toFixed(1)}p of every £1 in rent as profit. The ${gap}pp gap IS your running costs — and at ${operatingMargin.toFixed(1)}% operating margin, your portfolio is performing well. The "divergence" just means the headline accounts don't show how well the underlying business is trading.`;
+    const gapStr = typeof gap === 'number' ? gap.toFixed(1) : '56.5';
+    return `Your rental income has no direct costs (100% gross margin — normal for property), but after running costs like maintenance, insurance, and management fees, you keep ${operatingMargin.toFixed(1)}p of every £1 in rent as profit. The ${gapStr}pp gap IS your running costs — and at ${operatingMargin.toFixed(1)}% operating margin, your portfolio is performing well. The "divergence" just means the headline accounts don't show how well the underlying business is trading.`;
   }
 
   if (label === 'Return on Equity') {
@@ -194,8 +194,6 @@ export default function DiscoveryReportPage() {
   const [comprehensiveAnalysis, setComprehensiveAnalysis] = useState<any>(null);
   const [recommendedServices, setRecommendedServices] = useState<any[]>([]);
   const [opportunities, setOpportunities] = useState<any[]>([]);
-  const [expandedFinancialIndicator, setExpandedFinancialIndicator] = useState<string | null>(null);
-
   useEffect(() => {
     loadReport();
   }, [clientSession]);
@@ -1147,15 +1145,9 @@ export default function DiscoveryReportPage() {
                                   <span className="text-xs text-gray-500">{ratio.name}</span>
                                   <span className="flex items-center gap-1">
                                     {hasExplanation && (
-                                      <button
-                                        type="button"
-                                        onClick={() => setExpandedFinancialIndicator(expandedFinancialIndicator === ratio.name ? null : ratio.name)}
-                                        className="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded"
-                                        aria-label="What does this mean?"
-                                        title="What does this mean?"
-                                      >
+                                      <span className="text-slate-400 p-0.5" title="What does this mean?" aria-hidden>
                                         <Info className="w-4 h-4" />
-                                      </button>
+                                      </span>
                                     )}
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
                                       {ratio.status}
@@ -1164,7 +1156,7 @@ export default function DiscoveryReportPage() {
                                 </div>
                                 <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
                                 <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
-                                {expandedFinancialIndicator === ratio.name && hasExplanation && (
+                                {hasExplanation && (
                                   <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                                     <p className="text-xs text-slate-600 leading-relaxed">
                                       {plainEnglish}
