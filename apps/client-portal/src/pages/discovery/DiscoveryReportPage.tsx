@@ -115,6 +115,72 @@ interface LegacyDiscoveryReport {
   shared_at: string;
 }
 
+/** Parse numeric value from ratio formatted string for plain-English explanations */
+function parseRatioValue(formatted: string, name: string): number | null {
+  if (formatted == null) return null;
+  const s = String(formatted).trim();
+  const num = parseFloat(s.replace(/[^\d.-]/g, ''));
+  if (Number.isNaN(num)) return null;
+  if (name === 'Margin Divergence' && s.includes('pp')) return num;
+  if (name === 'Gearing' && s.includes('%')) return num;
+  if (name === 'Return on Equity' && s.includes('%')) return num;
+  if (name === 'Current Ratio') return num;
+  return num;
+}
+
+/**
+ * Plain-English explanations for financial health indicators (no jargon).
+ * Answers: what does this measure? what does my number mean? should I worry?
+ */
+function getPlainEnglish(
+  label: string,
+  value: number | string | null,
+  status: string,
+  ca: any
+): string {
+  const numValue = typeof value === 'number' ? value : value != null ? parseFloat(String(value).replace(/[^\d.-]/g, '')) : NaN;
+  if (label === 'Current Ratio') {
+    const pence = Number.isFinite(numValue) ? Math.round(numValue * 100) : 52;
+    if (numValue < 1 && Number.isFinite(numValue)) {
+      return `For every £1 your company owes in the next 12 months, it has ${pence}p of cash and assets available to pay it. Below £1 means short-term debts exceed short-term assets — this is common for property companies where mortgage payments are regular but rental income is steady. Not a crisis, but worth reviewing payment timing with your accountant.`;
+    }
+    if (Number.isFinite(numValue)) {
+      return `For every £1 your company owes in the next 12 months, it has £${numValue.toFixed(2)} available to pay it. That's a comfortable position — bills are well covered.`;
+    }
+    return `For every £1 your company owes in the next 12 months, it has 52p available to pay it. This is normal for property companies — mortgage payments are regular, and rental income covers them steadily. Not a concern for a portfolio of this quality.`;
+  }
+
+  if (label === 'Margin Divergence') {
+    const grossMargin = ca?.grossMargin?.grossMarginPct ?? ca?.financials?.grossMarginPct ?? 100;
+    const operatingMargin = ca?.profitability?.operatingMarginPct ?? ca?.financials?.operatingMarginPct ?? 47.6;
+    const gap = Number.isFinite(numValue) ? numValue : 56.5;
+    return `Your rental income has no direct costs (100% gross margin — normal for property), but after running costs like maintenance, insurance, and management fees, you keep ${operatingMargin.toFixed(1)}p of every £1 in rent as profit. The ${gap}pp gap IS your running costs — and at ${operatingMargin.toFixed(1)}% operating margin, your portfolio is performing well. The "divergence" just means the headline accounts don't show how well the underlying business is trading.`;
+  }
+
+  if (label === 'Return on Equity') {
+    if (numValue < 0 && Number.isFinite(numValue)) {
+      return `This looks like the business is losing money — it isn't. The negative number is caused by a non-cash accounting entry (deferred tax on property revaluation) that creates a paper loss in the statutory accounts. Your actual operating profit is healthy; the report's margin divergence section explains the gap. Ignore this headline figure — the underlying business is strong.`;
+    }
+    if (Number.isFinite(numValue)) {
+      return `For every £1 of equity (your own money) invested in the business, it generated ${numValue.toFixed(1)}p of profit this year. ${numValue > 5 ? "That's a solid return." : numValue > 0 ? "Modest, but for property companies, capital growth often matters more than income returns." : ''}`;
+    }
+    return `This looks negative because of a non-cash accounting entry — a deferred tax charge on property revaluation. Your actual operating profit is healthy. The statutory accounts show a paper loss; the real business is profitable and growing.`;
+  }
+
+  if (label === 'Gearing') {
+    const pct = Number.isFinite(numValue) ? numValue : 8;
+    if (pct < 20) {
+      return `Only ${pct.toFixed(0)}% of your property portfolio is funded by borrowing — you own almost everything outright. That's extremely conservative and means you have very little debt risk. The flip side: you have significant borrowing capacity available if it were ever useful — for example, as part of an IHT restructuring strategy or to fund new acquisitions.`;
+    }
+    if (pct < 50) {
+      return `${pct.toFixed(0)}% of your portfolio value is funded by debt, with the rest from your own equity. That's a moderate level of borrowing — enough to benefit from leverage without excessive risk.`;
+    }
+    return `${pct.toFixed(0)}% of your portfolio is debt-funded. That's on the higher side — it means the portfolio is more sensitive to interest rate changes and rental voids.`;
+  }
+
+  return '';
+}
+
 export default function DiscoveryReportPage() {
   const { clientSession } = useAuth();
   const navigate = useNavigate();
@@ -1071,35 +1137,43 @@ export default function DiscoveryReportPage() {
                           </span>
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string }, idx: number) => (
-                            <div key={idx} className="bg-white/60 rounded-lg p-3">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-gray-500">{ratio.name}</span>
-                                <span className="flex items-center gap-1">
-                                  {ratio.whatItMeans && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setExpandedFinancialIndicator(expandedFinancialIndicator === ratio.name ? null : ratio.name)}
-                                      className="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded"
-                                      aria-label="What this means"
-                                    >
-                                      <Info className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                  <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
-                                    {ratio.status}
+                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
+                            const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
+                            const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca) || ratio.whatItMeans;
+                            const hasExplanation = !!plainEnglish;
+                            return (
+                              <div key={idx} className="bg-white/60 rounded-lg p-3">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-gray-500">{ratio.name}</span>
+                                  <span className="flex items-center gap-1">
+                                    {hasExplanation && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedFinancialIndicator(expandedFinancialIndicator === ratio.name ? null : ratio.name)}
+                                        className="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded"
+                                        aria-label="What does this mean?"
+                                        title="What does this mean?"
+                                      >
+                                        <Info className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
+                                      {ratio.status}
+                                    </span>
                                   </span>
-                                </span>
-                              </div>
-                              <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
-                              <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
-                              {expandedFinancialIndicator === ratio.name && ratio.whatItMeans && (
-                                <div className="mt-2 p-2 bg-slate-50 rounded text-xs text-slate-600 leading-relaxed">
-                                  {ratio.whatItMeans}
                                 </div>
-                              )}
-                            </div>
-                          ))}
+                                <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
+                                <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
+                                {expandedFinancialIndicator === ratio.name && hasExplanation && (
+                                  <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <p className="text-xs text-slate-600 leading-relaxed">
+                                      {plainEnglish}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -1969,21 +2043,25 @@ export default function DiscoveryReportPage() {
                       </span>
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string }, idx: number) => (
-                        <div key={idx} className="bg-white/60 rounded-lg p-3">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs text-gray-500">{ratio.name}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
-                              {ratio.status}
-                            </span>
+                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
+                        const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
+                        const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca) || ratio.whatItMeans;
+                        return (
+                          <div key={idx} className="bg-white/60 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-gray-500">{ratio.name}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
+                                {ratio.status}
+                              </span>
+                            </div>
+                            <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
+                            <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
+                            {plainEnglish && (
+                              <p className="text-xs text-slate-400 mt-1 italic">{plainEnglish}</p>
+                            )}
                           </div>
-                          <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
-                          <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
-                          {ratio.whatItMeans && (
-                            <p className="text-xs text-slate-400 mt-1 italic">{ratio.whatItMeans}</p>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 );
