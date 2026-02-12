@@ -1555,8 +1555,12 @@ function generateRecommendedServices(
       continue;
     }
     
-    // Determine if this is a pinned service
-    const isPinned = opps.some((o: any) => o.opportunity_code?.startsWith('pinned-'));
+    // Determine if this is a pinned service (check code, opportunity_code, and explicit flag)
+    const isPinned = opps.some((o: any) =>
+      o.opportunity_code?.startsWith('pinned-') ||
+      o.code?.startsWith('pinned-') ||
+      o._pinnedByAdvisor === true
+    );
     
     // Get highest severity among opportunities
     const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -2795,14 +2799,22 @@ function postProcessOpportunities(
         .map(o => o.serviceMapping?.existingService?.code)
         .filter(Boolean)
     );
-    
+
     for (const pinnedCode of pinnedServices) {
-      // Skip if already in opportunities
+      // If already in opportunities, mark existing opportunity as pinned (don't skip)
       if (existingServiceCodes.has(pinnedCode)) {
-        console.log(`[Post-Process] ⏭️ Pinned service ${pinnedCode} already in opportunities`);
+        const existingOpp = allowed.find(
+          o => o.serviceMapping?.existingService?.code === pinnedCode
+        );
+        if (existingOpp) {
+          existingOpp._pinnedByAdvisor = true;
+          existingOpp.severity = existingOpp.severity === 'critical' ? 'critical' : 'high';
+          existingOpp.priority = existingOpp.priority === 'must_address_now' ? 'must_address_now' : 'next_12_months';
+          console.log(`[Post-Process] ⭐️ Pinned service ${pinnedCode} already in opportunities - marked as pinned`);
+        }
         continue;
       }
-      
+
       const service = services.find((s: any) => s.code === pinnedCode);
       if (service) {
         // Build context-aware evidence and talking point instead of boilerplate
@@ -2912,8 +2924,16 @@ function postProcessOpportunities(
     return (b.financialImpact?.amount || 0) - (a.financialImpact?.amount || 0);
   });
   
-  // Step 6: Cap at 12 opportunities
-  const capped = forcedPriority.slice(0, 12);
+  // Step 6: Cap at 12 opportunities, but NEVER drop pinned services
+  let capped = forcedPriority.slice(0, 12);
+
+  // Re-add any pinned services that got capped out
+  const droppedPins = forcedPriority.slice(12).filter((o: any) => o._pinnedByAdvisor);
+  if (droppedPins.length > 0) {
+    console.log(`[Post-Process] 📌 Rescuing ${droppedPins.length} pinned services from cap: ${droppedPins.map((o: any) => o.serviceMapping?.existingService?.code).join(', ')}`);
+    capped = [...capped, ...droppedPins];
+  }
+
   console.log(`[Post-Process] Final count: ${capped.length} opportunities`);
   
   // Recalculate total opportunity value
