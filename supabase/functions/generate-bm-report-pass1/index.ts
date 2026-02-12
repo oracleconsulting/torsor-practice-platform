@@ -82,7 +82,7 @@ interface EnhancedValueSuppressor {
     dependencies: string[];
   };
   fixable: boolean;
-  category: 'concentration' | 'founder' | 'succession' | 'revenue_model' | 'governance' | 'other';
+  category: 'concentration' | 'founder' | 'succession' | 'revenue_model' | 'documentation' | 'governance' | 'other';
 }
 
 interface ExitReadinessComponent {
@@ -147,6 +147,8 @@ interface ValueSuppressorInput {
   recurringRevenue?: number;
   contractBacklog?: number;
   documentationScore?: number;
+  uniqueMethodsProtection?: string;
+  criticalProcessesUndocumented?: string | string[];
 }
 
 function formatEnhancedCurrency(value: number): string {
@@ -345,7 +347,71 @@ function calculateEnhancedSuppressors(
       category: 'succession'
     });
   }
-  
+
+  // UNDOCUMENTED IP & PROCESSES SUPPRESSOR
+  const ipUnprotected = inputs.uniqueMethodsProtection === 'Not formally protected' ||
+                        inputs.uniqueMethodsProtection === "Don't know" ||
+                        inputs.uniqueMethodsProtection === 'In my head' ||
+                        inputs.uniqueMethodsProtection === '';
+  const undocProcesses = inputs.criticalProcessesUndocumented;
+  const hasUndocumentedProcesses = (Array.isArray(undocProcesses) && undocProcesses.length >= 3) ||
+                                    (typeof undocProcesses === 'string' && undocProcesses.includes('decision'));
+  const docScoreForIP = inputs.documentationScore ?? 35;
+  const lowDocScore = docScoreForIP > 0 && docScoreForIP < 40;
+
+  if (ipUnprotected || hasUndocumentedProcesses || lowDocScore) {
+    const currentDiscount = (ipUnprotected && hasUndocumentedProcesses) ? 10 :
+                            ipUnprotected ? 8 :
+                            hasUndocumentedProcesses ? 8 : 5;
+    const targetDiscount = 2;
+    const currentDiscountValue = baselineValue * (currentDiscount / 100);
+    const targetDiscountValue = baselineValue * (targetDiscount / 100);
+
+    const evidenceParts: string[] = [];
+    evidenceParts.push('Competitive advantages and key processes not formally documented or protected');
+    evidenceParts.push('Buyers pay premiums for documented, transferable IP');
+
+    suppressors.push({
+      code: 'UNDOCUMENTED_IP',
+      name: 'Undocumented IP & Processes',
+      severity: 'HIGH',
+      current: {
+        value: inputs.uniqueMethodsProtection || 'Unprotected',
+        metric: 'IP protection status',
+        discountPercent: currentDiscount,
+        discountValue: currentDiscountValue
+      },
+      target: {
+        value: 'Documented & protected',
+        metric: 'IP formally documented',
+        discountPercent: targetDiscount,
+        discountValue: targetDiscountValue
+      },
+      recovery: {
+        valueRecoverable: currentDiscountValue - targetDiscountValue,
+        percentageRecovery: Math.round(((currentDiscount - targetDiscount) / currentDiscount) * 100),
+        timeframe: '6 months'
+      },
+      evidence: evidenceParts.join('. ') + '.',
+      whyThisDiscount: `Undocumented IP is invisible IP. Buyers won't pay for what they can't see or transfer. This ${currentDiscount}% discount reflects the risk of knowledge walking out the door.`,
+      industryContext: 'Most SME value sits in processes and relationships, not patents. Documenting these is the fastest way to protect value.',
+      pathToFix: {
+        summary: 'Systems Audit + Process Documentation',
+        steps: [
+          'Map all critical processes and decision frameworks',
+          'Document competitive methodology and IP',
+          'Create operations manual for key functions',
+          'Implement knowledge management system',
+          'Protect IP formally where applicable'
+        ],
+        investment: 15000,
+        dependencies: ['Staff time for documentation', 'External facilitator recommended']
+      },
+      fixable: true,
+      category: 'documentation'
+    });
+  }
+
   // REVENUE PREDICTABILITY SUPPRESSOR
   const rr = inputs.recurringRevenue ?? 0;
   const cb = inputs.contractBacklog ?? 0;
@@ -3712,6 +3778,8 @@ function enrichBenchmarkData(
           recurringRevenue: parseValuePct(hvaResponses.recurring_revenue_percentage),
           contractBacklog: hvaResponses.contract_backlog_months || 0,
           documentationScore: parseValuePct(hvaResponses.documentation_score),
+          uniqueMethodsProtection: hvaResponses.unique_methods_protection || '',
+          criticalProcessesUndocumented: hvaResponses.critical_processes_undocumented || '',
         };
         
         const baselineValue = valueAnalysisResult.baseline.enterpriseValue.mid;

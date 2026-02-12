@@ -120,7 +120,7 @@ export interface EnhancedValueSuppressor {
   
   // Flags
   fixable: boolean;
-  category: 'concentration' | 'founder' | 'succession' | 'revenue_model' | 'governance' | 'other';
+  category: 'concentration' | 'founder' | 'succession' | 'revenue_model' | 'documentation' | 'governance' | 'other';
 }
 
 // =============================================================================
