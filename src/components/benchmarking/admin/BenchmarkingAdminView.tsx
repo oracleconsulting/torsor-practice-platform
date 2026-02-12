@@ -661,9 +661,8 @@ export function BenchmarkingAdminView({
                 )}
                 
                 {activeTab === 'valuation' && data.value_analysis && (
-                  <ValueAnalysisPanel 
+                  <ValueAnalysisPanel
                     valueAnalysis={data.value_analysis}
-                    enhancedSuppressors={data.pass1_data?.enhanced_suppressors}
                     clientName={clientName}
                   />
                 )}
