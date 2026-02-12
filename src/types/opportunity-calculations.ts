@@ -84,7 +84,11 @@ export interface EnhancedValueSuppressor {
     metric: string;
     discountPercent: number;
     discountValue: number;
+    waterfallAmount?: number;
   };
+
+  /** Proportional share of value gap for waterfall display (sums to gap) */
+  waterfallAmount?: number;
   
   // Target state
   target: {

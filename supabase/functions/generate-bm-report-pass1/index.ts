@@ -876,7 +876,9 @@ interface ValueAnalysis {
     surplusCash: number;
     enterpriseValue: { low: number; mid: number; high: number };
     multipleJustification: string;
+    totalBaseline?: number;
   };
+  adjustedEV?: { low: number; mid: number; high: number };
   suppressors: ValueSuppressor[];
   aggregateDiscount: {
     percentRange: { low: number; mid: number; high: number };
@@ -1426,29 +1428,38 @@ function calculateValueAnalysis(financials: ValueFinancialInputs, hvaResponses: 
   
   const baseValue = { low: ebitda * multiples.low, mid: ebitda * multiples.mid, high: ebitda * multiples.high };
   const surplus = surplusCash?.surplusCash || 0;
-  const enterpriseValue = { low: baseValue.low + surplus, mid: baseValue.mid + surplus, high: baseValue.high + surplus };
-  
+
+  // Enterprise value = EBITDA × multiple only (surplus added after discounts)
+  const enterpriseValue = { low: baseValue.low, mid: baseValue.mid, high: baseValue.high };
+
   console.log('[Value Calculator] Enterprise value (mid):', enterpriseValue.mid);
   console.log('[Value Calculator] Concentration from assessment:', concentrationFromAssessment);
-  
-  // Pass HVA responses as supplementary data as well (for fallback extraction)
+
   const suppressors = mapValueHVAToSuppressors(hvaResponses, enterpriseValue.mid, concentrationFromAssessment, hvaResponses);
   console.log('[Value Calculator] Identified suppressors:', suppressors.length);
-  
+
   const aggregateDiscount = calculateValueAggregateDiscount(suppressors);
-  
-  const currentMarketValue = {
+
+  // Adjusted EV = enterprise value after operating-risk discounts (no surplus yet)
+  const adjustedEV = {
     low: enterpriseValue.low * (1 - aggregateDiscount.percentRange.high / 100),
     mid: enterpriseValue.mid * (1 - aggregateDiscount.percentRange.mid / 100),
     high: enterpriseValue.high * (1 - aggregateDiscount.percentRange.low / 100),
   };
-  
-  const valueGap = {
-    low: enterpriseValue.low - currentMarketValue.high,
-    mid: enterpriseValue.mid - currentMarketValue.mid,
-    high: enterpriseValue.high - currentMarketValue.low,
+
+  // Current market value = adjusted EV + surplus cash (cash not subject to operating discounts)
+  const currentMarketValue = {
+    low: adjustedEV.low + surplus,
+    mid: adjustedEV.mid + surplus,
+    high: adjustedEV.high + surplus,
   };
-  
+
+  const valueGap = {
+    low: enterpriseValue.low - adjustedEV.high,
+    mid: enterpriseValue.mid - adjustedEV.mid,
+    high: enterpriseValue.high - adjustedEV.low,
+  };
+
   const valueGapPercent = enterpriseValue.mid > 0 ? (valueGap.mid / enterpriseValue.mid) * 100 : 0;
   
   const exitReadiness = calculateValueExitReadiness(hvaResponses, suppressors, financials);
@@ -1469,8 +1480,10 @@ function calculateValueAnalysis(financials: ValueFinancialInputs, hvaResponses: 
       baseValue,
       surplusCash: surplus,
       enterpriseValue,
+      totalBaseline: enterpriseValue.mid + surplus,
       multipleJustification: `${industryCode} industry standard for £${(financials.revenue / 1000000).toFixed(1)}M revenue business. Multiple factors: ${multiples.factors.join(', ')}.`,
     },
+    adjustedEV,
     suppressors,
     aggregateDiscount,
     currentMarketValue,
@@ -3712,7 +3725,28 @@ function enrichBenchmarkData(
           narrativePreferences  // Pass preferences for context-aware pathToFix
         );
         derivedFields.push('enhanced_suppressors');
-        
+
+        // Waterfall-consistent amounts: allocate actual multiplicative gap proportionally so displayed £ sum matches gap
+        const totalIndividualDiscount = enriched.enhanced_suppressors.reduce(
+          (sum: number, s: any) => sum + (s.current?.discountPercent || 0),
+          0
+        );
+        const actualGap = valueAnalysisResult.valueGap.mid;
+        if (totalIndividualDiscount > 0 && actualGap > 0) {
+          enriched.enhanced_suppressors.forEach((s: any) => {
+            const proportion = (s.current?.discountPercent || 0) / totalIndividualDiscount;
+            s.waterfallAmount = Math.round(actualGap * proportion);
+          });
+          const allocated = enriched.enhanced_suppressors.reduce(
+            (sum: number, s: any) => sum + (s.waterfallAmount || 0),
+            0
+          );
+          const rounding = Math.round(actualGap) - allocated;
+          if (enriched.enhanced_suppressors.length > 0 && Math.abs(rounding) < 100000) {
+            enriched.enhanced_suppressors[0].waterfallAmount = (enriched.enhanced_suppressors[0].waterfallAmount || 0) + rounding;
+          }
+        }
+
         // Generate exit readiness breakdown (CONTEXT-AWARE)
         enriched.exit_readiness_breakdown = calculateExitReadinessBreakdown(
           enriched.enhanced_suppressors,

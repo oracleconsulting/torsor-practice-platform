@@ -25,6 +25,9 @@ export interface ValueAnalysis {
   
   // Value suppressors from HVA
   suppressors: ValueSuppressor[];
+
+  // Adjusted EV = enterprise value after operating-risk discounts (before adding surplus cash)
+  adjustedEV?: { low: number; mid: number; high: number };
   
   // Aggregate calculations (handles overlapping discounts)
   aggregateDiscount: {

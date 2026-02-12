@@ -65,7 +65,7 @@ function formatPercent(value: number): string {
 // Normalize any suppressor to a common display format (handles enhanced + value_analysis structures)
 function normalizeSuppressor(s: any): {
   name: string; severity: string; evidence: string; whyThisDiscount: string; currentLabel: string; targetLabel: string;
-  discountPercent: number; discountValue: number; recoveryValue: number; recoveryTimeframe: string; pathToFixSummary: string;
+  discountPercent: number; discountValue: number; waterfallAmount: number; recoveryValue: number; recoveryTimeframe: string; pathToFixSummary: string;
   pathToFixSteps: string[]; investment: string | number | null; roi: string | null; dependencies: string | null;
 } {
   const pathToFix = s.pathToFix || {};
@@ -76,6 +76,8 @@ function normalizeSuppressor(s: any): {
   const roi = invNum > 0 && recoveryVal > 0 ? `${Math.round(recoveryVal / invNum)}x` : (pathToFix.roi ?? null);
   const deps = pathToFix.dependencies;
   const dependencies = deps == null ? null : Array.isArray(deps) ? deps.join('; ') : String(deps);
+
+  const waterfallAmt = s.waterfallAmount ?? s.current?.waterfallAmount ?? 0;
 
   // Already in enhanced format
   if (s.current && typeof s.current === 'object' && (s.current.value !== undefined || s.current.discountValue !== undefined)) {
@@ -92,6 +94,7 @@ function normalizeSuppressor(s: any): {
       targetLabel: (targVal !== undefined && targVal !== null && typeof targVal !== 'object' ? `${targVal} ${targMetric}`.trim() : targMetric || '') || 'Improved',
       discountPercent: s.current.discountPercent || 0,
       discountValue: s.current.discountValue || 0,
+      waterfallAmount: waterfallAmt,
       recoveryValue: recoveryVal,
       recoveryTimeframe: s.recovery?.timeframe || '',
       pathToFixSummary: pathToFix.summary || '',
@@ -117,6 +120,7 @@ function normalizeSuppressor(s: any): {
     targetLabel: s.remediationService ? `Fixable via ${s.remediationService}` : '',
     discountPercent: Math.round(midDiscount),
     discountValue: Math.round(midImpact),
+    waterfallAmount: waterfallAmt,
     recoveryValue: 0,
     recoveryTimeframe: s.remediationTimeMonths ? `${s.remediationTimeMonths} months` : '',
     pathToFixSummary: s.remediationService || '',
@@ -630,9 +634,9 @@ function renderValueWaterfall(data: any, config: any): string {
   const val = data.valuation || {};
   const baselineValue = val.baseline?.enterpriseValue?.mid ?? 0;
   const surplusCash = val.baseline?.surplusCash ?? data.surplusCash ?? 0;
+  const adjustedEV = val.adjustedEV?.mid ?? (val.currentMarketValue?.mid != null && surplusCash != null ? val.currentMarketValue.mid - surplusCash : 0);
   const currentValue = val.currentMarketValue?.mid ?? 0;
   const suppressors = data.suppressors || [];
-  const multipleJustification = val.baseline?.multipleJustification || '';
   const multiple = val.baseline?.multipleRange?.mid ?? 5;
 
   if (baselineValue === 0) return '';
@@ -644,21 +648,15 @@ function renderValueWaterfall(data: any, config: any): string {
       <div class="waterfall-item baseline-item">
         <div class="wf-left">
           <strong>Baseline Enterprise Value</strong>
-          <div class="wf-detail">${multipleJustification || `${multiple}x EBITDA`}</div>
+          <div class="wf-detail">${multiple}x EBITDA</div>
         </div>
         <div class="wf-amount positive">${formatCurrency(baselineValue)}</div>
       </div>
       
-      ${surplusCash > 0 ? `
-        <div class="waterfall-item surplus-item">
-          <div class="wf-left">Including surplus cash</div>
-          <div class="wf-amount positive">+${formatCurrency(surplusCash)}</div>
-        </div>
-      ` : ''}
-      
       ${suppressors.map((s: any) => {
         const n = normalizeSuppressor(s);
         const severity = n.severity.toLowerCase();
+        const displayAmount = n.waterfallAmount || n.discountValue;
         return `
           <div class="waterfall-item suppressor-item severity-${severity}">
             <div class="wf-left">
@@ -667,13 +665,34 @@ function renderValueWaterfall(data: any, config: any): string {
               ${n.evidence ? `<div class="wf-evidence">${n.evidence}</div>` : ''}
               ${n.pathToFixSummary ? `<div class="wf-remedy">Fixable via ${n.pathToFixSummary}</div>` : n.recoveryTimeframe ? `<div class="wf-remedy">Fixable in ~${n.recoveryTimeframe}</div>` : ''}
             </div>
-            <div class="wf-amount negative">-${formatCurrency(n.discountValue)}</div>
+            <div class="wf-amount negative">-${formatCurrency(displayAmount)}</div>
           </div>
         `;
       }).join('')}
       
+      <div class="waterfall-item adjusted-ev-item">
+        <div class="wf-left">
+          <strong>Adjusted Enterprise Value</strong>
+          <div class="wf-detail">After operating-risk discounts</div>
+        </div>
+        <div class="wf-amount">${formatCurrency(adjustedEV)}</div>
+      </div>
+      
+      ${surplusCash > 0 ? `
+        <div class="waterfall-item surplus-item">
+          <div class="wf-left">
+            <strong>Surplus Cash</strong>
+            <div class="wf-detail">Added to equity value (not subject to operating discounts)</div>
+          </div>
+          <div class="wf-amount positive">+${formatCurrency(surplusCash)}</div>
+        </div>
+      ` : ''}
+      
       <div class="waterfall-item current-item">
-        <div class="wf-left"><strong>Current Market Value</strong></div>
+        <div class="wf-left">
+          <strong>Current Market Value</strong>
+          <div class="wf-detail">What a buyer would likely pay today</div>
+        </div>
         <div class="wf-amount">${formatCurrency(currentValue)}</div>
       </div>
     </div>
@@ -3072,8 +3091,10 @@ serve(async (req) => {
           enterpriseValue: baseline.enterpriseValue || { low: 0, mid: 0, high: 0 },
           multipleRange: baseline.multipleRange || { low: 0, mid: 5, high: 0 },
           surplusCash: baseline.surplusCash || 0,
+          totalBaseline: baseline.totalBaseline,
           multipleJustification: baseline.multipleJustification || '',
         },
+        adjustedEV: valueAnalysis.adjustedEV || { low: 0, mid: 0, high: 0 },
         currentMarketValue: valueAnalysis.currentMarketValue || { low: 0, mid: 0, high: 0 },
         valueGap: valueAnalysis.valueGap || { low: 0, mid: 0, high: 0 },
         valueGapPercent: valueAnalysis.valueGapPercent || 0,
@@ -3097,6 +3118,7 @@ serve(async (req) => {
           metric: s.current?.metric || '',
           discountPercent: s.current?.discountPercent ?? 0,
           discountValue: s.current?.discountValue ?? 0,
+          waterfallAmount: s.waterfallAmount ?? s.current?.waterfallAmount,
         },
         target: { value: s.target?.value || '', metric: s.target?.metric || '' },
         recovery: { valueRecoverable: s.recovery?.valueRecoverable ?? 0, timeframe: s.recovery?.timeframe || '12-24 months' },
@@ -3104,6 +3126,7 @@ serve(async (req) => {
         whyThisDiscount: s.whyThisDiscount || '',
         industryContext: s.industryContext || '',
         pathToFix: s.pathToFix || { summary: '', steps: [], investment: 0, dependencies: [] },
+        waterfallAmount: s.waterfallAmount ?? s.current?.waterfallAmount,
       })),
       exitReadiness: {
         totalScore: exitBreakdown.totalScore || 0,
