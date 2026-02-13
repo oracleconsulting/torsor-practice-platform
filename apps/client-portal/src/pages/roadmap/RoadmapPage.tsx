@@ -13,8 +13,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { useRoadmap, useGenerateAnalysis, useTasks, useGenerateValueAnalysis } from '@/hooks/useAnalysis';
 import { useAssessmentProgress } from '@/hooks/useAssessmentProgress';
-import { useLifeAlignment } from '@/hooks/useLifeAlignment';
+import { useWeeklyCheckIn } from '@/hooks/useWeeklyCheckIn';
 import { TaskCompletionModal } from '@/components/tasks/TaskCompletionModal';
+import { WeeklyCheckIn } from '@/components/sprint/WeeklyCheckIn';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -49,15 +50,17 @@ export default function RoadmapPage() {
   const { generate, loading: generating, error: generateError } = useGenerateAnalysis();
   const { generate: generateValueAnalysis, loading: generatingValue, error: valueError } = useGenerateValueAnalysis();
   const { progress } = useAssessmentProgress();
-  const { data: lifeAlignment } = useLifeAlignment();
+  const { submit, fetchHistory, getLifeAlignmentSummary, loading: checkInLoading } = useWeeklyCheckIn();
   const { tasks, fetchTasks, updateTaskStatus } = useTasks();
   const [activeTab, setActiveTab] = useState<ViewTab>('vision');
   const [activeWeek, setActiveWeek] = useState<number | null>(1);
   const [isInitialized, setIsInitialized] = useState(false);
   const [part3Responses, setPart3Responses] = useState<Record<string, any> | null>(null);
   const [completingTask, setCompletingTask] = useState<{ id: string; title: string; week_number: number } | null>(null);
+  const [checkInWeek, setCheckInWeek] = useState<number | null>(null);
 
   const [roadmapStatus, setRoadmapStatus] = useState<string | null>(null);
+  const lifeAlignment = getLifeAlignmentSummary();
 
   // Handle task completion with feedback
   const handleTaskComplete = useCallback(async (taskId: string, feedback: { whatWentWell: string; whatDidntWork: string; additionalNotes: string }) => {
@@ -129,6 +132,12 @@ export default function RoadmapPage() {
       fetchTasks();
     }
   }, [roadmap]);
+
+  useEffect(() => {
+    if (activeTab === 'sprint') {
+      fetchHistory(12);
+    }
+  }, [activeTab, fetchHistory]);
 
   const handleRegenerate = async () => {
     await generate(true);
@@ -681,19 +690,53 @@ export default function RoadmapPage() {
         ================================================================ */}
         {activeTab === 'sprint' && (
           <div className="space-y-6">
-            {/* Life Alignment Score (Life Design Thread) */}
-            {lifeAlignment && lifeAlignment.weeklyScores.length > 0 && (
-              <div className="flex items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-600">Life Alignment</span>
-                  <span className="text-2xl font-bold text-emerald-700">{lifeAlignment.score}%</span>
-                  {lifeAlignment.trend === 'up' && <TrendingUp className="w-5 h-5 text-emerald-600" />}
-                  {lifeAlignment.trend === 'down' && <span className="text-xs text-amber-600">↓</span>}
-                </div>
-                {lifeAlignment.lastCheckIn && (
-                  <span className="text-sm text-slate-500">
-                    Week {lifeAlignment.lastCheckIn.weekNumber}: {lifeAlignment.lastCheckIn.timeProtected === 'yes' ? 'Time protected' : 'Check-in recorded'}
-                  </span>
+            {/* Life Alignment Score + Weekly Check-in (Life Design Thread) */}
+            {(sprint || lifeAlignment?.totalWeeks || checkInWeek != null) && (
+              <div className="space-y-4">
+                {lifeAlignment && lifeAlignment.totalWeeks > 0 && (
+                  <div className="flex flex-wrap items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-600">Life Alignment</span>
+                      <span className="text-2xl font-bold text-emerald-700">{lifeAlignment.score}%</span>
+                      {lifeAlignment.trend === 'up' && <TrendingUp className="w-5 h-5 text-emerald-600" />}
+                      {lifeAlignment.trend === 'down' && <span className="text-xs text-amber-600">↓</span>}
+                    </div>
+                    {lifeAlignment.summary && (
+                      <span className="text-sm text-slate-500">{lifeAlignment.summary}</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setCheckInWeek(activeWeek ?? 1)}
+                      className="ml-auto rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-50"
+                    >
+                      Check in for week {activeWeek ?? 1}
+                    </button>
+                  </div>
+                )}
+                {!lifeAlignment?.totalWeeks && sprint && (
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setCheckInWeek(activeWeek ?? 1)}
+                      className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100"
+                    >
+                      Weekly check-in (Week {activeWeek ?? 1})
+                    </button>
+                  </div>
+                )}
+                {checkInWeek != null && (
+                  <WeeklyCheckIn
+                    weekNumber={checkInWeek}
+                    onSubmit={async (data) => {
+                      const success = await submit({ ...data, weekNumber: checkInWeek });
+                      if (success) {
+                        await fetchHistory(12);
+                        setCheckInWeek(null);
+                      }
+                    }}
+                    onCancel={() => setCheckInWeek(null)}
+                    isLoading={checkInLoading}
+                  />
                 )}
               </div>
             )}
