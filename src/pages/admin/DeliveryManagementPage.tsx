@@ -14,7 +14,7 @@ import {
   ArrowLeft, Plus, ChevronRight, ChevronDown,
   Target, TrendingUp, Settings, LineChart, Briefcase,
   Users2, Clock, User, Activity, BarChart3, Shield,
-  UserPlus, Trash2, Workflow
+  UserPlus, Trash2, Workflow, FileSearch
 } from 'lucide-react';
 
 
@@ -83,6 +83,7 @@ interface PhaseFit {
 
 const SERVICE_LINES: ServiceLine[] = [
   { code: '365_method', name: 'Goal Alignment', icon: Target, color: 'indigo' },
+  { code: 'discovery', name: 'Discovery Assessment', icon: FileSearch, color: 'slate' },
   { code: 'management_accounts', name: 'Business Intelligence', icon: LineChart, color: 'emerald' },
   { code: 'fractional_cfo', name: 'Fractional CFO', icon: TrendingUp, color: 'blue' },
   { code: 'fractional_coo', name: 'Fractional COO', icon: Briefcase, color: 'violet' },
