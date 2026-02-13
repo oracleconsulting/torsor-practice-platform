@@ -3,7 +3,7 @@
 // ============================================================================
 // 72 questions across 12 sections, sectioned navigation
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
@@ -18,13 +18,16 @@ import {
 } from 'lucide-react';
 
 // Import questions from shared package
-import { part2Sections, type Part2Section, type Part2Question } from '@torsor/shared';
+import { part2Sections as sharedPart2Sections, type Part2Section, type Part2Question } from '@torsor/shared';
+import { useAdaptiveAssessment, buildAssessmentMetadata, normalizeSectionId } from '@/hooks/useAdaptiveAssessment';
+import { AdaptiveAssessmentBanner } from '@/components/assessment/AdaptiveAssessmentBanner';
 
 export default function Part2Page() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { clientSession } = useAuth();
   const isReviewMode = searchParams.get('mode') === 'review';
+  const adaptive = useAdaptiveAssessment();
 
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
@@ -34,11 +37,26 @@ export default function Part2Page() {
   const [showSummary, setShowSummary] = useState(isReviewMode);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const responsesRef = useRef<Record<string, any>>({});
+
+  // Filter to visible sections only (adaptive assessment)
+  const part2Sections: Part2Section[] = useMemo(() => {
+    if (adaptive.loading) return sharedPart2Sections;
+    const visibleIds = new Set(adaptive.visiblePart2Sections.map(s => s.sectionId));
+    return sharedPart2Sections.filter(section =>
+      visibleIds.has(normalizeSectionId(section.title)) || visibleIds.has(normalizeSectionId(section.shortTitle))
+    );
+  }, [adaptive.loading, adaptive.visiblePart2Sections]);
   
-  // Keep ref in sync with state
   useEffect(() => {
     responsesRef.current = responses;
   }, [responses]);
+
+  // Clamp section index when visible sections shrink (e.g. after adaptive loads)
+  useEffect(() => {
+    if (part2Sections.length > 0 && currentSectionIndex >= part2Sections.length) {
+      setCurrentSectionIndex(Math.max(0, part2Sections.length - 1));
+    }
+  }, [part2Sections.length, currentSectionIndex]);
 
   const currentSection = part2Sections[currentSectionIndex];
   const isLastSection = currentSectionIndex === part2Sections.length - 1;
@@ -210,6 +228,7 @@ export default function Part2Page() {
         }, 0) / part2Sections.length
       );
 
+      const metadata = completed ? buildAssessmentMetadata(adaptive) : undefined;
       const assessmentData = {
         practice_id: clientSession.practiceId,
         client_id: clientSession.clientId,
@@ -219,6 +238,7 @@ export default function Part2Page() {
         total_sections: part2Sections.length,
         completion_percentage: completed ? 100 : currentCompletion,
         status: completed ? 'completed' : 'in_progress',
+        ...(metadata && { metadata }),
         ...(completed && { completed_at: new Date().toISOString() }),
         ...(!assessmentId && { started_at: new Date().toISOString() })
       };
@@ -336,6 +356,7 @@ export default function Part2Page() {
       subtitle={showSummary ? "Review your responses" : currentSection?.title}
     >
       <div className="max-w-4xl mx-auto">
+        <AdaptiveAssessmentBanner state={adaptive} part="part2" />
         {/* Header Actions */}
         <div className="flex items-center justify-between mb-6">
           <button

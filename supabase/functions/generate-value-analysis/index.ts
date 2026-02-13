@@ -12,7 +12,82 @@
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
+// Canonical: supabase/functions/_shared/context-enrichment.ts
+async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string): Promise<{ promptContext: string }> {
+  const log = (msg: string) => console.log(`[ContextEnrichment] ${msg}`);
+  log(`Enriching context for client ${clientId}`);
+  interface Fin { source: string; summary: string }
+  interface Sys { source: string; stage: string; systemsCount: number; integrationScore: number | null; automationScore: number | null; painPoints: string[]; findings: Array<{ title: string; severity: string; category: string }>; manualHoursMonthly: number | null; summary: string }
+  interface Mkt { source: string; industry: string | null; subSector: string | null; belowMedian: string[]; aboveMedian: string[]; opportunities: Array<{ area: string; potential: string }>; summary: string }
+  interface VA { source: string; summary: string }
+  interface Disc { responses: Record<string, unknown>; serviceScores: Record<string, number>; summary: string }
+  const [financial, systems, market, valueAnalysis, discovery] = await Promise.all([
+    (async (): Promise<Fin | null> => {
+      try {
+        const { data: d } = await supabase.from('client_financial_data').select('*').eq('client_id', clientId).order('period_end', { ascending: false }).limit(1).maybeSingle();
+        if (d) { const rev = d.revenue ?? d.turnover; const s = rev ? `Revenue: £${(Number(rev) / 1000).toFixed(0)}k` : ''; const g = d.gross_margin != null ? `; Gross margin: ${(Number(d.gross_margin) * 100).toFixed(1)}%` : ''; return { source: 'uploaded_accounts', summary: (s + g || 'Uploaded accounts data.') + '.' }; }
+        const { data: bm } = await supabase.from('bm_assessment_responses').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (bm) return { source: 'bm_assessment', summary: bm.revenue_numeric ? `Revenue: £${(bm.revenue_numeric / 1000).toFixed(0)}k` : 'BM assessment data.' };
+        const { data: bi } = await supabase.from('service_line_assessments').select('responses').eq('client_id', clientId).in('service_line_code', ['business_intelligence', 'management_accounts']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (bi?.responses) return { source: 'bi_assessment', summary: 'Financial data from BI assessment.' };
+        return null;
+      } catch (e) { console.warn('[ContextEnrichment] Financial failed', e); return null; }
+    })(),
+    (async (): Promise<Sys | null> => {
+      try {
+        const { data: eng } = await supabase.from('sa_engagements').select('id, status').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (!eng || eng.status === 'pending') return null;
+        const out: Sys = { source: 'sa_engagement', stage: eng.status, systemsCount: 0, integrationScore: null, automationScore: null, painPoints: [], findings: [], manualHoursMonthly: null, summary: '' };
+        const { count } = await supabase.from('sa_system_inventory').select('id', { count: 'exact', head: true }).eq('engagement_id', eng.id);
+        out.systemsCount = count ?? 0;
+        const { data: rep } = await supabase.from('sa_audit_reports').select('integration_score, automation_score').eq('engagement_id', eng.id).maybeSingle();
+        if (rep) { out.integrationScore = rep.integration_score; out.automationScore = rep.automation_score; }
+        out.summary = `Systems audit: ${out.stage}; ${out.systemsCount} systems.`;
+        return out;
+      } catch (e) { console.warn('[ContextEnrichment] Systems failed', e); return null; }
+    })(),
+    (async (): Promise<Mkt | null> => {
+      try {
+        const { data: r } = await supabase.from('bm_reports').select('report_data').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!r?.report_data) return null;
+        const d = r.report_data as Record<string, unknown>;
+        const percentiles = (d.percentiles || d.rankings || {}) as Record<string, number>;
+        const below: string[] = []; const above: string[] = [];
+        for (const [k, v] of Object.entries(percentiles)) { if (typeof v === 'number') { if (v < 50) below.push(k); else above.push(k); } }
+        const opps = ((d.opportunities as any[]) || []).slice(0, 5).map((o: any) => ({ area: o.area || o.title || '', potential: o.potential || o.value || '' }));
+        return { source: 'bm_report', industry: (d.industry as string) ?? null, subSector: (d.classification as any)?.sub_sector ?? null, belowMedian: below, aboveMedian: above, opportunities: opps, summary: `Industry: ${(d.industry as string) || 'N/A'}; below median: ${below.join(', ') || 'none'}.` };
+      } catch (e) { console.warn('[ContextEnrichment] Market failed', e); return null; }
+    })(),
+    (async (): Promise<VA | null> => {
+      try {
+        const { data: bm } = await supabase.from('bm_reports').select('value_analysis').eq('client_id', clientId).not('value_analysis', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!bm?.value_analysis) return null;
+        const va = bm.value_analysis as any;
+        const s = `Exit readiness: ${va.exitReadinessScore?.overall ?? va.exitReadiness?.score ?? 'N/A'}; hidden assets: ${(va.hiddenAssets || []).length}.`;
+        return { source: 'bm_report', summary: s };
+      } catch (e) { console.warn('[ContextEnrichment] Value analysis failed', e); return null; }
+    })(),
+    (async (): Promise<Disc | null> => {
+      try {
+        const { data: eng } = await supabase.from('discovery_engagements').select('responses, service_scores').eq('client_id', clientId).in('status', ['completed', 'report_generated', 'report_delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!eng?.responses) return null;
+        return { responses: eng.responses, serviceScores: (eng.service_scores as Record<string, number>) || {}, summary: `Discovery: ${JSON.stringify(eng.service_scores || {})}` };
+      } catch (e) { console.warn('[ContextEnrichment] Discovery failed', e); return null; }
+    })()
+  ]);
+  const parts: string[] = [];
+  if (financial) parts.push(`## Financial (${financial.source})\n${financial.summary}`);
+  if (systems) parts.push(`## Systems & Operations (${systems.stage})\n${systems.summary}`);
+  if (market) parts.push(`## Market & Competitive\n${market.summary}`);
+  if (valueAnalysis) parts.push(`## Value Analysis\n${valueAnalysis.summary}`);
+  if (discovery) parts.push(`## Discovery\n${discovery.summary}`);
+  const promptContext = parts.length > 0 ? `\n\n# ENRICHMENT DATA FROM OTHER SERVICE LINES\nUse as authoritative context.\n\n${parts.join('\n\n')}` : '';
+  log(`Complete. financial=${!!financial}, systems=${!!systems}, market=${!!market}, valueAnalysis=${!!valueAnalysis}, discovery=${!!discovery}`);
+  return { promptContext };
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -4066,15 +4141,10 @@ serve(async (req) => {
 
     // ACTION 2: Generate value analysis
     if (action === 'generate-analysis') {
-      if (!part3Responses) {
-        return new Response(JSON.stringify({ error: 'Missing part3Responses' }), 
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-      }
-
       console.log(`Generating comprehensive value analysis for client ${clientId}...`);
       const startTime = Date.now();
 
-      // Check for existing stage record to determine version
+      // Check for existing stage record to determine version (needed for both BM cross-read and normal path)
       const { data: existingStages } = await supabase
         .from('roadmap_stages')
         .select('version')
@@ -4086,6 +4156,79 @@ serve(async (req) => {
       const nextVersion = existingStages && existingStages.length > 0 
         ? existingStages[0].version + 1 
         : 1;
+
+      // ----- BM/HVA CROSS-READ: If client has BM value_analysis, use it and skip Part 3 generation -----
+      const { data: bmReport } = await supabase
+        .from('bm_reports')
+        .select('value_analysis, report_data, status, updated_at')
+        .eq('client_id', clientId)
+        .not('value_analysis', 'is', null)
+        .in('status', ['generated', 'approved', 'published', 'delivered'])
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const hasBmValueAnalysis = bmReport?.value_analysis && Object.keys(bmReport.value_analysis).length > 0;
+
+      if (hasBmValueAnalysis) {
+        console.log(`[generate-value-analysis] Using BM/HVA value analysis as primary source (last updated: ${bmReport!.updated_at})`);
+
+        const { data: roadmapStages } = await supabase
+          .from('roadmap_stages')
+          .select('stage_type, generated_content, approved_content')
+          .eq('client_id', clientId)
+          .in('stage_type', ['fit_assessment', 'five_year_vision', 'six_month_shift'])
+          .in('status', ['generated', 'approved', 'published']);
+
+        const stages: Record<string, any> = {};
+        for (const s of (roadmapStages || [])) {
+          stages[s.stage_type] = s.approved_content || s.generated_content;
+        }
+
+        const mergedValueAnalysis = {
+          ...bmReport!.value_analysis,
+          source: 'bm_report_enriched',
+          gaEnrichment: {
+            northStar: stages.fit_assessment?.northStar || null,
+            lifeGoalAlignment: stages.five_year_vision?.transformationNarrative?.achievedVision || null,
+            shiftPlanConnection: stages.six_month_shift?.headline || null,
+            enrichedAt: new Date().toISOString()
+          }
+        };
+
+        const { error: upsertError } = await supabase
+          .from('roadmap_stages')
+          .insert({
+            practice_id: practiceId,
+            client_id: clientId,
+            stage_type: 'value_analysis',
+            version: nextVersion,
+            status: 'generated',
+            generated_content: mergedValueAnalysis,
+            model_used: 'bm_cross_read',
+            generation_started_at: new Date().toISOString(),
+            generation_completed_at: new Date().toISOString(),
+            generation_duration_ms: 0
+          });
+
+        if (upsertError) {
+          console.error('[generate-value-analysis] Failed to store BM-enriched value analysis:', upsertError);
+          // Fall through to normal Part 3 generation
+        } else {
+          return new Response(JSON.stringify({
+            success: true,
+            source: 'bm_report',
+            valueAnalysis: mergedValueAnalysis,
+            durationMs: Date.now() - startTime
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
+      }
+
+      // ----- Normal path: require part3Responses and generate from Part 3 -----
+      if (!part3Responses) {
+        return new Response(JSON.stringify({ error: 'Missing part3Responses' }), 
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
 
       console.log(`Creating value_analysis stage with version ${nextVersion}`);
 

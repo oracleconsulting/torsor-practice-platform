@@ -584,14 +584,40 @@ export function useAssessmentFlow() {
 
       if (roadmapError) throw roadmapError;
 
-      // Fetch client settings for skip_part3
+      // Check manual skip flag
       const { data: clientData } = await supabase
         .from('practice_members')
         .select('skip_value_analysis')
         .eq('id', clientSession.clientId)
         .single();
 
-      const skipPart3 = clientData?.skip_value_analysis || false;
+      const manualSkip = clientData?.skip_value_analysis || false;
+
+      // Check for BM/HVA value analysis
+      const { data: bmReport } = await supabase
+        .from('bm_reports')
+        .select('id, value_analysis')
+        .eq('client_id', clientSession.clientId)
+        .not('value_analysis', 'is', null)
+        .in('status', ['generated', 'approved', 'published', 'delivered'])
+        .limit(1)
+        .maybeSingle();
+
+      const hasBmValueAnalysis = !!(bmReport?.value_analysis && Object.keys(bmReport.value_analysis).length > 0);
+
+      // Check GA tier (Lite/Foundations doesn't include value analysis)
+      const { data: gaEnrollments } = await supabase
+        .from('client_service_lines')
+        .select('metadata, service_lines(code)')
+        .eq('client_id', clientSession.clientId);
+
+      const gaRow = (gaEnrollments as Array<{ metadata?: { tier?: string }; service_lines?: { code: string } }> | null)?.find(
+        e => e.service_lines?.code === '365_method'
+      );
+      const tier = gaRow?.metadata?.tier || null;
+      const tierSkip = tier === 'lite' || tier === 'foundations';
+
+      const skipPart3 = manualSkip || hasBmValueAnalysis || tierSkip;
 
       // Parse assessment states
       const part1Assessment = assessments?.find(a => a.assessment_type === 'part1');
@@ -646,7 +672,13 @@ export function useAssessmentFlow() {
             : part3Assessment ? 'in_progress'
             : 'not_started',
           lockedReason: !roadmapGenerated ? 'Your roadmap must be generated first' : undefined,
-          skippedReason: skipPart3 ? 'Value analysis not required for your program' : undefined
+          skippedReason: hasBmValueAnalysis
+            ? 'Your benchmarking report includes a comprehensive value analysis'
+            : tierSkip
+              ? 'Value analysis is included in Growth and Partner tiers'
+              : manualSkip
+                ? 'Value analysis not required for your programme'
+                : undefined
         },
         skipPart3
       });
