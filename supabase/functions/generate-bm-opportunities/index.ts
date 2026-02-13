@@ -1275,7 +1275,7 @@ function filterBlockedServices(
     if (!serviceCode) return true;
     
     // NEW: Check if manually blocked by advisor (highest priority)
-    if (manuallyBlockedServices.includes(serviceCode)) {
+    if (manuallyBlockedServices.some((b: string) => b.toUpperCase() === (serviceCode || '').toUpperCase())) {
       blocked.push({
         serviceCode,
         reason: 'Manually blocked by advisor',
@@ -1285,8 +1285,8 @@ function filterBlockedServices(
     }
     
     // Check enhanced rules that use both context AND preferences
-    const matchingRules = ENHANCED_BLOCK_RULES.filter(r => 
-      r.serviceCode === serviceCode && r.blockIf(context, preferences)
+    const matchingRules = ENHANCED_BLOCK_RULES.filter(r =>
+      (r.serviceCode || '').toUpperCase() === (serviceCode || '').toUpperCase() && r.blockIf(context, preferences)
     );
     
     if (matchingRules.length > 0) {
@@ -1352,7 +1352,7 @@ function getContextDrivenSuggestions(
     suggestions.push({
       title: 'Systems & Process Audit',
       description: 'Context notes indicate loose structure and potential documentation gaps. A systems audit would identify what processes exist vs what\'s in heads, creating a roadmap for systemisation.',
-      serviceCode: 'SYSTEMS_AUDIT',
+      serviceCode: 'systems_audit',
       severity: prefs.hasSuccessionConcerns ? 'high' : 'medium',
       priority: prefs.hasSuccessionConcerns ? 'must_address_now' : 'next_12_months',
       reason: 'Identified from advisor context notes: loose leadership structure and founder dependency suggest undocumented processes.',
@@ -1376,7 +1376,7 @@ function getContextDrivenSuggestions(
     suggestions.push({
       title: 'Exit Readiness Programme',
       description: 'Context notes mention timeline for stepping back/exit. Proactive exit planning maximises value and creates options.',
-      serviceCode: 'EXIT_READINESS',
+      serviceCode: 'exit_readiness',
       severity: 'high',
       priority: 'next_12_months',
       reason: 'Identified from advisor context notes: mentions of exit timeline, succession, or stepping back.',
@@ -1395,7 +1395,7 @@ function getContextDrivenSuggestions(
     suggestions.push({
       title: 'Strategic Advisory (Project-Based)',
       description: 'Context notes indicate preference for external, project-based support. Strategic advisory offers flexible engagement without permanent headcount.',
-      serviceCode: 'STRATEGIC_ADVISORY',
+      serviceCode: 'strategic_advisory',
       severity: 'medium',
       priority: 'when_ready',
       reason: 'Identified from advisor context notes: preference for external support on project basis.',
@@ -1506,14 +1506,16 @@ function generateRecommendedServices(
   const serviceOpportunityMap = new Map<string, any[]>();
   
   for (const opp of opportunities) {
-    // Check both old format (serviceMapping) and new format (direct service object)
-    const serviceCode = opp.serviceMapping?.existingService?.code || 
-                       opp.service?.code ||
-                       (opp.opportunity_code?.startsWith('pinned-') ? opp.opportunity_code.replace('pinned-', '').toUpperCase() : null);
-    
+    let serviceCode = opp.serviceMapping?.existingService?.code ||
+                     opp.service?.code ||
+                     (opp.opportunity_code?.startsWith('pinned-') ? opp.opportunity_code.replace('pinned-', '') : null);
+
     if (!serviceCode) continue;
-    if (blockedCodes.includes(serviceCode)) continue;
-    if (activeServiceCodes.includes(serviceCode)) continue;
+
+    serviceCode = serviceCode.toUpperCase();
+
+    if (blockedCodes.some((c: string) => c.toUpperCase() === serviceCode)) continue;
+    if (activeServiceCodes.some((c: string) => c.toUpperCase() === serviceCode)) continue;
     
     const existing = serviceOpportunityMap.get(serviceCode) || [];
     existing.push(opp);
@@ -1525,7 +1527,7 @@ function generateRecommendedServices(
   for (const opp of opportunities) {
     const code = opp.serviceMapping?.existingService?.code || opp.service?.code;
     // If this opportunity mapped to a blocked service, try to reassign
-    if (code && blockedCodes.includes(code)) {
+    if (code && blockedCodes.some((bc: string) => bc.toUpperCase() === code.toUpperCase())) {
       // Founder-related opportunities should map to SYSTEMS_AUDIT
       // Broadened to catch ALL LLM title variations
       const titleLower = (opp.title || '').toLowerCase();
@@ -1550,7 +1552,7 @@ function generateRecommendedServices(
                                 opp.serviceMapping?.existingService?.code === 'FRACTIONAL_COO');
                                // Any CRITICAL opp that was going to COO should remap to audit
       
-      if (isFounderRelated && !blockedCodes.includes('SYSTEMS_AUDIT') && !activeServiceCodes.includes('SYSTEMS_AUDIT')) {
+      if (isFounderRelated && !blockedCodes.some((bc: string) => bc.toUpperCase() === 'SYSTEMS_AUDIT') && !activeServiceCodes.some((ac: string) => ac.toUpperCase() === 'SYSTEMS_AUDIT')) {
         const existing = serviceOpportunityMap.get('SYSTEMS_AUDIT') || [];
         // Only add if not already mapped here
         if (!existing.some((e: any) => e.code === opp.code || e.title === opp.title)) {
@@ -1568,9 +1570,9 @@ function generateRecommendedServices(
   const serviceEntries = Array.from(serviceOpportunityMap.entries());
   for (const [serviceCode, opps] of serviceEntries) {
     // Find the service details
-    const service = services.find((s: any) => s.code === serviceCode);
+    const service = services.find((s: any) => (s.code || '').toUpperCase() === serviceCode.toUpperCase());
     if (!service) {
-      console.log(`[RecommendedServices] Service not found: ${serviceCode}`);
+      console.log(`[RecommendedServices] Service not found: ${serviceCode} (available: ${(services || []).slice(0, 5).map((s: any) => s.code).join(', ')}...)`);
       continue;
     }
     
@@ -2698,14 +2700,20 @@ async function storeOpportunities(
       console.warn(`[Pass 3] Skipping opportunity ${opp.code} - no valid client_id`);
       continue;
     }
-    
+
+    const opportunityCode = opp.code || opp.opportunity_code || `opp_${opp.category || 'general'}_${index + 1}`;
+    if (!opportunityCode || String(opportunityCode) === 'undefined') {
+      console.warn(`[Pass 3] Skipping opportunity with no code: "${opp.title}"`);
+      continue;
+    }
+
     // Use INSERT (not upsert) since we deleted existing opportunities above
     const { error: oppError } = await supabase
       .from('client_opportunities')
       .insert({
         engagement_id: engagementId,
         client_id: safeClientId,
-        opportunity_code: opp.code,
+        opportunity_code: opportunityCode,
         title: opp.title,
         category: opp.category,
         severity: opp.severity,
@@ -2737,7 +2745,7 @@ async function storeOpportunities(
       });
     
     if (oppError) {
-      console.error(`[Pass 3] Failed to store opportunity ${opp.code}: ${oppError.message}`);
+      console.error(`[Pass 3] Failed to store opportunity ${opportunityCode}: ${oppError.message}`);
     }
   }
   
@@ -2821,9 +2829,9 @@ function postProcessOpportunities(
 
     for (const pinnedCode of pinnedServices) {
       // If already in opportunities, mark existing opportunity as pinned (don't skip)
-      if (existingServiceCodes.has(pinnedCode)) {
+      if ([...existingServiceCodes].some((code: string) => (code || '').toUpperCase() === pinnedCode.toUpperCase())) {
         const existingOpp = allowed.find(
-          o => o.serviceMapping?.existingService?.code === pinnedCode
+          (o: any) => (o.serviceMapping?.existingService?.code || '').toUpperCase() === pinnedCode.toUpperCase()
         );
         if (existingOpp) {
           existingOpp._pinnedByAdvisor = true;
@@ -2834,7 +2842,7 @@ function postProcessOpportunities(
         continue;
       }
 
-      const service = services.find((s: any) => s.code === pinnedCode);
+      const service = services.find((s: any) => (s.code || '').toUpperCase() === pinnedCode.toUpperCase());
       if (service) {
         // Build context-aware evidence and talking point instead of boilerplate
         let pinnedDataEvidence = '';
@@ -2847,7 +2855,7 @@ function postProcessOpportunities(
         const concentration = clientData.pass1Data?.client_concentration_top3;
         const balanceSheet = clientData.pass1Data?.balance_sheet;
         
-        switch (pinnedCode) {
+        switch (pinnedCode.toUpperCase()) {
           case 'QUARTERLY_BI_SUPPORT':
             if (revenueFormatted && grossMargin) {
               pinnedDataEvidence = `With ${revenueFormatted} revenue and margins recovering to ${grossMargin}%, ongoing benchmarking tracks your recovery against industry peers and catches margin drift early`;
@@ -2922,10 +2930,12 @@ function postProcessOpportunities(
         });
         
         console.log(`[Post-Process] 📌 Added pinned service: ${service.name}`);
+      } else {
+        console.log(`[Post-Process] ⚠️ Pinned service ${pinnedCode} not found in services catalogue (available: ${(services || []).slice(0, 5).map((s: any) => s.code).join(', ')}...)`);
       }
     }
   }
-  
+
   // Step 4: Apply direction-aware priority adjustment
   const prioritised = adjustPrioritiesForDirection(allowed, directionContext.businessDirection);
   
