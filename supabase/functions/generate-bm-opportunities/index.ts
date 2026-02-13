@@ -15,10 +15,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Model configuration for Opus 4.5
+// Model configuration - Sonnet 4.5 for speed (Opus timed out at 150s edge limit)
 const MODEL_CONFIG = {
-  model: 'anthropic/claude-opus-4-20250514',
-  max_tokens: 12000,
+  model: 'anthropic/claude-sonnet-4-5-20250929',
+  max_tokens: 8000,
   temperature: 0.3,
 };
 
@@ -65,7 +65,7 @@ serve(async (req) => {
     let analysis = await analyseWithLLM(clientData, services || [], existingConcepts || []);
     const analysisTime = Date.now() - startTime;
     
-    console.log(`[Pass 3] Opus 4.5 identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
+    console.log(`[Pass 3] LLM identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
     
     // 4a. POST-PROCESSING: Consolidate and sanitize opportunities
     // Revenue is stored as _enriched_revenue in pass1_data (not nested)
@@ -582,24 +582,39 @@ async function analyseWithLLM(
   const userPrompt = buildUserPrompt(clientData, services, existingConcepts);
   
   console.log(`[Pass 3] Calling ${MODEL_CONFIG.model}...`);
-  
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://torsor.co',
-    },
-    body: JSON.stringify({
-      model: MODEL_CONFIG.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      max_tokens: MODEL_CONFIG.max_tokens,
-      temperature: MODEL_CONFIG.temperature,
-    }),
-  });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s safety
+
+  let response: Response;
+  try {
+    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://torsor.co',
+      },
+      body: JSON.stringify({
+        model: MODEL_CONFIG.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: MODEL_CONFIG.max_tokens,
+        temperature: MODEL_CONFIG.temperature,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error('[Pass 3] LLM call timed out after 120s');
+      throw new Error('LLM timeout - try regenerating');
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -835,7 +850,7 @@ Respond with valid JSON only. No markdown code blocks, no explanations outside t
 }
 
 // ============================================================================
-// ENHANCED USER PROMPT FOR OPUS 4.5
+// USER PROMPT FOR OPPORTUNITY ANALYSIS (Sonnet 4.5 - compact for speed)
 // ============================================================================
 
 function buildUserPrompt(clientData: ClientData, services: any[], existingConcepts: any[]): string {
@@ -871,9 +886,10 @@ function buildUserPrompt(clientData: ClientData, services: any[], existingConcep
                        assessment?.top_customers ||
                        pass1Data?.supplementary?.top_customers;
 
-  // Build metrics text with percentile context
+  // Build metrics text - only gaps (<50th) and strengths (>=75th) to reduce tokens
   const metricsText = (metrics || [])
-    .filter((m: any) => m.percentile !== null && m.percentile !== undefined && m.client_value !== null)
+    .filter((m: any) => m.percentile !== null && m.percentile !== undefined && m.client_value !== null &&
+      (m.percentile < 50 || m.percentile >= 75))
     .map((m: any) => {
       const percentile = m.percentile;
       const position = percentile < 25 ? 'bottom quartile' :
@@ -884,14 +900,17 @@ function buildUserPrompt(clientData: ClientData, services: any[], existingConcep
     })
     .join('\n') || 'Benchmark data not available';
 
-  // Build services text with context
-  const servicesText = services.map(s => {
-    const deliverables = Array.isArray(s.deliverables) ? s.deliverables.slice(0, 3).join(', ') : '';
-    return `**${s.code}**: ${s.name}
-   ${s.headline}
-   £${s.price_from}${s.price_to !== s.price_from ? `-${s.price_to}` : ''}${s.price_unit} | ${s.typical_duration}
-   ${deliverables ? `Includes: ${deliverables}` : ''}`;
-  }).join('\n\n');
+  // Compact services text (saves ~2-3K tokens)
+  const servicesText = services
+    .filter((s: any) => s.status === 'active')
+    .map((s: any) => {
+      const priceStr = s.price_from != null && s.price_to != null
+        ? `£${s.price_from.toLocaleString()}-£${s.price_to.toLocaleString()}`
+        : s.price_from != null ? `£${s.price_from.toLocaleString()}` : '?';
+      const deliverables = Array.isArray(s.deliverables) ? s.deliverables.slice(0, 3).join(', ') : '';
+      return `- **${s.code}**: ${s.name} (${s.category || 'governance'}) — ${s.headline || s.description || ''}\n  ${priceStr} ${s.price_unit || ''} | ${deliverables ? `Deliverables: ${deliverables}` : ''}`;
+    })
+    .join('\n');
 
   // Financial trends
   const trendsText = (pass1Data?.financialTrends || [])
@@ -1040,11 +1059,11 @@ ${clientPreferences?.hasSuccessionConcerns ? '- Exit/succession timeline is a fa
 
 ${servicesText}
 
-## SERVICE CONCEPTS ALREADY IN OUR PIPELINE
+## SERVICE CONCEPTS ALREADY IN PIPELINE
 
-${existingConcepts.length > 0 
-  ? existingConcepts.map(c => `- **${c.suggested_name}** (identified ${c.times_identified}x): ${c.problem_it_solves}`).join('\n')
-  : 'No concepts currently in development pipeline'}
+${existingConcepts.length > 0
+  ? existingConcepts.map((c: any) => c.suggested_name).join(', ')
+  : 'None'}
 
 ---
 
