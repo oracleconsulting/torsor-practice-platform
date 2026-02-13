@@ -15,7 +15,7 @@ import AssessmentPart2Page from './pages/assessments/Part2Page';
 import AssessmentPart3Page from './pages/assessments/Part3Page';
 import AssessmentReviewPage from './pages/assessments/ReviewPage';
 import RoadmapPage from './pages/roadmap/RoadmapPage';
-import TasksPage from './pages/roadmap/TasksPage';
+import SprintDashboardPage from './pages/SprintDashboardPage';
 import ChatPage from './pages/chat/ChatPage';
 import AppointmentsPage from './pages/appointments/AppointmentsPage';
 import ServiceAssessmentPage from './pages/services/ServiceAssessmentPage';
@@ -63,9 +63,9 @@ function App() {
             {/* Reports */}
             <Route path="/reports" element={<ReportsPage />} />
             
-            {/* Roadmap & Tasks */}
+            {/* Roadmap & Sprint Command Centre (at /tasks) */}
             <Route path="/roadmap" element={<RoadmapPage />} />
-            <Route path="/tasks" element={<TasksPage />} />
+            <Route path="/tasks" element={<SprintDashboardPage />} />
             
             {/* Chat */}
             <Route path="/chat" element={<ChatPage />} />
