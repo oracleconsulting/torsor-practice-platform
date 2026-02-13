@@ -17,6 +17,45 @@ const corsHeaders = {
 };
 
 // ============================================================================
+// LIFE DESIGN PROFILE (extracted from Part 1 for downstream pipeline)
+// ============================================================================
+
+interface LifeCommitment {
+  id: string;
+  commitment: string;
+  category: 'time' | 'relationship' | 'health' | 'experience' | 'identity';
+  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'one-off';
+  source: string;
+  measurable: string;
+  startWeek: number;
+}
+
+interface LifeDesignProfile {
+  currentWeeklyHours: number;
+  targetWeeklyHours: number;
+  hourReductionTarget: number;
+  protectedDays: string[];
+  protectedTimeBlocks: string[];
+  currentMonthlyIncome: number;
+  targetMonthlyIncome: number;
+  incomeGap: number;
+  financialFreedomDefinition: string;
+  keyRelationship: string | null;
+  relationshipImpact: string;
+  familyFeedback: string;
+  relationshipGoal: string;
+  sacrifices: string[];
+  dangerZone: string;
+  energyDrains: string[];
+  energyGoal: string;
+  tuesdayVision: string;
+  secretPride: string;
+  archetype: string;
+  identityShift: string;
+  lifeCommitments: LifeCommitment[];
+}
+
+// ============================================================================
 // FIT ANALYSIS (Rule-based scoring - kept for objectivity)
 // ============================================================================
 
@@ -433,6 +472,154 @@ Return only valid JSON.`
   }
 }
 
+async function extractLifeDesignProfile(part1: Record<string, any>): Promise<LifeDesignProfile | null> {
+  const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+  if (!openRouterKey) {
+    console.warn('OPENROUTER_API_KEY not found, skipping Life Design Profile extraction');
+    return null;
+  }
+
+  const tuesdayTest = part1.tuesday_test || part1.ninety_day_fantasy || '';
+  const relationshipMirror = part1.relationship_mirror || '';
+  const sacrifices = Array.isArray(part1.sacrifices) ? part1.sacrifices : (part1.sacrifices ? [part1.sacrifices] : []);
+  const familyFeedback = part1.family_feedback || '';
+  const moneyWorry = part1.money_worry || '';
+  const dangerZone = part1.danger_zone || '';
+  const emergencyLog = part1.emergency_log || '';
+  const mondayFrustration = part1.monday_frustration || '';
+  const magicAwayTask = part1.magic_away_task || '';
+  const secretPride = part1.secret_pride || '';
+  const currentIncome = part1.current_income || part1.current_monthly_income || '';
+  const desiredIncome = part1.desired_income || part1.desired_monthly_income || '';
+  const commitmentHours = part1.commitment_hours || '';
+  const workingHours = part1.working_hours || part1.current_working_hours || '';
+  const idealHours = part1.ideal_working_hours || part1.target_working_hours || part1.desired_hours || '';
+  const twoWeekBreak = part1.two_week_break_impact || '';
+
+  const prompt = `You are extracting concrete, measurable life commitments from a client's personal assessment responses. These are NOT aspirational goals — they are specific actions that will be scheduled into their weekly sprint plan.
+
+THE CLIENT'S ANSWERS:
+
+Tuesday Test (their ideal day): "${tuesdayTest}"
+Relationship Mirror (how they describe their business): "${relationshipMirror}"
+Sacrifices (what they've given up): ${JSON.stringify(sacrifices)}
+Family Feedback (what their family says): "${familyFeedback}"
+Money Worry: "${moneyWorry}"
+Danger Zone (what might pull them back): "${dangerZone}"
+Emergency Log (what interrupts their life): "${emergencyLog}"
+Monday Frustration: "${mondayFrustration}"
+Magic Away Task: "${magicAwayTask}"
+Secret Pride: "${secretPride}"
+Current Income: "${currentIncome}"
+Desired Income: "${desiredIncome}"
+Commitment Hours: "${commitmentHours}"
+Current Working Hours: "${workingHours || 'not given'}"
+Ideal Working Hours: "${idealHours || 'not given'}"
+Two Week Break Impact: "${twoWeekBreak}"
+
+EXTRACTION RULES:
+
+1. From Tuesday Test: If they describe specific times, activities, or routines — extract as time commitments. "I wake at 7, gym, start work at 9:30" → commitment: "Start work no earlier than 9:30am", category: time, frequency: daily.
+
+2. From Sacrifices: Whatever they've given up → restoration commitment. "Haven't had a holiday in 3 years" → "Book a week off within the first quarter", category: experience, frequency: quarterly, startWeek: 1.
+
+3. From Family Feedback: Whatever their family says they're missing → commitment. "Partner says I'm never present at dinner" → "Phone-off dinner 5 nights a week", category: relationship, frequency: daily.
+
+4. From Relationship Mirror: The opposite of how they describe the business → commitment. "Business is like a demanding child" → "One full day per week with zero business contact", category: time, frequency: weekly.
+
+5. From Danger Zone: Whatever might pull them back → guardrail. "I'll say yes to every client" → "Run every new opportunity through the capacity filter before responding", category: identity, frequency: as-needed.
+
+6. From Emergency Log / Monday Frustration / Magic Away Task: What steals their time → protection commitment.
+
+Extract 3-6 commitments. Be SPECIFIC, not aspirational. "Spend more time with family" is too vague. "Leave the office by 5pm on Wednesdays and Fridays" is a commitment.
+
+Also extract:
+- protectedDays: specific days mentioned or implied (e.g., "Tuesdays" from the Tuesday Test)
+- protectedTimeBlocks: specific time boundaries (e.g., "no work before 9am", "finish by 5pm")
+- keyRelationship: partner/spouse name if mentioned, null if not
+- relationshipGoal: one sentence on what needs to change in their key relationship
+- energyDrains: top 3 things that drain their energy (from emergency_log, monday_frustration)
+- energyGoal: what "good energy" looks like for them (from tuesday_test, secret_pride)
+- identityShift: who they need to become — one sentence (from archetype + their answers)
+- financialFreedomDefinition: what "enough money" means to them (from money_worry + desired_income)
+
+Parse currentMonthlyIncome and targetMonthlyIncome as numbers (strip £, k = *1000). Use 0 if not parseable.
+Parse currentWeeklyHours and targetWeeklyHours from working hours / ideal hours (numbers only). Use 40 and 35 if not clear.
+hourReductionTarget = currentWeeklyHours - targetWeeklyHours.
+incomeGap = targetMonthlyIncome - currentMonthlyIncome.
+tuesdayVision = first 200 chars of Tuesday Test. relationshipImpact = relationship mirror. familyFeedback = as given. sacrifices = array as given. dangerZone = as given.
+
+Return ONLY valid JSON matching this structure (no markdown, no explanation):
+{
+  "currentWeeklyHours": number,
+  "targetWeeklyHours": number,
+  "hourReductionTarget": number,
+  "protectedDays": string[],
+  "protectedTimeBlocks": string[],
+  "currentMonthlyIncome": number,
+  "targetMonthlyIncome": number,
+  "incomeGap": number,
+  "financialFreedomDefinition": string,
+  "keyRelationship": string | null,
+  "relationshipImpact": string,
+  "familyFeedback": string,
+  "relationshipGoal": string,
+  "sacrifices": string[],
+  "dangerZone": string,
+  "energyDrains": string[],
+  "energyGoal": string,
+  "tuesdayVision": string,
+  "secretPride": string,
+  "archetype": string,
+  "identityShift": string,
+  "lifeCommitments": [{"id": string, "commitment": string, "category": "time"|"relationship"|"health"|"experience"|"identity", "frequency": "daily"|"weekly"|"monthly"|"quarterly"|"one-off", "source": string, "measurable": string, "startWeek": number}]
+}
+`;
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor Life Design Profile'
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-sonnet-4.5',
+        max_tokens: 2000,
+        temperature: 0.4,
+        messages: [
+          { role: 'system', content: 'You extract structured life design data from assessment text. Return only valid JSON. No markdown, no code fences.' },
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      console.warn('Life Design Profile LLM error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content?.trim() || '';
+    const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start === -1 || end === -1) return null;
+
+    const parsed = JSON.parse(cleaned.substring(start, end + 1)) as LifeDesignProfile;
+    if (!parsed.lifeCommitments || !Array.isArray(parsed.lifeCommitments)) parsed.lifeCommitments = [];
+    if (!parsed.protectedDays) parsed.protectedDays = [];
+    if (!parsed.protectedTimeBlocks) parsed.protectedTimeBlocks = [];
+    if (!parsed.energyDrains) parsed.energyDrains = [];
+    return parsed;
+  } catch (e) {
+    console.warn('Life Design Profile extraction failed:', e);
+    return null;
+  }
+}
+
 function generateTemplateNarrativeProfile(part1: Record<string, any>, signals: FitSignals): NarrativeFitProfile {
   const userName = part1.full_name?.split(' ')[0] || 'there';
   const tuesdayTest = part1.tuesday_test || part1.ninety_day_fantasy || '';
@@ -619,6 +806,45 @@ serve(async (req) => {
     const narrativeProfile = await generateNarrativeProfile(part1, signals);
     console.log('Narrative profile generated');
 
+    // Extract Life Design Profile (for downstream pipeline)
+    const lifeDesignProfile = await extractLifeDesignProfile(part1);
+    const duration = Date.now() - startTime;
+    if (lifeDesignProfile) {
+      console.log(`Life Design Profile extracted: ${lifeDesignProfile.lifeCommitments?.length ?? 0} commitments`);
+      const { data: existingLifeStage } = await supabase
+        .from('roadmap_stages')
+        .select('id')
+        .eq('client_id', clientId)
+        .eq('stage_type', 'life_design_profile')
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingLifeStage) {
+        await supabase
+          .from('roadmap_stages')
+          .update({
+            status: 'generated',
+            generated_content: lifeDesignProfile,
+            generation_completed_at: new Date().toISOString(),
+            generation_duration_ms: duration
+          })
+          .eq('id', existingLifeStage.id);
+      } else {
+        await supabase.from('roadmap_stages').insert({
+          practice_id: practiceId,
+          client_id: clientId,
+          stage_type: 'life_design_profile',
+          version: 1,
+          status: 'generated',
+          generated_content: lifeDesignProfile,
+          generation_completed_at: new Date().toISOString(),
+          generation_duration_ms: duration,
+          model_used: 'anthropic/claude-sonnet-4.5'
+        });
+      }
+    }
+
     // Build complete fit profile
     const fitProfile = {
       // Core narrative elements
@@ -651,10 +877,9 @@ serve(async (req) => {
       
       // Metadata
       generatedAt: new Date().toISOString(),
-      unlocksPartTwo: signals.overallFit !== 'not_ready'
+      unlocksPartTwo: signals.overallFit !== 'not_ready',
+      lifeDesignProfile: lifeDesignProfile || undefined
     };
-
-    const duration = Date.now() - startTime;
 
     // Update stage record
     await supabase

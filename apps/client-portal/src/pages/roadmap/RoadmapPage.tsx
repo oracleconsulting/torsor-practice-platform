@@ -13,6 +13,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { useRoadmap, useGenerateAnalysis, useTasks, useGenerateValueAnalysis } from '@/hooks/useAnalysis';
 import { useAssessmentProgress } from '@/hooks/useAssessmentProgress';
+import { useLifeAlignment } from '@/hooks/useLifeAlignment';
 import { TaskCompletionModal } from '@/components/tasks/TaskCompletionModal';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -48,6 +49,7 @@ export default function RoadmapPage() {
   const { generate, loading: generating, error: generateError } = useGenerateAnalysis();
   const { generate: generateValueAnalysis, loading: generatingValue, error: valueError } = useGenerateValueAnalysis();
   const { progress } = useAssessmentProgress();
+  const { data: lifeAlignment } = useLifeAlignment();
   const { tasks, fetchTasks, updateTaskStatus } = useTasks();
   const [activeTab, setActiveTab] = useState<ViewTab>('vision');
   const [activeWeek, setActiveWeek] = useState<number | null>(1);
@@ -679,6 +681,23 @@ export default function RoadmapPage() {
         ================================================================ */}
         {activeTab === 'sprint' && (
           <div className="space-y-6">
+            {/* Life Alignment Score (Life Design Thread) */}
+            {lifeAlignment && lifeAlignment.weeklyScores.length > 0 && (
+              <div className="flex items-center gap-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-600">Life Alignment</span>
+                  <span className="text-2xl font-bold text-emerald-700">{lifeAlignment.score}%</span>
+                  {lifeAlignment.trend === 'up' && <TrendingUp className="w-5 h-5 text-emerald-600" />}
+                  {lifeAlignment.trend === 'down' && <span className="text-xs text-amber-600">↓</span>}
+                </div>
+                {lifeAlignment.lastCheckIn && (
+                  <span className="text-sm text-slate-500">
+                    Week {lifeAlignment.lastCheckIn.weekNumber}: {lifeAlignment.lastCheckIn.timeProtected === 'yes' ? 'Time protected' : 'Check-in recorded'}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Sprint Header */}
             {sprint && (
               <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl overflow-hidden">

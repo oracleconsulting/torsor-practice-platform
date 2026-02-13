@@ -17,8 +17,8 @@ import {
   Save
 } from 'lucide-react';
 
-// Import questions from shared package
-import { part2Sections as sharedPart2Sections, type Part2Section, type Part2Question } from '@torsor/shared';
+// Import questions from shared package (with Life–Business Bridge first for GA 365)
+import { part2SectionsWithLifeBridge as sharedPart2Sections, type Part2Section, type Part2Question } from '@torsor/shared';
 import { useAdaptiveAssessment, buildAssessmentMetadata, normalizeSectionId } from '@/hooks/useAdaptiveAssessment';
 import { AdaptiveAssessmentBanner } from '@/components/assessment/AdaptiveAssessmentBanner';
 
@@ -38,12 +38,14 @@ export default function Part2Page() {
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const responsesRef = useRef<Record<string, any>>({});
 
-  // Filter to visible sections only (adaptive assessment)
+  // Filter to visible sections only (adaptive assessment). Always keep Life–Business Bridge (Section 0).
   const part2Sections: Part2Section[] = useMemo(() => {
     if (adaptive.loading) return sharedPart2Sections;
     const visibleIds = new Set(adaptive.visiblePart2Sections.map(s => s.sectionId));
     return sharedPart2Sections.filter(section =>
-      visibleIds.has(normalizeSectionId(section.title)) || visibleIds.has(normalizeSectionId(section.shortTitle))
+      section.title === 'Life–Business Bridge' ||
+      visibleIds.has(normalizeSectionId(section.title)) ||
+      visibleIds.has(normalizeSectionId(section.shortTitle))
     );
   }, [adaptive.loading, adaptive.visiblePart2Sections]);
   

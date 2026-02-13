@@ -12,6 +12,7 @@ export interface Part2Question {
   options?: string[];
   hasOther?: boolean;
   helperText?: string;
+  placeholder?: string;
   min?: number;
   max?: number;
   matrixItems?: Array<{ label: string; fieldName: string }>;
@@ -34,6 +35,83 @@ export interface Part2Section {
   description: string;
   questions: Part2Question[];
 }
+
+/** Section 0: Life–Business Bridge — appears before all business sections. Connects Part 1 to Part 2. */
+export const lifeBusinessBridgeSection: Part2Section = {
+  title: 'Life–Business Bridge',
+  shortTitle: 'Life Bridge',
+  description: 'Connect your life vision from Part 1 to the practical steps we\'ll take in your business.',
+  questions: [
+    {
+      id: 1001,
+      question: "You described your ideal Tuesday in Part 1. What's the single biggest thing in your business preventing that from happening this week?",
+      type: 'text',
+      fieldName: 'lb_biggest_blocker',
+      placeholder: 'The one thing standing between you and that Tuesday...',
+      required: true,
+      helperText: 'Dynamic: uses your Part 1 Tuesday Test if available.'
+    },
+    {
+      id: 1002,
+      question: "If your business could run without you for a month, what would you do with that month? Be specific.",
+      type: 'textarea',
+      fieldName: 'lb_month_off',
+      placeholder: "Not \"relax\" — where would you go, who would you be with, what would you do?",
+      required: true
+    },
+    {
+      id: 1003,
+      question: "What's the minimum your business needs to earn — per month — for you to live the life you described in Part 1?",
+      type: 'slider',
+      fieldName: 'lb_enough_number',
+      min: 2000,
+      max: 50000,
+      required: true,
+      helperText: '£/month — your "enough" number.'
+    },
+    {
+      id: 1004,
+      question: "Think about what needs to change for you to live the life you described. What needs to change in the business vs. what needs to change in you?",
+      type: 'textarea',
+      fieldName: 'lb_change_source',
+      placeholder: "Some changes are about systems and processes. Some are about you letting go...",
+      required: true
+    },
+    {
+      id: 1005,
+      question: "If you could only achieve ONE life change in the next 12 weeks — not a business goal, a LIFE change — what would matter most?",
+      type: 'text',
+      fieldName: 'lb_quarter_priority',
+      placeholder: "The one thing that would make your life measurably better...",
+      required: true
+    },
+    {
+      id: 1006,
+      question: "What would the person closest to you say is the most important change you could make in the next 3 months?",
+      type: 'text',
+      fieldName: 'lb_external_perspective',
+      placeholder: "What would your partner, best friend, or family member say if you asked them honestly?",
+      required: true
+    }
+  ]
+};
+
+export const SECTION_FRAMINGS: Record<string, string> = {
+  'Money Truth': 'Understanding your numbers so you can hit your "enough" target and stop worrying.',
+  'The Money Truth': 'Understanding your numbers so you can hit your "enough" target and stop worrying.',
+  'Customer & Market Reality': 'Making sure the right clients are paying enough that you don\'t have to overwork.',
+  'Execution Engine': 'Finding what you can stop doing, so you get hours back.',
+  'People & Culture': 'Building a team that means you don\'t have to be there every day.',
+  'Tech & Data': 'Automating the things that steal your evenings.',
+  'Product & Customer Value': 'Making sure what you sell is worth your time — and theirs.',
+  'Risk & Compliance': 'Removing the things that keep you up at night.',
+  'Supply Chain & Partnerships': 'Relationships that make the business easier, not harder.',
+  'Market Position & Growth': 'Growing in a way that gives you more life, not less.',
+  'Integration & Bottlenecks': 'Finding the things that force you to be the bottleneck.',
+  'Leadership & Vision Reality': 'Where you\'re trying to go — and what\'s actually in the way.',
+  'External Support & Advisory': 'What help looks like, so you\'re not doing this alone.',
+  "What's Behind the Scenes?": 'The reality behind the numbers.'
+};
 
 export const part2Sections: Part2Section[] = [
   {
@@ -703,7 +781,13 @@ export const part2Sections: Part2Section[] = [
 // Computed totals
 export const PART2_TOTAL_SECTIONS = part2Sections.length;
 export const PART2_TOTAL_QUESTIONS = part2Sections.reduce(
-  (total, section) => total + section.questions.length, 
+  (total, section) => total + section.questions.length,
   0
 );
+
+/** Part 2 with Life–Business Bridge first (Section 0). Use for GA 365 flow. */
+export const part2SectionsWithLifeBridge: Part2Section[] = [
+  lifeBusinessBridgeSection,
+  ...part2Sections
+];
 

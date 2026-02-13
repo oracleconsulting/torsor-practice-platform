@@ -53,6 +53,9 @@ interface VisionContext {
   // Financial context (if available)
   financialSummary: string | null;
   
+  // Life Design Profile (if available — from generate-fit-profile)
+  lifeDesignProfile?: any;
+  
   // Calculated
   incomeGap: number;
 }
@@ -140,8 +143,18 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
+    const { data: lifeProfileStage } = await supabase
+      .from('roadmap_stages')
+      .select('generated_content, approved_content')
+      .eq('client_id', clientId)
+      .eq('stage_type', 'life_design_profile')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lifeDesignProfile = lifeProfileStage?.approved_content || lifeProfileStage?.generated_content || null;
+
     // Build context
-    const context = buildVisionContext(part1, part2, client, financialContext, fitProfile);
+    const context = buildVisionContext(part1, part2, client, financialContext, fitProfile, lifeDesignProfile);
 
     console.log(`Generating transformation narrative for ${context.userName}...`);
 
@@ -196,7 +209,8 @@ function buildVisionContext(
   part2: Record<string, any>,
   client: any,
   financialContext: any,
-  fitProfile: any
+  fitProfile: any,
+  lifeDesignProfile: any = null
 ): VisionContext {
   const currentIncome = parseIncome(part1.current_income);
   const desiredIncome = parseIncome(part1.desired_income);
@@ -240,7 +254,7 @@ function buildVisionContext(
     archetype: fitProfile.archetype || 'balanced_achiever',
     
     financialSummary: financialContext?.content || null,
-    
+    lifeDesignProfile: lifeDesignProfile || undefined,
     incomeGap: desiredIncome - currentIncome
   };
 }
@@ -385,6 +399,23 @@ Target hours: ${ctx.targetWorkingHours} hours/week
 ## FROM THEIR FIT PROFILE
 North Star: "${ctx.northStar}"
 Archetype: ${ctx.archetype}
+
+${ctx.lifeDesignProfile ? `
+## LIFE DESIGN PROFILE — STRUCTURAL TARGETS
+
+These are measurable targets every year milestone must address.
+
+TIME: Currently ${ctx.lifeDesignProfile.currentWeeklyHours} hrs/week → Target ${ctx.lifeDesignProfile.targetWeeklyHours} hrs/week
+INCOME: Currently £${ctx.lifeDesignProfile.currentMonthlyIncome}/month → Target £${ctx.lifeDesignProfile.targetMonthlyIncome}/month
+PROTECTED DAYS: ${(ctx.lifeDesignProfile.protectedDays || []).join(', ') || 'None yet'}
+KEY RELATIONSHIP: ${ctx.lifeDesignProfile.keyRelationship || 'Not specified'} — "${ctx.lifeDesignProfile.relationshipGoal || ''}"
+IDENTITY SHIFT: ${ctx.lifeDesignProfile.identityShift || ''}
+
+LIFE COMMITMENTS:
+${(ctx.lifeDesignProfile.lifeCommitments || []).map((c: any) => `- ${c.commitment} (${c.category})`).join('\n') || 'None extracted yet'}
+
+CRITICAL: Every year milestone (Year 1, Year 3, Year 5) MUST include life targets alongside business targets. "Revenue hits £X" is HALF a milestone. "Revenue hits £X AND they're working ${ctx.lifeDesignProfile.targetWeeklyHours} hours, taking ${(ctx.lifeDesignProfile.protectedDays || []).join(' and ') || 'protected days'} off, and [specific life commitment achieved]" is a COMPLETE milestone. If a year milestone only mentions business outcomes, you have failed.
+` : ''}
 
 ${ctx.financialSummary ? `
 ## FINANCIAL CONTEXT (from accounts)

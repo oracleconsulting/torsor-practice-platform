@@ -170,9 +170,19 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
+    const { data: lifeProfileStage } = await supabase
+      .from('roadmap_stages')
+      .select('generated_content, approved_content')
+      .eq('client_id', clientId)
+      .eq('stage_type', 'life_design_profile')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     const fitProfile = fitStage?.approved_content || fitStage?.generated_content || {};
     const vision = visionStage?.approved_content || visionStage?.generated_content;
     const shift = shiftStage?.approved_content || shiftStage?.generated_content;
+    const lifeDesignProfile = lifeProfileStage?.approved_content || lifeProfileStage?.generated_content || null;
 
     if (!vision || !shift) {
       throw new Error('Vision or shift not found - cannot generate sprint');
@@ -187,6 +197,11 @@ serve(async (req) => {
 
     const part1 = assessments?.find(a => a.assessment_type === 'part1')?.responses || {};
     const part2 = assessments?.find(a => a.assessment_type === 'part2')?.responses || {};
+    const enoughNumber = part2?.lb_enough_number ?? null;
+    const quarterlyLifePriority = part2?.lb_quarter_priority ?? null;
+    const biggestLifeBlocker = part2?.lb_biggest_blocker ?? null;
+    const monthOffVision = part2?.lb_month_off ?? null;
+    const externalPerspective = part2?.lb_external_perspective ?? null;
 
     const { data: client } = await supabase
       .from('practice_members')
@@ -194,7 +209,7 @@ serve(async (req) => {
       .eq('id', clientId)
       .single();
 
-    const context = buildSprintContext(part1, part2, client, fitProfile, vision, shift);
+    const context = buildSprintContext(part1, part2, client, fitProfile, vision, shift, lifeDesignProfile, enoughNumber, quarterlyLifePriority, biggestLifeBlocker, monthOffVision, externalPerspective);
 
     let enrichedContext: Awaited<ReturnType<typeof enrichRoadmapContext>> | null = null;
     try {
@@ -239,40 +254,36 @@ serve(async (req) => {
   }
 });
 
-function buildSprintContext(part1: any, part2: any, client: any, fitProfile: any, vision: any, shift: any) {
+function buildSprintContext(part1: any, part2: any, client: any, fitProfile: any, vision: any, shift: any, lifeDesignProfile: any = null, enoughNumber: number | null = null, quarterlyLifePriority: string | null = null, biggestLifeBlocker: string | null = null, monthOffVision: string | null = null, externalPerspective: string | null = null) {
   return {
     userName: client?.name?.split(' ')[0] || part1.full_name?.split(' ')[0] || 'there',
     companyName: client?.client_company || part2.trading_name || part1.company_name || 'your business',
-    
-    // From fit profile
     northStar: fitProfile.northStar || vision.northStar || '',
     archetype: fitProfile.archetype || 'balanced_achiever',
-    
-    // From vision
     year1Milestone: vision.yearMilestones?.year1 || {},
     tuesdayTest: part1.tuesday_test || vision.visualisation || '',
-    
-    // From shift
     shiftMilestones: shift.keyMilestones || [],
     shiftStatement: shift.shiftStatement || '',
     tuesdayEvolution: shift.tuesdayEvolution || {},
     quickWins: shift.quickWins || [],
-    
-    // Their pain points (USE THESE)
     mondayFrustration: part2.monday_frustration || part1.monday_frustration || '',
     magicAwayTask: part1.magic_away_task || '',
     emergencyLog: part1.emergency_log || '',
     growthBottleneck: part2.growth_bottleneck || part1.growth_bottleneck || '',
     dangerZone: part1.danger_zone || '',
     relationshipMirror: part1.relationship_mirror || '',
-    
-    // Their priorities
     ninetyDayPriorities: part2.ninety_day_priorities || part1.ninety_day_priorities || [],
-    
-    // Context
     commitmentHours: part1.commitment_hours || '10-15 hours',
     teamSize: part2.team_size || part2.staff_count || 'small team',
     toolsUsed: part2.tools_used || part2.current_tools || [],
+    lifeDesignProfile,
+    lifeCommitments: lifeDesignProfile?.lifeCommitments || [],
+    enoughNumber,
+    quarterlyLifePriority,
+    biggestLifeBlocker,
+    monthOffVision,
+    externalPerspective,
+    targetWeeklyHours: lifeDesignProfile?.targetWeeklyHours ?? part2?.target_working_hours ?? 35,
   };
 }
 
@@ -355,12 +366,38 @@ British English only (organise, colour, £). Return ONLY valid JSON. Ensure all 
   }
   
   let jsonString = cleaned.substring(start, end + 1);
-  
+  let parsed: any;
   try {
-    return JSON.parse(jsonString);
+    parsed = JSON.parse(jsonString);
   } catch (parseError) {
     console.warn('Initial JSON parse failed, attempting advanced repair...');
-    return repairComplexJson(jsonString);
+    parsed = repairComplexJson(jsonString);
+  }
+  injectLifeTasksIfMissing(parsed, ctx?.lifeDesignProfile);
+  return parsed;
+}
+
+function injectLifeTasksIfMissing(generated: any, lifeDesignProfile: any) {
+  if (!lifeDesignProfile?.lifeCommitments?.length || !Array.isArray(generated.weeks)) return;
+  for (const week of generated.weeks) {
+    const tasks = week.tasks || [];
+    const hasLifeTask = tasks.some((t: any) => t.category?.startsWith?.('life_'));
+    if (hasLifeTask) continue;
+    const recurring = lifeDesignProfile.lifeCommitments.find((c: any) => c.frequency === 'weekly' || c.frequency === 'daily');
+    if (!recurring) continue;
+    const wNum = week.weekNumber ?? 0;
+    week.tasks = week.tasks || [];
+    week.tasks.push({
+      id: `w${wNum}_life`,
+      title: recurring.commitment,
+      description: `This is your life commitment, not a business task. ${recurring.measurable || ''}`,
+      category: `life_${recurring.category}`,
+      whyThisMatters: "You identified this as essential to the life you're building. The business exists to make this possible.",
+      timeEstimate: '1 hour',
+      deliverable: recurring.measurable || 'Honour this commitment.',
+      celebrationMoment: 'Notice how it feels to honour this commitment to yourself.'
+    });
+    console.warn(`[Sprint] Week ${wNum} missing life task — injected from commitments`);
   }
 }
 
@@ -688,6 +725,27 @@ ${ctx.quickWins?.map((qw: any) => `- ${qw.timing}: ${qw.win}`).join('\n') || 'We
 Time available: ${ctx.commitmentHours}
 Team: ${ctx.teamSize}
 Tools they use: ${ctx.toolsUsed?.join(', ') || 'Not specified'}
+${(ctx.lifeCommitments?.length > 0) ? `
+## LIFE DESIGN THREAD — NON-NEGOTIABLE
+
+The following life commitments come from ${ctx.userName}'s Life Design Profile. These must appear as tasks in the sprint.
+
+LIFE COMMITMENTS:
+${(ctx.lifeCommitments || []).map((c: any) => `- ${c.commitment} (${c.category}, ${c.frequency}, source: "${c.source}")`).join('\n')}
+
+${ctx.quarterlyLifePriority ? `QUARTERLY LIFE PRIORITY: "${ctx.quarterlyLifePriority}"\n` : ''}
+${ctx.enoughNumber ? `"ENOUGH" INCOME TARGET: £${ctx.enoughNumber}/month. If the business already earns this, prioritise HOURS REDUCTION over revenue growth.\n` : ''}
+TARGET WEEKLY HOURS: ${ctx.targetWeeklyHours}
+
+LIFE TASK RULES:
+1. Every week MUST include at least 1 life task. Non-negotiable.
+2. Life task categories: life_time, life_relationship, life_health, life_experience, life_identity
+3. Recurring life commitments (daily/weekly) appear in every relevant week with EVOLVING language (Week 1: "This is new. Do it anyway." — Week 4: "Fourth time. Notice: did anything break?" — Week 8: "This should feel normal now.")
+4. One-off commitments (e.g. "book the holiday") go where they have most emotional impact.
+5. Life tasks have title, description, whyThisMatters, timeEstimate, deliverable, celebrationMoment. whyThisMatters connects to their LIFE goal, not business.
+6. HOURS GUARD: Total task hours per week must not exceed ${ctx.commitmentHours}. If over budget, remove the lowest-priority BUSINESS task. NEVER remove a life task to make room for business work.
+7. Week 1 MUST include a life task as the client's FIRST or SECOND action.
+` : ''}
 
 ---
 
@@ -735,13 +793,14 @@ Return this JSON:
         {
           "id": "w1_t1",
           "title": "Action-oriented, specific title",
-          "description": "2-3 sentences explaining exactly what to do, step by step. Be specific.",
-          "whyThisMatters": "Connection to their North Star: '${ctx.northStar?.substring(0, 50)}...' or to their immediate pain",
+          "description": "2-3 sentences explaining exactly what to do.",
+          "whyThisMatters": "Connection to their North Star or immediate pain",
+          "category": "life_time | life_relationship | life_health | life_experience | life_identity | financial | operations | team | marketing | product | systems | strategy",
           "milestone": "Which 6-month milestone this serves",
           "tools": "Specific tools to use",
           "timeEstimate": "2 hours",
           "deliverable": "Tangible output they can show",
-          "celebrationMoment": "What to notice when done - the small win to acknowledge"
+          "celebrationMoment": "What to notice when done"
         }
       ],
       "weekMilestone": "By end of Week 1: [specific, measurable, feels like an achievement]",

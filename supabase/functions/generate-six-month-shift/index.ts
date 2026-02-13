@@ -196,8 +196,18 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
+    const { data: lifeProfileStage } = await supabase
+      .from('roadmap_stages')
+      .select('generated_content, approved_content')
+      .eq('client_id', clientId)
+      .eq('stage_type', 'life_design_profile')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lifeDesignProfile = lifeProfileStage?.approved_content || lifeProfileStage?.generated_content || null;
+
     // Build context
-    const context = buildShiftContext(part1, part2, client, vision, fitProfile, financialContext);
+    const context = buildShiftContext(part1, part2, client, vision, fitProfile, financialContext, lifeDesignProfile);
 
     let enrichedContext: Awaited<ReturnType<typeof enrichRoadmapContext>> | null = null;
     try {
@@ -261,44 +271,29 @@ serve(async (req) => {
 // CONTEXT BUILDER
 // ============================================================================
 
-function buildShiftContext(part1: any, part2: any, client: any, vision: any, fitProfile: any, financialContext: any) {
+function buildShiftContext(part1: any, part2: any, client: any, vision: any, fitProfile: any, financialContext: any, lifeDesignProfile: any = null) {
   return {
     userName: client?.name?.split(' ')[0] || part1.full_name?.split(' ')[0] || 'there',
     companyName: client?.client_company || part2.trading_name || part1.company_name || 'your business',
-    
-    // From fit profile
     northStar: fitProfile.northStar || vision.northStar || '',
     archetype: fitProfile.archetype || 'balanced_achiever',
-    
-    // From vision
     year1Milestone: vision.yearMilestones?.year1 || {},
     tagline: vision.tagline || '',
-    
-    // CRITICAL: Their explicit 6-month answer
     sixMonthShifts: part2.six_month_shifts || part2.sixMonthShifts || part1.six_month_shifts || '',
-    
-    // Their current state
     currentWorkingHours: part2.current_working_hours || part1.working_hours || '50',
     targetWorkingHours: part2.target_working_hours || part1.ideal_working_hours || '20',
     relationshipMirror: part1.relationship_mirror || '',
-    
-    // Their pain points
     mondayFrustration: part2.monday_frustration || part1.monday_frustration || '',
     growthBottleneck: part2.growth_bottleneck || part1.growth_bottleneck || '',
     magicAwayTask: part1.magic_away_task || '',
     dangerZone: part1.danger_zone || '',
     emergencyLog: part1.emergency_log || '',
-    
-    // Their priorities
     ninetyDayPriorities: part2.ninety_day_priorities || part1.ninety_day_priorities || [],
-    
-    // Context
     commitmentHours: part1.commitment_hours || '10-15 hours',
     teamSize: part2.team_size || part2.staff_count || 'small team',
     toolsUsed: part2.tools_used || part2.current_tools || [],
-    
-    // Financial context
-    financialSummary: financialContext?.content || null
+    financialSummary: financialContext?.content || null,
+    lifeDesignProfile,
   };
 }
 
@@ -413,6 +408,19 @@ Time available: ${ctx.commitmentHours}
 Team: ${ctx.teamSize}
 Tools they use: ${ctx.toolsUsed?.join(', ') || 'Not specified'}
 
+${ctx.lifeDesignProfile ? `
+## LIFE TARGETS FOR THIS 6-MONTH WINDOW
+
+${(ctx.lifeDesignProfile.lifeCommitments || []).map((c: any) => `- ${c.commitment} → must be established by week ${c.startWeek || 4}`).join('\n')}
+
+The shift plan must include at least one milestone that is purely about LIFE, not business. Example: "By Month 3, ${ctx.userName} has taken their first full week off in [X] years."
+
+The Tuesday Evolution must show LIFE progress:
+- Month 1: Still in transition, but [first life commitment being honoured]
+- Month 3: [Key life change feeling normal, not forced]
+- Month 6: [Life approaching the Tuesday Test vision]
+` : ''}
+
 ## 90-DAY PRIORITIES (what they selected)
 ${ctx.ninetyDayPriorities?.map((p: string, i: number) => `${i + 1}. ${p}`).join('\n') || 'Not specified'}
 
@@ -462,6 +470,18 @@ Return this JSON structure:
       "current": "What's true now (from their answers)",
       "month6": "What's true at month 6",
       "bridgeAction": "How we get there"
+    },
+    {
+      "category": "Life & Time",
+      "current": "What's true about their time/energy/life now (from their answers)",
+      "month6": "What's true at month 6",
+      "bridgeAction": "How we get there"
+    },
+    {
+      "category": "Relationships & Energy",
+      "current": "Current state of key relationships and energy",
+      "month6": "Target state",
+      "bridgeAction": "Key action"
     },
     {
       "category": "Systems & Processes",
