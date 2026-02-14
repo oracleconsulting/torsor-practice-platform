@@ -942,27 +942,29 @@ export function useTasks() {
   }, [clientSession]);
 
   const updateTaskStatus = useCallback(async (
-    taskId: string, 
-    status: 'pending' | 'in_progress' | 'completed',
+    taskId: string,
+    status: 'pending' | 'in_progress' | 'completed' | 'skipped',
     feedback?: {
       whatWentWell?: string;
       whatDidntWork?: string;
       additionalNotes?: string;
-    }
+    },
+    skipReason?: string
   ) => {
     try {
-      const updateData: Record<string, any> = { 
+      const updateData: Record<string, any> = {
         status,
-        completed_at: status === 'completed' ? new Date().toISOString() : null
+        completed_at: status === 'completed' ? new Date().toISOString() : null,
+        skipped_at: status === 'skipped' ? new Date().toISOString() : null,
+        skip_reason: status === 'skipped' ? (skipReason ?? null) : null,
       };
 
-      // Add feedback if completing with feedback
       if (status === 'completed' && feedback) {
         updateData.completion_feedback = {
           whatWentWell: feedback.whatWentWell || '',
           whatDidntWork: feedback.whatDidntWork || '',
           additionalNotes: feedback.additionalNotes || '',
-          submittedAt: new Date().toISOString()
+          submittedAt: new Date().toISOString(),
         };
       }
 
@@ -975,7 +977,6 @@ export function useTasks() {
 
       await fetchTasks();
       return true;
-
     } catch (err) {
       console.error('Error updating task:', err);
       return false;

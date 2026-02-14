@@ -27,7 +27,9 @@ import {
   TrendingDown,
   Minus,
   Loader2,
+  Lock,
 } from 'lucide-react';
+import { CatchUpView } from '@/components/sprint/CatchUpView';
 
 // ============================================================================
 // CURRENT WEEK HELPERS
@@ -35,14 +37,119 @@ import {
 
 function getCurrentWeekFromTasks(tasks: any[]): number {
   const activeWeeks = tasks
-    .filter(t => t.status !== 'pending')
+    .filter(t => t.status !== 'pending' && t.status !== 'skipped')
     .map(t => t.week_number);
   if (activeWeeks.length === 0) return 1;
   const highestActive = Math.max(...activeWeeks);
   const allDoneInHighest = tasks
     .filter(t => t.week_number === highestActive)
-    .every(t => t.status === 'completed');
+    .every(t => t.status === 'completed' || t.status === 'skipped');
   return allDoneInHighest ? Math.min(highestActive + 1, 12) : highestActive;
+}
+
+// ============================================================================
+// WEEK GATING
+// ============================================================================
+
+function computeWeekGating(
+  weeks: any[],
+  dbTasks: any[]
+): {
+  activeWeek: number;
+  resolvedWeeks: number[];
+  lockedWeeks: number[];
+  isWeekResolved: (weekNum: number) => boolean;
+  isWeekLocked: (weekNum: number) => boolean;
+} {
+  const resolvedWeeks: number[] = [];
+
+  for (let i = 0; i < (weeks?.length || 0); i++) {
+    const week = weeks[i];
+    const weekNum = i + 1;
+    const generatedTasks = week?.tasks || [];
+    const weekDbTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
+
+    const allResolved =
+      generatedTasks.length > 0 &&
+      generatedTasks.every((gt: any) => {
+        const dbTask = weekDbTasks.find((t: any) => t.title === gt.title);
+        return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
+      });
+
+    if (allResolved) {
+      resolvedWeeks.push(weekNum);
+    } else {
+      break;
+    }
+  }
+
+  const activeWeek =
+    resolvedWeeks.length > 0
+      ? Math.min(resolvedWeeks[resolvedWeeks.length - 1] + 1, 12)
+      : 1;
+
+  const lockedWeeks = Array.from({ length: 12 }, (_, i) => i + 1).filter(
+    (w) => w > activeWeek && !resolvedWeeks.includes(w)
+  );
+
+  return {
+    activeWeek,
+    resolvedWeeks,
+    lockedWeeks,
+    isWeekResolved: (w) => resolvedWeeks.includes(w),
+    isWeekLocked: (w) => lockedWeeks.includes(w),
+  };
+}
+
+// ============================================================================
+// SKIP TASK PROMPT
+// ============================================================================
+
+function SkipTaskPrompt({
+  taskTitle,
+  onSkip,
+  onCancel,
+}: {
+  taskTitle: string;
+  onSkip: (reason?: string) => void;
+  onCancel: () => void;
+}) {
+  const [reason, setReason] = useState('');
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+        <h3 className="font-semibold text-slate-900 mb-2">Skip this task?</h3>
+        <p className="text-sm text-slate-500 mb-4 truncate" title={taskTitle}>{taskTitle}</p>
+        <label className="block text-sm text-slate-600 mb-1">
+          Why? <span className="text-slate-400">(optional)</span>
+        </label>
+        <input
+          type="text"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Didn't get to it, not relevant, etc."
+          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <div className="flex gap-3 justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onSkip(reason.trim() || undefined)}
+            className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium"
+          >
+            Mark as Skipped
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ============================================================================
@@ -129,6 +236,7 @@ function TaskCard({
   dbTask,
   isLife,
   onStatusChange,
+  onSkip,
   clientId,
   practiceId,
 }: {
@@ -139,6 +247,7 @@ function TaskCard({
   dbTask: any;
   isLife: boolean;
   onStatusChange: (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed', task?: any) => void;
+  onSkip?: (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }) => void;
   clientId?: string;
   practiceId?: string;
 }) {
@@ -146,28 +255,37 @@ function TaskCard({
   const cardClass = isLife
     ? status === 'completed'
       ? 'bg-teal-50 border-teal-200'
-      : status === 'in_progress'
-        ? 'bg-teal-50/70 border-teal-200'
-        : 'bg-teal-50/50 border-teal-200'
+      : status === 'skipped'
+        ? 'bg-slate-50 border-slate-200 opacity-75'
+        : status === 'in_progress'
+          ? 'bg-teal-50/70 border-teal-200'
+          : 'bg-teal-50/50 border-teal-200'
     : status === 'completed'
       ? 'bg-emerald-50 border-emerald-200'
-      : status === 'in_progress'
-        ? 'bg-blue-50 border-blue-200'
-        : 'bg-white border-slate-200';
+      : status === 'skipped'
+        ? 'bg-slate-50 border-slate-200 opacity-75'
+        : status === 'in_progress'
+          ? 'bg-blue-50 border-blue-200'
+          : 'bg-white border-slate-200';
 
   const buttonClass = isLife
     ? status === 'completed'
       ? 'bg-teal-500 border-teal-500 text-white'
-      : status === 'in_progress'
-        ? 'border-teal-500 bg-teal-100'
-        : 'border-teal-300 hover:border-teal-400'
+      : status === 'skipped'
+        ? 'border-slate-300 bg-slate-100'
+        : status === 'in_progress'
+          ? 'border-teal-500 bg-teal-100'
+          : 'border-teal-300 hover:border-teal-400'
     : status === 'completed'
       ? 'bg-emerald-500 border-emerald-500 text-white'
-      : status === 'in_progress'
-        ? 'border-blue-500 bg-blue-100'
-        : 'border-slate-300 hover:border-slate-400';
+      : status === 'skipped'
+        ? 'border-slate-300 bg-slate-100'
+        : status === 'in_progress'
+          ? 'border-blue-500 bg-blue-100'
+          : 'border-slate-300 hover:border-slate-400';
 
   const handleClick = async () => {
+    if (status === 'skipped') return;
     const nextStatus =
       status === 'pending' ? 'in_progress' : status === 'in_progress' ? 'completed' : 'pending';
 
@@ -220,8 +338,12 @@ function TaskCard({
           {status === 'completed' && <CheckCircle className="w-4 h-4" />}
           {status === 'in_progress' && <Play className="w-3 h-3 text-blue-500" />}
         </button>
-        <div className="flex-1">
-          <h5 className={`font-medium ${status === 'completed' ? 'text-emerald-700 line-through' : 'text-slate-900'}`}>
+        <div className="flex-1 min-w-0">
+          <h5 className={`font-medium ${
+            status === 'completed' ? 'text-emerald-700 line-through' :
+            status === 'skipped' ? 'text-slate-400 line-through' :
+            'text-slate-900'
+          }`}>
             {task.title}
           </h5>
           <p className="text-sm text-slate-500 mt-1">{task.description}</p>
@@ -242,6 +364,21 @@ function TaskCard({
             </span>
           </div>
         </div>
+        {status !== 'completed' && status !== 'skipped' && onSkip && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSkip({ dbTaskId: dbTask?.id ?? null, generatedTask: task, weekNumber, index });
+            }}
+            className="text-xs text-slate-400 hover:text-slate-600 transition-colors ml-auto flex-shrink-0 whitespace-nowrap"
+          >
+            Didn't do this
+          </button>
+        )}
+        {status === 'skipped' && (
+          <span className="text-xs text-slate-400 ml-auto flex-shrink-0 italic">Skipped</span>
+        )}
       </div>
     </div>
   );
@@ -251,18 +388,39 @@ function TaskCard({
 // THIS WEEK CARD
 // ============================================================================
 
+/** Match a generated task to its DB counterpart (title or sort_order). Same as RoadmapPage WeekCard. */
+function findMatchingDbTask(generatedTask: any, dbTasks: any[], weekNumber: number, taskIndex: number): any {
+  return (
+    dbTasks.find(
+      (t: any) =>
+        t.title === generatedTask.title ||
+        (t.week_number === weekNumber && t.sort_order === taskIndex)
+    ) ?? null
+  );
+}
+
 function ThisWeekCard({
   week,
   weekNumber,
-  tasks,
+  dbTasks,
   onTaskStatusChange,
+  onSkip,
+  isBehind,
+  activeWeek,
+  calendarWeek,
+  onStartCatchUp,
   clientId,
   practiceId,
 }: {
   week: any;
   weekNumber: number;
-  tasks: any[];
+  dbTasks: any[];
   onTaskStatusChange: (taskId: string, status: 'pending' | 'in_progress' | 'completed', task?: any) => void;
+  onSkip?: (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }) => void;
+  isBehind?: boolean;
+  activeWeek?: number;
+  calendarWeek?: number;
+  onStartCatchUp?: () => void;
   clientId?: string;
   practiceId?: string;
 }) {
@@ -271,13 +429,6 @@ function ThisWeekCard({
   const weekTasks = week.tasks || [];
   const lifeTasks = weekTasks.filter((t: any) => t.category?.startsWith?.('life_'));
   const businessTasks = weekTasks.filter((t: any) => !t.category?.startsWith?.('life_'));
-
-  const allTasksPending =
-    weekTasks.length > 0 &&
-    weekTasks.every((task: any) => {
-      const dbTask = tasks.find((t: any) => t.title === task.title || (t.week_number === weekNumber && t.sort_order === weekTasks.indexOf(task)));
-      return !dbTask || dbTask.status === 'pending';
-    });
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -296,10 +447,26 @@ function ThisWeekCard({
         )}
       </div>
 
-      {allTasksPending && (
+      {dbTasks.length === 0 && weekTasks.length > 0 && (
         <div className="mx-5 mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
           <p className="text-sm text-indigo-800 font-medium">
             Ready to start? Click any task below to begin your first week.
+          </p>
+        </div>
+      )}
+
+      {isBehind && activeWeek != null && calendarWeek != null && onStartCatchUp && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mx-5 mt-5">
+          <p className="text-sm text-amber-800">
+            You're on Week {activeWeek} — the calendar says Week {calendarWeek}.
+            {' '}
+            <button
+              type="button"
+              onClick={onStartCatchUp}
+              className="font-semibold text-amber-900 underline hover:no-underline"
+            >
+              Catch up now →
+            </button>
           </p>
         </div>
       )}
@@ -315,18 +482,20 @@ function ThisWeekCard({
             </div>
             <div className="space-y-2">
               {lifeTasks.map((task: any, idx: number) => {
-                const dbTask = tasks.find(t => t.title === task.title || (t.week_number === weekNumber && t.sort_order === weekTasks.indexOf(task)));
+                const taskIndex = weekTasks.indexOf(task);
+                const dbTask = findMatchingDbTask(task, dbTasks, weekNumber, taskIndex);
                 const status = dbTask?.status || 'pending';
                 return (
                   <TaskCard
                     key={task.id || `life-${idx}`}
                     task={task}
                     weekNumber={weekNumber}
-                    index={weekTasks.indexOf(task)}
+                    index={taskIndex}
                     status={status}
                     dbTask={dbTask}
                     isLife
                     onStatusChange={onTaskStatusChange}
+                    onSkip={onSkip}
                     clientId={clientId}
                     practiceId={practiceId}
                   />
@@ -346,18 +515,20 @@ function ThisWeekCard({
           <div className="space-y-2">
             {businessTasks.length > 0 ? (
               businessTasks.map((task: any, idx: number) => {
-                const dbTask = tasks.find(t => t.title === task.title || (t.week_number === weekNumber && t.sort_order === weekTasks.indexOf(task)));
+                const taskIndex = weekTasks.indexOf(task);
+                const dbTask = findMatchingDbTask(task, dbTasks, weekNumber, taskIndex);
                 const status = dbTask?.status || 'pending';
                 return (
                   <TaskCard
                     key={task.id || `biz-${idx}`}
                     task={task}
                     weekNumber={weekNumber}
-                    index={weekTasks.indexOf(task)}
+                    index={taskIndex}
                     status={status}
                     dbTask={dbTask}
                     isLife={false}
                     onStatusChange={onTaskStatusChange}
+                    onSkip={onSkip}
                     clientId={clientId}
                     practiceId={practiceId}
                   />
@@ -576,43 +747,55 @@ function WeeklyCheckInCard({
 function ProgressStrip({
   weeks,
   tasks,
-  currentWeek,
+  gating,
+  calendarWeek,
   onWeekClick,
 }: {
   weeks: any[];
   tasks: any[];
-  currentWeek: number;
+  gating: ReturnType<typeof computeWeekGating>;
+  calendarWeek: number;
   onWeekClick: (weekNum: number) => void;
 }) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4">
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-semibold text-slate-700">12-Week Progress</h3>
-        <span className="text-xs text-slate-400">Week {currentWeek} of 12</span>
+        <span className="text-xs text-slate-400">
+          Week {gating.activeWeek} of 12
+          {calendarWeek > gating.activeWeek + 2 && (
+            <span className="text-amber-500 ml-1">(calendar: week {calendarWeek})</span>
+          )}
+        </span>
       </div>
       <div className="flex gap-1">
         {(weeks || Array.from({ length: 12 }, (_, i) => ({ weekNumber: i + 1, theme: `Week ${i + 1}` }))).map((week: any, i: number) => {
           const weekNum = week.weekNumber ?? i + 1;
-          const weekTasks = tasks.filter((t: any) => t.week_number === weekNum);
-          const total = week.tasks?.length ?? weekTasks.length;
-          const completed = weekTasks.filter((t: any) => t.status === 'completed').length;
-          const isCurrent = weekNum === currentWeek;
-          const allDone = total > 0 && completed === total;
-          const hasActivity = weekTasks.length > 0;
-          let bgColor = 'bg-slate-100';
-          if (allDone) bgColor = 'bg-emerald-500';
-          else if (hasActivity && completed > 0) bgColor = 'bg-indigo-300';
-          else if (weekNum < currentWeek) bgColor = 'bg-slate-200';
+          const isResolved = gating.isWeekResolved(weekNum);
+          const isLocked = gating.isWeekLocked(weekNum);
+          const isActive = weekNum === gating.activeWeek;
+          const weekDbTasks = tasks.filter((t: any) => t.week_number === weekNum);
+          const completed = weekDbTasks.filter((t: any) => t.status === 'completed').length;
+          const skipped = weekDbTasks.filter((t: any) => t.status === 'skipped').length;
+          const total = weekDbTasks.length > 0 ? weekDbTasks.length : (week.tasks || []).length;
+          let bgColor = 'bg-slate-100 text-slate-400';
+          if (isResolved) bgColor = 'bg-emerald-500 text-white';
+          else if (isActive) bgColor = 'bg-indigo-500 text-white';
+          else if (isLocked) bgColor = 'bg-slate-50 text-slate-300';
           return (
             <button
               key={weekNum}
-              onClick={() => onWeekClick(weekNum)}
-              className={`flex-1 h-8 rounded-md flex items-center justify-center text-xs font-medium transition-all hover:scale-105 ${bgColor} ${
-                isCurrent ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
-              } ${allDone ? 'text-white' : 'text-slate-500'}`}
-              title={`Week ${weekNum}: ${week.theme ?? ''} — ${completed}/${total} tasks`}
+              type="button"
+              onClick={() => !isLocked && onWeekClick(weekNum)}
+              disabled={isLocked}
+              className={`flex-1 h-8 rounded-md flex items-center justify-center text-xs font-medium transition-all ${bgColor} ${
+                isActive ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
+              } ${isLocked ? 'cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}`}
+              title={isLocked
+                ? `Week ${weekNum} — Locked (complete Week ${gating.activeWeek} first)`
+                : `Week ${weekNum}: ${week.theme ?? ''} — ${completed} done, ${skipped} skipped of ${total}`}
             >
-              {allDone ? '✓' : weekNum}
+              {isResolved ? '✓' : isLocked ? '🔒' : weekNum}
             </button>
           );
         })}
@@ -628,19 +811,21 @@ function ProgressStrip({
 function AllWeeksAccordion({
   weeks,
   tasks,
-  currentWeek,
+  gating,
   scrollToWeek,
   onScrolledToWeek,
   onTaskStatusChange,
+  onSkip,
   clientId,
   practiceId,
 }: {
   weeks: any[];
   tasks: any[];
-  currentWeek: number;
+  gating: ReturnType<typeof computeWeekGating>;
   scrollToWeek: number | null;
   onScrolledToWeek?: () => void;
   onTaskStatusChange: (taskId: string, status: 'pending' | 'in_progress' | 'completed', task?: any) => void;
+  onSkip?: (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }) => void;
   clientId?: string;
   practiceId?: string;
 }) {
@@ -648,12 +833,12 @@ function AllWeeksAccordion({
   const weekRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   useEffect(() => {
-    if (scrollToWeek != null && weekRefs.current[scrollToWeek]) {
+    if (scrollToWeek != null && weekRefs.current[scrollToWeek] && !gating.isWeekLocked(scrollToWeek)) {
       weekRefs.current[scrollToWeek]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setOpenWeek(scrollToWeek);
       onScrolledToWeek?.();
     }
-  }, [scrollToWeek, onScrolledToWeek]);
+  }, [scrollToWeek, onScrolledToWeek, gating]);
 
   const list = weeks?.length ? weeks : Array.from({ length: 12 }, (_, i) => ({ weekNumber: i + 1, theme: `Week ${i + 1}`, tasks: [] }));
 
@@ -665,39 +850,58 @@ function AllWeeksAccordion({
       <div className="divide-y divide-slate-100">
         {list.map((week: any) => {
           const weekNum = week.weekNumber ?? week.week;
+          const isLocked = gating.isWeekLocked(weekNum);
+          const isResolved = gating.isWeekResolved(weekNum);
           const weekTasks = tasks.filter((t: any) => t.week_number === weekNum);
           const weekTaskList = week.tasks || [];
           const completedCount = weekTasks.filter((t: any) => t.status === 'completed').length;
-          const totalCount = weekTaskList.length || weekTasks.length || 0;
-          const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+          const skippedCount = weekTasks.filter((t: any) => t.status === 'skipped').length;
+          const totalCount = weekTaskList.length > 0 ? weekTaskList.length : weekTasks.length;
+          const progress = totalCount > 0 ? Math.round(((completedCount + skippedCount) / totalCount) * 100) : 0;
           const isActive = openWeek === weekNum;
-          const isCurrent = weekNum === currentWeek;
           const lifeTasks = weekTaskList.filter((t: any) => t.category?.startsWith?.('life_'));
           const businessTasks = weekTaskList.filter((t: any) => !t.category?.startsWith?.('life_'));
 
           return (
-            <div key={weekNum} ref={(el) => { weekRefs.current[weekNum] = el; }}>
+            <div
+              key={weekNum}
+              ref={(el) => { weekRefs.current[weekNum] = el; }}
+              className={isLocked ? 'opacity-60' : ''}
+            >
               <button
-                onClick={() => setOpenWeek(isActive ? null : weekNum)}
-                className={`w-full p-4 flex items-center gap-4 hover:bg-slate-50 transition-colors text-left ${isCurrent ? 'border-l-4 border-l-indigo-500' : ''}`}
+                type="button"
+                onClick={() => {
+                  if (isLocked) return;
+                  setOpenWeek(isActive ? null : weekNum);
+                }}
+                disabled={isLocked}
+                className={`w-full p-4 flex items-center gap-4 text-left transition-colors ${
+                  isLocked ? 'cursor-not-allowed' : 'hover:bg-slate-50'
+                } ${isResolved ? 'bg-emerald-50/50' : ''} ${weekNum === gating.activeWeek ? 'border-l-4 border-l-indigo-500' : ''}`}
               >
                 <div
                   className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    progress === 100 ? 'bg-emerald-500 text-white' : progress > 0 ? 'bg-indigo-500 text-white' : 'bg-slate-200 text-slate-600'
+                    isResolved ? 'bg-emerald-500 text-white' :
+                    weekNum === gating.activeWeek ? 'bg-indigo-500 text-white' :
+                    isLocked ? 'bg-slate-100 text-slate-300' :
+                    'bg-slate-200 text-slate-600'
                   }`}
                 >
-                  {progress === 100 ? <CheckCircle className="w-6 h-6" /> : <span className="font-bold text-lg">{weekNum}</span>}
+                  {isResolved ? <CheckCircle className="w-6 h-6" /> : isLocked ? <Lock className="w-5 h-5" /> : <span className="font-bold text-lg">{weekNum}</span>}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-semibold text-slate-900">{week.theme}</h4>
                   <p className="text-sm text-slate-500">{week.focus || week.narrative || ''}</p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="text-sm font-medium text-slate-900">{completedCount}/{totalCount} tasks</span>
+                  <span className="text-sm font-medium text-slate-900">{completedCount + skippedCount}/{totalCount} tasks</span>
+                  {isLocked && (
+                    <span className="text-xs text-slate-400">Complete Week {gating.activeWeek} to unlock</span>
+                  )}
                   {isActive ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                 </div>
               </button>
-              {isActive && (
+              {isActive && !isLocked && (
                 <div className="px-4 pb-4">
                   <div className="ml-16 space-y-2">
                     {lifeTasks.length > 0 && (
@@ -707,18 +911,20 @@ function AllWeeksAccordion({
                           <span className="text-xs font-semibold text-teal-700 uppercase">Life</span>
                         </div>
                         {lifeTasks.map((task: any, idx: number) => {
-                          const dbTask = weekTasks.find((t: any) => t.title === task.title || (t.sort_order === weekTaskList.indexOf(task)));
+                          const taskIndex = weekTaskList.indexOf(task);
+                          const dbTask = findMatchingDbTask(task, weekTasks, weekNum, taskIndex);
                           const status = dbTask?.status || 'pending';
                           return (
                             <TaskCard
                               key={task.id || `life-${weekNum}-${idx}`}
                               task={task}
                               weekNumber={weekNum}
-                              index={weekTaskList.indexOf(task)}
+                              index={taskIndex}
                               status={status}
                               dbTask={dbTask}
                               isLife
                               onStatusChange={onTaskStatusChange}
+                              onSkip={onSkip}
                               clientId={clientId}
                               practiceId={practiceId}
                             />
@@ -727,18 +933,20 @@ function AllWeeksAccordion({
                       </>
                     )}
                     {businessTasks.map((task: any, idx: number) => {
-                      const dbTask = weekTasks.find((t: any) => t.title === task.title || (t.sort_order === weekTaskList.indexOf(task)));
+                      const taskIndex = weekTaskList.indexOf(task);
+                      const dbTask = findMatchingDbTask(task, weekTasks, weekNum, taskIndex);
                       const status = dbTask?.status || 'pending';
                       return (
                         <TaskCard
                           key={task.id || `biz-${weekNum}-${idx}`}
                           task={task}
                           weekNumber={weekNum}
-                          index={weekTaskList.indexOf(task)}
+                          index={taskIndex}
                           status={status}
                           dbTask={dbTask}
                           isLife={false}
                           onStatusChange={onTaskStatusChange}
+                          onSkip={onSkip}
                           clientId={clientId}
                           practiceId={practiceId}
                         />
@@ -779,12 +987,22 @@ export default function SprintDashboardPage() {
     loading: checkInLoading,
   } = useWeeklyCheckIn();
 
-  const [currentWeek, setCurrentWeek] = useState(1);
   const [scrollToWeek, setScrollToWeek] = useState<number | null>(null);
   const [completingTask, setCompletingTask] = useState<{ id: string; title: string; week_number: number } | null>(null);
+  const [skippingTask, setSkippingTask] = useState<{
+    dbTaskId: string | null;
+    generatedTask: any;
+    weekNumber: number;
+    index: number;
+  } | null>(null);
+  const [catchUpMode, setCatchUpMode] = useState(false);
 
   const sprint = roadmap?.roadmapData?.sprint;
   const weeks = sprint?.weeks || [];
+
+  const gating = computeWeekGating(weeks, tasks);
+  const calendarWeek = gating.activeWeek;
+  const isBehind = calendarWeek > gating.activeWeek + 2;
 
   useEffect(() => {
     fetchRoadmap();
@@ -797,20 +1015,101 @@ export default function SprintDashboardPage() {
   }, [roadmap?.roadmapData?.sprint, fetchTasks]);
 
   useEffect(() => {
-    if (weeks.length > 0) {
-      setCurrentWeek(getCurrentWeekFromTasks(tasks));
-    }
-  }, [tasks, weeks.length]);
-
-  useEffect(() => {
     fetchHistory(12);
   }, [fetchHistory]);
 
   useEffect(() => {
-    if (currentWeek >= 1) {
-      fetchCheckIn(currentWeek);
+    if (gating.activeWeek >= 1) {
+      fetchCheckIn(gating.activeWeek);
     }
-  }, [currentWeek, fetchCheckIn]);
+  }, [gating.activeWeek, fetchCheckIn]);
+
+  const handleSkipTask = useCallback(
+    async (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }, reason?: string) => {
+      const { dbTaskId, generatedTask, weekNumber, index } = info;
+      if (dbTaskId) {
+        await updateTaskStatus(dbTaskId, 'skipped', undefined, reason);
+      } else {
+        if (!clientSession?.clientId || !clientSession?.practiceId) return;
+        const { error } = await supabase
+          .from('client_tasks')
+          .insert({
+            client_id: clientSession.clientId,
+            practice_id: clientSession.practiceId,
+            week_number: weekNumber,
+            title: generatedTask.title,
+            description: generatedTask.description,
+            category: generatedTask.category || 'general',
+            priority: generatedTask.priority || 'medium',
+            status: 'skipped',
+            skip_reason: reason || null,
+            skipped_at: new Date().toISOString(),
+            sort_order: index,
+            metadata: {
+              whyThisMatters: generatedTask.whyThisMatters,
+              deliverable: generatedTask.deliverable,
+              phase: generatedTask.phase,
+            },
+          })
+          .select()
+          .single();
+        if (!error) await fetchTasks();
+      }
+      setSkippingTask(null);
+    },
+    [updateTaskStatus, clientSession, fetchTasks]
+  );
+
+  const handleCatchUpComplete = useCallback(
+    async (
+      resolutions: Array<{
+        weekNumber: number;
+        title: string;
+        generatedTask: any;
+        resolution: 'completed' | 'skipped';
+      }>
+    ) => {
+      if (!clientSession?.clientId || !clientSession?.practiceId) return;
+      for (const r of resolutions) {
+        const existingTask = tasks.find((t: any) => t.week_number === r.weekNumber && t.title === r.title);
+        if (existingTask) {
+          if (r.resolution === 'completed') {
+            await updateTaskStatus(existingTask.id, 'completed', {
+              whatWentWell: '',
+              whatDidntWork: '',
+              additionalNotes: 'Marked during catch-up',
+            });
+          } else {
+            await updateTaskStatus(existingTask.id, 'skipped', undefined, 'caught_up');
+          }
+        } else {
+          await supabase.from('client_tasks').insert({
+            client_id: clientSession.clientId,
+            practice_id: clientSession.practiceId,
+            week_number: r.weekNumber,
+            title: r.title,
+            description: r.generatedTask.description,
+            category: r.generatedTask.category || 'general',
+            priority: r.generatedTask.priority || 'medium',
+            status: r.resolution,
+            sort_order: r.generatedTask.sortOrder ?? 0,
+            completed_at: r.resolution === 'completed' ? new Date().toISOString() : null,
+            skipped_at: r.resolution === 'skipped' ? new Date().toISOString() : null,
+            skip_reason: r.resolution === 'skipped' ? 'caught_up' : null,
+            completion_feedback:
+              r.resolution === 'completed' ? { caughtUp: true, caughtUpAt: new Date().toISOString() } : null,
+            metadata: {
+              whyThisMatters: r.generatedTask.whyThisMatters,
+              deliverable: r.generatedTask.deliverable,
+            },
+          });
+        }
+      }
+      await fetchTasks();
+      setCatchUpMode(false);
+    },
+    [clientSession, tasks, updateTaskStatus, fetchTasks]
+  );
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed', task?: any) => {
@@ -832,17 +1131,33 @@ export default function SprintDashboardPage() {
   );
 
   const lifeAlignment = getLifeAlignmentSummary();
-  const businessTasks = tasks.filter((t: any) => !t.category?.startsWith?.('life_'));
-  const lifeTasksExist = tasks.some((t: any) => t.category?.startsWith?.('life_'));
-  const sprintProgress = {
-    completed: lifeTasksExist ? businessTasks.filter((t: any) => t.status === 'completed').length : tasks.filter((t: any) => t.status === 'completed').length,
-    total: lifeTasksExist ? businessTasks.length : tasks.length,
-    percentage: 0,
-  };
-  sprintProgress.percentage = sprintProgress.total > 0 ? Math.round((sprintProgress.completed / sprintProgress.total) * 100) : 0;
 
-  const thisWeekData = weeks[currentWeek - 1];
-  const thisWeekTasks = tasks.filter((t: any) => t.week_number === currentWeek);
+  // Sprint progress: use generated task counts as baseline when DB is empty (cold start)
+  const generatedTaskCount =
+    sprint?.weeks?.reduce((sum: number, w: any) => sum + (w.tasks?.length || 0), 0) || 0;
+  const generatedBusinessTaskCount =
+    sprint?.weeks?.reduce(
+      (sum: number, w: any) =>
+        sum + (w.tasks?.filter((t: any) => !t.category?.startsWith?.('life_')).length || 0),
+      0
+    ) || 0;
+  const dbBusinessTasks = tasks.filter((t: any) => !t.category?.startsWith?.('life_'));
+  const dbLifeTasksExist = tasks.some((t: any) => t.category?.startsWith?.('life_'));
+  const completed = dbBusinessTasks.filter((t: any) => t.status === 'completed').length;
+  const total =
+    dbBusinessTasks.length > 0
+      ? dbBusinessTasks.length
+      : dbLifeTasksExist
+        ? generatedBusinessTaskCount
+        : generatedTaskCount;
+  const sprintProgress = {
+    completed,
+    total,
+    percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+  };
+
+  const displayWeekData = weeks[gating.activeWeek - 1];
+  const thisWeekTasks = tasks.filter((t: any) => t.week_number === gating.activeWeek);
 
   if (roadmapLoading && !roadmap) {
     return (
@@ -873,43 +1188,74 @@ export default function SprintDashboardPage() {
 
   return (
     <Layout title="Your Sprint" subtitle={sprint.sprintTheme || 'Your 12-week transformation'}>
-      <div className="space-y-6">
-        <HeroMetrics lifeAlignment={lifeAlignment} sprintProgress={sprintProgress} />
-        {thisWeekData && (
-          <ThisWeekCard
-            week={thisWeekData}
-            weekNumber={currentWeek}
-            tasks={thisWeekTasks}
+      {catchUpMode ? (
+        <CatchUpView
+          weeks={weeks}
+          dbTasks={tasks}
+          activeWeek={gating.activeWeek}
+          calendarWeek={calendarWeek}
+          onComplete={handleCatchUpComplete}
+          onCancel={() => setCatchUpMode(false)}
+        />
+      ) : (
+        <div className="space-y-6">
+          <HeroMetrics lifeAlignment={lifeAlignment} sprintProgress={sprintProgress} />
+          {displayWeekData && (
+            <ThisWeekCard
+              week={displayWeekData}
+              weekNumber={gating.activeWeek}
+              dbTasks={thisWeekTasks}
+              onTaskStatusChange={handleTaskStatusChange}
+              onSkip={(info) => setSkippingTask(info)}
+              isBehind={isBehind}
+              activeWeek={gating.activeWeek}
+              calendarWeek={calendarWeek}
+              onStartCatchUp={() => setCatchUpMode(true)}
+              clientId={clientSession?.clientId}
+              practiceId={clientSession?.practiceId}
+            />
+          )}
+          <WeeklyCheckInCard
+            currentWeek={gating.activeWeek}
+            existingCheckIn={checkIn?.weekNumber === gating.activeWeek ? checkIn : null}
+            onSubmit={async (data) => {
+              const ok = await submitCheckIn({ ...data, weekNumber: gating.activeWeek });
+              if (ok) {
+                await fetchHistory(12);
+                fetchCheckIn(gating.activeWeek);
+              }
+              return ok;
+            }}
+            loading={checkInLoading}
+          />
+          <ProgressStrip
+            weeks={weeks}
+            tasks={tasks}
+            gating={gating}
+            calendarWeek={calendarWeek}
+            onWeekClick={(w) => setScrollToWeek(w)}
+          />
+          <AllWeeksAccordion
+            weeks={weeks}
+            tasks={tasks}
+            gating={gating}
+            scrollToWeek={scrollToWeek}
+            onScrolledToWeek={() => setScrollToWeek(null)}
             onTaskStatusChange={handleTaskStatusChange}
+            onSkip={(info) => setSkippingTask(info)}
             clientId={clientSession?.clientId}
             practiceId={clientSession?.practiceId}
           />
-        )}
-        <WeeklyCheckInCard
-          currentWeek={currentWeek}
-          existingCheckIn={checkIn?.weekNumber === currentWeek ? checkIn : null}
-          onSubmit={async (data) => {
-            const ok = await submitCheckIn({ ...data, weekNumber: currentWeek });
-            if (ok) {
-              await fetchHistory(12);
-              fetchCheckIn(currentWeek);
-            }
-            return ok;
-          }}
-          loading={checkInLoading}
+        </div>
+      )}
+
+      {skippingTask && (
+        <SkipTaskPrompt
+          taskTitle={skippingTask.generatedTask.title}
+          onSkip={(reason) => handleSkipTask(skippingTask, reason)}
+          onCancel={() => setSkippingTask(null)}
         />
-        <ProgressStrip weeks={weeks} tasks={tasks} currentWeek={currentWeek} onWeekClick={(w) => setScrollToWeek(w)} />
-        <AllWeeksAccordion
-          weeks={weeks}
-          tasks={tasks}
-          currentWeek={currentWeek}
-          scrollToWeek={scrollToWeek}
-          onScrolledToWeek={() => setScrollToWeek(null)}
-          onTaskStatusChange={handleTaskStatusChange}
-          clientId={clientSession?.clientId}
-          practiceId={clientSession?.practiceId}
-        />
-      </div>
+      )}
 
       {completingTask && (
         <TaskCompletionModal
