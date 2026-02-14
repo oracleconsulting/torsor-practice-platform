@@ -32,6 +32,18 @@ import {
 import { CatchUpView } from '@/components/sprint/CatchUpView';
 
 // ============================================================================
+// CALENDAR WEEK (for catch-up gating)
+// ============================================================================
+
+function getCalendarWeek(sprintStartDate: string | null): number {
+  if (!sprintStartDate) return 1;
+  const start = new Date(sprintStartDate).getTime();
+  const now = Date.now();
+  const weekNum = Math.ceil((now - start) / (7 * 24 * 60 * 60 * 1000));
+  return Math.max(1, Math.min(12, weekNum));
+}
+
+// ============================================================================
 // CURRENT WEEK HELPERS
 // ============================================================================
 
@@ -999,17 +1011,37 @@ export default function SprintDashboardPage() {
     index: number;
   } | null>(null);
   const [catchUpMode, setCatchUpMode] = useState(false);
+  const [sprintStartDate, setSprintStartDate] = useState<string | null>(null);
 
   const sprint = roadmap?.roadmapData?.sprint;
   const weeks = sprint?.weeks || [];
 
   const gating = computeWeekGating(weeks, tasks);
-  const calendarWeek = gating.activeWeek;
+  const calendarWeek = getCalendarWeek(sprintStartDate);
   const isBehind = calendarWeek > gating.activeWeek + 2;
 
   useEffect(() => {
     fetchRoadmap();
   }, [fetchRoadmap]);
+
+  useEffect(() => {
+    async function fetchSprintStart() {
+      if (!clientSession?.clientId) return;
+      const { data } = await supabase
+        .from('roadmap_stages')
+        .select('created_at, approved_at, published_at')
+        .eq('client_id', clientSession.clientId)
+        .in('stage_type', ['sprint_plan_part2', 'sprint_plan'])
+        .in('status', ['generated', 'approved', 'published'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data) {
+        setSprintStartDate(data.published_at || data.approved_at || data.created_at);
+      }
+    }
+    fetchSprintStart();
+  }, [clientSession?.clientId]);
 
   useEffect(() => {
     if (roadmap?.roadmapData?.sprint) {
@@ -1074,38 +1106,52 @@ export default function SprintDashboardPage() {
     ) => {
       if (!clientSession?.clientId || !clientSession?.practiceId) return;
       for (const r of resolutions) {
-        const existingTask = tasks.find((t: any) => t.week_number === r.weekNumber && t.title === r.title);
-        if (existingTask) {
-          if (r.resolution === 'completed') {
-            await updateTaskStatus(existingTask.id, 'completed', {
-              whatWentWell: '',
-              whatDidntWork: '',
-              additionalNotes: 'Marked during catch-up',
-            });
+        try {
+          const existingTask = tasks.find((t: any) => t.week_number === r.weekNumber && t.title === r.title);
+          if (existingTask) {
+            if (r.resolution === 'completed') {
+              await supabase
+                .from('client_tasks')
+                .update({
+                  status: 'completed',
+                  completed_at: new Date().toISOString(),
+                  completion_feedback: {
+                    caughtUp: true,
+                    caughtUpAt: new Date().toISOString(),
+                    whatWentWell: '',
+                    whatDidntWork: '',
+                    additionalNotes: 'Marked during catch-up',
+                  },
+                })
+                .eq('id', existingTask.id);
+            } else {
+              await updateTaskStatus(existingTask.id, 'skipped', undefined, 'caught_up');
+            }
           } else {
-            await updateTaskStatus(existingTask.id, 'skipped', undefined, 'caught_up');
+            await supabase.from('client_tasks').insert({
+              client_id: clientSession.clientId,
+              practice_id: clientSession.practiceId,
+              week_number: r.weekNumber,
+              title: r.title,
+              description: r.generatedTask.description,
+              category: r.generatedTask.category || 'general',
+              priority: r.generatedTask.priority || 'medium',
+              status: r.resolution,
+              sort_order: r.generatedTask.sortOrder ?? 0,
+              completed_at: r.resolution === 'completed' ? new Date().toISOString() : null,
+              skipped_at: r.resolution === 'skipped' ? new Date().toISOString() : null,
+              skip_reason: r.resolution === 'skipped' ? 'caught_up' : null,
+              completion_feedback:
+                r.resolution === 'completed' ? { caughtUp: true, caughtUpAt: new Date().toISOString() } : null,
+              metadata: {
+                whyThisMatters: r.generatedTask.whyThisMatters,
+                deliverable: r.generatedTask.deliverable,
+                phase: r.generatedTask.phase,
+              },
+            });
           }
-        } else {
-          await supabase.from('client_tasks').insert({
-            client_id: clientSession.clientId,
-            practice_id: clientSession.practiceId,
-            week_number: r.weekNumber,
-            title: r.title,
-            description: r.generatedTask.description,
-            category: r.generatedTask.category || 'general',
-            priority: r.generatedTask.priority || 'medium',
-            status: r.resolution,
-            sort_order: r.generatedTask.sortOrder ?? 0,
-            completed_at: r.resolution === 'completed' ? new Date().toISOString() : null,
-            skipped_at: r.resolution === 'skipped' ? new Date().toISOString() : null,
-            skip_reason: r.resolution === 'skipped' ? 'caught_up' : null,
-            completion_feedback:
-              r.resolution === 'completed' ? { caughtUp: true, caughtUpAt: new Date().toISOString() } : null,
-            metadata: {
-              whyThisMatters: r.generatedTask.whyThisMatters,
-              deliverable: r.generatedTask.deliverable,
-            },
-          });
+        } catch (err) {
+          console.error(`Failed to save task "${r.title}" for week ${r.weekNumber}:`, err);
         }
       }
       await fetchTasks();
@@ -1202,6 +1248,24 @@ export default function SprintDashboardPage() {
         />
       ) : (
         <div className="space-y-6">
+          {isBehind && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-amber-900">You&apos;re a few weeks behind</h3>
+                <p className="text-sm text-amber-700 mt-1">
+                  You&apos;re on Week {gating.activeWeek} — the calendar says Week {calendarWeek}.
+                  Catch up by quickly marking what you did and didn&apos;t do.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCatchUpMode(true)}
+                className="px-5 py-2.5 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors whitespace-nowrap ml-4"
+              >
+                Catch up now
+              </button>
+            </div>
+          )}
           <HeroMetrics lifeAlignment={lifeAlignment} sprintProgress={sprintProgress} />
           {displayWeekData && (
             <ThisWeekCard
