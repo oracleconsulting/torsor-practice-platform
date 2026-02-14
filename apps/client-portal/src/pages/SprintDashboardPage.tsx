@@ -1381,6 +1381,7 @@ export default function SprintDashboardPage() {
               clientId={clientSession?.clientId ?? ''}
               practiceId={clientSession?.practiceId ?? ''}
               sprintNumber={(renewalState?.currentSprint ?? 1) + 1}
+              serviceLineId={renewalState?.serviceLineId}
               part1Responses={part1Responses}
               sprintSummary={sprintSummary}
               onComplete={handleLifeCheckComplete}

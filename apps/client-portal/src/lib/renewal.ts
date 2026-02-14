@@ -12,6 +12,7 @@ export interface RenewalEligibility {
   tierName: string;
   sprintSummaryApproved: boolean;
   renewalStatus: string;
+  serviceLineId?: string;
 }
 
 export async function checkRenewalEligibility(
@@ -29,11 +30,14 @@ export async function checkRenewalEligibility(
     renewalStatus: 'not_started',
   };
 
+  const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+  if (!sl?.id) return defaultResult;
+
   const { data: enrollment, error: enrollError } = await supabase
     .from('client_service_lines')
-    .select('current_sprint_number, max_sprints, tier_name, renewal_status')
+    .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status')
     .eq('client_id', clientId)
-    .eq('service_line_code', '365_method')
+    .eq('service_line_id', sl.id)
     .maybeSingle();
 
   if (enrollError || !enrollment) {
@@ -72,5 +76,6 @@ export async function checkRenewalEligibility(
     tierName,
     sprintSummaryApproved,
     renewalStatus,
+    serviceLineId: sl.id,
   };
 }

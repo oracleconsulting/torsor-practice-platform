@@ -18,6 +18,7 @@ interface QuarterlyLifeCheckProps {
   clientId: string;
   practiceId: string;
   sprintNumber: number;
+  serviceLineId?: string;
   part1Responses: Record<string, any> | null;
   sprintSummary: { summary: any; analytics: any } | null;
   onComplete: () => void;
@@ -36,6 +37,7 @@ export function QuarterlyLifeCheck({
   clientId,
   practiceId,
   sprintNumber,
+  serviceLineId,
   part1Responses,
   sprintSummary,
   onComplete,
@@ -75,13 +77,14 @@ export function QuarterlyLifeCheck({
 
       if (upsertError) throw upsertError;
 
-      const { error: statusError } = await supabase
-        .from('client_service_lines')
-        .update({ renewal_status: 'life_check_complete' })
-        .eq('client_id', clientId)
-        .eq('service_line_code', '365_method');
-
-      if (statusError) throw statusError;
+      if (serviceLineId) {
+        const { error: statusError } = await supabase
+          .from('client_service_lines')
+          .update({ renewal_status: 'life_check_complete' })
+          .eq('client_id', clientId)
+          .eq('service_line_id', serviceLineId);
+        if (statusError) throw statusError;
+      }
       onComplete();
     } catch (err: any) {
       setError(err?.message || 'Failed to save. Please try again.');

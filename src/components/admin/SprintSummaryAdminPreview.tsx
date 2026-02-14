@@ -4,8 +4,6 @@
 // Used in ClientDetailModal Roadmap tab for review/approve/regenerate
 // ============================================================================
 
-import React from 'react';
-
 interface SprintSummaryAdminPreviewProps {
   content: {
     summary?: any;

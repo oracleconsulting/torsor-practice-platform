@@ -7563,13 +7563,16 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
       
       let gaEnrollment: any = null;
       if (serviceLineCode === '365_method') {
-        const { data: enrollmentRow } = await supabase
-          .from('client_service_lines')
-          .select('current_sprint_number, max_sprints, tier_name, renewal_status')
-          .eq('client_id', clientId)
-          .eq('service_line_code', '365_method')
-          .maybeSingle();
-        gaEnrollment = enrollmentRow;
+        const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+        if (sl?.id) {
+          const { data: enrollmentRow } = await supabase
+            .from('client_service_lines')
+            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status')
+            .eq('client_id', clientId)
+            .eq('service_line_id', sl.id)
+            .maybeSingle();
+          gaEnrollment = enrollmentRow;
+        }
       }
 
       setClient({
@@ -10481,84 +10484,87 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       )}
 
                       {/* Sprint Summary (Phase 3 — generated when all 12 weeks resolved) */}
-                      {(client as any).roadmapStages && (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary') && (() => {
-                        const sprintSummaryStage = (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary');
-                        const content = sprintSummaryStage?.approved_content || sprintSummaryStage?.generated_content;
-                        return (
-                          <div className="mt-6 pt-6 border-t border-gray-200">
-                            <div className="flex items-center justify-between mb-4">
-                              <h3 className="text-lg font-semibold text-gray-900">Sprint Summary</h3>
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
-                                  sprintSummaryStage.status === 'approved' || sprintSummaryStage.status === 'published'
-                                    ? 'bg-emerald-100 text-emerald-700'
-                                    : sprintSummaryStage.status === 'generated'
-                                      ? 'bg-amber-100 text-amber-700'
-                                      : 'bg-gray-100 text-gray-600'
-                                }`}>
-                                  {sprintSummaryStage.status}
-                                </span>
-                                {sprintSummaryStage.status === 'generated' && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        try {
-                                          const { error } = await supabase
-                                            .from('roadmap_stages')
-                                            .update({
-                                              status: 'approved',
-                                              approved_content: sprintSummaryStage.generated_content,
-                                              approved_at: new Date().toISOString(),
-                                            })
-                                            .eq('id', sprintSummaryStage.id);
-                                          if (error) throw error;
-                                          await fetchClientDetail();
-                                        } catch (e) {
-                                          console.error(e);
-                                          alert('Failed to approve. Please try again.');
-                                        }
-                                      }}
-                                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
-                                    >
-                                      Approve & Publish
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={async () => {
-                                        if (!confirm('Regenerate Sprint Summary? This will create a new version.')) return;
-                                        try {
-                                          await supabase.functions.invoke('generate-sprint-summary', {
-                                            body: {
-                                              clientId: clientId,
-                                              practiceId: client?.practice_id,
-                                              sprintNumber: 1,
-                                              action: 'regenerate',
-                                            },
-                                          });
-                                          await fetchClientDetail();
-                                        } catch (e) {
-                                          console.error(e);
-                                          alert('Failed to trigger regeneration.');
-                                        }
-                                      }}
-                                      className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
-                                    >
-                                      Regenerate
-                                    </button>
-                                  </>
-                                )}
+                      {(client as any).roadmapStages && (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary')
+                        ? (() => {
+                            const sprintSummaryStage = (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary');
+                            const content = sprintSummaryStage?.approved_content || sprintSummaryStage?.generated_content;
+                            return (
+                              <div className="mt-6 pt-6 border-t border-gray-200">
+                                <div className="flex items-center justify-between mb-4">
+                                  <h3 className="text-lg font-semibold text-gray-900">Sprint Summary</h3>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
+                                      sprintSummaryStage.status === 'approved' || sprintSummaryStage.status === 'published'
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : sprintSummaryStage.status === 'generated'
+                                          ? 'bg-amber-100 text-amber-700'
+                                          : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {sprintSummaryStage.status}
+                                    </span>
+                                    {sprintSummaryStage.status === 'generated' && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            try {
+                                              const { error } = await supabase
+                                                .from('roadmap_stages')
+                                                .update({
+                                                  status: 'approved',
+                                                  approved_content: sprintSummaryStage.generated_content,
+                                                  approved_at: new Date().toISOString(),
+                                                })
+                                                .eq('id', sprintSummaryStage.id);
+                                              if (error) throw error;
+                                              await fetchClientDetail();
+                                            } catch (e) {
+                                              console.error(e);
+                                              alert('Failed to approve. Please try again.');
+                                            }
+                                          }}
+                                          className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                                        >
+                                          Approve & Publish
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            if (!confirm('Regenerate Sprint Summary? This will create a new version.')) return;
+                                            try {
+                                              await supabase.functions.invoke('generate-sprint-summary', {
+                                                body: {
+                                                  clientId: clientId,
+                                                  practiceId: client?.practice_id,
+                                                  sprintNumber: 1,
+                                                  action: 'regenerate',
+                                                },
+                                              });
+                                              await fetchClientDetail();
+                                            } catch (e) {
+                                              console.error(e);
+                                              alert('Failed to trigger regeneration.');
+                                            }
+                                          }}
+                                          className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                        >
+                                          Regenerate
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 max-h-[400px] overflow-y-auto">
+                                  <SprintSummaryAdminPreview content={content} />
+                                </div>
                               </div>
-                            </div>
-                            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 max-h-[400px] overflow-y-auto">
-                              <SprintSummaryAdminPreview content={content} />
-                            </div>
-                          </div>
-                        );
-                      })())}
+                            );
+                          })()
+                        : null}
 
                       {/* Sprint Renewal (Phase 4) — only for 365_method */}
-                      {serviceLineCode === '365_method' && client.gaEnrollment && (() => {
+                      {serviceLineCode === '365_method' && client.gaEnrollment
+                        ? (() => {
                         const enrollment = client.gaEnrollment;
                         const currentSprint = enrollment.current_sprint_number ?? 1;
                         const maxSprints = enrollment.max_sprints ?? 1;
@@ -10591,7 +10597,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                           .from('client_service_lines')
                                           .update({ renewal_status: 'life_check_pending' })
                                           .eq('client_id', clientId)
-                                          .eq('service_line_code', '365_method');
+                                          .eq('service_line_id', enrollment.service_line_id);
                                         await fetchClientDetail();
                                       } catch (e) {
                                         console.error(e);
@@ -10613,7 +10619,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                           .from('client_service_lines')
                                           .update({ renewal_status: 'generating', current_sprint_number: nextSprint })
                                           .eq('client_id', clientId)
-                                          .eq('service_line_code', '365_method');
+                                          .eq('service_line_id', enrollment.service_line_id);
                                         await supabase.from('generation_queue').insert({
                                           practice_id: client.practice_id,
                                           client_id: clientId,
@@ -10642,7 +10648,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                           .from('client_service_lines')
                                           .update({ renewal_status: 'published' })
                                           .eq('client_id', clientId)
-                                          .eq('service_line_code', '365_method');
+                                          .eq('service_line_id', enrollment.service_line_id);
                                         await fetchClientDetail();
                                       } catch (e) {
                                         console.error(e);
@@ -10661,7 +10667,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             </div>
                           </div>
                         );
-                      })()}
+                          })()
+                        : null}
                     </>
                   ) : (
                     <div className="text-center py-12">
