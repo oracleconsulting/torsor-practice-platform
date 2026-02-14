@@ -29,6 +29,8 @@ import {
   Loader2,
   Lock,
 } from 'lucide-react';
+import { useCatchUpDetection } from '@/hooks/useCatchUpDetection';
+import { CatchUpBanner } from '@/components/sprint/CatchUpBanner';
 import { CatchUpView } from '@/components/sprint/CatchUpView';
 
 // ============================================================================
@@ -1018,7 +1020,12 @@ export default function SprintDashboardPage() {
 
   const gating = computeWeekGating(weeks, tasks);
   const calendarWeek = getCalendarWeek(sprintStartDate);
-  const isBehind = calendarWeek > gating.activeWeek + 2;
+  const catchUpState = useCatchUpDetection(
+    sprintStartDate,
+    { activeWeek: gating.activeWeek, resolvedWeeks: gating.resolvedWeeks },
+    12,
+  );
+  const isBehind = catchUpState.isCatchUpNeeded;
 
   useEffect(() => {
     fetchRoadmap();
@@ -1095,70 +1102,10 @@ export default function SprintDashboardPage() {
     [updateTaskStatus, clientSession, fetchTasks]
   );
 
-  const handleCatchUpComplete = useCallback(
-    async (
-      resolutions: Array<{
-        weekNumber: number;
-        title: string;
-        generatedTask: any;
-        resolution: 'completed' | 'skipped';
-      }>
-    ) => {
-      if (!clientSession?.clientId || !clientSession?.practiceId) return;
-      for (const r of resolutions) {
-        try {
-          const existingTask = tasks.find((t: any) => t.week_number === r.weekNumber && t.title === r.title);
-          if (existingTask) {
-            if (r.resolution === 'completed') {
-              await supabase
-                .from('client_tasks')
-                .update({
-                  status: 'completed',
-                  completed_at: new Date().toISOString(),
-                  completion_feedback: {
-                    caughtUp: true,
-                    caughtUpAt: new Date().toISOString(),
-                    whatWentWell: '',
-                    whatDidntWork: '',
-                    additionalNotes: 'Marked during catch-up',
-                  },
-                })
-                .eq('id', existingTask.id);
-            } else {
-              await updateTaskStatus(existingTask.id, 'skipped', undefined, 'caught_up');
-            }
-          } else {
-            await supabase.from('client_tasks').insert({
-              client_id: clientSession.clientId,
-              practice_id: clientSession.practiceId,
-              week_number: r.weekNumber,
-              title: r.title,
-              description: r.generatedTask.description,
-              category: r.generatedTask.category || 'general',
-              priority: r.generatedTask.priority || 'medium',
-              status: r.resolution,
-              sort_order: r.generatedTask.sortOrder ?? 0,
-              completed_at: r.resolution === 'completed' ? new Date().toISOString() : null,
-              skipped_at: r.resolution === 'skipped' ? new Date().toISOString() : null,
-              skip_reason: r.resolution === 'skipped' ? 'caught_up' : null,
-              completion_feedback:
-                r.resolution === 'completed' ? { caughtUp: true, caughtUpAt: new Date().toISOString() } : null,
-              metadata: {
-                whyThisMatters: r.generatedTask.whyThisMatters,
-                deliverable: r.generatedTask.deliverable,
-                phase: r.generatedTask.phase,
-              },
-            });
-          }
-        } catch (err) {
-          console.error(`Failed to save task "${r.title}" for week ${r.weekNumber}:`, err);
-        }
-      }
-      await fetchTasks();
-      setCatchUpMode(false);
-    },
-    [clientSession, tasks, updateTaskStatus, fetchTasks]
-  );
+  const handleCatchUpComplete = useCallback(() => {
+    fetchTasks();
+    setCatchUpMode(false);
+  }, [fetchTasks]);
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed', task?: any) => {
@@ -1239,32 +1186,22 @@ export default function SprintDashboardPage() {
     <Layout title="Your Sprint" subtitle={sprint.sprintTheme || 'Your 12-week transformation'}>
       {catchUpMode ? (
         <CatchUpView
-          weeks={weeks}
+          unresolvedWeeks={catchUpState.unresolvedWeeks}
+          sprintWeeks={weeks}
           dbTasks={tasks}
-          activeWeek={gating.activeWeek}
-          calendarWeek={calendarWeek}
+          clientId={clientSession?.clientId ?? ''}
+          practiceId={clientSession?.practiceId ?? ''}
           onComplete={handleCatchUpComplete}
           onCancel={() => setCatchUpMode(false)}
         />
       ) : (
         <div className="space-y-6">
           {isBehind && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-amber-900">You&apos;re a few weeks behind</h3>
-                <p className="text-sm text-amber-700 mt-1">
-                  You&apos;re on Week {gating.activeWeek} — the calendar says Week {calendarWeek}.
-                  Catch up by quickly marking what you did and didn&apos;t do.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCatchUpMode(true)}
-                className="px-5 py-2.5 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors whitespace-nowrap ml-4"
-              >
-                Catch up now
-              </button>
-            </div>
+            <CatchUpBanner
+              weeksBehind={catchUpState.weeksBehind}
+              unresolvedWeekCount={catchUpState.unresolvedWeeks.length}
+              onEnter={() => setCatchUpMode(true)}
+            />
           )}
           <HeroMetrics lifeAlignment={lifeAlignment} sprintProgress={sprintProgress} />
           {displayWeekData && (
