@@ -205,6 +205,8 @@ interface StaffMember {
   email: string;
 }
 
+const GA_DASHBOARD_STORAGE_KEY = 'gaDashboardSelected';
+
 export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPageProps) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
@@ -214,6 +216,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [pendingGAClientId, setPendingGAClientId] = useState<string | null>(null);
   const [assigningOwner, setAssigningOwner] = useState<string | null>(null);
   
   // Invitation modal state
@@ -402,6 +405,31 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       setSavingService(false);
     }
   };
+
+  // When navigating from GA Dashboard: open Goal Alignment and preselect client
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(GA_DASHBOARD_STORAGE_KEY);
+      if (!raw) return;
+      const { clientId, serviceLineCode } = JSON.parse(raw) as { clientId?: string; serviceLineCode?: string };
+      sessionStorage.removeItem(GA_DASHBOARD_STORAGE_KEY);
+      if (clientId) {
+        setSelectedServiceLine(serviceLineCode || '365_method');
+        setPendingGAClientId(clientId);
+      }
+    } catch (_) {
+      sessionStorage.removeItem(GA_DASHBOARD_STORAGE_KEY);
+    }
+  }, []);
+
+  // Once clients are loaded and we have a pending GA client, open their detail modal
+  useEffect(() => {
+    if (!pendingGAClientId || clients.length === 0) return;
+    if (clients.some((c) => c.id === pendingGAClientId)) {
+      setSelectedClient(pendingGAClientId);
+      setPendingGAClientId(null);
+    }
+  }, [clients, pendingGAClientId]);
 
   // Fetch clients when service line is selected
   useEffect(() => {

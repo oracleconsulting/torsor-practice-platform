@@ -10,6 +10,7 @@ export type Page =
   | 'readiness' 
   | 'analytics' 
   | 'clients' 
+  | 'ga-dashboard'
   | 'assessments' 
   | 'delivery' 
   | 'config' 

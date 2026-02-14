@@ -17,6 +17,7 @@ import { TrainingPlansPage } from './pages/admin/TrainingPlansPage';
 import { KnowledgeBasePage } from './pages/admin/KnowledgeBasePage';
 import { MAPortalPage } from './pages/admin/MAPortalPage';
 import { ServiceLineBuilderPage } from './pages/admin/ServiceLineBuilderPage';
+import { GADashboardPage } from './pages/admin/GADashboardPage';
 import { AssessmentReviewPage } from './pages/public/AssessmentReviewPage';
 import type { Page } from './types/navigation';
 import './index.css';
@@ -66,6 +67,10 @@ function AppContent() {
 
   if (currentPage === 'clients') {
     return <ClientServicesPage {...navProps} />;
+  }
+
+  if (currentPage === 'ga-dashboard') {
+    return <GADashboardPage {...navProps} />;
   }
 
   if (currentPage === 'assessments') {
