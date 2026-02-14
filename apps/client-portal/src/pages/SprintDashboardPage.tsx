@@ -371,7 +371,7 @@ function TaskCard({
               e.stopPropagation();
               onSkip({ dbTaskId: dbTask?.id ?? null, generatedTask: task, weekNumber, index });
             }}
-            className="text-xs text-slate-400 hover:text-slate-600 transition-colors ml-auto flex-shrink-0 whitespace-nowrap"
+            className="text-xs text-slate-400 hover:text-red-400 transition-colors ml-auto flex-shrink-0 whitespace-nowrap"
           >
             Didn't do this
           </button>
@@ -834,8 +834,11 @@ function AllWeeksAccordion({
 
   useEffect(() => {
     if (scrollToWeek != null && weekRefs.current[scrollToWeek] && !gating.isWeekLocked(scrollToWeek)) {
-      weekRefs.current[scrollToWeek]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setOpenWeek(scrollToWeek);
+      const el = weekRefs.current[scrollToWeek];
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
       onScrolledToWeek?.();
     }
   }, [scrollToWeek, onScrolledToWeek, gating]);
@@ -866,7 +869,7 @@ function AllWeeksAccordion({
             <div
               key={weekNum}
               ref={(el) => { weekRefs.current[weekNum] = el; }}
-              className={isLocked ? 'opacity-60' : ''}
+              className={`scroll-mt-24 ${isLocked ? 'opacity-60' : ''}`}
             >
               <button
                 type="button"
@@ -1228,13 +1231,16 @@ export default function SprintDashboardPage() {
             }}
             loading={checkInLoading}
           />
-          <ProgressStrip
-            weeks={weeks}
-            tasks={tasks}
-            gating={gating}
-            calendarWeek={calendarWeek}
-            onWeekClick={(w) => setScrollToWeek(w)}
-          />
+          {/* Sticky progress strip — stays visible when scrolling */}
+          <div className="sticky top-0 z-20 -mx-4 lg:-mx-8 px-4 lg:px-8 py-3 bg-white/95 backdrop-blur-sm border-b border-slate-100">
+            <ProgressStrip
+              weeks={weeks}
+              tasks={tasks}
+              gating={gating}
+              calendarWeek={calendarWeek}
+              onWeekClick={(w) => setScrollToWeek(w)}
+            />
+          </div>
           <AllWeeksAccordion
             weeks={weeks}
             tasks={tasks}

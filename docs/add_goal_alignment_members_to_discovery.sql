@@ -34,8 +34,9 @@ WHERE NOT EXISTS (
     AND service_line_code = 'discovery'
 );
 
--- 3. Add every team member who is on a Goal Alignment (365_method) team
---    to the Discovery team (same practice), if not already assigned.
+-- 3. Add all practice team members to the Discovery team.
+--    (Previously copied from 365_method delivery team only; if that team had no
+--     members, nobody was added. Now we add from practice_members directly.)
 INSERT INTO team_member_assignments (
   team_id,
   member_id,
@@ -46,31 +47,30 @@ INSERT INTO team_member_assignments (
   status
 )
 SELECT
-  dt_discovery.id AS team_id,
-  tma_ga.member_id,
+  dt.id AS team_id,
+  pm.id AS member_id,
   sr.id AS service_role_id,
   sr.name AS role_name,
   false AS is_team_lead,
   8 AS allocated_hours_per_week,
   'active' AS status
-FROM delivery_teams dt_ga
-JOIN team_member_assignments tma_ga ON tma_ga.team_id = dt_ga.id AND tma_ga.status = 'active'
-JOIN delivery_teams dt_discovery ON dt_discovery.practice_id = dt_ga.practice_id
-  AND dt_discovery.service_line_code = 'discovery'
-  AND dt_discovery.status = 'active'
+FROM delivery_teams dt
+CROSS JOIN practice_members pm
 CROSS JOIN LATERAL (
   SELECT id, name FROM service_roles
   WHERE service_line_code = 'discovery'
   ORDER BY display_order
   LIMIT 1
 ) sr
-WHERE dt_ga.practice_id = '8624cd8c-b4c2-4fc3-85b8-e559d14b0568'
-  AND dt_ga.service_line_code = '365_method'
-  AND dt_ga.status = 'active'
+WHERE dt.practice_id = '8624cd8c-b4c2-4fc3-85b8-e559d14b0568'
+  AND dt.service_line_code = 'discovery'
+  AND dt.status = 'active'
+  AND pm.practice_id = dt.practice_id
+  AND pm.member_type = 'team'
   AND NOT EXISTS (
     SELECT 1 FROM team_member_assignments tma2
-    WHERE tma2.team_id = dt_discovery.id
-      AND tma2.member_id = tma_ga.member_id
+    WHERE tma2.team_id = dt.id
+      AND tma2.member_id = pm.id
       AND tma2.status = 'active'
   )
 ON CONFLICT (team_id, member_id) DO NOTHING;
