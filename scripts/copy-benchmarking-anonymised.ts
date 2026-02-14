@@ -3,20 +3,26 @@
  *
  * Creates an anonymous example report for showing prospective clients.
  *
- * Usage (Deno):
+ * Usage:
  *   cd torsor-practice-platform
- *   deno run --allow-env --allow-net scripts/copy-benchmarking-anonymised.ts
+ *   npx tsx scripts/copy-benchmarking-anonymised.ts
  *
- * Requires: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (from .env or environment)
+ * Or with explicit env:
+ *   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npx tsx scripts/copy-benchmarking-anonymised.ts
+ *
+ * Requires: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from '@supabase/supabase-js';
 
 const SOURCE_CLIENT_ID = 'c5c8418a-7ce2-4913-ad27-e4bc339b4346';
 const TARGET_CLIENT_ID = '1522309d-3516-4694-8a0a-69f24ab22d28';
 
 const PLACEHOLDER_COMPANY = 'Example Company';
 const PLACEHOLDER_CUSTOMER = (i: number) => `Major Client ${String.fromCharCode(65 + i)}`;
+
+// Known customer names that appear in the source report — always redact when copying to example client
+const KNOWN_CUSTOMER_NAMES = ['Boldyn', 'Capita', 'GSTT'];
 
 // =============================================================================
 // REDACTION HELPERS
@@ -96,6 +102,11 @@ function buildRedactionMap(
       });
     }
   }
+
+  // Always redact known customer names from the source report (e.g. in narratives)
+  KNOWN_CUSTOMER_NAMES.forEach((name, i) => {
+    if (name) map.set(name, PLACEHOLDER_CUSTOMER(i));
+  });
 
   return map;
 }
