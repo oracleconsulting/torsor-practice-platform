@@ -32,6 +32,9 @@ import {
 import { useCatchUpDetection } from '@/hooks/useCatchUpDetection';
 import { CatchUpBanner } from '@/components/sprint/CatchUpBanner';
 import { CatchUpView } from '@/components/sprint/CatchUpView';
+import { SprintCompletionCelebration } from '@/components/sprint/SprintCompletionCelebration';
+import { SprintCompletionLoading } from '@/components/sprint/SprintCompletionLoading';
+import { SprintSummaryView } from '@/components/sprint/SprintSummaryView';
 
 // ============================================================================
 // CALENDAR WEEK (for catch-up gating)
@@ -43,6 +46,59 @@ function getCalendarWeek(sprintStartDate: string | null): number {
   const now = Date.now();
   const weekNum = Math.ceil((now - start) / (7 * 24 * 60 * 60 * 1000));
   return Math.max(1, Math.min(12, weekNum));
+}
+
+// ============================================================================
+// SPRINT COMPLETION (for Phase 3 summary)
+// ============================================================================
+
+export interface SprintCompletionState {
+  isSprintComplete: boolean;
+  completionStats: {
+    totalTasks: number;
+    completedTasks: number;
+    skippedTasks: number;
+    completionRate: number;
+    resolutionRate: number;
+  };
+}
+
+function checkSprintCompletion(
+  sprintWeeks: any[],
+  dbTasks: any[],
+  totalWeeks: number,
+): SprintCompletionState {
+  let totalTasks = 0;
+  let completedTasks = 0;
+  let skippedTasks = 0;
+
+  for (let weekNum = 1; weekNum <= totalWeeks; weekNum++) {
+    const week = sprintWeeks[weekNum - 1];
+    if (!week?.tasks) continue;
+
+    for (const task of week.tasks) {
+      totalTasks++;
+      const dbTask = dbTasks.find(
+        (t: any) => t.week_number === weekNum && t.title === task.title,
+      );
+      if (dbTask?.status === 'completed') completedTasks++;
+      else if (dbTask?.status === 'skipped') skippedTasks++;
+    }
+  }
+
+  const resolvedTasks = completedTasks + skippedTasks;
+  const isSprintComplete = totalTasks > 0 && resolvedTasks === totalTasks;
+
+  return {
+    isSprintComplete,
+    completionStats: {
+      totalTasks,
+      completedTasks,
+      skippedTasks,
+      completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+      resolutionRate: totalTasks > 0 ? Math.round((resolvedTasks / totalTasks) * 100) : 0,
+    },
+  };
 }
 
 // ============================================================================
@@ -1014,9 +1070,13 @@ export default function SprintDashboardPage() {
   } | null>(null);
   const [catchUpMode, setCatchUpMode] = useState(false);
   const [sprintStartDate, setSprintStartDate] = useState<string | null>(null);
+  const [sprintSummary, setSprintSummary] = useState<{ summary: any; analytics: any } | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const completionTriggeredRef = useRef(false);
 
   const sprint = roadmap?.roadmapData?.sprint;
   const weeks = sprint?.weeks || [];
+  const completionState = checkSprintCompletion(weeks, tasks, 12);
 
   const gating = computeWeekGating(weeks, tasks);
   const calendarWeek = getCalendarWeek(sprintStartDate);
@@ -1065,6 +1125,94 @@ export default function SprintDashboardPage() {
       fetchCheckIn(gating.activeWeek);
     }
   }, [gating.activeWeek, fetchCheckIn]);
+
+  // When sprint is complete: fetch existing summary or trigger generation
+  useEffect(() => {
+    if (!completionState.isSprintComplete || !clientSession?.clientId) return;
+
+    let cancelled = false;
+
+    async function run() {
+      const { data } = await supabase
+        .from('roadmap_stages')
+        .select('generated_content, approved_content, status')
+        .eq('client_id', clientSession!.clientId)
+        .eq('stage_type', 'sprint_summary')
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (cancelled) return;
+      const content = data?.approved_content || data?.generated_content;
+      if (content?.summary) {
+        setSprintSummary({ summary: content.summary, analytics: content.analytics || {} });
+        setSummaryLoading(false);
+        return;
+      }
+
+      if (completionTriggeredRef.current) return;
+      completionTriggeredRef.current = true;
+      setSummaryLoading(true);
+      const { error } = await supabase.functions.invoke('generate-sprint-summary', {
+        body: {
+          clientId: clientSession!.clientId,
+          practiceId: clientSession?.practiceId ?? undefined,
+          sprintNumber: 1,
+        },
+      });
+      if (cancelled) return;
+      if (error) {
+        console.error('Failed to queue sprint summary:', error);
+        setSummaryLoading(false);
+      }
+    }
+
+    run();
+    return () => { cancelled = true; };
+  }, [completionState.isSprintComplete, clientSession?.clientId, clientSession?.practiceId]);
+
+  // Poll for sprint summary while loading
+  useEffect(() => {
+    if (!summaryLoading || !clientSession?.clientId) return;
+
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from('roadmap_stages')
+        .select('generated_content, approved_content')
+        .eq('client_id', clientSession.clientId)
+        .eq('stage_type', 'sprint_summary')
+        .in('status', ['generated', 'approved', 'published'])
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const content = data?.approved_content || data?.generated_content;
+      if (content?.summary) {
+        setSprintSummary({ summary: content.summary, analytics: content.analytics || {} });
+        setSummaryLoading(false);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [summaryLoading, clientSession?.clientId]);
+
+  const handleSprintCompletion = useCallback(() => {
+    if (!clientSession?.clientId) return;
+    completionTriggeredRef.current = true;
+    setSummaryLoading(true);
+    supabase.functions.invoke('generate-sprint-summary', {
+      body: {
+        clientId: clientSession.clientId,
+        practiceId: clientSession?.practiceId ?? undefined,
+        sprintNumber: 1,
+      },
+    }).then(({ error }) => {
+      if (error) {
+        console.error('Failed to queue sprint summary:', error);
+        setSummaryLoading(false);
+      }
+    });
+  }, [clientSession?.clientId, clientSession?.practiceId]);
 
   const handleSkipTask = useCallback(
     async (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }, reason?: string) => {
@@ -1177,6 +1325,30 @@ export default function SprintDashboardPage() {
           <Link to="/roadmap" className="text-indigo-600 hover:text-indigo-700 font-medium">
             View your roadmap →
           </Link>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (completionState.isSprintComplete) {
+    return (
+      <Layout title="Your Sprint" subtitle={sprint.sprintTheme || 'Your 12-week transformation'}>
+        <div className="space-y-6">
+          {sprintSummary ? (
+            <SprintSummaryView
+              summary={sprintSummary.summary}
+              analytics={sprintSummary.analytics}
+              clientName={clientSession?.name?.split(' ')[0]}
+            />
+          ) : summaryLoading ? (
+            <SprintCompletionLoading />
+          ) : (
+            <SprintCompletionCelebration
+              completionStats={completionState.completionStats}
+              onRequestSummary={handleSprintCompletion}
+              isGenerating={false}
+            />
+          )}
         </div>
       </Layout>
     );

@@ -69,6 +69,7 @@ import { TestClientPanel } from '../../components/admin/TestClientPanel';
 // Accounts Upload for Benchmarking
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
+import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
 
 
 interface ClientServicesPageProps {
@@ -7570,6 +7571,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
           status: roadmap.status || 'pending_review',
           needsRegeneration: roadmapNeedsRegeneration
         } : null,
+        roadmapStages: stagesData ?? [],
         assessments: allAssessments,
         context: context || [],
         documents: documents,
@@ -10465,6 +10467,83 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           </div>
                         </div>
                       )}
+
+                      {/* Sprint Summary (Phase 3 — generated when all 12 weeks resolved) */}
+                      {(client as any).roadmapStages && (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary') && (() => {
+                        const sprintSummaryStage = (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary');
+                        const content = sprintSummaryStage?.approved_content || sprintSummaryStage?.generated_content;
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="text-lg font-semibold text-gray-900">Sprint Summary</h3>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
+                                  sprintSummaryStage.status === 'approved' || sprintSummaryStage.status === 'published'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : sprintSummaryStage.status === 'generated'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {sprintSummaryStage.status}
+                                </span>
+                                {sprintSummaryStage.status === 'generated' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const { error } = await supabase
+                                            .from('roadmap_stages')
+                                            .update({
+                                              status: 'approved',
+                                              approved_content: sprintSummaryStage.generated_content,
+                                              approved_at: new Date().toISOString(),
+                                            })
+                                            .eq('id', sprintSummaryStage.id);
+                                          if (error) throw error;
+                                          await fetchClientDetail();
+                                        } catch (e) {
+                                          console.error(e);
+                                          alert('Failed to approve. Please try again.');
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                                    >
+                                      Approve & Publish
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (!confirm('Regenerate Sprint Summary? This will create a new version.')) return;
+                                        try {
+                                          await supabase.functions.invoke('generate-sprint-summary', {
+                                            body: {
+                                              clientId: clientId,
+                                              practiceId: client?.practice_id,
+                                              sprintNumber: 1,
+                                              action: 'regenerate',
+                                            },
+                                          });
+                                          await fetchClientDetail();
+                                        } catch (e) {
+                                          console.error(e);
+                                          alert('Failed to trigger regeneration.');
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                    >
+                                      Regenerate
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 max-h-[400px] overflow-y-auto">
+                              <SprintSummaryAdminPreview content={content} />
+                            </div>
+                          </div>
+                        );
+                      })())}
                     </>
                   ) : (
                     <div className="text-center py-12">

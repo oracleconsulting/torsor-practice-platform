@@ -27,6 +27,7 @@ const STAGE_FUNCTIONS: Record<string, string> = {
   'sprint_plan_part1': 'generate-sprint-plan-part1',
   'sprint_plan_part2': 'generate-sprint-plan-part2',
   'value_analysis': 'generate-value-analysis',
+  'sprint_summary': 'generate-sprint-summary', // triggered by client when all 12 weeks resolved
 };
 
 // Ordered pipeline stages
