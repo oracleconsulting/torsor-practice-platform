@@ -109,11 +109,13 @@ export function QuarterlyLifeCheck({
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h2 className="font-semibold text-slate-900 mb-2">1. Your Ideal Tuesday</h2>
           {tuesdayOriginal && (
-            <p className="mb-3 text-sm text-slate-500">Last time you described:</p>
-            <blockquote className={contextClass}>{tuesdayOriginal}</blockquote>
-            <p className="mt-3 text-sm text-slate-600">
-              How has this changed? What would your ideal Tuesday look like now?
-            </p>
+            <>
+              <p className="mb-3 text-sm text-slate-500">Last time you described:</p>
+              <blockquote className={contextClass}>{tuesdayOriginal}</blockquote>
+              <p className="mt-3 text-sm text-slate-600">
+                How has this changed? What would your ideal Tuesday look like now?
+              </p>
+            </>
           )}
           <textarea
             value={responses.tuesdayTestUpdate}
