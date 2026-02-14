@@ -78,6 +78,13 @@ async function fetchGADashboardData(practiceId: string) {
 
   const gaServiceId = serviceLines?.[0]?.id;
 
+  type EnrollmentRow = {
+    client_id: string;
+    status?: string;
+    tier_name?: string | null;
+    practice_members: { id: string; name: string; email: string; client_company?: string; program_status?: string; last_portal_login?: string } | { id: string; name: string; email: string; client_company?: string; program_status?: string; last_portal_login?: string }[] | null;
+  };
+
   let enrollments: Array<{
     client_id: string;
     status?: string;
@@ -103,7 +110,16 @@ async function fetchGADashboardData(practiceId: string) {
       `)
       .eq('practice_id', practiceId)
       .eq('service_line_id', gaServiceId);
-    enrollments = (data || []).filter((e) => e.practice_members != null);
+    const raw = (data || []) as EnrollmentRow[];
+    enrollments = raw
+      .filter((e) => e.practice_members != null)
+      .map((e) => ({
+        client_id: e.client_id,
+        status: e.status,
+        tier_name: e.tier_name,
+        practice_members: Array.isArray(e.practice_members) ? e.practice_members[0] ?? null : e.practice_members,
+      }))
+      .filter((e) => e.practice_members != null);
   }
 
   let clientIds = enrollments.map((e) => e.client_id);
@@ -206,10 +222,11 @@ function computeClientSummary(
     };
   });
 
-  const firstUnresolved = weekStatuses.find((w) => !w.isResolved);
+  type WeekStatus = { weekNumber: number; theme: string; generatedTaskCount: number; completedCount: number; skippedCount: number; isResolved: boolean };
+  const firstUnresolved = weekStatuses.find((w: WeekStatus) => !w.isResolved);
   const activeWeek = firstUnresolved ? firstUnresolved.weekNumber : 13;
 
-  const totalGeneratedTasks = weeks.reduce((sum: number, w: any) => sum + (w.tasks?.length || 0), 0);
+  const totalGeneratedTasks = weeks.reduce((sum: number, w: { tasks?: unknown[] }) => sum + (w.tasks?.length || 0), 0);
   const completedTasks = tasks.filter((t) => t.status === 'completed').length;
   const skippedTasks = tasks.filter((t) => t.status === 'skipped').length;
   const totalResolvedTasks = completedTasks + skippedTasks;
