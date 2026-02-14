@@ -7561,6 +7561,17 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         setIsMAReportShared(false);
       }
       
+      let gaEnrollment: any = null;
+      if (serviceLineCode === '365_method') {
+        const { data: enrollmentRow } = await supabase
+          .from('client_service_lines')
+          .select('current_sprint_number, max_sprints, tier_name, renewal_status')
+          .eq('client_id', clientId)
+          .eq('service_line_code', '365_method')
+          .maybeSingle();
+        gaEnrollment = enrollmentRow;
+      }
+
       setClient({
         ...clientData,
         roadmap: roadmap ? {
@@ -7572,6 +7583,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
           needsRegeneration: roadmapNeedsRegeneration
         } : null,
         roadmapStages: stagesData ?? [],
+        gaEnrollment: gaEnrollment ?? null,
         assessments: allAssessments,
         context: context || [],
         documents: documents,
@@ -10544,6 +10556,112 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           </div>
                         );
                       })())}
+
+                      {/* Sprint Renewal (Phase 4) — only for 365_method */}
+                      {serviceLineCode === '365_method' && client.gaEnrollment && (() => {
+                        const enrollment = client.gaEnrollment;
+                        const currentSprint = enrollment.current_sprint_number ?? 1;
+                        const maxSprints = enrollment.max_sprints ?? 1;
+                        const renewalStatus = enrollment.renewal_status || 'not_started';
+                        const tierName = enrollment.tier_name || 'Growth';
+                        const summaryStage = (client.roadmapStages || []).find(
+                          (s: any) => s.stage_type === 'sprint_summary' && (s.sprint_number ?? 1) === currentSprint
+                        );
+                        const summaryApproved = summaryStage && ['approved', 'published'].includes(summaryStage.status);
+                        const isEligible = summaryApproved && currentSprint < maxSprints;
+
+                        if (!isEligible && renewalStatus === 'not_started') return null;
+
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900">Sprint Renewal</h3>
+                                <p className="text-sm text-gray-500">
+                                  Sprint {currentSprint} of {maxSprints} ({tierName} tier)
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {renewalStatus === 'not_started' && isEligible && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'life_check_pending' })
+                                          .eq('client_id', clientId)
+                                          .eq('service_line_code', '365_method');
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to start renewal.');
+                                      }
+                                    }}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                  >
+                                    Start Sprint {currentSprint + 1} Renewal
+                                  </button>
+                                )}
+                                {renewalStatus === 'life_check_complete' && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const nextSprint = currentSprint + 1;
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'generating', current_sprint_number: nextSprint })
+                                          .eq('client_id', clientId)
+                                          .eq('service_line_code', '365_method');
+                                        await supabase.from('generation_queue').insert({
+                                          practice_id: client.practice_id,
+                                          client_id: clientId,
+                                          stage_type: 'life_design_refresh',
+                                          sprint_number: nextSprint,
+                                          status: 'pending',
+                                        });
+                                        await supabase.functions.invoke('roadmap-orchestrator', { body: { action: 'process' } });
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to trigger generation.');
+                                      }
+                                    }}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                  >
+                                    Generate Sprint {currentSprint + 1}
+                                  </button>
+                                )}
+                                {renewalStatus === 'review_pending' && tierName === 'Partner' && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'published' })
+                                          .eq('client_id', clientId)
+                                          .eq('service_line_code', '365_method');
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to publish.');
+                                      }
+                                    }}
+                                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                                  >
+                                    Approve & Publish Sprint {currentSprint}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Status: <span className="font-medium capitalize">{renewalStatus.replace(/_/g, ' ')}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </>
                   ) : (
                     <div className="text-center py-12">

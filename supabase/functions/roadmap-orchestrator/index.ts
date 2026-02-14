@@ -27,7 +27,10 @@ const STAGE_FUNCTIONS: Record<string, string> = {
   'sprint_plan_part1': 'generate-sprint-plan-part1',
   'sprint_plan_part2': 'generate-sprint-plan-part2',
   'value_analysis': 'generate-value-analysis',
-  'sprint_summary': 'generate-sprint-summary', // triggered by client when all 12 weeks resolved
+  'sprint_summary': 'generate-sprint-summary',
+  'life_design_refresh': 'generate-life-design-refresh',
+  'vision_update': 'generate-vision-update',
+  'shift_update': 'generate-shift-update',
 };
 
 // Ordered pipeline stages
@@ -106,32 +109,35 @@ serve(async (req) => {
         break;
       }
 
-      console.log(`[${iterations}] Found queue item: ${queueItem.stage_type} for client ${queueItem.client_id}`);
+      const sprintNum = queueItem.sprint_number ?? 1;
+      console.log(`[${iterations}] Found queue item: ${queueItem.stage_type} for client ${queueItem.client_id}, sprint ${sprintNum}`);
 
       // Check dependency is complete
       if (queueItem.depends_on_stage) {
-        const { data: depStage } = await supabase
+        let depQuery = supabase
           .from('roadmap_stages')
           .select('status')
           .eq('client_id', queueItem.client_id)
           .eq('stage_type', queueItem.depends_on_stage)
           .order('version', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(1);
+        if (sprintNum != null) depQuery = depQuery.eq('sprint_number', sprintNum);
+        const { data: depStage } = await depQuery.maybeSingle();
 
         if (!depStage || (depStage.status !== 'generated' && depStage.status !== 'approved' && depStage.status !== 'published')) {
           // Dependency not ready yet - wait a moment and check again
           console.log(`Dependency ${queueItem.depends_on_stage} not ready for ${queueItem.stage_type}, waiting...`);
           await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
           // Check one more time
-          const { data: depStageRetry } = await supabase
+          let depRetryQuery = supabase
             .from('roadmap_stages')
             .select('status')
             .eq('client_id', queueItem.client_id)
             .eq('stage_type', queueItem.depends_on_stage)
             .order('version', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .limit(1);
+          if (sprintNum != null) depRetryQuery = depRetryQuery.eq('sprint_number', sprintNum);
+          const { data: depStageRetry } = await depRetryQuery.maybeSingle();
           
           if (!depStageRetry || (depStageRetry.status !== 'generated' && depStageRetry.status !== 'approved' && depStageRetry.status !== 'published')) {
             // Still not ready, break and let user retry if needed
@@ -142,15 +148,16 @@ serve(async (req) => {
       }
 
       // SMART CHECK: See if this stage is already generated (handles timeout recovery)
-      const { data: existingStage } = await supabase
+      let existingQuery = supabase
         .from('roadmap_stages')
         .select('id, status, version')
         .eq('client_id', queueItem.client_id)
         .eq('stage_type', queueItem.stage_type)
         .in('status', ['generated', 'approved', 'published'])
         .order('version', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+      if (sprintNum != null) existingQuery = existingQuery.eq('sprint_number', sprintNum);
+      const { data: existingStage } = await existingQuery.maybeSingle();
 
       if (existingStage) {
         console.log(`✓ Stage ${queueItem.stage_type} already generated (v${existingStage.version}), marking queue as complete`);
@@ -196,12 +203,13 @@ serve(async (req) => {
       
       console.log(`[${iterations}] Calling ${functionName} for client ${queueItem.client_id}, stage ${queueItem.stage_type}`);
       
-      // Build request body - value_analysis needs additional params
+      // Build request body - value_analysis needs additional params; renewal/sprint stages need sprintNumber
       const requestBody: Record<string, any> = {
         clientId: queueItem.client_id,
         practiceId: queueItem.practice_id,
+        sprintNumber: sprintNum,
       };
-      
+
       // Value analysis requires action and part3Responses
       if (queueItem.stage_type === 'value_analysis') {
         requestBody.action = 'generate-analysis';
@@ -263,16 +271,17 @@ serve(async (req) => {
           // Wait longer for the function to finish saving
           await new Promise(resolve => setTimeout(resolve, 10000));
           
-          const { data: savedStage } = await supabase
+          let savedQuery = supabase
             .from('roadmap_stages')
             .select('id, status')
             .eq('client_id', queueItem.client_id)
             .eq('stage_type', queueItem.stage_type)
             .in('status', ['generated', 'approved', 'published'])
             .order('version', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
+            .limit(1);
+          if (sprintNum != null) savedQuery = savedQuery.eq('sprint_number', sprintNum);
+          const { data: savedStage } = await savedQuery.maybeSingle();
+
           if (savedStage) {
             console.log(`✓ ${queueItem.stage_type} WAS SAVED despite connection error - continuing pipeline`);
             functionCompleted = true;
@@ -280,16 +289,17 @@ serve(async (req) => {
             // Try one more time after another wait
             console.log(`⏳ Stage not found yet, waiting 10 more seconds...`);
             await new Promise(resolve => setTimeout(resolve, 10000));
-            
-            const { data: savedStage2 } = await supabase
+
+            let savedQuery2 = supabase
               .from('roadmap_stages')
               .select('id, status')
               .eq('client_id', queueItem.client_id)
               .eq('stage_type', queueItem.stage_type)
               .in('status', ['generated', 'approved', 'published'])
               .order('version', { ascending: false })
-              .limit(1)
-              .maybeSingle();
+              .limit(1);
+            if (sprintNum != null) savedQuery2 = savedQuery2.eq('sprint_number', sprintNum);
+            const { data: savedStage2 } = await savedQuery2.maybeSingle();
             
             if (savedStage2) {
               console.log(`✓ ${queueItem.stage_type} found on second check - continuing pipeline`);

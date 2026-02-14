@@ -35,6 +35,10 @@ import { CatchUpView } from '@/components/sprint/CatchUpView';
 import { SprintCompletionCelebration } from '@/components/sprint/SprintCompletionCelebration';
 import { SprintCompletionLoading } from '@/components/sprint/SprintCompletionLoading';
 import { SprintSummaryView } from '@/components/sprint/SprintSummaryView';
+import { QuarterlyLifeCheck } from '@/components/sprint/QuarterlyLifeCheck';
+import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
+import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
+import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
 
 // ============================================================================
 // CALENDAR WEEK (for catch-up gating)
@@ -1072,6 +1076,8 @@ export default function SprintDashboardPage() {
   const [sprintStartDate, setSprintStartDate] = useState<string | null>(null);
   const [sprintSummary, setSprintSummary] = useState<{ summary: any; analytics: any } | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [renewalState, setRenewalState] = useState<RenewalEligibility | null>(null);
+  const [part1Responses, setPart1Responses] = useState<Record<string, any> | null>(null);
   const completionTriggeredRef = useRef(false);
 
   const sprint = roadmap?.roadmapData?.sprint;
@@ -1195,6 +1201,29 @@ export default function SprintDashboardPage() {
 
     return () => clearInterval(interval);
   }, [summaryLoading, clientSession?.clientId]);
+
+  // Fetch renewal eligibility when sprint is complete and summary exists
+  useEffect(() => {
+    if (!sprintSummary || !clientSession?.clientId || !clientSession?.practiceId) return;
+    checkRenewalEligibility(supabase, clientSession.clientId, clientSession.practiceId).then(setRenewalState);
+  }, [sprintSummary, clientSession?.clientId, clientSession?.practiceId]);
+
+  // Fetch Part 1 responses when life check is pending (for QuarterlyLifeCheck context)
+  useEffect(() => {
+    if (renewalState?.renewalStatus !== 'life_check_pending' || !clientSession?.clientId) return;
+    supabase
+      .from('client_assessments')
+      .select('responses')
+      .eq('client_id', clientSession.clientId)
+      .eq('assessment_type', 'part1')
+      .maybeSingle()
+      .then(({ data }) => setPart1Responses(data?.responses ?? null));
+  }, [renewalState?.renewalStatus, clientSession?.clientId]);
+
+  const handleLifeCheckComplete = useCallback(() => {
+    if (!clientSession?.clientId || !clientSession?.practiceId) return;
+    checkRenewalEligibility(supabase, clientSession.clientId, clientSession.practiceId).then(setRenewalState);
+  }, [clientSession?.clientId, clientSession?.practiceId]);
 
   const handleSprintCompletion = useCallback(() => {
     if (!clientSession?.clientId) return;
@@ -1331,23 +1360,61 @@ export default function SprintDashboardPage() {
   }
 
   if (completionState.isSprintComplete) {
+    const status = renewalState?.renewalStatus;
+    const name = clientSession?.name?.split(' ')[0];
+
     return (
       <Layout title="Your Sprint" subtitle={sprint.sprintTheme || 'Your 12-week transformation'}>
         <div className="space-y-6">
-          {sprintSummary ? (
-            <SprintSummaryView
-              summary={sprintSummary.summary}
-              analytics={sprintSummary.analytics}
-              clientName={clientSession?.name?.split(' ')[0]}
+          {!sprintSummary ? (
+            summaryLoading ? (
+              <SprintCompletionLoading />
+            ) : (
+              <SprintCompletionCelebration
+                completionStats={completionState.completionStats}
+                onRequestSummary={handleSprintCompletion}
+                isGenerating={false}
+              />
+            )
+          ) : status === 'life_check_pending' ? (
+            <QuarterlyLifeCheck
+              clientId={clientSession?.clientId ?? ''}
+              practiceId={clientSession?.practiceId ?? ''}
+              sprintNumber={(renewalState?.currentSprint ?? 1) + 1}
+              part1Responses={part1Responses}
+              sprintSummary={sprintSummary}
+              onComplete={handleLifeCheckComplete}
             />
-          ) : summaryLoading ? (
-            <SprintCompletionLoading />
+          ) : status === 'life_check_complete' ? (
+            <RenewalWaiting
+              message="Your advisor is preparing your next sprint."
+              sprintSummary={sprintSummary}
+              clientName={name}
+            />
+          ) : status === 'generating' ? (
+            <RenewalWaiting
+              message="Your Sprint 2 is being generated..."
+              showSpinner
+              sprintSummary={sprintSummary}
+              clientName={name}
+            />
+          ) : status === 'review_pending' ? (
+            <RenewalWaiting
+              message="Your advisor is reviewing Sprint 2 before it's ready."
+              sprintSummary={sprintSummary}
+              clientName={name}
+            />
           ) : (
-            <SprintCompletionCelebration
-              completionStats={completionState.completionStats}
-              onRequestSummary={handleSprintCompletion}
-              isGenerating={false}
-            />
+            <>
+              <SprintSummaryView
+                summary={sprintSummary.summary}
+                analytics={sprintSummary.analytics}
+                clientName={name}
+              />
+              {renewalState && !renewalState.isEligible && renewalState.currentSprint >= renewalState.maxSprints && (
+                <TierUpgradePrompt currentTier={renewalState.tierName} />
+              )}
+            </>
           )}
         </div>
       </Layout>

@@ -100,8 +100,9 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { clientId, practiceId } = await req.json();
-    
+    const { clientId, practiceId, sprintNumber: bodySprintNumber } = await req.json();
+    const sprintNumber = bodySprintNumber ?? 1;
+
     if (!clientId || !practiceId) {
       throw new Error('clientId and practiceId required');
     }
@@ -111,12 +112,26 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Check for existing stage
+    async function fetchStage(stageType: string, sn: number) {
+      let q = supabase
+        .from('roadmap_stages')
+        .select('generated_content, approved_content')
+        .eq('client_id', clientId)
+        .eq('stage_type', stageType)
+        .order('version', { ascending: false })
+        .limit(1);
+      if (sn != null) q = q.eq('sprint_number', sn);
+      const { data } = await q.maybeSingle();
+      return data?.approved_content || data?.generated_content;
+    }
+
+    // Check for existing stage (same sprint)
     const { data: existingStages } = await supabase
       .from('roadmap_stages')
       .select('version')
       .eq('client_id', clientId)
       .eq('stage_type', 'sprint_plan_part2')
+      .eq('sprint_number', sprintNumber)
       .order('version', { ascending: false })
       .limit(1);
 
@@ -124,7 +139,7 @@ serve(async (req) => {
       ? existingStages[0].version + 1 
       : 1;
 
-    console.log(`Creating sprint_plan_part2 stage with version ${nextVersion}`);
+    console.log(`Creating sprint_plan_part2 stage with version ${nextVersion}, sprint ${sprintNumber}`);
 
     const { data: stage, error: stageError } = await supabase
       .from('roadmap_stages')
@@ -132,6 +147,7 @@ serve(async (req) => {
         practice_id: practiceId,
         client_id: clientId,
         stage_type: 'sprint_plan_part2',
+        sprint_number: sprintNumber,
         version: nextVersion,
         status: 'generating',
         generation_started_at: new Date().toISOString(),
@@ -142,57 +158,18 @@ serve(async (req) => {
 
     if (stageError) throw stageError;
 
-    // Fetch dependencies
-    const { data: fitStage } = await supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'fit_assessment')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: part1Stage } = await supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'sprint_plan_part1')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: visionStage } = await supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'five_year_vision')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: shiftStage } = await supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'six_month_shift')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: lifeProfileStage } = await supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'life_design_profile')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const fitProfile = fitStage?.approved_content || fitStage?.generated_content || {};
-    const sprintPart1 = part1Stage?.approved_content || part1Stage?.generated_content;
-    const vision = visionStage?.approved_content || visionStage?.generated_content;
-    const shift = shiftStage?.approved_content || shiftStage?.generated_content;
-    const lifeDesignProfile = lifeProfileStage?.approved_content || lifeProfileStage?.generated_content || null;
+    // Fetch dependencies: part1 must be same sprint; vision/shift/fit for renewal use updated stages
+    const fitProfile = sprintNumber > 1
+      ? (await fetchStage('life_design_refresh', sprintNumber)) || {}
+      : (await fetchStage('fit_assessment', 1)) || {};
+    const sprintPart1 = await fetchStage('sprint_plan_part1', sprintNumber);
+    const vision = sprintNumber > 1
+      ? await fetchStage('vision_update', sprintNumber)
+      : await fetchStage('five_year_vision', 1);
+    const shift = sprintNumber > 1
+      ? await fetchStage('shift_update', sprintNumber)
+      : await fetchStage('six_month_shift', 1);
+    const lifeDesignProfile = await fetchStage('life_design_profile', 1);
 
     if (!sprintPart1) {
       throw new Error('Sprint part 1 not found - cannot generate part 2');
