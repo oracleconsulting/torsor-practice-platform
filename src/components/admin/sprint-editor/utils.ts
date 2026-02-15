@@ -2,7 +2,7 @@
 // Sprint Editor — helpers for change log and sync
 // ============================================================================
 
-import type { ChangeEntry, SprintData } from './types';
+import type { ChangeEntry } from './types';
 
 export function buildChangeSummary(
   weekNumber: number | null,
@@ -31,7 +31,7 @@ export function categoriseEdits(changeLog: ChangeEntry[]): string {
   return 'refinement';
 }
 
-export function countEditsByWeek(weeks: { weekNumber: number }[], changeLog: ChangeEntry[]): Set<number> {
+export function countEditsByWeek(_weeks: { weekNumber: number }[], changeLog: ChangeEntry[]): Set<number> {
   const withEdits = new Set<number>();
   for (const e of changeLog) {
     if (e.weekNumber != null) withEdits.add(e.weekNumber);

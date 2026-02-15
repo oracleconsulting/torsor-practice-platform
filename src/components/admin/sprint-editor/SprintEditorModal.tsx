@@ -3,8 +3,8 @@
 // ============================================================================
 
 import { useState, useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
-import type { SprintData, SprintWeek, SprintTask, ChangeEntry } from './types';
+import { supabase } from '../../../lib/supabase';
+import type { SprintData, ChangeEntry } from './types';
 import type { SprintEditorModalProps } from './types';
 import { buildChangeSummary, categoriseEdits, countEditsByWeek } from './utils';
 import { syncTasksToClientTasks } from './syncTasks';
@@ -23,7 +23,7 @@ export function SprintEditorModal({
   approvedContent,
   currentStatus,
   clientName,
-  tierName,
+  tierName: _tierName,
   serviceLineId,
   onSave,
   onClose,
@@ -59,23 +59,26 @@ export function SprintEditorModal({
       let oldValue = '';
 
       if (weekNumber === null) {
-        const prev = (updated as Record<string, unknown>)[field];
+        const u = updated as unknown as Record<string, unknown>;
+        const prev = u[field];
         oldValue = typeof prev === 'string' ? prev : prev != null ? JSON.stringify(prev) : '';
-        (updated as Record<string, unknown>)[field] = valueToStore;
+        u[field] = valueToStore;
       } else {
         const week = updated.weeks.find((w) => w.weekNumber === weekNumber);
         if (!week) return;
 
         if (taskIndex === null) {
-          const prev = (week as Record<string, unknown>)[field];
+          const w = week as unknown as Record<string, unknown>;
+          const prev = w[field];
           oldValue = typeof prev === 'string' ? prev : prev != null ? String(prev) : '';
-          (week as Record<string, unknown>)[field] = newValue;
+          w[field] = newValue;
         } else {
           const task = week.tasks[taskIndex];
           if (!task) return;
-          const prev = (task as Record<string, unknown>)[field];
+          const t = task as unknown as Record<string, unknown>;
+          const prev = t[field];
           oldValue = typeof prev === 'string' ? prev : prev != null ? String(prev) : '';
-          (task as Record<string, unknown>)[field] = newValue;
+          t[field] = newValue;
         }
       }
 

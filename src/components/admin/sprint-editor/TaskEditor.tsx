@@ -2,7 +2,6 @@
 // Sprint Editor — single task (collapsed or expanded) with all fields
 // ============================================================================
 
-import { useState } from 'react';
 import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import type { SprintTask } from './types';
 
