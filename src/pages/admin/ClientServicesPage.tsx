@@ -70,6 +70,7 @@ import { TestClientPanel } from '../../components/admin/TestClientPanel';
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
 import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
+import { SprintEditorModal } from '../../components/admin/sprint-editor';
 
 
 interface ClientServicesPageProps {
@@ -7225,6 +7226,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [editingTask, setEditingTask] = useState<{weekNumber: number, taskId: string, original: any} | null>(null);
   const [editedTask, setEditedTask] = useState<{title: string, description: string}>({ title: '', description: '' });
   const [savingTask, setSavingTask] = useState(false);
+  const [showSprintEditor, setShowSprintEditor] = useState(false);
 
   useEffect(() => {
     fetchClientDetail();
@@ -10467,21 +10469,39 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         </div>
                       )}
 
-                      {client.roadmap.roadmap_data?.sprint?.weeks && (
-                        <div>
-                          <h3 className="font-semibold text-gray-900 mb-3">12-Week Sprint Overview</h3>
-                          <div className="grid grid-cols-4 gap-3">
-                            {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
-                              <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-3 text-center">
-                                <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 inline-flex items-center justify-center font-medium text-sm mb-2">
-                                  {week.weekNumber}
-                                </span>
-                                <p className="text-xs text-gray-600 line-clamp-2">{week.theme}</p>
-                              </div>
-                            ))}
+                      {client.roadmap.roadmap_data?.sprint?.weeks && (() => {
+                        const currentSprintNum = client.gaEnrollment?.current_sprint_number ?? 1;
+                        const sprintStage = (client.roadmapStages || []).find(
+                          (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === currentSprintNum
+                        );
+                        return (
+                          <div>
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="font-semibold text-gray-900">12-Week Sprint Overview</h3>
+                              {sprintStage && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSprintEditor(true)}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                >
+                                  <Settings className="w-4 h-4" />
+                                  {sprintStage.status === 'generated' ? 'Review & Edit' : 'Edit Sprint'}
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                              {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
+                                <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-3 text-center">
+                                  <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 inline-flex items-center justify-center font-medium text-sm mb-2">
+                                    {week.weekNumber}
+                                  </span>
+                                  <p className="text-xs text-gray-600 line-clamp-2">{week.theme}</p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
 
                       {/* Sprint Summary (Phase 3 — generated when all 12 weeks resolved) */}
                       {(client as any).roadmapStages && (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary')
@@ -10676,6 +10696,33 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       <p className="text-gray-500">No roadmap generated yet</p>
                     </div>
                   )}
+
+                  {/* Sprint Editor Modal — when open, show over full screen */}
+                  {showSprintEditor && (() => {
+                    const currentSprintNum = client?.gaEnrollment?.current_sprint_number ?? 1;
+                    const sprintStage = (client?.roadmapStages || []).find(
+                      (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === currentSprintNum
+                    );
+                    if (!sprintStage || !client?.roadmap?.roadmap_data?.sprint) return null;
+                    const generated = sprintStage.generated_content || client.roadmap.roadmap_data.sprint;
+                    const approved = sprintStage.approved_content ?? null;
+                    return (
+                      <SprintEditorModal
+                        clientId={clientId}
+                        practiceId={client.practice_id}
+                        sprintNumber={currentSprintNum}
+                        stageId={sprintStage.id}
+                        generatedContent={generated}
+                        approvedContent={approved}
+                        currentStatus={sprintStage.status || 'generated'}
+                        clientName={client.name || 'Client'}
+                        tierName={client.gaEnrollment?.tier_name || 'Growth'}
+                        serviceLineId={client.gaEnrollment?.service_line_id}
+                        onSave={fetchClientDetail}
+                        onClose={() => setShowSprintEditor(false)}
+                      />
+                    );
+                  })()}
                 </div>
               )}
 
@@ -11020,15 +11067,43 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* SPRINT TAB - WITH EDITING */}
               {activeTab === 'sprint' && (
                 <div className="space-y-6">
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
-                      <p className="text-amber-700 text-sm mt-1">
-                        Click on any task to edit it. Changes are automatically logged to the knowledge base for future reference.
-                      </p>
-                    </div>
-                  </div>
+                  {(() => {
+                    const currentSprintNum = client?.gaEnrollment?.current_sprint_number ?? 1;
+                    const sprintStageFromStages = (client?.roadmapStages || []).find(
+                      (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === currentSprintNum
+                    );
+                    return sprintStageFromStages ? (
+                      <div className="flex items-center justify-between gap-4 flex-wrap">
+                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-start gap-3 flex-1">
+                          <Settings className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-indigo-800 text-sm font-medium">Sprint Editor</p>
+                            <p className="text-indigo-700 text-sm mt-1">
+                              Use the full editor to review and edit all weeks and tasks, then approve and publish to the client portal.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShowSprintEditor(true)}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                        >
+                          <Settings className="w-4 h-4" />
+                          {sprintStageFromStages.status === 'generated' ? 'Review & Edit' : 'Edit Sprint'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
+                          <p className="text-amber-700 text-sm mt-1">
+                            Click on any task to edit it. Changes are automatically logged to the knowledge base for future reference.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {client?.roadmap?.roadmap_data?.sprint?.weeks ? (
                     <div className="space-y-4">
