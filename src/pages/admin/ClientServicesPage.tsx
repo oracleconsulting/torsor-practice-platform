@@ -70,7 +70,7 @@ import { TestClientPanel } from '../../components/admin/TestClientPanel';
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
 import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
-import { SprintEditorModal } from '../../components/admin/sprint-editor';
+import SprintEditorModal from '../../components/admin/SprintEditorModal';
 
 
 interface ClientServicesPageProps {
@@ -7228,6 +7228,13 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [savingTask, setSavingTask] = useState(false);
   const [showSprintEditor, setShowSprintEditor] = useState(false);
 
+  // Goal Alignment tier (365_method only)
+  const [clientTier, setClientTier] = useState<string | null>(null);
+  const [savingTier, setSavingTier] = useState(false);
+  useEffect(() => {
+    if (client?.gaEnrollment?.tier_name) setClientTier(client.gaEnrollment.tier_name);
+  }, [client?.gaEnrollment?.tier_name]);
+
   useEffect(() => {
     fetchClientDetail();
   }, [clientId]);
@@ -7807,6 +7814,26 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
     }
   };
 
+  const handleTierChange = async (tier: string) => {
+    if (!client?.gaEnrollment?.service_line_id) return;
+    setSavingTier(true);
+    try {
+      const maxSprints = tier === 'Lite' ? 1 : 4;
+      await supabase
+        .from('client_service_lines')
+        .update({ tier_name: tier, max_sprints: maxSprints })
+        .eq('client_id', clientId)
+        .eq('service_line_id', client.gaEnrollment.service_line_id);
+      setClientTier(tier);
+      await fetchClientDetail();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to update tier.');
+    } finally {
+      setSavingTier(false);
+    }
+  };
+
   // ================================================================
   // SPRINT EDITING FUNCTIONALITY
   // ================================================================
@@ -8252,6 +8279,47 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* OVERVIEW TAB */}
               {activeTab === 'overview' && (
                 <div className="space-y-6">
+                  {serviceLineCode === '365_method' && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
+                      <p className="text-sm font-medium text-slate-700 mb-3">Goal Alignment Tier</p>
+                      <div className="flex gap-3 flex-wrap">
+                        {[
+                          { name: 'Lite', price: '£1,500/yr', sprints: '1 sprint', desc: 'Survey + plan' },
+                          { name: 'Growth', price: '£4,500/yr', sprints: '4 sprints', desc: 'Quarterly reviews' },
+                          { name: 'Partner', price: '£9,000/yr', sprints: '4 sprints + advisor edit', desc: 'Strategy day + BSG' },
+                        ].map((tier) => (
+                          <button
+                            key={tier.name}
+                            type="button"
+                            onClick={() => handleTierChange(tier.name)}
+                            disabled={savingTier}
+                            className={`flex-1 min-w-[140px] p-3 rounded-lg border-2 text-left transition-colors ${
+                              (clientTier || client?.gaEnrollment?.tier_name) === tier.name
+                                ? 'border-indigo-500 bg-indigo-50'
+                                : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                (clientTier || client?.gaEnrollment?.tier_name) === tier.name ? 'border-indigo-500' : 'border-slate-300'
+                              }`}>
+                                {(clientTier || client?.gaEnrollment?.tier_name) === tier.name && <div className="w-2 h-2 rounded-full bg-indigo-500" />}
+                              </div>
+                              <span className="font-medium text-slate-900">{tier.name}</span>
+                            </div>
+                            <p className="text-sm text-slate-500 mt-1 ml-6">{tier.price}</p>
+                            <p className="text-xs text-slate-400 ml-6">{tier.sprints}</p>
+                          </button>
+                        ))}
+                      </div>
+                      {client?.gaEnrollment && (
+                        <p className="text-xs text-slate-400 mt-2">
+                          Current: Sprint {client.gaEnrollment.current_sprint_number ?? 1} of {client.gaEnrollment.max_sprints ?? 1}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {client?.roadmap?.roadmap_data?.fiveYearVision?.northStar && (
                     <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 text-white">
                       <p className="text-sm opacity-80 mb-2">North Star</p>
@@ -10697,7 +10765,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     </div>
                   )}
 
-                  {/* Sprint Editor Modal — when open, show over full screen */}
+                  {/* Sprint Editor Modal — full-screen overlay when open */}
                   {showSprintEditor && (() => {
                     const currentSprintNum = client?.gaEnrollment?.current_sprint_number ?? 1;
                     const sprintStage = (client?.roadmapStages || []).find(
@@ -10708,18 +10776,18 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     const approved = sprintStage.approved_content ?? null;
                     return (
                       <SprintEditorModal
+                        isOpen={showSprintEditor}
+                        onClose={() => setShowSprintEditor(false)}
+                        onSave={() => { fetchClientDetail(); setShowSprintEditor(false); }}
                         clientId={clientId}
                         practiceId={client.practice_id}
-                        sprintNumber={currentSprintNum}
                         stageId={sprintStage.id}
+                        sprintNumber={currentSprintNum}
                         generatedContent={generated}
                         approvedContent={approved}
                         currentStatus={sprintStage.status || 'generated'}
                         clientName={client.name || 'Client'}
-                        tierName={client.gaEnrollment?.tier_name || 'Growth'}
-                        serviceLineId={client.gaEnrollment?.service_line_id}
-                        onSave={fetchClientDetail}
-                        onClose={() => setShowSprintEditor(false)}
+                        tierName={clientTier || client?.gaEnrollment?.tier_name || 'Growth'}
                       />
                     );
                   })()}
@@ -11068,40 +11136,41 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {activeTab === 'sprint' && (
                 <div className="space-y-6">
                   {(() => {
-                    const currentSprintNum = client?.gaEnrollment?.current_sprint_number ?? 1;
+                    const sprintData = client?.roadmap?.roadmap_data?.sprint;
                     const sprintStageFromStages = (client?.roadmapStages || []).find(
-                      (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === currentSprintNum
+                      (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === (client?.gaEnrollment?.current_sprint_number ?? 1)
                     );
-                    return sprintStageFromStages ? (
-                      <div className="flex items-center justify-between gap-4 flex-wrap">
-                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 flex items-start gap-3 flex-1">
-                          <Settings className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" />
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-4">
                           <div>
-                            <p className="text-indigo-800 text-sm font-medium">Sprint Editor</p>
-                            <p className="text-indigo-700 text-sm mt-1">
-                              Use the full editor to review and edit all weeks and tasks, then approve and publish to the client portal.
+                            <p className="text-sm text-slate-500">
+                              {sprintData?.weeks?.length || 0} weeks •{' '}
+                              {sprintData?.weeks?.reduce((s: number, w: any) => s + (w.tasks?.length || 0), 0) || 0} tasks
                             </p>
                           </div>
+                          {sprintStageFromStages ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowSprintEditor(true)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                            >
+                              <Settings className="w-4 h-4" />
+                              Open Sprint Editor
+                            </button>
+                          ) : (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
+                                <p className="text-amber-700 text-sm mt-1">
+                                  Click on any task to edit it. Changes are logged to the knowledge base. For full editing use the Sprint Editor when a sprint stage is available.
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setShowSprintEditor(true)}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
-                        >
-                          <Settings className="w-4 h-4" />
-                          {sprintStageFromStages.status === 'generated' ? 'Review & Edit' : 'Edit Sprint'}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                        <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
-                          <p className="text-amber-700 text-sm mt-1">
-                            Click on any task to edit it. Changes are automatically logged to the knowledge base for future reference.
-                          </p>
-                        </div>
-                      </div>
+                      </>
                     );
                   })()}
 

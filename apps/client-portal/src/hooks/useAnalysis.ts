@@ -767,8 +767,20 @@ export function useRoadmap() {
     setError(null);
 
     try {
-      // First, try to fetch from new staged architecture (roadmap_stages)
-      // Include 'generated' status for testing, plus published/approved for production
+      // Fetch client's GA tier for visibility gating (Partner = only show published sprint)
+      let clientTier: string | null = null;
+      const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+      if (sl?.id) {
+        const { data: enrollment } = await supabase
+          .from('client_service_lines')
+          .select('tier_name')
+          .eq('client_id', clientSession.clientId)
+          .eq('service_line_id', sl.id)
+          .maybeSingle();
+        clientTier = enrollment?.tier_name ?? null;
+      }
+
+      // Fetch from new staged architecture (roadmap_stages)
       const { data: stagesData, error: stagesError } = await supabase
         .from('roadmap_stages')
         .select('*')
@@ -779,18 +791,23 @@ export function useRoadmap() {
       console.log('[useRoadmap] roadmap_stages query result:', { 
         stagesCount: stagesData?.length || 0, 
         stagesError,
-        stageTypes: stagesData?.map(s => `${s.stage_type}:${s.status}`) || []
+        stageTypes: stagesData?.map(s => `${s.stage_type}:${s.status}`) || [],
+        clientTier
       });
 
       if (stagesError && stagesError.code !== 'PGRST116') {
         console.warn('[useRoadmap] Error fetching from roadmap_stages:', stagesError);
       }
 
-      // If we have staged data, use it
+      // If we have staged data, use it (Partner tier: only show published sprint stages)
       if (stagesData && stagesData.length > 0) {
         console.log('[useRoadmap] Using staged data, stages found:', stagesData.length);
         const stagesMap: Record<string, any> = {};
+        const isPartner = clientTier === 'Partner';
         stagesData.forEach(stage => {
+          if (isPartner && ['sprint_plan_part2', 'sprint_plan', 'sprint_plan_part1'].includes(stage.stage_type) && stage.status !== 'published') {
+            return;
+          }
           const content = stage.approved_content || stage.generated_content;
           if (content) {
             stagesMap[stage.stage_type] = content;
