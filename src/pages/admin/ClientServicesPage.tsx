@@ -7227,6 +7227,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [editedTask, setEditedTask] = useState<{title: string, description: string}>({ title: '', description: '' });
   const [savingTask, setSavingTask] = useState(false);
   const [showSprintEditor, setShowSprintEditor] = useState(false);
+  const [sprintStageRaw, setSprintStageRaw] = useState<any>(null);
 
   // Goal Alignment tier (365_method only)
   const [clientTier, setClientTier] = useState<string | null>(null);
@@ -7275,6 +7276,12 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
           }
         });
 
+        // Find the raw sprint stage for the editor
+        const rawSprintStage = stagesData?.find((s: any) =>
+          s.stage_type === 'sprint_plan_part2' || s.stage_type === 'sprint_plan'
+        );
+        setSprintStageRaw(rawSprintStage || null);
+
         // Build roadmap data structure from stages
         const roadmapData: any = {};
         
@@ -7313,6 +7320,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
           status: 'generated' // Staged data is generated
         };
       } else {
+        setSprintStageRaw(null);
         // Fallback to old client_roadmaps table
         console.log('[fetchClientDetail] No staged data, falling back to client_roadmaps');
         const { data: legacyRoadmap } = await supabase
@@ -10765,32 +10773,23 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     </div>
                   )}
 
-                  {/* Sprint Editor Modal — full-screen overlay when open */}
-                  {showSprintEditor && (() => {
-                    const currentSprintNum = client?.gaEnrollment?.current_sprint_number ?? 1;
-                    const sprintStage = (client?.roadmapStages || []).find(
-                      (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === currentSprintNum
-                    );
-                    if (!sprintStage || !client?.roadmap?.roadmap_data?.sprint) return null;
-                    const generated = sprintStage.generated_content || client.roadmap.roadmap_data.sprint;
-                    const approved = sprintStage.approved_content ?? null;
-                    return (
-                      <SprintEditorModal
-                        isOpen={showSprintEditor}
-                        onClose={() => setShowSprintEditor(false)}
-                        onSave={() => { fetchClientDetail(); setShowSprintEditor(false); }}
-                        clientId={clientId}
-                        practiceId={client.practice_id}
-                        stageId={sprintStage.id}
-                        sprintNumber={currentSprintNum}
-                        generatedContent={generated}
-                        approvedContent={approved}
-                        currentStatus={sprintStage.status || 'generated'}
-                        clientName={client.name || 'Client'}
-                        tierName={clientTier || client?.gaEnrollment?.tier_name || 'Growth'}
-                      />
-                    );
-                  })()}
+                  {/* Sprint Editor Modal */}
+                  {showSprintEditor && sprintStageRaw && (
+                    <SprintEditorModal
+                      isOpen={showSprintEditor}
+                      onClose={() => setShowSprintEditor(false)}
+                      onSave={() => { fetchClientDetail(); }}
+                      clientId={client?.id || clientId || ''}
+                      practiceId={client?.practice_id || ''}
+                      stageId={sprintStageRaw.id}
+                      sprintNumber={sprintStageRaw.sprint_number || 1}
+                      generatedContent={sprintStageRaw.generated_content}
+                      approvedContent={sprintStageRaw.approved_content}
+                      currentStatus={sprintStageRaw.status}
+                      clientName={client?.name || ''}
+                      tierName={clientTier || client?.gaEnrollment?.tier_name || 'Growth'}
+                    />
+                  )}
                 </div>
               )}
 
