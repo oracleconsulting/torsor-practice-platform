@@ -10773,23 +10773,6 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     </div>
                   )}
 
-                  {/* Sprint Editor Modal */}
-                  {showSprintEditor && sprintStageRaw && (
-                    <SprintEditorModal
-                      isOpen={showSprintEditor}
-                      onClose={() => setShowSprintEditor(false)}
-                      onSave={() => { fetchClientDetail(); }}
-                      clientId={client?.id || clientId || ''}
-                      practiceId={client?.practice_id || ''}
-                      stageId={sprintStageRaw.id}
-                      sprintNumber={sprintStageRaw.sprint_number || 1}
-                      generatedContent={sprintStageRaw.generated_content}
-                      approvedContent={sprintStageRaw.approved_content}
-                      currentStatus={sprintStageRaw.status}
-                      clientName={client?.name || ''}
-                      tierName={clientTier || client?.gaEnrollment?.tier_name || 'Growth'}
-                    />
-                  )}
                 </div>
               )}
 
@@ -11328,6 +11311,24 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* Sprint Editor Modal — outside tab content so it opens from any tab */}
+              {showSprintEditor && sprintStageRaw && (
+                <SprintEditorModal
+                  isOpen={showSprintEditor}
+                  onClose={() => setShowSprintEditor(false)}
+                  onSave={() => { fetchClientDetail(); }}
+                  clientId={client?.id || clientId || ''}
+                  practiceId={client?.practice_id || ''}
+                  stageId={sprintStageRaw.id}
+                  sprintNumber={sprintStageRaw.sprint_number || 1}
+                  generatedContent={sprintStageRaw.generated_content}
+                  approvedContent={sprintStageRaw.approved_content}
+                  currentStatus={sprintStageRaw.status}
+                  clientName={client?.name || ''}
+                  tierName={clientTier || client?.gaEnrollment?.tier_name || 'Growth'}
+                />
               )}
             </>
           )}
