@@ -41,7 +41,7 @@ serve(async (req) => {
       .from('quarterly_life_checks')
       .select('*')
       .eq('client_id', clientId)
-      .eq('sprint_number', sprintNumber)
+      .eq('sprint_number', prevSprint)
       .maybeSingle();
 
     const { data: prevSummaryStage } = await supabase
@@ -57,14 +57,27 @@ serve(async (req) => {
     const prevSummary = prevSummaryContent?.summary || {};
     const prevAnalytics = prevSummaryContent?.analytics || {};
 
+    const updatedTuesday = lifeCheck?.tuesday_test_update || part1.tuesday_test || '';
+    const updatedNorthStar =
+      (prevSummary?.renewalRecommendations?.lifeDesignAdjustment as string) ||
+      part1.north_star ||
+      updatedTuesday?.slice(0, 80) ||
+      'Align life and business';
+
     const refreshedProfile = {
+      northStar: updatedNorthStar,
+      tagline: updatedNorthStar,
+      archetype: (part1.archetype as string) || 'balanced_achiever',
+      archetypeExplanation:
+        lifeCheck?.priority_shift || part1.danger_zone || 'Evolved through sprint 1.',
+
       originalTuesdayTest: part1.tuesday_test || '',
       originalDangerZone: part1.danger_zone || '',
       originalRelationshipMirror: part1.relationship_mirror || '',
       originalCommitmentHours: part1.commitment_hours ?? part1.hours_to_reclaim ?? '',
       originalNinetyDayPriorities: part1.ninety_day_priorities ?? part1.priorities_90_days ?? '',
 
-      updatedTuesdayTest: lifeCheck?.tuesday_test_update || part1.tuesday_test || '',
+      updatedTuesdayTest: updatedTuesday,
       timeReclaimProgress: lifeCheck?.time_reclaim_progress ?? null,
       biggestWin: lifeCheck?.biggest_win ?? null,
       biggestFrustration: lifeCheck?.biggest_frustration ?? null,
@@ -79,7 +92,7 @@ serve(async (req) => {
 
       tuesdayTestEvolution: {
         original: part1.tuesday_test || '',
-        afterSprint1: lifeCheck?.tuesday_test_update || part1.tuesday_test || '',
+        afterSprint1: updatedTuesday,
         progressAssessment: prevSummary?.tuesdayTestComparison?.progress ?? null,
       },
       sprintNumber,

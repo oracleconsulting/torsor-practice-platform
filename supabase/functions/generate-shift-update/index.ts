@@ -169,7 +169,14 @@ Evolve the shift. Adjust keyMilestones and quickWins based on what Sprint 1 achi
     const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');
-    const parsed = JSON.parse(cleaned.substring(start, end + 1));
+    if (start === -1 || end === -1) throw new Error('Failed to find JSON in response');
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned.substring(start, end + 1));
+    } catch {
+      const fixed = cleaned.substring(start, end + 1).replace(/,(\s*[}\]])/g, '$1');
+      parsed = JSON.parse(fixed);
+    }
 
     const { data: existing } = await supabase
       .from('roadmap_stages')

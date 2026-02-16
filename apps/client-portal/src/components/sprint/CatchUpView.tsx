@@ -32,6 +32,7 @@ export function CatchUpView({
   dbTasks,
   clientId,
   practiceId,
+  sprintNumber,
   onComplete,
   onCancel,
 }: {
@@ -40,22 +41,28 @@ export function CatchUpView({
   dbTasks: any[];
   clientId: string;
   practiceId: string;
+  sprintNumber: number;
   onComplete: () => void;
   onCancel: () => void;
 }) {
   const [resolutions, setResolutions] = useState<Record<string, 'completed' | 'skipped'>>({});
   const [submitting, setSubmitting] = useState(false);
 
-  // Pre-populate resolutions from existing DB tasks
+  const tasksForSprint = useMemo(
+    () => dbTasks.filter((t: any) => (t.sprint_number ?? 1) === sprintNumber),
+    [dbTasks, sprintNumber],
+  );
+
+  // Pre-populate resolutions from existing DB tasks (this sprint only)
   useEffect(() => {
     const initial: Record<string, 'completed' | 'skipped'> = {};
-    for (const task of dbTasks) {
+    for (const task of tasksForSprint) {
       if (task.status === 'completed' || task.status === 'skipped') {
         initial[taskKey(task.week_number, task.title)] = task.status as 'completed' | 'skipped';
       }
     }
     setResolutions((prev) => (Object.keys(initial).length > 0 ? { ...initial, ...prev } : prev));
-  }, [dbTasks]);
+  }, [tasksForSprint]);
 
   const catchUpWeeks = useMemo(() => {
     const result: CatchUpWeek[] = [];
@@ -64,7 +71,7 @@ export function CatchUpView({
       const week = sprintWeeks[weekNum - 1];
       if (!week) continue;
 
-      const weekDbTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
+      const weekDbTasks = tasksForSprint.filter((t: any) => t.week_number === weekNum);
 
       const tasks: CatchUpTaskItem[] = (week.tasks || []).map((gt: any) => {
         const dbTask = weekDbTasks.find((t: any) => t.title === gt.title);
@@ -86,7 +93,7 @@ export function CatchUpView({
     }
 
     return result;
-  }, [unresolvedWeeks, sprintWeeks, dbTasks]);
+  }, [unresolvedWeeks, sprintWeeks, tasksForSprint]);
 
   const setTaskResolution = (key: string, resolution: 'completed' | 'skipped') => {
     setResolutions((prev) => {
@@ -133,7 +140,7 @@ export function CatchUpView({
         const weekNumber = parseInt(parts[0], 10);
         const title = parts.slice(1).join(':');
 
-        const existingTask = dbTasks.find(
+        const existingTask = tasksForSprint.find(
           (t: any) => t.week_number === weekNumber && t.title === title,
         );
         if (existingTask && existingTask.status === resolution) continue;
@@ -145,6 +152,7 @@ export function CatchUpView({
         upserts.push({
           client_id: clientId,
           practice_id: practiceId,
+          sprint_number: sprintNumber,
           week_number: weekNumber,
           title,
           description: generatedTask?.description ?? null,
@@ -156,16 +164,6 @@ export function CatchUpView({
           skip_reason:
             resolution === 'skipped'
               ? 'Catch-up mode — not completed during sprint period'
-              : null,
-          completion_feedback:
-            resolution === 'completed'
-              ? {
-                  caughtUp: true,
-                  catchUpDate: now,
-                  whatWentWell: '',
-                  whatDidntWork: '',
-                  additionalNotes: 'Marked during catch-up',
-                }
               : null,
           metadata: {
             ...(generatedTask?.whyThisMatters ? { whyThisMatters: generatedTask.whyThisMatters } : {}),
@@ -179,7 +177,7 @@ export function CatchUpView({
 
       if (upserts.length > 0) {
         const { error } = await supabase.from('client_tasks').upsert(upserts, {
-          onConflict: 'client_id,week_number,title',
+          onConflict: 'client_id,week_number,title,sprint_number',
         });
         if (error) throw error;
       }

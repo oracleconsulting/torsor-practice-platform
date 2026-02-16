@@ -1078,6 +1078,7 @@ export default function SprintDashboardPage() {
   const [sprintSummary, setSprintSummary] = useState<{ summary: any; analytics: any } | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [renewalState, setRenewalState] = useState<RenewalEligibility | null>(null);
+  const [currentSprintNumber, setCurrentSprintNumber] = useState<number>(1);
   const [part1Responses, setPart1Responses] = useState<Record<string, any> | null>(null);
   const completionTriggeredRef = useRef(false);
 
@@ -1097,6 +1098,28 @@ export default function SprintDashboardPage() {
   useEffect(() => {
     fetchRoadmap();
   }, [fetchRoadmap]);
+
+  // Fetch current sprint number from enrollment (for catch-up and task writes)
+  useEffect(() => {
+    if (!clientSession?.clientId) return;
+    (async () => {
+      const { data: sl } = await supabase
+        .from('service_lines')
+        .select('id')
+        .eq('code', '365_method')
+        .maybeSingle();
+      if (!sl?.id) return;
+      const { data: enrollment } = await supabase
+        .from('client_service_lines')
+        .select('current_sprint_number')
+        .eq('client_id', clientSession.clientId)
+        .eq('service_line_id', sl.id)
+        .maybeSingle();
+      if (enrollment?.current_sprint_number != null) {
+        setCurrentSprintNumber(enrollment.current_sprint_number);
+      }
+    })();
+  }, [clientSession?.clientId]);
 
   useEffect(() => {
     async function fetchSprintStart() {
@@ -1432,6 +1455,7 @@ export default function SprintDashboardPage() {
           dbTasks={tasks}
           clientId={clientSession?.clientId ?? ''}
           practiceId={clientSession?.practiceId ?? ''}
+          sprintNumber={renewalState?.currentSprint ?? currentSprintNumber}
           onComplete={handleCatchUpComplete}
           onCancel={() => setCatchUpMode(false)}
         />
