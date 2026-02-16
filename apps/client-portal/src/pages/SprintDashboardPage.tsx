@@ -36,6 +36,7 @@ import { SprintCompletionCelebration } from '@/components/sprint/SprintCompletio
 import { SprintCompletionLoading } from '@/components/sprint/SprintCompletionLoading';
 import { SprintSummaryView } from '@/components/sprint/SprintSummaryView';
 import { QuarterlyLifeCheck } from '@/components/sprint/QuarterlyLifeCheck';
+import { QuarterlyLifeCheckForm } from '@/components/QuarterlyLifeCheckForm';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
 import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
@@ -1202,11 +1203,11 @@ export default function SprintDashboardPage() {
     return () => clearInterval(interval);
   }, [summaryLoading, clientSession?.clientId]);
 
-  // Fetch renewal eligibility when sprint is complete and summary exists
+  // Fetch renewal eligibility when sprint is complete (so life_check_pending shows form even before summary)
   useEffect(() => {
-    if (!sprintSummary || !clientSession?.clientId || !clientSession?.practiceId) return;
+    if (!completionState.isSprintComplete || !clientSession?.clientId || !clientSession?.practiceId) return;
     checkRenewalEligibility(supabase, clientSession.clientId, clientSession.practiceId).then(setRenewalState);
-  }, [sprintSummary, clientSession?.clientId, clientSession?.practiceId]);
+  }, [completionState.isSprintComplete, clientSession?.clientId, clientSession?.practiceId]);
 
   // Fetch Part 1 responses when life check is pending (for QuarterlyLifeCheck context)
   useEffect(() => {
@@ -1359,7 +1360,7 @@ export default function SprintDashboardPage() {
     );
   }
 
-  if (completionState.isSprintComplete) {
+  if (completionState.isSprintComplete && renewalState?.renewalStatus !== 'life_check_pending') {
     const status = renewalState?.renewalStatus;
     const name = clientSession?.name?.split(' ')[0];
 
@@ -1436,6 +1437,17 @@ export default function SprintDashboardPage() {
         />
       ) : (
         <div className="space-y-6">
+          {renewalState?.renewalStatus === 'life_check_pending' &&
+            clientSession?.clientId &&
+            clientSession?.practiceId && (
+              <QuarterlyLifeCheckForm
+                clientId={clientSession.clientId}
+                practiceId={clientSession.practiceId}
+                sprintNumber={renewalState.currentSprint ?? 1}
+                clientName={clientSession.name?.split(' ')[0]}
+                onComplete={handleLifeCheckComplete}
+              />
+            )}
           {isBehind && (
             <CatchUpBanner
               weeksBehind={catchUpState.weeksBehind}
