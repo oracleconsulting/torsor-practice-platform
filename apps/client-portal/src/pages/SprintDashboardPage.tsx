@@ -28,6 +28,7 @@ import {
   Minus,
   Loader2,
   Lock,
+  Sparkles,
 } from 'lucide-react';
 import { useCatchUpDetection } from '@/hooks/useCatchUpDetection';
 import { CatchUpBanner } from '@/components/sprint/CatchUpBanner';
@@ -1083,6 +1084,13 @@ export default function SprintDashboardPage() {
   const [currentSprintNumber, setCurrentSprintNumber] = useState<number>(1);
   const [part1Responses, setPart1Responses] = useState<Record<string, any> | null>(null);
   const completionTriggeredRef = useRef(false);
+  const [enrichmentSources, setEnrichmentSources] = useState<{
+    financial?: boolean;
+    systems?: boolean;
+    market?: boolean;
+    valueAnalysis?: boolean;
+    discovery?: boolean;
+  } | null>(null);
 
   const sprint = roadmap?.roadmapData?.sprint;
   const weeks = sprint?.weeks || [];
@@ -1103,6 +1111,25 @@ export default function SprintDashboardPage() {
   useEffect(() => {
     fetchRoadmap();
   }, [fetchRoadmap]);
+
+  useEffect(() => {
+    if (!clientSession?.clientId) return;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('roadmap_stages')
+          .select('metadata')
+          .eq('client_id', clientSession.clientId)
+          .in('stage_type', ['sprint_plan_part2', 'sprint_plan_part1', 'sprint_plan'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data?.metadata?.enrichmentSources) {
+          setEnrichmentSources(data.metadata.enrichmentSources);
+        }
+      } catch {}
+    })();
+  }, [clientSession?.clientId]);
 
   // Fetch current sprint number from enrollment (for catch-up and task writes)
   useEffect(() => {
@@ -1496,6 +1523,21 @@ export default function SprintDashboardPage() {
               unresolvedWeekCount={catchUpState.unresolvedWeeks.length}
               onEnter={() => setCatchUpMode(true)}
             />
+          )}
+          {enrichmentSources && Object.values(enrichmentSources).some(Boolean) && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700">
+              <Sparkles className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
+              <span>
+                This sprint was personalised using your{' '}
+                {[
+                  enrichmentSources.financial && 'financial data',
+                  enrichmentSources.systems && 'Systems Audit findings',
+                  enrichmentSources.market && 'Benchmarking results',
+                  enrichmentSources.valueAnalysis && 'Value Analysis',
+                  enrichmentSources.discovery && 'Discovery insights',
+                ].filter(Boolean).join(', ')}
+              </span>
+            </div>
           )}
           {displayWeekData?.tuesdayCheckIn && !showSprintSummary && (
             <TuesdayCheckInCard

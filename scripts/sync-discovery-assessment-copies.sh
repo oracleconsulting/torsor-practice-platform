@@ -83,5 +83,8 @@ cp "$ROOT/apps/client-portal/src/pages/DiscoveryDashboardPage.tsx" "$DEST/fronte
 cp "$ROOT/apps/client-portal/src/pages/DiscoveryPortalPage.tsx" "$DEST/frontend-client-DiscoveryPortalPage.tsx" && echo "  frontend-client-DiscoveryPortalPage.tsx"
 cp "$ROOT/apps/client-portal/src/components/discovery/TransformationJourney.tsx" "$DEST/frontend-client-TransformationJourney.tsx" && echo "  frontend-client-TransformationJourney.tsx"
 
+# --- Master platform reference (same file in all analysis folders; source of truth: docs/TORSOR_PRACTICE_PLATFORM_MASTER.md) ---
+[ -f "$ROOT/docs/TORSOR_PRACTICE_PLATFORM_MASTER.md" ] && cp "$ROOT/docs/TORSOR_PRACTICE_PLATFORM_MASTER.md" "$DEST/TORSOR_PRACTICE_PLATFORM_MASTER.md" && echo "  TORSOR_PRACTICE_PLATFORM_MASTER.md"
+
 echo "Done. discovery assessment analysis is now a direct copy of live files."
 echo "Do not edit files in that folder during live work; use the live paths and re-run this script to sync."

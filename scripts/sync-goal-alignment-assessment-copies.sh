@@ -91,5 +91,8 @@ cp "$ROOT/docs/SERVICE_LINES_ARCHITECTURE_DISCOVERY.md" "$DEST/docs-SERVICE_LINE
 cp "$ROOT/docs/SERVICE_LINE_DISCOVERY_MAPPING.md" "$DEST/docs-SERVICE_LINE_DISCOVERY_MAPPING.md" 2>/dev/null && echo "  docs-SERVICE_LINE_DISCOVERY_MAPPING.md" || true
 [ -f "$ROOT/365_CLIENT_PORTAL_SPECIFICATION.md" ] && cp "$ROOT/365_CLIENT_PORTAL_SPECIFICATION.md" "$DEST/docs-365_CLIENT_PORTAL_SPECIFICATION.md" && echo "  docs-365_CLIENT_PORTAL_SPECIFICATION.md"
 
+# --- Master platform reference (same file in all analysis folders; source of truth: docs/TORSOR_PRACTICE_PLATFORM_MASTER.md) ---
+[ -f "$ROOT/docs/TORSOR_PRACTICE_PLATFORM_MASTER.md" ] && cp "$ROOT/docs/TORSOR_PRACTICE_PLATFORM_MASTER.md" "$DEST/TORSOR_PRACTICE_PLATFORM_MASTER.md" && echo "  TORSOR_PRACTICE_PLATFORM_MASTER.md"
+
 echo "Done. goal alignment analysis is now a direct copy of live files."
 echo "Do not edit files in that folder during live work; use the live paths and re-run this script to sync."

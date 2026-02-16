@@ -577,7 +577,7 @@ Return ONLY the JSON object with these four fields. No markdown wrapping.
 }
 
 // =============================================================================
-// MAIN HANDLER — Deprecated: redirects to Pass 1 pipeline (Pass 1 → Pass 2)
+// MAIN HANDLER
 // =============================================================================
 
 serve(async (req) => {
@@ -587,33 +587,322 @@ serve(async (req) => {
 
   try {
     const { engagementId } = await req.json();
+    
     if (!engagementId) {
       throw new Error('engagementId is required');
     }
-    console.log('[SA Report Orchestrator] DEPRECATED — redirecting to Pass 1 pipeline');
-    console.log('[SA Report Orchestrator] engagementId:', engagementId);
-    const pass1Url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-sa-report-pass1`;
-    const pass1Response = await fetch(pass1Url, {
+    
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    
+    console.log('[SA Report v3] Starting two-pass generation for:', engagementId);
+    
+    // Fetch all data
+    const [
+      { data: engagement, error: engagementError },
+      { data: discovery, error: discoveryError },
+      { data: systems, error: systemsError },
+      { data: deepDives, error: deepDivesError }
+    ] = await Promise.all([
+      supabaseClient.from('sa_engagements').select('*').eq('id', engagementId).single(),
+      supabaseClient.from('sa_discovery_responses').select('*').eq('engagement_id', engagementId).single(),
+      supabaseClient.from('sa_system_inventory').select('*').eq('engagement_id', engagementId),
+      supabaseClient.from('sa_process_deep_dives').select('*').eq('engagement_id', engagementId)
+    ]);
+    
+    if (engagementError || !engagement) {
+      throw new Error(`Failed to fetch engagement: ${engagementError?.message || 'Not found'}`);
+    }
+    
+    if (discoveryError || !discovery) {
+      throw new Error(`Failed to fetch discovery: ${discoveryError?.message || 'Not found'}`);
+    }
+    
+    // Get client name
+    let clientName = 'the business';
+    if (engagement.client_id) {
+      const { data: client } = await supabaseClient
+        .from('practice_members')
+        .select('client_company, company, name')
+        .eq('id', engagement.client_id)
+        .maybeSingle();
+      clientName = client?.client_company || client?.company || client?.name || 'the business';
+    }
+    
+    const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+    if (!openRouterKey) {
+      throw new Error('OPENROUTER_API_KEY not configured');
+    }
+    
+    // =========================================================================
+    // PASS 1: Extraction & Analysis (Sonnet)
+    // =========================================================================
+    
+    console.log('[SA Report v3] Pass 1: Extracting structured data with Sonnet...');
+    const pass1Start = Date.now();
+    
+    const pass1Prompt = buildPass1Prompt(discovery, systems || [], deepDives || [], clientName);
+    
+    const pass1Response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor SA Pass 1'
       },
-      body: JSON.stringify({ engagementId })
+      body: JSON.stringify({
+        model: 'anthropic/claude-sonnet-4',
+        messages: [{ role: 'user', content: pass1Prompt }],
+        temperature: 0.1,
+        max_tokens: 8000
+      })
     });
-    const result = await pass1Response.json();
+    
+    if (!pass1Response.ok) {
+      throw new Error(`Pass 1 failed: ${await pass1Response.text()}`);
+    }
+    
+    const pass1Result = await pass1Response.json();
+    const pass1Time = Date.now() - pass1Start;
+    const pass1Tokens = pass1Result.usage?.total_tokens || 0;
+    
+    let pass1Data: Pass1Output;
+    try {
+      let content = pass1Result.choices[0].message.content.trim();
+      content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
+      const firstBrace = content.indexOf('{');
+      if (firstBrace > 0) content = content.substring(firstBrace);
+      pass1Data = JSON.parse(content);
+    } catch (e: any) {
+      console.error('[SA Report v3] Pass 1 parse error:', e.message);
+      throw new Error(`Pass 1 parse failed: ${e.message}`);
+    }
+    
+    console.log('[SA Report v3] Pass 1 complete:', {
+      systems: pass1Data.facts.systems.length,
+      processes: pass1Data.facts.processes.length,
+      findings: pass1Data.findings.length,
+      hoursWasted: pass1Data.facts.hoursWastedWeekly,
+      tokens: pass1Tokens,
+      timeMs: pass1Time
+    });
+    
+    // =========================================================================
+    // PASS 2: Narrative Writing (Opus)
+    // =========================================================================
+    
+    console.log('[SA Report v3] Pass 2: Writing narratives with Opus...');
+    const pass2Start = Date.now();
+    
+    const pass2Prompt = buildPass2Prompt(pass1Data);
+    
+    const pass2Response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor SA Pass 2'
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-opus-4',
+        messages: [{ role: 'user', content: pass2Prompt }],
+        temperature: 0.3,
+        max_tokens: 4000
+      })
+    });
+    
+    if (!pass2Response.ok) {
+      throw new Error(`Pass 2 failed: ${await pass2Response.text()}`);
+    }
+    
+    const pass2Result = await pass2Response.json();
+    const pass2Time = Date.now() - pass2Start;
+    const pass2Tokens = pass2Result.usage?.total_tokens || 0;
+    
+    let narratives: {
+      headline: string;
+      executiveSummary: string;
+      costOfChaosNarrative: string;
+      timeFreedomNarrative: string;
+    };
+    
+    try {
+      let content = pass2Result.choices[0].message.content.trim();
+      content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
+      const firstBrace = content.indexOf('{');
+      if (firstBrace > 0) content = content.substring(firstBrace);
+      narratives = JSON.parse(content);
+    } catch (e: any) {
+      console.error('[SA Report v3] Pass 2 parse error:', e.message);
+      throw new Error(`Pass 2 parse failed: ${e.message}`);
+    }
+    
+    console.log('[SA Report v3] Pass 2 complete:', {
+      headlineLength: narratives.headline.length,
+      summaryLength: narratives.executiveSummary.length,
+      tokens: pass2Tokens,
+      timeMs: pass2Time
+    });
+    
+    // =========================================================================
+    // COMBINE & SAVE
+    // =========================================================================
+    
+    const totalTokens = pass1Tokens + pass2Tokens;
+    const totalTime = pass1Time + pass2Time;
+    // Sonnet: ~$3/MTok, Opus: ~$15/MTok
+    const cost = (pass1Tokens / 1000000 * 3) + (pass2Tokens / 1000000 * 15);
+    
+    const f = pass1Data.facts;
+    const scores = pass1Data.scores;
+    
+    // Determine sentiment
+    let sentiment = 'good_with_gaps';
+    const avgScore = (scores.integration.score + scores.automation.score + scores.dataAccessibility.score + scores.scalability.score) / 4;
+    if (avgScore >= 70) sentiment = 'strong_foundation';
+    else if (avgScore >= 50) sentiment = 'good_with_gaps';
+    else if (avgScore >= 30) sentiment = 'significant_issues';
+    else sentiment = 'critical_attention';
+    
+    // Save report
+    const { data: report, error: saveError } = await supabaseClient
+      .from('sa_audit_reports')
+      .upsert({
+        engagement_id: engagementId,
+        
+        headline: narratives.headline,
+        executive_summary: narratives.executiveSummary,
+        executive_summary_sentiment: sentiment,
+        
+        total_hours_wasted_weekly: f.hoursWastedWeekly,
+        total_annual_cost_of_chaos: f.annualCostOfChaos,
+        growth_multiplier: f.growthMultiplier,
+        projected_cost_at_scale: f.projectedCostAtScale,
+        cost_of_chaos_narrative: narratives.costOfChaosNarrative,
+        
+        systems_count: f.systems.length,
+        integration_score: scores.integration.score,
+        automation_score: scores.automation.score,
+        data_accessibility_score: scores.dataAccessibility.score,
+        scalability_score: scores.scalability.score,
+        
+        critical_findings_count: pass1Data.findings.filter(f => f.severity === 'critical').length,
+        high_findings_count: pass1Data.findings.filter(f => f.severity === 'high').length,
+        medium_findings_count: pass1Data.findings.filter(f => f.severity === 'medium').length,
+        low_findings_count: pass1Data.findings.filter(f => f.severity === 'low').length,
+        
+        quick_wins: pass1Data.quickWins,
+        
+        total_recommended_investment: pass1Data.recommendations.reduce((sum, r) => sum + r.estimatedCost, 0),
+        total_annual_benefit: pass1Data.recommendations.reduce((sum, r) => sum + r.annualBenefit, 0),
+        overall_payback_months: Math.round(
+          pass1Data.recommendations.reduce((sum, r) => sum + r.estimatedCost, 0) /
+          (pass1Data.recommendations.reduce((sum, r) => sum + r.annualBenefit, 0) / 12)
+        ),
+        roi_ratio: `${(pass1Data.recommendations.reduce((sum, r) => sum + r.annualBenefit, 0) / 
+          Math.max(1, pass1Data.recommendations.reduce((sum, r) => sum + r.estimatedCost, 0))).toFixed(1)}:1`,
+        
+        hours_reclaimable_weekly: pass1Data.recommendations.reduce((sum, r) => sum + r.hoursSavedWeekly, 0),
+        time_freedom_narrative: narratives.timeFreedomNarrative,
+        what_this_enables: [
+          `${f.magicFix.substring(0, 100)}...`,
+          'Decision-grade numbers within 7 days of month-end',
+          'Hiring and pricing decisions based on data, not debates'
+        ],
+        
+        client_quotes_used: f.allClientQuotes.slice(0, 10),
+        
+        llm_model: 'claude-sonnet-4 + claude-opus-4',
+        llm_tokens_used: totalTokens,
+        llm_cost: cost,
+        generation_time_ms: totalTime,
+        prompt_version: 'v4-two-pass',
+        
+        status: 'generated',
+        generated_at: new Date().toISOString()
+      }, { onConflict: 'engagement_id' })
+      .select()
+      .single();
+    
+    if (saveError) throw saveError;
+    
+    // Clear and save findings
+    await supabaseClient.from('sa_findings').delete().eq('engagement_id', engagementId);
+    
+    for (const finding of pass1Data.findings) {
+      await supabaseClient.from('sa_findings').insert({
+        engagement_id: engagementId,
+        finding_code: `F-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        source_stage: 'ai_generated',
+        category: finding.category,
+        severity: finding.severity,
+        title: finding.title,
+        // Include systems and processes in description for context
+        description: `${finding.description}\n\nSystems affected: ${finding.affectedSystems.join(', ')}\nProcesses affected: ${finding.affectedProcesses.join(', ')}`,
+        evidence: finding.evidence,
+        client_quote: finding.clientQuote,
+        hours_wasted_weekly: finding.hoursWastedWeekly,
+        annual_cost_impact: finding.annualCostImpact,
+        scalability_impact: finding.scalabilityImpact,
+        recommendation: finding.recommendation
+      });
+    }
+    
+    // Clear and save recommendations
+    await supabaseClient.from('sa_recommendations').delete().eq('engagement_id', engagementId);
+    
+    for (const rec of pass1Data.recommendations) {
+      await supabaseClient.from('sa_recommendations').insert({
+        engagement_id: engagementId,
+        priority_rank: rec.priorityRank,
+        title: rec.title,
+        description: rec.description,
+        category: rec.category,
+        implementation_phase: rec.implementationPhase,
+        estimated_cost: rec.estimatedCost,
+        hours_saved_weekly: rec.hoursSavedWeekly,
+        annual_cost_savings: rec.annualBenefit,
+        time_reclaimed_weekly: rec.hoursSavedWeekly,
+        freedom_unlocked: rec.freedomUnlocked
+      });
+    }
+    
+    // Update engagement status
+    await supabaseClient
+      .from('sa_engagements')
+      .update({ status: 'analysis_complete' })
+      .eq('id', engagementId);
+    
+    console.log('[SA Report v3] Complete:', {
+      reportId: report.id,
+      pass1Tokens,
+      pass2Tokens,
+      totalCost: `£${cost.toFixed(4)}`,
+      totalTimeMs: totalTime
+    });
+    
     return new Response(
-      JSON.stringify({
-        ...result,
-        _note: 'Routed through deprecated orchestrator → Pass 1 pipeline'
+      JSON.stringify({ 
+        success: true, 
+        reportId: report.id,
+        headline: narratives.headline,
+        hoursWasted: f.hoursWastedWeekly,
+        annualCost: f.annualCostOfChaos,
+        pass1Tokens,
+        pass2Tokens,
+        totalTokens,
+        cost: `£${cost.toFixed(4)}`,
+        generationTimeMs: totalTime
       }),
-      {
-        status: pass1Response.ok ? 200 : 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+    
   } catch (error) {
-    console.error('[SA Report Orchestrator] Error:', error);
+    console.error('[SA Report v3] Error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

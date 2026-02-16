@@ -76,7 +76,7 @@ At ${f.growthMultiplier}x growth: £${(f.projectedCostAtScale || 0).toLocaleStri
 BY PROCESS:
 ${(f.processes || []).map((p: any) => `- ${p.chainName}: ${p.hoursWasted} hours/month wasted - "${(p.keyPainPoints || [])[0] || 'No quote'}"`).join('\n')}
 
-Their framing to use: "${f.breakingPoint}" — use their own words, not ours.
+Their framing to use: "grown-up decisions with teenage visibility"
 
 ═══════════════════════════════════════════════════════════════════════════════
 4. THE PATH - Their Stated Goal (QUOTE EXACTLY)
@@ -86,11 +86,12 @@ DO NOT PARAPHRASE. This is what they said they want, word for word:
 
 "${f.magicFix}"
 
-Break their goal down by mapping each aspiration to specific system integrations.
-Use ONLY systems from the inventory:
-${(f.systems || []).map((s: any) => `- ${s.name} (${s.category}): integrates with ${(s.integratesWith || []).join(', ') || 'nothing'}`).join('\n')}
+Break this down:
+- "true cash position" → requires Xero-bank-Stripe reconciliation
+- "margin by service line" → requires Harvest time → Asana project → Xero invoice connection
+- "staff cost ratio" → requires Dext expenses + payroll integration
+- "90-day cash view" → requires pipeline visibility + recurring revenue tracking
 
-For each part of their magic fix, show which systems need to connect.
 When you write, map YOUR recommendations to THEIR specific goals.
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -126,7 +127,7 @@ Write these four narrative sections as a JSON object:
     Open with their expensive mistake. Not 'your systems have gaps' but 'You already know what broken visibility costs—a project that looked profitable delivered at break-even because [their exact words].' Make them feel it before you explain it. This is the hook.
     
     PARAGRAPH 2 - THE PATTERN:
-    Now explain WHY that happened. Show specific system-to-system disconnects from the inventory. Name their actual systems, not generic examples. Use their numbers: ${f.metrics?.quoteTimeMins || '?'}-min quotes, ${f.metrics?.invoiceLagDays || '?'}-day invoice lag, ${f.metrics?.reportingLagDays || '?'}-day reporting. Quote their month-end shame. Show this wasn't bad luck—it was structural.
+    Now explain WHY that happened. Name the specific systems: 'When Harvest time entries don't flow to Asana project milestones, and Asana completion doesn't trigger Xero invoicing...' Use their numbers: ${f.metrics?.quoteTimeMins || '?'}-min quotes, ${f.metrics?.invoiceLagDays || '?'}-day invoice lag, ${f.metrics?.reportingLagDays || '?'}-day reporting. Quote their month-end shame. Show this wasn't bad luck—it was structural.
     
     PARAGRAPH 3 - THE PATH FORWARD:
     Quote their magic fix VERBATIM (the full thing about true cash position, margin by service line, etc.). Then show how each integration delivers each part of their goal. End with what changes: decisions stop being debates.",
@@ -136,13 +137,15 @@ Write these four narrative sections as a JSON object:
     - Breaks down by process with their quotes: 'Quote-to-Cash alone consumes X hours because [their words]'
     - References the expensive mistake as proof this isn't theoretical
     - Shows the scaling danger: 'At ${f.growthMultiplier}x growth, [specific pain point] becomes [specific crisis]'
-    - Uses their own framing: \"${f.breakingPoint}\"",
+    - Uses their 'grown-up decisions with teenage visibility' framing",
     
   "timeFreedomNarrative": "One paragraph that:
     - Opens by quoting their magic fix EXACTLY: 'You said you want to see [full quote]'
-    - Maps each system integration to each part of their goal. Use ONLY their actual systems from inventory. For example:
-      ${(f.systems || []).slice(0, 4).map((s: any) => `* ${s.name}→${(s.integratesWith || ['other systems'])[0]} delivers...`).join('\n      ')}
-    - Show the specific connections that make their magic fix real.
+    - Maps each system integration to each part of that goal:
+      * Harvest→Xero delivers true cash position by...
+      * Asana→Harvest exposes margin by service line through...
+      * Dext→Xero provides staff cost ratios via...
+      * Pipeline visibility creates 90-day cash view by...
     - Ends with what 'decisions stop being debates driven by gut feel' actually looks like day-to-day"
 }
 
@@ -180,7 +183,7 @@ If it sounds like you explaining this over coffee, keep it.
 REQUIRED ELEMENTS:
 ✓ Expensive mistake in first 2 sentences of executive summary
 ✓ Magic fix quoted EXACTLY, not paraphrased (all four parts)
-✓ At least 3 of THEIR system names per paragraph (use only systems from the inventory data)
+✓ At least 3 system names per paragraph (Xero, Harvest, Asana, Dext, Stripe, etc.)
 ✓ At least 1 verbatim client quote per paragraph
 ✓ Specific numbers from their data, not rounded generalities
 ✓ One point per paragraph (don't cram three ideas together)

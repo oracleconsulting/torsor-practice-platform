@@ -346,31 +346,29 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
 };
 
 // ============================================================================
-// SYSTEMS AUDIT - Operations Health Check (19 questions, 6 sections)
-// ============================================================================
-// Aligned with sa_discovery_responses DB columns and 19q admin config.
+// SYSTEMS AUDIT - Operations Health Check
 // ============================================================================
 
 export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
   code: 'systems_audit',
   name: 'Systems Audit',
   title: 'Operations Health Check',
-  subtitle: "Let's understand where your operations are struggling",
+  subtitle: 'Let\'s understand where your operations are struggling',
   sections: [
     'Current Pain',
     'Impact Quantification',
     'Tech Stack',
     'Focus Areas',
-    'Readiness',
-    'Context'
+    'Readiness'
   ],
   questions: [
+    // Section 1: Current Pain
     {
       id: 'sa_breaking_point',
       section: 'Current Pain',
-      question: 'What broke – or is about to break – that made you think about systems?',
+      question: 'What broke - or is about to break - that made you think about systems?',
       type: 'text',
-      placeholder: 'Be specific – the incident, the near-miss, the frustration that tipped you over...',
+      placeholder: 'Be specific - the incident, the near-miss, the frustration that tipped you over...',
       charLimit: 400,
       emotionalAnchor: 'systems_breaking_point',
       required: true
@@ -381,11 +379,11 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'How would you describe your current operations?',
       type: 'single',
       options: [
-        "Controlled chaos – it works but I can't explain how",
-        "Manual heroics – we survive on people's goodwill",
-        "Death by spreadsheet – everything's tracked but nothing connects",
-        "Tech Frankenstein – we've bolted tools together over years",
-        'Actually pretty good – we just need optimisation'
+        'Controlled chaos - it works but I can\'t explain how',
+        'Manual heroics - we survive on people\'s goodwill',
+        'Death by spreadsheet - everything\'s tracked but nothing connects',
+        'Tech Frankenstein - we\'ve bolted tools together over years',
+        'Actually pretty good - we just need optimisation'
       ],
       emotionalAnchor: 'operations_self_diagnosis',
       required: true
@@ -395,11 +393,13 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       section: 'Current Pain',
       question: 'If I followed you through a typical month-end, what would embarrass you most?',
       type: 'text',
-      placeholder: "The workaround you're ashamed of, the process you'd never show an investor...",
+      placeholder: 'The workaround you\'re ashamed of, the process you\'d never show an investor...',
       charLimit: 300,
       emotionalAnchor: 'month_end_shame',
       required: true
     },
+
+    // Section 2: Impact Quantification
     {
       id: 'sa_manual_hours',
       section: 'Impact Quantification',
@@ -410,7 +410,8 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
         '10-20 hours',
         '20-40 hours',
         '40-80 hours',
-        'More than 80 hours'
+        'More than 80 hours',
+        'No idea - but it\'s significant'
       ],
       technicalField: 'manual_hours_monthly',
       required: true
@@ -425,9 +426,9 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
         '3-5 days',
         '1-2 weeks',
         '2-4 weeks',
-        "We don't really \"close\" – it's ongoing"
+        'We don\'t really "close" - it\'s ongoing'
       ],
-      technicalField: 'month_end_close_duration',
+      technicalField: 'month_end_duration',
       required: true
     },
     {
@@ -436,11 +437,11 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'In the last year, how many times have you discovered data errors that affected a business decision?',
       type: 'single',
       options: [
-        'Never – our data is solid',
-        'Once or twice – minor issues',
-        'Several times – some costly',
-        "Regularly – I don't fully trust our numbers",
-        "I don't know – which is the scary part"
+        'Never - our data is solid',
+        'Once or twice - minor issues',
+        'Several times - some costly',
+        'Regularly - I don\'t fully trust our numbers',
+        'I don\'t know - which is the scary part'
       ],
       technicalField: 'data_error_frequency',
       required: true
@@ -448,28 +449,15 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
     {
       id: 'sa_expensive_mistake',
       section: 'Impact Quantification',
-      question: "What's the most expensive mistake caused by a systems/process gap in the last 2 years?",
+      question: 'What\'s the most expensive mistake caused by a systems/process gap in the last 2 years?',
       type: 'text',
       placeholder: 'Lost client, tax penalty, missed opportunity, overpayment...',
       charLimit: 300,
       emotionalAnchor: 'expensive_systems_mistake',
       required: true
     },
-    {
-      id: 'sa_information_access',
-      section: 'Impact Quantification',
-      question: "How many times last month did someone ask for information and you couldn't get it within 5 minutes?",
-      type: 'single',
-      options: [
-        'Never',
-        '1-2 times',
-        'Weekly',
-        'Daily',
-        'Constantly'
-      ],
-      technicalField: 'information_access_frequency',
-      required: true
-    },
+
+    // Section 3: Tech Stack
     {
       id: 'sa_tech_stack',
       section: 'Tech Stack',
@@ -481,13 +469,13 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
         'Asana / Trello / Monday (Projects)',
         'Slack / Teams (Communication)',
         'Stripe / GoCardless (Payments)',
-        'Google Workspace (Email, Docs)',
-        'Microsoft 365',
-        'BreatheHR / CharlieHR (HR)',
-        'Dext / Receipt Bank (Expenses)',
-        'Other (we\'ll capture in Stage 2)'
+        'BrightPay / Gusto (Payroll)',
+        'Shopify / WooCommerce (E-commerce)',
+        'Google Workspace / Microsoft 365',
+        'Custom/bespoke systems',
+        'Lots of spreadsheets'
       ],
-      technicalField: 'software_tools_used',
+      technicalField: 'current_tech_stack',
       required: true
     },
     {
@@ -496,12 +484,12 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'How would you rate the integration between these systems?',
       type: 'single',
       options: [
-        'Seamless – data flows automatically',
-        'Partial – some connected, some manual',
-        'Minimal – mostly manual transfers',
-        'Non-existent – each system is an island'
+        'Seamless - data flows automatically',
+        'Partial - some connected, some manual',
+        'Minimal - mostly manual transfers',
+        'Non-existent - each system is an island'
       ],
-      technicalField: 'integration_rating',
+      technicalField: 'integration_health',
       required: true
     },
     {
@@ -510,15 +498,17 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'How many spreadsheets are "critical" to running your business? (Be honest)',
       type: 'single',
       options: [
-        "None – everything's in proper systems",
+        'None - everything\'s in proper systems',
         '1-3 key spreadsheets',
         '4-10 spreadsheets',
         '10-20 spreadsheets',
-        "I've lost count"
+        'I\'ve lost count'
       ],
-      technicalField: 'critical_spreadsheets',
+      technicalField: 'spreadsheet_dependency',
       required: true
     },
+
+    // Section 4: Focus Areas
     {
       id: 'sa_priority_areas',
       section: 'Focus Areas',
@@ -537,7 +527,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
         'Compliance and documentation',
         'IT infrastructure / security'
       ],
-      technicalField: 'broken_areas',
+      technicalField: 'priority_areas',
       required: true
     },
     {
@@ -550,16 +540,18 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       emotionalAnchor: 'magic_process_fix',
       required: true
     },
+
+    // Section 5: Readiness
     {
       id: 'sa_change_appetite',
       section: 'Readiness',
-      question: "What's your appetite for change right now?",
+      question: 'What\'s your appetite for change right now?',
       type: 'single',
       options: [
-        'Urgent – we need to fix this yesterday',
-        "Ready – we've budgeted time and money for this",
-        "Cautious – we want to improve but can't afford disruption",
-        'Exploring – just want to understand options'
+        'Urgent - we need to fix this yesterday',
+        'Ready - we\'ve budgeted time and money for this',
+        'Cautious - we want to improve but can\'t afford disruption',
+        'Exploring - just want to understand options'
       ],
       technicalField: 'change_appetite',
       required: true
@@ -567,16 +559,16 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
     {
       id: 'sa_fears',
       section: 'Readiness',
-      question: "What's your biggest fear about tackling systems?",
+      question: 'What\'s your biggest fear about tackling systems?',
       type: 'multi',
       options: [
         'Cost will spiral out of control',
         'Implementation will disrupt operations',
-        "We'll invest and it won't work",
-        "Team won't adopt new processes",
-        "We'll become dependent on consultants",
-        "It's too complex to know where to start",
-        "No major fears – just want to get on with it"
+        'We\'ll invest and it won\'t work',
+        'Team won\'t adopt new processes',
+        'We\'ll become dependent on consultants',
+        'We\'ll discover how bad things really are',
+        'We\'ll have to let people go'
       ],
       emotionalAnchor: 'systems_fears',
       required: true
@@ -587,59 +579,14 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'Who internally would champion this project?',
       type: 'single',
       options: [
-        'Me – the founder/owner',
+        'Me - the founder/owner',
         'Finance manager/FD',
         'Operations manager',
         'Office manager',
         'IT lead',
-        'Other'
+        'We don\'t have an obvious person'
       ],
       technicalField: 'internal_champion',
-      required: true
-    },
-    {
-      id: 'sa_team_size',
-      section: 'Context',
-      question: 'How many people work in your business currently?',
-      type: 'text',
-      placeholder: 'Enter number',
-      technicalField: 'team_size',
-      required: true
-    },
-    {
-      id: 'sa_expected_team_size',
-      section: 'Context',
-      question: 'How many people do you expect in 12 months?',
-      type: 'text',
-      placeholder: 'Enter number',
-      technicalField: 'expected_team_size_12mo',
-      required: true
-    },
-    {
-      id: 'sa_revenue_band',
-      section: 'Context',
-      question: "What's your annual revenue band?",
-      type: 'single',
-      options: [
-        'Under £250k',
-        '£250k - £500k',
-        '£500k - £1m',
-        '£1m - £2m',
-        '£2m - £5m',
-        '£5m - £10m',
-        '£10m+'
-      ],
-      technicalField: 'revenue_band',
-      required: true
-    },
-    {
-      id: 'sa_industry',
-      section: 'Context',
-      question: 'What industry are you in?',
-      type: 'text',
-      charLimit: 100,
-      placeholder: 'e.g., Professional services, Manufacturing, Retail, Tech...',
-      technicalField: 'industry_sector',
       required: true
     }
   ]
