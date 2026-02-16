@@ -805,7 +805,7 @@ export function useRoadmap() {
         const stagesMap: Record<string, any> = {};
         const isPartner = clientTier === 'Partner';
         stagesData.forEach(stage => {
-          if (isPartner && ['sprint_plan_part2', 'sprint_plan', 'sprint_plan_part1'].includes(stage.stage_type) && stage.status !== 'published') {
+          if (isPartner && ['sprint_plan_part2', 'sprint_plan', 'sprint_plan_part1', 'sprint_summary'].includes(stage.stage_type) && stage.status !== 'published') {
             return;
           }
           const content = stage.approved_content || stage.generated_content;
@@ -852,6 +852,11 @@ export function useRoadmap() {
         let valueAnalysis = null;
         if (stagesMap['value_analysis']) {
           valueAnalysis = stagesMap['value_analysis'];
+        }
+
+        // Sprint summary (generated after all 12 weeks resolved)
+        if (stagesMap['sprint_summary']) {
+          roadmapData.sprintSummary = stagesMap['sprint_summary'];
         }
 
         setRoadmap({

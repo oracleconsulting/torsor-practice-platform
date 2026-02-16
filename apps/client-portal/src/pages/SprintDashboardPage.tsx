@@ -37,6 +37,7 @@ import { SprintCompletionLoading } from '@/components/sprint/SprintCompletionLoa
 import { SprintSummaryView } from '@/components/sprint/SprintSummaryView';
 import { QuarterlyLifeCheck } from '@/components/sprint/QuarterlyLifeCheck';
 import { QuarterlyLifeCheckForm } from '@/components/QuarterlyLifeCheckForm';
+import { SprintSummaryClientView } from '@/components/SprintSummaryClientView';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
 import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
@@ -1085,6 +1086,9 @@ export default function SprintDashboardPage() {
   const sprint = roadmap?.roadmapData?.sprint;
   const weeks = sprint?.weeks || [];
   const completionState = checkSprintCompletion(weeks, tasks, 12);
+  const sprintSummaryFromRoadmap = roadmap?.roadmapData?.sprintSummary ?? null;
+  const allWeeksResolved = completionState.isSprintComplete;
+  const showSprintSummary = !!sprintSummaryFromRoadmap && allWeeksResolved;
 
   const gating = computeWeekGating(weeks, tasks);
   const calendarWeek = getCalendarWeek(sprintStartDate);
@@ -1461,16 +1465,29 @@ export default function SprintDashboardPage() {
         />
       ) : (
         <div className="space-y-6">
+          {showSprintSummary && (
+            <SprintSummaryClientView
+              summary={sprintSummaryFromRoadmap}
+              clientName={clientSession?.name?.split(' ')[0]}
+              onStartLifeCheck={
+                renewalState?.renewalStatus === 'life_check_pending'
+                  ? () => document.getElementById('life-check-form')?.scrollIntoView({ behavior: 'smooth' })
+                  : undefined
+              }
+            />
+          )}
           {renewalState?.renewalStatus === 'life_check_pending' &&
             clientSession?.clientId &&
             clientSession?.practiceId && (
-              <QuarterlyLifeCheckForm
-                clientId={clientSession.clientId}
-                practiceId={clientSession.practiceId}
-                sprintNumber={renewalState.currentSprint ?? 1}
-                clientName={clientSession.name?.split(' ')[0]}
-                onComplete={handleLifeCheckComplete}
-              />
+              <div id="life-check-form">
+                <QuarterlyLifeCheckForm
+                  clientId={clientSession.clientId}
+                  practiceId={clientSession.practiceId}
+                  sprintNumber={renewalState.currentSprint ?? 1}
+                  clientName={clientSession.name?.split(' ')[0]}
+                  onComplete={handleLifeCheckComplete}
+                />
+              </div>
             )}
           {isBehind && (
             <CatchUpBanner
