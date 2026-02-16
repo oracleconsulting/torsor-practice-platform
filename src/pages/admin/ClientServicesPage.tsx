@@ -10614,6 +10614,17 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                                 .eq('id', sprintSummaryStage.id);
                                               if (error) throw error;
                                               await fetchClientDetail();
+                                              try {
+                                                await supabase.functions.invoke('notify-sprint-lifecycle', {
+                                                  body: {
+                                                    clientId,
+                                                    type: 'sprint_summary_ready',
+                                                    sprintNumber: sprintSummaryStage.sprint_number ?? 1,
+                                                  },
+                                                });
+                                              } catch (emailErr) {
+                                                console.warn('Summary notification email failed:', emailErr);
+                                              }
                                             } catch (e) {
                                               console.error(e);
                                               alert('Failed to approve. Please try again.');
@@ -10695,6 +10706,17 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                           .eq('client_id', clientId)
                                           .eq('service_line_id', enrollment.service_line_id);
                                         await fetchClientDetail();
+                                        try {
+                                          await supabase.functions.invoke('notify-sprint-lifecycle', {
+                                            body: {
+                                              clientId,
+                                              type: 'life_check_pending',
+                                              sprintNumber: currentSprint,
+                                            },
+                                          });
+                                        } catch (emailErr) {
+                                          console.warn('Life check notification email failed:', emailErr);
+                                        }
                                       } catch (e) {
                                         console.error(e);
                                         alert('Failed to start renewal.');

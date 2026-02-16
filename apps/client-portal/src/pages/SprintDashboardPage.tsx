@@ -38,6 +38,7 @@ import { SprintSummaryView } from '@/components/sprint/SprintSummaryView';
 import { QuarterlyLifeCheck } from '@/components/sprint/QuarterlyLifeCheck';
 import { QuarterlyLifeCheckForm } from '@/components/QuarterlyLifeCheckForm';
 import { SprintSummaryClientView } from '@/components/SprintSummaryClientView';
+import { TuesdayCheckInCard } from '@/components/sprint/TuesdayCheckInCard';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
 import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
@@ -1494,6 +1495,14 @@ export default function SprintDashboardPage() {
               weeksBehind={catchUpState.weeksBehind}
               unresolvedWeekCount={catchUpState.unresolvedWeeks.length}
               onEnter={() => setCatchUpMode(true)}
+            />
+          )}
+          {displayWeekData?.tuesdayCheckIn && !showSprintSummary && (
+            <TuesdayCheckInCard
+              checkInPrompt={displayWeekData.tuesdayCheckIn}
+              weekNumber={gating.activeWeek}
+              weekTheme={displayWeekData.theme}
+              isActiveWeek={true}
             />
           )}
           <HeroMetrics lifeAlignment={lifeAlignment} sprintProgress={sprintProgress} />

@@ -99,6 +99,22 @@ export default function UnifiedDashboardPage() {
     reportGenerated: boolean;
     reportShared: boolean;
   } | null>(null);
+  const [gaSprintData, setGASprintData] = useState<{
+    hasRoadmap: boolean;
+    hasSprint: boolean;
+    sprintNumber: number;
+    activeWeek: number;
+    totalWeeks: number;
+    completionRate: number;
+    completedTasks: number;
+    totalTasks: number;
+    isSprintComplete: boolean;
+    hasLifeCheckPending: boolean;
+    hasCatchUpNeeded: boolean;
+    weeksBehind: number;
+    nextTaskTitle: string | null;
+    sprintTheme: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -496,6 +512,169 @@ export default function UnifiedDashboardPage() {
       
       console.log('📋 Final mapped serviceList:', serviceList.map(s => ({ code: s.serviceCode, name: s.serviceName })));
 
+      // Fetch GA sprint data if enrolled
+      const hasGA = serviceList.some(s => s.serviceCode === '365_method' || s.serviceCode === '365_alignment');
+      if (hasGA && clientSession?.clientId) {
+        try {
+          const { data: slRow } = await supabase
+            .from('service_lines')
+            .select('id')
+            .eq('code', '365_method')
+            .maybeSingle();
+
+          let enrollment: any = null;
+          if (slRow?.id) {
+            const { data: enrollRow } = await supabase
+              .from('client_service_lines')
+              .select('current_sprint_number, tier_name, renewal_status')
+              .eq('client_id', clientSession.clientId)
+              .eq('service_line_id', slRow.id)
+              .maybeSingle();
+            enrollment = enrollRow;
+          }
+
+          const sprintNumber = enrollment?.current_sprint_number ?? 1;
+          const renewalStatus = enrollment?.renewal_status || 'not_started';
+          const tier = enrollment?.tier_name || 'Growth';
+          const statusFilter = tier === 'Partner' ? ['published'] : ['published', 'approved', 'generated'];
+
+          const { data: sprintStage } = await supabase
+            .from('roadmap_stages')
+            .select('generated_content, approved_content, created_at')
+            .eq('client_id', clientSession.clientId)
+            .eq('stage_type', 'sprint_plan_part2')
+            .eq('sprint_number', sprintNumber)
+            .in('status', statusFilter)
+            .order('version', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          let sprintContent = sprintStage?.approved_content || sprintStage?.generated_content || null;
+          if (!sprintContent) {
+            const { data: legacyStage } = await supabase
+              .from('roadmap_stages')
+              .select('generated_content, approved_content, created_at')
+              .eq('client_id', clientSession.clientId)
+              .in('stage_type', ['sprint_plan', 'sprint_plan_part1'])
+              .in('status', statusFilter)
+              .order('version', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            sprintContent = legacyStage?.approved_content || legacyStage?.generated_content || null;
+          }
+
+          if (sprintContent && sprintContent.weeks) {
+            const { data: dbTasks } = await supabase
+              .from('client_tasks')
+              .select('week_number, title, status, sprint_number')
+              .eq('client_id', clientSession.clientId)
+              .eq('sprint_number', sprintNumber);
+
+            const weeks = sprintContent.weeks || [];
+            const totalWeeks = weeks.length;
+            let totalTaskCount = 0;
+            let completedCount = 0;
+            let resolvedWeeks = 0;
+
+            for (const week of weeks) {
+              const weekTasks = week.tasks || [];
+              totalTaskCount += weekTasks.length;
+              const weekDbTasks = (dbTasks || []).filter((t: any) => t.week_number === week.weekNumber);
+              let weekResolved = true;
+              for (const task of weekTasks) {
+                const dbTask = weekDbTasks.find((t: any) => t.title === task.title);
+                if (dbTask?.status === 'completed') completedCount++;
+                else if (!dbTask || (dbTask.status !== 'completed' && dbTask.status !== 'skipped')) weekResolved = false;
+              }
+              if (weekResolved && weekTasks.length > 0) resolvedWeeks++;
+            }
+
+            let activeWeek = 1;
+            for (const week of weeks) {
+              const weekTasks = week.tasks || [];
+              const weekDbTasks = (dbTasks || []).filter((t: any) => t.week_number === week.weekNumber);
+              const allResolved = weekTasks.every((task: any) => {
+                const dbTask = weekDbTasks.find((t: any) => t.title === task.title);
+                return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
+              });
+              if (!allResolved) {
+                activeWeek = week.weekNumber;
+                break;
+              }
+              if (week.weekNumber === totalWeeks && allResolved) activeWeek = totalWeeks;
+            }
+
+            const sprintStartDate = sprintContent.startDate || sprintStage?.created_at;
+            let calendarWeek = activeWeek;
+            if (sprintStartDate) {
+              const start = new Date(sprintStartDate);
+              const now = new Date();
+              calendarWeek = Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+            }
+
+            const isSprintComplete = resolvedWeeks === totalWeeks;
+            const weeksBehind = Math.max(0, calendarWeek - activeWeek);
+            const completionRate = totalTaskCount > 0 ? Math.round((completedCount / totalTaskCount) * 100) : 0;
+
+            let nextTaskTitle: string | null = null;
+            const activeWeekData = weeks.find((w: any) => w.weekNumber === activeWeek);
+            if (activeWeekData) {
+              const activeDbTasks = (dbTasks || []).filter((t: any) => t.week_number === activeWeek);
+              for (const task of activeWeekData.tasks || []) {
+                const dbTask = activeDbTasks.find((t: any) => t.title === task.title);
+                if (!dbTask || (dbTask.status !== 'completed' && dbTask.status !== 'skipped')) {
+                  nextTaskTitle = task.title;
+                  break;
+                }
+              }
+            }
+
+            setGASprintData({
+              hasRoadmap: true,
+              hasSprint: true,
+              sprintNumber,
+              activeWeek,
+              totalWeeks,
+              completionRate,
+              completedTasks: completedCount,
+              totalTasks: totalTaskCount,
+              isSprintComplete,
+              hasLifeCheckPending: renewalStatus === 'life_check_pending',
+              hasCatchUpNeeded: weeksBehind > 2,
+              weeksBehind,
+              nextTaskTitle,
+              sprintTheme: sprintContent.sprintTheme || activeWeekData?.theme || null,
+            });
+          } else {
+            const { data: anyStage } = await supabase
+              .from('roadmap_stages')
+              .select('id')
+              .eq('client_id', clientSession.clientId)
+              .limit(1)
+              .maybeSingle();
+
+            setGASprintData({
+              hasRoadmap: !!anyStage,
+              hasSprint: false,
+              sprintNumber,
+              activeWeek: 0,
+              totalWeeks: 12,
+              completionRate: 0,
+              completedTasks: 0,
+              totalTasks: 0,
+              isSprintComplete: false,
+              hasLifeCheckPending: renewalStatus === 'life_check_pending',
+              hasCatchUpNeeded: false,
+              weeksBehind: 0,
+              nextTaskTitle: null,
+              sprintTheme: null,
+            });
+          }
+        } catch (err) {
+          console.error('Failed to load GA sprint data:', err);
+        }
+      }
+
       // Check discovery status - try by client_id first
       // Handle multiple records by getting the most recent one
       const { data: discoveryRecords, error: discoveryError } = await supabase
@@ -701,6 +880,8 @@ export default function UnifiedDashboardPage() {
       return '/service/management_accounts/assessment';
     }
     if (code === '365_method' || code === '365_alignment') {
+      if (gaSprintData?.hasSprint) return '/tasks';
+      if (gaSprintData?.hasRoadmap) return '/roadmap';
       return '/assessments';
     }
     if (code === 'hidden_value_audit') {
@@ -796,14 +977,29 @@ export default function UnifiedDashboardPage() {
       };
     }
     
-    // Special handling for goal alignment
+    // Special handling for goal alignment (sprint-aware)
     if (code === '365_method' || code === '365_alignment') {
-      if (assessmentProgress?.overall === 100) {
+      if (gaSprintData?.hasSprint) {
+        if (gaSprintData.isSprintComplete) {
+          if (gaSprintData.hasLifeCheckPending) {
+            return { label: 'Life Check Due', color: 'amber', icon: Clock };
+          }
+          return { label: `Sprint ${gaSprintData.sprintNumber} Complete`, color: 'emerald', icon: CheckCircle };
+        }
+        if (gaSprintData.hasCatchUpNeeded) {
+          return { label: `${gaSprintData.weeksBehind} Weeks Behind`, color: 'amber', icon: Clock };
+        }
         return {
-          label: 'Complete',
-          color: 'emerald',
-          icon: CheckCircle,
+          label: `Week ${gaSprintData.activeWeek} of ${gaSprintData.totalWeeks}`,
+          color: 'blue',
+          icon: Target,
         };
+      }
+      if (gaSprintData?.hasRoadmap) {
+        return { label: 'Roadmap Ready', color: 'emerald', icon: CheckCircle };
+      }
+      if (assessmentProgress?.overall === 100) {
+        return { label: 'Assessments Complete', color: 'emerald', icon: CheckCircle };
       }
       if (assessmentProgress?.overall && assessmentProgress.overall > 0) {
         return {
@@ -812,11 +1008,7 @@ export default function UnifiedDashboardPage() {
           icon: Clock,
         };
       }
-      return {
-        label: 'Start Assessments',
-        color: 'indigo',
-        icon: Play,
-      };
+      return { label: 'Start Assessments', color: 'indigo', icon: Play };
     }
     
     // Special handling for Hidden Value Audit - standalone service
@@ -985,21 +1177,84 @@ export default function UnifiedDashboardPage() {
                     {service.serviceDescription || 'Complete your assessment to unlock personalized insights.'}
                   </p>
 
-                  {/* Progress bar for 365 */}
-                  {(service.serviceCode === '365_method' || service.serviceCode === '365_alignment') && 
-                   assessmentProgress && assessmentProgress.overall > 0 && assessmentProgress.overall < 100 && (
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="text-gray-500">Assessment Progress</span>
-                        <span className="font-medium text-gray-900">{assessmentProgress.overall}%</span>
-                      </div>
-                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-indigo-500 rounded-full transition-all"
-                          style={{ width: `${assessmentProgress.overall}%` }}
-                        />
-                      </div>
-                    </div>
+                  {/* Goal Alignment card body */}
+                  {(service.serviceCode === '365_method' || service.serviceCode === '365_alignment') && (
+                    <>
+                      {gaSprintData?.hasSprint && !gaSprintData.isSprintComplete && (
+                        <div className="mb-4 space-y-3">
+                          <div>
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span className="text-gray-500">Sprint {gaSprintData.sprintNumber} Progress</span>
+                              <span className="font-medium text-gray-900">{gaSprintData.completionRate}%</span>
+                            </div>
+                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-indigo-500 rounded-full transition-all"
+                                style={{ width: `${gaSprintData.completionRate}%` }}
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <span>{gaSprintData.completedTasks} of {gaSprintData.totalTasks} tasks done</span>
+                            {gaSprintData.sprintTheme && (
+                              <span className="truncate">• {gaSprintData.sprintTheme}</span>
+                            )}
+                          </div>
+                          {gaSprintData.hasCatchUpNeeded && (
+                            <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span>You're {gaSprintData.weeksBehind} weeks behind — catch up when you're ready</span>
+                            </div>
+                          )}
+                          {gaSprintData.nextTaskTitle && !gaSprintData.hasCatchUpNeeded && (
+                            <div className="flex items-start gap-2 p-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-700">
+                              <Target className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                              <span className="line-clamp-2">Next: {gaSprintData.nextTaskTitle}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {gaSprintData?.hasSprint && gaSprintData.isSprintComplete && (
+                        <div className="mb-4 space-y-3">
+                          <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                            <CheckCircle className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                            <div className="text-sm">
+                              <span className="font-medium text-emerald-900">Sprint {gaSprintData.sprintNumber} complete</span>
+                              <span className="text-emerald-600 ml-1">— {gaSprintData.completionRate}% tasks done</span>
+                            </div>
+                          </div>
+                          {gaSprintData.hasLifeCheckPending && (
+                            <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
+                              <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span>Complete your Life Check to unlock Sprint {gaSprintData.sprintNumber + 1}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {gaSprintData && !gaSprintData.hasSprint && gaSprintData.hasRoadmap && (
+                        <div className="mb-4">
+                          <div className="flex items-center gap-2 p-2 bg-indigo-50 border border-indigo-100 rounded-lg text-xs text-indigo-700">
+                            <TrendingUp className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>Your roadmap is ready — sprint coming soon</span>
+                          </div>
+                        </div>
+                      )}
+                      {(!gaSprintData || (!gaSprintData.hasSprint && !gaSprintData.hasRoadmap)) &&
+                       assessmentProgress && assessmentProgress.overall > 0 && assessmentProgress.overall < 100 && (
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between text-sm mb-1">
+                            <span className="text-gray-500">Assessment Progress</span>
+                            <span className="font-medium text-gray-900">{assessmentProgress.overall}%</span>
+                          </div>
+                          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-indigo-500 rounded-full transition-all"
+                              style={{ width: `${assessmentProgress.overall}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {/* Action Button */}
@@ -1013,7 +1268,27 @@ export default function UnifiedDashboardPage() {
                         : `${colors.bg} ${colors.text} hover:opacity-90 border ${colors.border}`
                     }`}
                   >
-                    {status.color === 'emerald' ? (
+                    {service.serviceCode === '365_method' || service.serviceCode === '365_alignment' ? (
+                      gaSprintData?.hasSprint ? (
+                        gaSprintData.isSprintComplete && gaSprintData.hasLifeCheckPending ? (
+                          <>Complete Life Check <ArrowRight className="w-4 h-4" /></>
+                        ) : gaSprintData.hasCatchUpNeeded ? (
+                          <>Catch Up <ArrowRight className="w-4 h-4" /></>
+                        ) : gaSprintData.isSprintComplete ? (
+                          <>View Summary <ChevronRight className="w-4 h-4" /></>
+                        ) : (
+                          <>Continue Sprint <ArrowRight className="w-4 h-4" /></>
+                        )
+                      ) : gaSprintData?.hasRoadmap ? (
+                        <>View Roadmap <ChevronRight className="w-4 h-4" /></>
+                      ) : assessmentProgress?.overall === 100 ? (
+                        <>View Progress <ChevronRight className="w-4 h-4" /></>
+                      ) : assessmentProgress?.overall && assessmentProgress.overall > 0 ? (
+                        <>Continue <ArrowRight className="w-4 h-4" /></>
+                      ) : (
+                        <>Get Started <ArrowRight className="w-4 h-4" /></>
+                      )
+                    ) : status.color === 'emerald' ? (
                       <>
                         View Details
                         <ChevronRight className="w-4 h-4" />
@@ -1039,10 +1314,21 @@ export default function UnifiedDashboardPage() {
         {/* Quick Links */}
         {(services.some(s => s.serviceCode === '365_method' || s.serviceCode === '365_alignment')) && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <QuickLink to="/assessments" icon={Target} label="Assessments" />
-            <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
-            <QuickLink to="/chat" icon="💬" label="Chat" />
-            <QuickLink to="/appointments" icon="📅" label="Book Call" />
+            {gaSprintData?.hasSprint ? (
+              <>
+                <QuickLink to="/tasks" icon={Target} label="Sprint" />
+                <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
+                <QuickLink to="/chat" icon="💬" label="Chat" />
+                <QuickLink to="/appointments" icon="📅" label="Book Call" />
+              </>
+            ) : (
+              <>
+                <QuickLink to="/assessments" icon={Target} label="Assessments" />
+                <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
+                <QuickLink to="/chat" icon="💬" label="Chat" />
+                <QuickLink to="/appointments" icon="📅" label="Book Call" />
+              </>
+            )}
           </div>
         )}
 
