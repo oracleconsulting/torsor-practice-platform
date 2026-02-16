@@ -60,12 +60,16 @@ All live under `supabase/migrations/`. Copied as `migrations-<name>.sql`, e.g.:
 - migrations-20260203_new_client_type_services.sql
 - migrations-20260204_context_intelligence_overhaul.sql
 - migrations-20260209160000_service_catalogue.sql
+- migrations-20260214000000_add_sprint_summary_stage.sql
+- migrations-20260215000000_renewal_pipeline.sql
+- migrations-20260216000000_add_tier_to_client_service_lines.sql
 
 ## Frontend — Admin (src/)
 
 | Copy in this folder | Live path |
 |---------------------|-----------|
 | frontend-admin-ClientServicesPage.tsx | src/pages/admin/ClientServicesPage.tsx |
+| frontend-admin-SprintEditorModal.tsx | src/components/admin/SprintEditorModal.tsx |
 | frontend-admin-DeliveryManagementPage.tsx | src/pages/admin/DeliveryManagementPage.tsx |
 | frontend-admin-DiscoveryAdminModal.tsx | src/components/discovery/DiscoveryAdminModal.tsx |
 | frontend-admin-ServiceSelectionPanel.tsx | src/components/benchmarking/admin/ServiceSelectionPanel.tsx |

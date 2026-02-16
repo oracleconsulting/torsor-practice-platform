@@ -39,10 +39,27 @@ export function useAssessmentProgress() {
       const part2 = getStatus('part2');
       const part3 = getStatus('part3');
 
-      // Calculate overall progress
-      const parts = [part1, part2, part3];
+      // Check if Part 3 is skipped (same logic as useAnalysis.ts)
+      const { data: skipCheck } = await supabase
+        .from('practice_members')
+        .select('skip_value_analysis')
+        .eq('id', clientSession.clientId)
+        .single();
+
+      const { data: bmCheck } = await supabase
+        .from('bm_reports')
+        .select('id')
+        .eq('client_id', clientSession.clientId)
+        .not('value_analysis', 'is', null)
+        .in('status', ['generated', 'approved', 'published', 'delivered'])
+        .limit(1)
+        .maybeSingle();
+
+      const part3Skipped = skipCheck?.skip_value_analysis || !!bmCheck;
+
+      const activeParts = part3Skipped ? [part1, part2] : [part1, part2, part3];
       const overallPercentage = Math.round(
-        parts.reduce((sum, p) => sum + p.percentage, 0) / 3
+        activeParts.reduce((sum, p) => sum + p.percentage, 0) / activeParts.length
       );
 
       // Check if roadmap exists

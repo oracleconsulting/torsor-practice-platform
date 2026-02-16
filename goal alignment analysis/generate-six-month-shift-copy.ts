@@ -8,7 +8,82 @@
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
+// Canonical: supabase/functions/_shared/context-enrichment.ts
+async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string): Promise<{ promptContext: string }> {
+  const log = (msg: string) => console.log(`[ContextEnrichment] ${msg}`);
+  log(`Enriching context for client ${clientId}`);
+  interface Fin { source: string; summary: string }
+  interface Sys { source: string; stage: string; systemsCount: number; integrationScore: number | null; automationScore: number | null; painPoints: string[]; findings: Array<{ title: string; severity: string; category: string }>; manualHoursMonthly: number | null; summary: string }
+  interface Mkt { source: string; industry: string | null; subSector: string | null; belowMedian: string[]; aboveMedian: string[]; opportunities: Array<{ area: string; potential: string }>; summary: string }
+  interface VA { source: string; summary: string }
+  interface Disc { responses: Record<string, unknown>; serviceScores: Record<string, number>; summary: string }
+  const [financial, systems, market, valueAnalysis, discovery] = await Promise.all([
+    (async (): Promise<Fin | null> => {
+      try {
+        const { data: d } = await supabase.from('client_financial_data').select('*').eq('client_id', clientId).order('period_end', { ascending: false }).limit(1).maybeSingle();
+        if (d) { const rev = d.revenue ?? d.turnover; const s = rev ? `Revenue: £${(Number(rev) / 1000).toFixed(0)}k` : ''; const g = d.gross_margin != null ? `; Gross margin: ${(Number(d.gross_margin) * 100).toFixed(1)}%` : ''; return { source: 'uploaded_accounts', summary: (s + g || 'Uploaded accounts data.') + '.' }; }
+        const { data: bm } = await supabase.from('bm_assessment_responses').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (bm) return { source: 'bm_assessment', summary: bm.revenue_numeric ? `Revenue: £${(bm.revenue_numeric / 1000).toFixed(0)}k` : 'BM assessment data.' };
+        const { data: bi } = await supabase.from('service_line_assessments').select('responses').eq('client_id', clientId).in('service_line_code', ['business_intelligence', 'management_accounts']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (bi?.responses) return { source: 'bi_assessment', summary: 'Financial data from BI assessment.' };
+        return null;
+      } catch (e) { console.warn('[ContextEnrichment] Financial failed', e); return null; }
+    })(),
+    (async (): Promise<Sys | null> => {
+      try {
+        const { data: eng } = await supabase.from('sa_engagements').select('id, status').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (!eng || eng.status === 'pending') return null;
+        const out: Sys = { source: 'sa_engagement', stage: eng.status, systemsCount: 0, integrationScore: null, automationScore: null, painPoints: [], findings: [], manualHoursMonthly: null, summary: '' };
+        const { count } = await supabase.from('sa_system_inventory').select('id', { count: 'exact', head: true }).eq('engagement_id', eng.id);
+        out.systemsCount = count ?? 0;
+        const { data: rep } = await supabase.from('sa_audit_reports').select('integration_score, automation_score').eq('engagement_id', eng.id).maybeSingle();
+        if (rep) { out.integrationScore = rep.integration_score; out.automationScore = rep.automation_score; }
+        out.summary = `Systems audit: ${out.stage}; ${out.systemsCount} systems.`;
+        return out;
+      } catch (e) { console.warn('[ContextEnrichment] Systems failed', e); return null; }
+    })(),
+    (async (): Promise<Mkt | null> => {
+      try {
+        const { data: r } = await supabase.from('bm_reports').select('report_data').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!r?.report_data) return null;
+        const d = r.report_data as Record<string, unknown>;
+        const percentiles = (d.percentiles || d.rankings || {}) as Record<string, number>;
+        const below: string[] = []; const above: string[] = [];
+        for (const [k, v] of Object.entries(percentiles)) { if (typeof v === 'number') { if (v < 50) below.push(k); else above.push(k); } }
+        const opps = ((d.opportunities as any[]) || []).slice(0, 5).map((o: any) => ({ area: o.area || o.title || '', potential: o.potential || o.value || '' }));
+        return { source: 'bm_report', industry: (d.industry as string) ?? null, subSector: (d.classification as any)?.sub_sector ?? null, belowMedian: below, aboveMedian: above, opportunities: opps, summary: `Industry: ${(d.industry as string) || 'N/A'}; below median: ${below.join(', ') || 'none'}.` };
+      } catch (e) { console.warn('[ContextEnrichment] Market failed', e); return null; }
+    })(),
+    (async (): Promise<VA | null> => {
+      try {
+        const { data: bm } = await supabase.from('bm_reports').select('value_analysis').eq('client_id', clientId).not('value_analysis', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!bm?.value_analysis) return null;
+        const va = bm.value_analysis as any;
+        const s = `Exit readiness: ${va.exitReadinessScore?.overall ?? va.exitReadiness?.score ?? 'N/A'}; hidden assets: ${(va.hiddenAssets || []).length}.`;
+        return { source: 'bm_report', summary: s };
+      } catch (e) { console.warn('[ContextEnrichment] Value analysis failed', e); return null; }
+    })(),
+    (async (): Promise<Disc | null> => {
+      try {
+        const { data: eng } = await supabase.from('discovery_engagements').select('responses, service_scores').eq('client_id', clientId).in('status', ['completed', 'report_generated', 'report_delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!eng?.responses) return null;
+        return { responses: eng.responses, serviceScores: (eng.service_scores as Record<string, number>) || {}, summary: `Discovery: ${JSON.stringify(eng.service_scores || {})}` };
+      } catch (e) { console.warn('[ContextEnrichment] Discovery failed', e); return null; }
+    })()
+  ]);
+  const parts: string[] = [];
+  if (financial) parts.push(`## Financial (${financial.source})\n${financial.summary}`);
+  if (systems) parts.push(`## Systems & Operations (${systems.stage})\n${systems.summary}`);
+  if (market) parts.push(`## Market & Competitive\n${market.summary}`);
+  if (valueAnalysis) parts.push(`## Value Analysis\n${valueAnalysis.summary}`);
+  if (discovery) parts.push(`## Discovery\n${discovery.summary}`);
+  const promptContext = parts.length > 0 ? `\n\n# ENRICHMENT DATA FROM OTHER SERVICE LINES\nUse as authoritative context.\n\n${parts.join('\n\n')}` : '';
+  log(`Complete. financial=${!!financial}, systems=${!!systems}, market=${!!market}, valueAnalysis=${!!valueAnalysis}, discovery=${!!discovery}`);
+  return { promptContext };
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -121,13 +196,35 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
+    const { data: lifeProfileStage } = await supabase
+      .from('roadmap_stages')
+      .select('generated_content, approved_content')
+      .eq('client_id', clientId)
+      .eq('stage_type', 'life_design_profile')
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lifeDesignProfile = lifeProfileStage?.approved_content || lifeProfileStage?.generated_content || null;
+
     // Build context
-    const context = buildShiftContext(part1, part2, client, vision, fitProfile, financialContext);
+    const context = buildShiftContext(part1, part2, client, vision, fitProfile, financialContext, lifeDesignProfile);
+
+    let enrichedContext: Awaited<ReturnType<typeof enrichRoadmapContext>> | null = null;
+    try {
+      enrichedContext = await enrichRoadmapContext(supabase, clientId);
+      if (enrichedContext?.hasEnrichment) console.log('[generate-six-month-shift] Cross-service enrichment available');
+    } catch (err) {
+      console.warn('[generate-six-month-shift] Enrichment not available:', err);
+    }
+    const { data: assessmentMeta } = await supabase.from('client_assessments').select('metadata').eq('client_id', clientId).eq('assessment_type', 'part2').maybeSingle();
+    if (assessmentMeta?.metadata?.adaptive) {
+      console.log('[generate-six-month-shift] Adaptive assessment — skipped sections:', assessmentMeta.metadata.skippedSections?.map((s: any) => s.sectionId).join(', '));
+    }
 
     console.log(`Generating 6-month shift for ${context.userName}...`);
 
-    // Generate shift
-    const shift = await generateShift(context);
+    // Generate shift (with optional enrichment)
+    const shift = await generateShift(context, enrichedContext?.promptContext || '');
 
     const duration = Date.now() - startTime;
 
@@ -174,44 +271,29 @@ serve(async (req) => {
 // CONTEXT BUILDER
 // ============================================================================
 
-function buildShiftContext(part1: any, part2: any, client: any, vision: any, fitProfile: any, financialContext: any) {
+function buildShiftContext(part1: any, part2: any, client: any, vision: any, fitProfile: any, financialContext: any, lifeDesignProfile: any = null) {
   return {
     userName: client?.name?.split(' ')[0] || part1.full_name?.split(' ')[0] || 'there',
     companyName: client?.client_company || part2.trading_name || part1.company_name || 'your business',
-    
-    // From fit profile
     northStar: fitProfile.northStar || vision.northStar || '',
     archetype: fitProfile.archetype || 'balanced_achiever',
-    
-    // From vision
     year1Milestone: vision.yearMilestones?.year1 || {},
     tagline: vision.tagline || '',
-    
-    // CRITICAL: Their explicit 6-month answer
     sixMonthShifts: part2.six_month_shifts || part2.sixMonthShifts || part1.six_month_shifts || '',
-    
-    // Their current state
     currentWorkingHours: part2.current_working_hours || part1.working_hours || '50',
     targetWorkingHours: part2.target_working_hours || part1.ideal_working_hours || '20',
     relationshipMirror: part1.relationship_mirror || '',
-    
-    // Their pain points
     mondayFrustration: part2.monday_frustration || part1.monday_frustration || '',
     growthBottleneck: part2.growth_bottleneck || part1.growth_bottleneck || '',
     magicAwayTask: part1.magic_away_task || '',
     dangerZone: part1.danger_zone || '',
     emergencyLog: part1.emergency_log || '',
-    
-    // Their priorities
     ninetyDayPriorities: part2.ninety_day_priorities || part1.ninety_day_priorities || [],
-    
-    // Context
     commitmentHours: part1.commitment_hours || '10-15 hours',
     teamSize: part2.team_size || part2.staff_count || 'small team',
     toolsUsed: part2.tools_used || part2.current_tools || [],
-    
-    // Financial context
-    financialSummary: financialContext?.content || null
+    financialSummary: financialContext?.content || null,
+    lifeDesignProfile,
   };
 }
 
@@ -219,11 +301,11 @@ function buildShiftContext(part1: any, part2: any, client: any, vision: any, fit
 // SHIFT GENERATOR
 // ============================================================================
 
-async function generateShift(ctx: any): Promise<any> {
+async function generateShift(ctx: any, enrichmentBlock = ''): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
   
-  const prompt = buildShiftPrompt(ctx);
+  const fullPrompt = buildShiftPrompt(ctx) + enrichmentBlock;
 
   console.log('Calling LLM for 6-month shift...');
 
@@ -254,7 +336,7 @@ THE TEST: If it sounds corporate, rewrite it. Sound like a human advisor.
 
 British English only (organise, colour, £). Return ONLY valid JSON.`
         },
-        { role: 'user', content: prompt }
+        { role: 'user', content: fullPrompt }
       ]
     })
   });
@@ -326,6 +408,19 @@ Time available: ${ctx.commitmentHours}
 Team: ${ctx.teamSize}
 Tools they use: ${ctx.toolsUsed?.join(', ') || 'Not specified'}
 
+${ctx.lifeDesignProfile ? `
+## LIFE TARGETS FOR THIS 6-MONTH WINDOW
+
+${(ctx.lifeDesignProfile.lifeCommitments || []).map((c: any) => `- ${c.commitment} → must be established by week ${c.startWeek || 4}`).join('\n')}
+
+The shift plan must include at least one milestone that is purely about LIFE, not business. Example: "By Month 3, ${ctx.userName} has taken their first full week off in [X] years."
+
+The Tuesday Evolution must show LIFE progress:
+- Month 1: Still in transition, but [first life commitment being honoured]
+- Month 3: [Key life change feeling normal, not forced]
+- Month 6: [Life approaching the Tuesday Test vision]
+` : ''}
+
 ## 90-DAY PRIORITIES (what they selected)
 ${ctx.ninetyDayPriorities?.map((p: string, i: number) => `${i + 1}. ${p}`).join('\n') || 'Not specified'}
 
@@ -375,6 +470,18 @@ Return this JSON structure:
       "current": "What's true now (from their answers)",
       "month6": "What's true at month 6",
       "bridgeAction": "How we get there"
+    },
+    {
+      "category": "Life & Time",
+      "current": "What's true about their time/energy/life now (from their answers)",
+      "month6": "What's true at month 6",
+      "bridgeAction": "How we get there"
+    },
+    {
+      "category": "Relationships & Energy",
+      "current": "Current state of key relationships and energy",
+      "month6": "Target state",
+      "bridgeAction": "Key action"
     },
     {
       "category": "Systems & Processes",

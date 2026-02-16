@@ -584,14 +584,40 @@ export function useAssessmentFlow() {
 
       if (roadmapError) throw roadmapError;
 
-      // Fetch client settings for skip_part3
+      // Check manual skip flag
       const { data: clientData } = await supabase
         .from('practice_members')
         .select('skip_value_analysis')
         .eq('id', clientSession.clientId)
         .single();
 
-      const skipPart3 = clientData?.skip_value_analysis || false;
+      const manualSkip = clientData?.skip_value_analysis || false;
+
+      // Check for BM/HVA value analysis
+      const { data: bmReport } = await supabase
+        .from('bm_reports')
+        .select('id, value_analysis')
+        .eq('client_id', clientSession.clientId)
+        .not('value_analysis', 'is', null)
+        .in('status', ['generated', 'approved', 'published', 'delivered'])
+        .limit(1)
+        .maybeSingle();
+
+      const hasBmValueAnalysis = !!(bmReport?.value_analysis && Object.keys(bmReport.value_analysis).length > 0);
+
+      // Check GA tier (Lite/Foundations doesn't include value analysis)
+      const { data: gaEnrollments } = await supabase
+        .from('client_service_lines')
+        .select('metadata, service_lines(code)')
+        .eq('client_id', clientSession.clientId);
+
+      const gaRow = (gaEnrollments as Array<{ metadata?: { tier?: string }; service_lines?: { code: string } }> | null)?.find(
+        e => e.service_lines?.code === '365_method'
+      );
+      const tier = gaRow?.metadata?.tier || null;
+      const tierSkip = tier === 'lite' || tier === 'foundations';
+
+      const skipPart3 = manualSkip || hasBmValueAnalysis || tierSkip;
 
       // Parse assessment states
       const part1Assessment = assessments?.find(a => a.assessment_type === 'part1');
@@ -646,7 +672,13 @@ export function useAssessmentFlow() {
             : part3Assessment ? 'in_progress'
             : 'not_started',
           lockedReason: !roadmapGenerated ? 'Your roadmap must be generated first' : undefined,
-          skippedReason: skipPart3 ? 'Value analysis not required for your program' : undefined
+          skippedReason: hasBmValueAnalysis
+            ? 'Your benchmarking report includes a comprehensive value analysis'
+            : tierSkip
+              ? 'Value analysis is included in Growth and Partner tiers'
+              : manualSkip
+                ? 'Value analysis not required for your programme'
+                : undefined
         },
         skipPart3
       });
@@ -735,8 +767,20 @@ export function useRoadmap() {
     setError(null);
 
     try {
-      // First, try to fetch from new staged architecture (roadmap_stages)
-      // Include 'generated' status for testing, plus published/approved for production
+      // Fetch client's GA tier for visibility gating (Partner = only show published sprint)
+      let clientTier: string | null = null;
+      const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+      if (sl?.id) {
+        const { data: enrollment } = await supabase
+          .from('client_service_lines')
+          .select('tier_name')
+          .eq('client_id', clientSession.clientId)
+          .eq('service_line_id', sl.id)
+          .maybeSingle();
+        clientTier = enrollment?.tier_name ?? null;
+      }
+
+      // Fetch from new staged architecture (roadmap_stages)
       const { data: stagesData, error: stagesError } = await supabase
         .from('roadmap_stages')
         .select('*')
@@ -747,18 +791,23 @@ export function useRoadmap() {
       console.log('[useRoadmap] roadmap_stages query result:', { 
         stagesCount: stagesData?.length || 0, 
         stagesError,
-        stageTypes: stagesData?.map(s => `${s.stage_type}:${s.status}`) || []
+        stageTypes: stagesData?.map(s => `${s.stage_type}:${s.status}`) || [],
+        clientTier
       });
 
       if (stagesError && stagesError.code !== 'PGRST116') {
         console.warn('[useRoadmap] Error fetching from roadmap_stages:', stagesError);
       }
 
-      // If we have staged data, use it
+      // If we have staged data, use it (Partner tier: only show published sprint stages)
       if (stagesData && stagesData.length > 0) {
         console.log('[useRoadmap] Using staged data, stages found:', stagesData.length);
         const stagesMap: Record<string, any> = {};
+        const isPartner = clientTier === 'Partner';
         stagesData.forEach(stage => {
+          if (isPartner && ['sprint_plan_part2', 'sprint_plan', 'sprint_plan_part1'].includes(stage.stage_type) && stage.status !== 'published') {
+            return;
+          }
           const content = stage.approved_content || stage.generated_content;
           if (content) {
             stagesMap[stage.stage_type] = content;
@@ -910,27 +959,29 @@ export function useTasks() {
   }, [clientSession]);
 
   const updateTaskStatus = useCallback(async (
-    taskId: string, 
-    status: 'pending' | 'in_progress' | 'completed',
+    taskId: string,
+    status: 'pending' | 'in_progress' | 'completed' | 'skipped',
     feedback?: {
       whatWentWell?: string;
       whatDidntWork?: string;
       additionalNotes?: string;
-    }
+    },
+    skipReason?: string
   ) => {
     try {
-      const updateData: Record<string, any> = { 
+      const updateData: Record<string, any> = {
         status,
-        completed_at: status === 'completed' ? new Date().toISOString() : null
+        completed_at: status === 'completed' ? new Date().toISOString() : null,
+        skipped_at: status === 'skipped' ? new Date().toISOString() : null,
+        skip_reason: status === 'skipped' ? (skipReason ?? null) : null,
       };
 
-      // Add feedback if completing with feedback
       if (status === 'completed' && feedback) {
         updateData.completion_feedback = {
           whatWentWell: feedback.whatWentWell || '',
           whatDidntWork: feedback.whatDidntWork || '',
           additionalNotes: feedback.additionalNotes || '',
-          submittedAt: new Date().toISOString()
+          submittedAt: new Date().toISOString(),
         };
       }
 
@@ -943,7 +994,6 @@ export function useTasks() {
 
       await fetchTasks();
       return true;
-
     } catch (err) {
       console.error('Error updating task:', err);
       return false;

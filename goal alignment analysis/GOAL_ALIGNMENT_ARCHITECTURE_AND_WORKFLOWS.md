@@ -31,9 +31,9 @@
 | **roadmap_stages** | One row per client per stage type (and version). Stores `generated_content`, `approved_content`, `status` (not_started → generating → generated → approved → published). |
 | **generation_queue** | Queue for pipeline: `stage_type`, `depends_on_stage`, `status` (pending → processing → completed/failed). Trigger chain inserts next stage when previous completes. |
 | **client_roadmaps** | Legacy: single roadmap per client, `roadmap_data` JSONB (fitProfile, fiveYearVision, sixMonthShift, sprint; value_analysis). Still used as fallback when no staged data. |
-| **client_tasks** | Tasks derived from 12-week sprint; client can complete and give feedback. |
-| **generation_feedback** | Learning DB: practice edits, client task feedback; `original_content` / `edited_content`, `feedback_text`, `incorporated_into_prompts`. |
-| **client_service_lines** | Enrollment: client is “on Goal Alignment” when they have a row with service line `365_method`. |
+| **client_tasks** | Tasks derived from 12-week sprint; `sprint_number` links to roadmap_stages; client can complete and give feedback. |
+| **generation_feedback** | Learning DB: practice edits, client task feedback; `original_content` / `edited_content`, `feedback_text`, `feedback_source`, `incorporated_into_prompts`. |
+| **client_service_lines** | Enrollment: client is “on Goal Alignment” when they have a row with service line `365_method`. **tier_name** (Lite/Growth/Partner), **current_sprint_number**, **max_sprints** (e.g. Partner = 4). |
 | **service_line_metadata** / **services** / **service_catalogue** | Display names (e.g. “Goal Alignment Programme” for `365_method`), pricing (Lite £1,500, Growth £4,500, Partner £9,000/year). |
 
 ### 2.2 Stage Types (Pipeline Order)
@@ -44,6 +44,7 @@
 4. **sprint_plan_part1** — Weeks 1–6 of 12-week sprint (themes, focus areas, tasks).
 5. **sprint_plan_part2** — Weeks 7–12; merges with part1 into full sprint.
 6. **value_analysis** — Business valuation, opportunity score, risk register (triggered after sprint_plan_part2).
+7. **sprint_summary** — Optional; generated when all 12-week sprint tasks are resolved (client-triggered, not in DB trigger chain). Index: `idx_roadmap_stages_sprint` on (client_id, stage_type, sprint_number).
 
 ### 2.3 Trigger Chain
 
@@ -102,14 +103,14 @@ Defined in migrations (e.g. `20251214_split_sprint_plan_trigger.sql`, `20251214_
 ### 4.2 Review and Publish
 
 1. Each stage is written with `status = 'generated'`.
-2. Practice reviews in admin (Roadmap tab); can edit and set **approved_content**, then set status to **approved** then **published**.
-3. **generation_feedback** can record practice edits for learning.
-4. When published, client sees content in client portal **RoadmapPage** (vision, shift, sprint, value).
+2. Practice reviews in admin (Roadmap tab). For the sprint stage, **Sprint Editor** modal (Open Sprint Editor from Roadmap or Sprint tab) edits **approved_content** (overview, weeks, tasks), with Save Draft and Approve & Publish. **Tier** (Lite/Growth/Partner) is set per client in ClientDetailModal **Overview** tab for 365_method (stored in **client_service_lines.tier_name**).
+3. **generation_feedback** records practice edits (e.g. `feedback_source: 'practice_edit'`) for learning.
+4. When published, **client_tasks** are synced: delete by client_id + sprint_number, then insert from approved sprint content (with **sprint_number**). Client sees content in client portal **RoadmapPage** (vision, shift, sprint, value). **Partner tier:** client portal shows sprint stages only when `status = 'published'`; other tiers see generated/approved as well (see useAnalysis.ts).
 
 ### 4.3 Client View
 
 1. Client logs into client portal; navigates to **/roadmap** (**RoadmapPage**).
-2. Data is loaded from **roadmap_stages** (published/approved/generated) for that client, or fallback **client_roadmaps.roadmap_data**.
+2. Data is loaded from **roadmap_stages** (and **client_service_lines** for tier) for that client, or fallback **client_roadmaps.roadmap_data**. For **Partner** tier, sprint stages (sprint_plan_part2 / sprint_plan / sprint_plan_part1) are included only when `status = 'published'`; other tiers see generated/approved content.
 3. Client can view vision, shift, sprint; complete **client_tasks** and submit feedback (fed into generation_feedback where applicable).
 
 ### 4.4 Discovery → Goal Alignment
@@ -124,7 +125,7 @@ Defined in migrations (e.g. `20251214_split_sprint_plan_trigger.sql`, `20251214_
 
 ### 5.1 Admin
 
-- **ClientServicesPage** — Service line list includes Goal Alignment (365_method). Opening a client with 365 shows **ClientDetailModal** with tabs: Overview, **Roadmap** (vision, shift, sprint, value), Assessments, Documents, etc.
+- **ClientServicesPage** — Service line list includes Goal Alignment (365_method). Opening a client with 365 shows **ClientDetailModal** with tabs: **Overview** (tier selector Lite/Growth/Partner for 365_method, stored in client_service_lines), **Roadmap** (vision, shift, sprint, value), **Sprint** tab, Assessments, Documents, etc. **Sprint Editor** modal (SprintEditorModal) opens from “Open Sprint Editor” (Roadmap or Sprint tab): full-screen edit of sprint overview, weeks, tasks; Save Draft; Approve & Publish (writes approved_content, status published, syncs client_tasks by sprint_number).
 - **DeliveryManagementPage** — 365_method / Goal Alignment shown in delivery view (e.g. icon, filter).
 - **DiscoveryAdminModal** — Maps GOAL_ALIGNMENT / 365_METHOD to `goal_alignment` for display and pins.
 - **ServiceSelectionPanel** (benchmarking) — Can suggest GOAL_ALIGNMENT in recommendations.
@@ -134,7 +135,7 @@ Roadmap tab builds from **roadmap_stages** (or fallback **client_roadmaps**).
 ### 5.2 Client Portal
 
 - **App.tsx** / **Layout.tsx** — Routes and nav for `/roadmap`, `/roadmap/tasks`.
-- **RoadmapPage** — Main roadmap view: vision, shift, sprint, value analysis.
+- **RoadmapPage** — Main roadmap view: vision, shift, sprint, value analysis. Data via **useAnalysis.ts** (useRoadmap): fetches tier from **client_service_lines** (365_method); for **Partner** tier, sprint stages are filtered to `status = 'published'` only.
 - **UnifiedDashboardPage** — Can show roadmap/GA entry point.
 - **DiscoveryReportPage** / **DiscoveryReportView** — Map “Goal Alignment Programme”, “365_method”, “goal_alignment” to correct code and navigation for discovery report and “Enabled by” links.
 
@@ -163,8 +164,8 @@ Roadmap tab builds from **roadmap_stages** (or fallback **client_roadmaps**).
 
 - **Edge:** `supabase/functions/roadmap-orchestrator`, `generate-fit-profile`, `generate-five-year-vision`, `generate-six-month-shift`, `generate-sprint-plan-part1`, `generate-sprint-plan-part2`, `generate-value-analysis`, `notify-roadmap-ready`, `generate-roadmap`, `generate-sprint-plan`.
 - **Shared:** `supabase/functions/_shared/service-scorer-v2.ts`, `service-scorer.ts`, `service-registry.ts`.
-- **Migrations:** `20251216_staged_roadmap_architecture.sql`, `20251214_split_sprint_plan_trigger.sql`, `20251214_fix_trigger_chain_final.sql`, `20251216_add_value_analysis_to_trigger_chain.sql`, `20251217_create_client_tasks_table.sql`, `20260122_rename_365_to_goal_alignment.sql`, `20260129_fix_goal_alignment_metadata.sql`, `20260203_fix_service_pricing_models.sql`, `20260209160000_service_catalogue.sql`, and related RLS/service catalogue migrations.
-- **Admin:** `src/pages/admin/ClientServicesPage.tsx`, `DeliveryManagementPage.tsx`, `src/components/discovery/DiscoveryAdminModal.tsx`, `src/components/benchmarking/admin/ServiceSelectionPanel.tsx`, `src/lib/issue-service-mapping.ts`, `src/lib/advisory-services-full.ts`, `src/lib/services/service-catalog.ts`.
+- **Migrations:** `20251216_staged_roadmap_architecture.sql`, `20251214_split_sprint_plan_trigger.sql`, `20251214_fix_trigger_chain_final.sql`, `20251216_add_value_analysis_to_trigger_chain.sql`, `20251217_create_client_tasks_table.sql`, `20260122_rename_365_to_goal_alignment.sql`, `20260129_fix_goal_alignment_metadata.sql`, `20260203_fix_service_pricing_models.sql`, `20260209160000_service_catalogue.sql`, `20260214000000_add_sprint_summary_stage.sql`, `20260215000000_renewal_pipeline.sql`, `20260216000000_add_tier_to_client_service_lines.sql`, and related RLS/service catalogue migrations.
+- **Admin:** `src/pages/admin/ClientServicesPage.tsx`, `src/components/admin/SprintEditorModal.tsx`, `DeliveryManagementPage.tsx`, `src/components/discovery/DiscoveryAdminModal.tsx`, `src/components/benchmarking/admin/ServiceSelectionPanel.tsx`, `src/lib/issue-service-mapping.ts`, `src/lib/advisory-services-full.ts`, `src/lib/services/service-catalog.ts`.
 - **Client:** `apps/client-portal/src/pages/roadmap/RoadmapPage.tsx`, `apps/client-portal/src/pages/discovery/DiscoveryReportPage.tsx`, `apps/client-portal/src/components/DiscoveryReportView.tsx`, `Layout.tsx`, `App.tsx`, `UnifiedDashboardPage.tsx`, `lib/service-registry.ts`, `hooks/useAnalysis.ts`, `hooks/useAssessmentProgress.ts`, `config/serviceLineAssessments.ts`.
 - **Platform:** `apps/platform/src/pages/clients/RoadmapReviewPage.tsx`, `apps/platform/src/pages/ClientDetailPage.tsx`.
 - **Packages:** `packages/llm/src/prompts/roadmap.ts`, `value-analysis.ts`, `packages/llm/src/generators/roadmap-generator.ts`, `packages/shared/src/types/roadmap.ts`, `client.ts`.

@@ -1,8 +1,8 @@
 // ============================================================================
 // GENERATE SPRINT SUMMARY
 // ============================================================================
-// Fired when client completes all 12 weeks (every task resolved).
-// Collects task data, computes analytics, calls LLM for narrative, stores in roadmap_stages.
+// LLM-powered review of a completed sprint. NOT part of the automatic trigger
+// chain — called by admin (Regenerate) or client portal when all 12 weeks resolved.
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -13,369 +13,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ----------------------------------------------------------------------------
-// Analytics types and computation
-// ----------------------------------------------------------------------------
+// ============================================================================
+// TYPES
+// ============================================================================
 
-interface SprintAnalytics {
+interface FetchSprintDataResult {
+  tasks: any[];
+  sprintContent: any;
+  vision: any;
+  shift: any;
+  client: { name?: string; client_company?: string } | null;
+  feedback: any[];
+}
+
+interface BuiltStats {
   totalTasks: number;
-  completedTasks: number;
-  skippedTasks: number;
+  completed: any[];
+  skipped: any[];
+  inProgress: any[];
+  pending: any[];
   completionRate: number;
-  skipRate: number;
-  categoryBreakdown: Array<{
-    category: string;
-    total: number;
-    completed: number;
-    skipped: number;
-    completionRate: number;
-  }>;
-  weeklyBreakdown: Array<{
-    weekNumber: number;
-    theme: string;
-    total: number;
-    completed: number;
-    skipped: number;
-    completionRate: number;
-    hadCatchUp: boolean;
-  }>;
-  phaseBreakdown: Array<{ phase: string; weeks: number[]; completionRate: number }>;
-  catchUpWeeks: number[];
-  fastestWeek: number;
-  mostSkippedCategory: string;
-  streaks: { longestCompletionStreak: number; currentStreak: number };
-  lifeTaskCompletion: number;
-  businessTaskCompletion: number;
-  sprintStartDate: string;
-  sprintEndDate: string;
-  totalDays: number;
-  calendarWeeksUsed: number;
+  weekStats: Record<number, { total: number; completed: number; skipped: number }>;
+  categoryStats: Record<string, { total: number; completed: number }>;
+  taskFeedback: Array<{ week: number; title: string; whatWentWell: string; whatDidntWork: string; additionalNotes: string }>;
+  skippedHighPriority: Array<{ week: number; title: string; priority: string }>;
 }
 
-function computeSprintAnalytics(
-  sprintWeeks: any[],
-  dbTasks: any[],
-  sprintStartDate: string,
-): SprintAnalytics {
-  const totalTasks = dbTasks.length;
-  const completedTasks = dbTasks.filter((t: any) => t.status === 'completed').length;
-  const skippedTasks = dbTasks.filter((t: any) => t.status === 'skipped').length;
-
-  const categories = new Map<string, { total: number; completed: number; skipped: number }>();
-  for (const task of dbTasks) {
-    const cat = task.category || 'general';
-    if (!categories.has(cat)) categories.set(cat, { total: 0, completed: 0, skipped: 0 });
-    const entry = categories.get(cat)!;
-    entry.total++;
-    if (task.status === 'completed') entry.completed++;
-    if (task.status === 'skipped') entry.skipped++;
-  }
-
-  const categoryBreakdown = Array.from(categories.entries()).map(([category, stats]) => ({
-    category,
-    ...stats,
-    completionRate: stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0,
-  }));
-
-  const weeklyBreakdown = (sprintWeeks || []).map((week: any) => {
-    const weekNum = week.weekNumber ?? week.week ?? 0;
-    const weekTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
-    const completed = weekTasks.filter((t: any) => t.status === 'completed').length;
-    const skipped = weekTasks.filter((t: any) => t.status === 'skipped').length;
-    const hadCatchUp = weekTasks.some((t: any) => t.metadata?.caughtUp === true);
-
-    return {
-      weekNumber: weekNum,
-      theme: week.theme || '',
-      total: weekTasks.length,
-      completed,
-      skipped,
-      completionRate:
-        weekTasks.length > 0 ? Math.round((completed / weekTasks.length) * 100) : 0,
-      hadCatchUp,
-    };
-  });
-
-  const catchUpWeeks = weeklyBreakdown.filter((w) => w.hadCatchUp).map((w) => w.weekNumber);
-
-  const mostSkippedEntry = categoryBreakdown.sort(
-    (a, b) => (b.total ? b.skipped / b.total : 0) - (a.total ? a.skipped / a.total : 0),
-  )[0];
-  const mostSkippedCategory = mostSkippedEntry?.category || 'none';
-
-  const lifeTasks = dbTasks.filter((t: any) => t.category?.startsWith?.('life_'));
-  const businessTasks = dbTasks.filter((t: any) => !t.category?.startsWith?.('life_'));
-  const lifeTaskCompletion =
-    lifeTasks.length > 0
-      ? Math.round(
-          (lifeTasks.filter((t: any) => t.status === 'completed').length / lifeTasks.length) * 100,
-        )
-      : 0;
-  const businessTaskCompletion =
-    businessTasks.length > 0
-      ? Math.round(
-          (businessTasks.filter((t: any) => t.status === 'completed').length /
-            businessTasks.length) *
-            100,
-        )
-      : 0;
-
-  const lastTaskDate = dbTasks
-    .map((t: any) => t.completed_at || t.skipped_at || t.updated_at)
-    .filter(Boolean)
-    .sort()
-    .pop() as string | undefined;
-  const sprintEndDate = lastTaskDate || new Date().toISOString();
-
-  const start = new Date(sprintStartDate);
-  const end = new Date(sprintEndDate);
-  const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-  const calendarWeeksUsed = Math.ceil(totalDays / 7);
-
-  const phaseBreakdown: Array<{ phase: string; weeks: number[]; completionRate: number }> = [];
-  const phaseNames: Record<number, string> = {
-    1: 'Relief',
-    2: 'Foundation',
-    3: 'Momentum',
-    4: 'Embed',
-    5: 'Measure',
-  };
-  for (let p = 1; p <= 5; p++) {
-    const phaseWeeks = weeklyBreakdown.filter((w) => w.weekNumber >= (p - 1) * 2.4 + 1 && w.weekNumber <= p * 2.4);
-    const total = phaseWeeks.reduce((s, w) => s + w.total, 0);
-    const completed = phaseWeeks.reduce((s, w) => s + w.completed, 0);
-    phaseBreakdown.push({
-      phase: phaseNames[p] || `Phase ${p}`,
-      weeks: phaseWeeks.map((w) => w.weekNumber),
-      completionRate: total > 0 ? Math.round((completed / total) * 100) : 0,
-    });
-  }
-
-  let longestStreak = 0;
-  let currentStreak = 0;
-  for (const w of weeklyBreakdown) {
-    if (w.total > 0 && w.completionRate >= 80) {
-      currentStreak++;
-      longestStreak = Math.max(longestStreak, currentStreak);
-    } else {
-      currentStreak = 0;
-    }
-  }
-
-  return {
-    totalTasks,
-    completedTasks,
-    skippedTasks,
-    completionRate: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
-    skipRate: totalTasks > 0 ? Math.round((skippedTasks / totalTasks) * 100) : 0,
-    categoryBreakdown,
-    weeklyBreakdown,
-    phaseBreakdown,
-    catchUpWeeks,
-    fastestWeek: 0,
-    mostSkippedCategory,
-    streaks: { longestCompletionStreak: longestStreak, currentStreak },
-    lifeTaskCompletion,
-    businessTaskCompletion,
-    sprintStartDate,
-    sprintEndDate,
-    totalDays,
-    calendarWeeksUsed,
-  };
-}
-
-// ----------------------------------------------------------------------------
-// Prompt builder
-// ----------------------------------------------------------------------------
-
-function buildSprintSummaryPrompt(
-  context: {
-    userName: string;
-    companyName: string;
-    northStar: string;
-    tuesdayTest: string;
-    year1Milestone: any;
-    dangerZone: string;
-    sprintTheme: string;
-    sprintGoals: any;
-  },
-  analytics: SprintAnalytics,
-  weeklyDetails: Array<{
-    weekNumber: number;
-    theme: string;
-    completedTasks: string[];
-    skippedTasks: string[];
-  }>,
-  checkInData: any[],
-): string {
-  const checkInSection =
-    checkInData.length > 0
-      ? `\n## WEEKLY CHECK-IN DATA\n${checkInData
-          .map(
-            (c: any) =>
-              `Week ${c.week_number}: Satisfaction ${c.life_satisfaction ?? '?'}/5, Time Protected: ${c.time_protected ?? '?'}, Win: "${c.personal_win || 'none recorded'}", Business: ${c.business_progress ?? '?'}/5`,
-          )
-          .join('\n')}`
-      : '\n## No weekly check-in data available';
-
-  return `You are reviewing a completed 12-week transformation sprint for ${context.userName} (${context.companyName}).
-
-## CLIENT CONTEXT
-
-North Star: ${context.northStar}
-Sprint Theme: ${context.sprintTheme}
-Original Tuesday Test (their ideal future Tuesday): "${context.tuesdayTest}"
-Danger Zone (what could sink the business): "${context.dangerZone}"
-Year 1 Milestone: ${JSON.stringify(context.year1Milestone)}
-Sprint Goals: ${JSON.stringify(context.sprintGoals)}
-
-## COMPLETION DATA (pre-computed — DO NOT recalculate)
-
-Overall: ${analytics.completedTasks} completed, ${analytics.skippedTasks} skipped out of ${analytics.totalTasks} tasks
-Completion Rate: ${analytics.completionRate}% (completed only)
-Skip Rate: ${analytics.skipRate}%
-Calendar Time: ${analytics.calendarWeeksUsed} weeks (vs 12 planned)
-${analytics.catchUpWeeks.length > 0 ? `Catch-up weeks (bulk-resolved after a break): ${analytics.catchUpWeeks.join(', ')}` : 'No catch-up weeks — completed in real-time'}
-
-Life Task Completion: ${analytics.lifeTaskCompletion}%
-Business Task Completion: ${analytics.businessTaskCompletion}%
-
-Most Skipped Category: ${analytics.mostSkippedCategory}
-
-## WEEK-BY-WEEK DETAIL
-
-${weeklyDetails
-  .map(
-    (w) => `
-Week ${w.weekNumber}: ${w.theme}
-  Completed: ${w.completedTasks.length > 0 ? w.completedTasks.join('; ') : 'None'}
-  Skipped: ${w.skippedTasks.length > 0 ? w.skippedTasks.join('; ') : 'None'}`,
-  )
-  .join('\n')}
-${checkInSection}
-
-## YOUR TASK
-
-Generate a Sprint Summary with the following structure. Be honest and specific — use the actual task titles, don't generalise. If the skip rate is high, say so directly. If catch-up mode was used, acknowledge the break and what was resolved retroactively vs in real-time.
-
-Return ONLY valid JSON:
-
-{
-  "headlineAchievement": "One sentence — the single biggest transformation from this sprint",
-  "transformationNarrative": {
-    "opening": "2-3 sentences. Where ${context.userName} started 12 weeks ago",
-    "journey": "3-4 sentences. What actually happened — the real story, not the plan. Reference specific weeks and tasks.",
-    "closing": "2-3 sentences. Where they are now. Be honest about what changed and what didn't."
-  },
-  "tuesdayTestComparison": {
-    "original": "Their original Tuesday Test vision (quote it back)",
-    "progress": "What's actually shifted toward that vision based on completed tasks",
-    "gap": "What's still missing — the distance between current reality and the vision",
-    "nextSteps": "1-2 specific things Sprint 2 should prioritise to close the gap"
-  },
-  "strengthsRevealed": [
-    {
-      "strength": "A specific strength shown by task completion patterns",
-      "evidence": "Which tasks/weeks demonstrate this",
-      "howToLeverage": "How Sprint 2 can build on this"
-    }
-  ],
-  "growthAreas": [
-    {
-      "area": "A specific area where skips or struggles appeared",
-      "evidence": "Which tasks/weeks show this pattern",
-      "recommendation": "What Sprint 2 should do differently here"
-    }
-  ],
-  "skipAnalysis": {
-    "pattern": "What the skip patterns reveal about priorities and resistance",
-    "insight": "The underlying reason — time, capability, avoidance, or legitimate deprioritisation",
-    "adjustment": "How Sprint 2 should adapt task design based on this"
-  },
-  "phaseReview": [
-    {
-      "phase": "Relief / Foundation / Momentum / Embed / Measure",
-      "weeks": "1-2",
-      "verdict": "How this phase went — 1-2 sentences",
-      "completionRate": 85
-    }
-  ],
-  "renewalRecommendations": {
-    "shouldRenew": true,
-    "urgency": "high | medium | low",
-    "focusAreas": ["Top 3 areas Sprint 2 should prioritise"],
-    "toneShift": "How the sprint approach should change (e.g., 'less foundation, more execution')",
-    "lifeDesignAdjustment": "Any changes to life design goals based on what was learned",
-    "estimatedImpact": "What completing Sprint 2 could mean for Year 1 milestone progress"
-  },
-  "clientMessage": "A direct, personal 3-4 sentence message to ${context.userName}. Not corporate. Sound like a coach who knows them. Acknowledge what was hard. Celebrate what was achieved. Point forward."
-}
-
-ANTI-AI-SLOP RULES:
-BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage (as verb), scalable, holistic, impactful, ecosystem, journey (overused), empower
-BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists
-THE TEST: Read the clientMessage aloud. If it sounds like a LinkedIn post, rewrite it.
-
-British English only (organise, colour, £). Return ONLY valid JSON.`;
-}
-
-// ----------------------------------------------------------------------------
-// LLM call
-// ----------------------------------------------------------------------------
-
-async function generateSummaryWithLLM(prompt: string): Promise<any> {
-  const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
-  if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${openRouterKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://torsor.co.uk',
-      'X-Title': 'Torsor Sprint Summary',
-    },
-    body: JSON.stringify({
-      model: 'anthropic/claude-sonnet-4.5',
-      max_tokens: 4000,
-      temperature: 0.5,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are a transformation coach writing a sprint review. Be specific, honest, and human. Use the client\'s exact words where given. Return ONLY valid JSON.',
-        },
-        { role: 'user', content: prompt },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.text();
-    console.error(`LLM error: ${response.status} - ${err}`);
-    throw new Error(`LLM error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content ?? '';
-  const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-  const start = cleaned.indexOf('{');
-  const end = cleaned.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('No JSON in LLM response');
-
-  try {
-    return JSON.parse(cleaned.substring(start, end + 1));
-  } catch (e) {
-    const fixed = cleaned
-      .substring(start, end + 1)
-      .replace(/,(\s*[}\]])/g, '$1');
-    return JSON.parse(fixed);
-  }
-}
-
-// ----------------------------------------------------------------------------
-// Main handler
-// ----------------------------------------------------------------------------
+// ============================================================================
+// MAIN HANDLER
+// ============================================================================
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -386,11 +52,13 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const { clientId, practiceId, sprintNumber = 1 } = body;
+    const clientId = body.clientId;
+    const practiceId = body.practiceId;
+    const sprintNumber = body.sprintNumber ?? 1;
 
     if (!clientId || !practiceId) {
       return new Response(
-        JSON.stringify({ error: 'clientId and practiceId required' }),
+        JSON.stringify({ success: false, error: 'clientId and practiceId required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -400,147 +68,22 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     );
 
-    // Check for existing sprint summary (don't overwrite unless regenerating)
-    const { data: existing } = await supabase
+    // Existing stage → next version
+    const { data: existingStages } = await supabase
       .from('roadmap_stages')
-      .select('id, status')
+      .select('version')
       .eq('client_id', clientId)
       .eq('stage_type', 'sprint_summary')
       .eq('sprint_number', sprintNumber)
-      .in('status', ['generated', 'approved', 'published'])
       .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
 
-    if (existing && body.action !== 'regenerate') {
-      return new Response(
-        JSON.stringify({ success: true, stageId: existing.id, alreadyExists: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
+    const nextVersion =
+      existingStages?.length && existingStages[0].version != null
+        ? existingStages[0].version + 1
+        : 1;
 
-    const nextVersion = existing ? (await getNextVersion(supabase, clientId, sprintNumber)) : 1;
-
-    // 1. Client info
-    const { data: client } = await supabase
-      .from('practice_members')
-      .select('name, client_company')
-      .eq('id', clientId)
-      .single();
-
-    // 2. Assessments (Part 1 / Part 2 for Tuesday Test, danger zone)
-    const { data: assessments } = await supabase
-      .from('client_assessments')
-      .select('assessment_type, responses')
-      .eq('client_id', clientId)
-      .in('assessment_type', ['part1', 'part2']);
-
-    const part1 = (assessments?.find((a: any) => a.assessment_type === 'part1') as any)?.responses || {};
-    const part2 = (assessments?.find((a: any) => a.assessment_type === 'part2') as any)?.responses || {};
-
-    // 3. Pipeline stages
-    const stageTypes = [
-      'fit_assessment',
-      'five_year_vision',
-      'six_month_shift',
-      'sprint_plan_part2',
-      'value_analysis',
-    ];
-    const stageData: Record<string, any> = {};
-    for (const stageType of stageTypes) {
-      const { data: stage } = await supabase
-        .from('roadmap_stages')
-        .select('generated_content, approved_content')
-        .eq('client_id', clientId)
-        .eq('stage_type', stageType)
-        .eq('sprint_number', sprintNumber)
-        .order('version', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      stageData[stageType] = stage?.approved_content || stage?.generated_content;
-    }
-
-    const sprintContent = stageData.sprint_plan_part2?.sprint || stageData.sprint_plan_part2;
-    const sprintWeeks = sprintContent?.weeks || [];
-    const vision = stageData.five_year_vision;
-    const fitProfile = stageData.fit_assessment;
-    const northStar =
-      fitProfile?.northStar || vision?.northStar || part1.north_star || 'Not set';
-    const tuesdayTest =
-      part1.tuesday_test || part1.ideal_tuesday || vision?.tuesdayTest || 'Not described';
-    const dangerZone = part1.danger_zone || part1.dangerZone || 'Not described';
-    const year1Milestone = vision?.yearMilestones?.year1 || vision?.year1Milestone || {};
-    const sprintTheme = sprintContent?.sprintTheme || sprintContent?.theme || '12-week transformation';
-    const sprintGoals = sprintContent?.goals || sprintContent?.sprintGoals || [];
-
-    // 4. All tasks
-    const { data: allTasks } = await supabase
-      .from('client_tasks')
-      .select('*')
-      .eq('client_id', clientId)
-      .order('week_number', { ascending: true });
-
-    const dbTasks = allTasks || [];
-
-    // 5. Sprint start date
-    const { data: sprintStage } = await supabase
-      .from('roadmap_stages')
-      .select('created_at, published_at')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'sprint_plan_part2')
-      .eq('sprint_number', sprintNumber)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const sprintStartDate =
-      sprintStage?.published_at || sprintStage?.created_at || new Date().toISOString();
-
-    // 6. Weekly check-ins (optional)
-    let checkIns: any[] = [];
-    try {
-      const { data: checkInData } = await supabase
-        .from('weekly_checkins')
-        .select('*')
-        .eq('client_id', clientId)
-        .order('week_number', { ascending: true });
-      checkIns = checkInData || [];
-    } catch {
-      // table may not exist
-    }
-
-    const analytics = computeSprintAnalytics(sprintWeeks, dbTasks, sprintStartDate);
-
-    const weeklyDetails = analytics.weeklyBreakdown.map((w) => {
-      const weekTasks = dbTasks.filter((t: any) => t.week_number === w.weekNumber);
-      return {
-        weekNumber: w.weekNumber,
-        theme: w.theme,
-        completedTasks: weekTasks
-          .filter((t: any) => t.status === 'completed')
-          .map((t: any) => t.title),
-        skippedTasks: weekTasks
-          .filter((t: any) => t.status === 'skipped')
-          .map((t: any) => t.title),
-      };
-    });
-
-    const prompt = buildSprintSummaryPrompt(
-      {
-        userName: client?.name?.split(' ')[0] || 'there',
-        companyName: client?.client_company || 'your business',
-        northStar,
-        tuesdayTest,
-        year1Milestone,
-        dangerZone,
-        sprintTheme,
-        sprintGoals,
-      },
-      analytics,
-      weeklyDetails,
-      checkIns,
-    );
-
+    // Create stage record (generating)
     const { data: stage, error: stageError } = await supabase
       .from('roadmap_stages')
       .insert({
@@ -558,60 +101,447 @@ serve(async (req) => {
 
     if (stageError) throw stageError;
 
-    const llmOutput = await generateSummaryWithLLM(prompt);
-    const duration = Date.now() - startTime;
+    // Fetch all input data
+    const { tasks, sprintContent, vision, shift, client, feedback } = await fetchSprintData(
+      supabase,
+      clientId,
+      sprintNumber,
+    );
+
+    const userName = client?.name?.split(' ')[0] || 'there';
+
+    // Edge case: no tasks — minimal summary, no LLM
+    if (!tasks?.length) {
+      const minimalSummary = {
+        headline: 'Sprint not yet started',
+        completionStats: {
+          totalTasks: 0,
+          completed: 0,
+          skipped: 0,
+          inProgress: 0,
+          pending: 0,
+          completionRate: 0,
+          strongestWeek: 0,
+          weakestWeek: 0,
+        },
+        achievements: [],
+        growthAreas: [],
+        behaviouralShifts: { whatChanged: '', whatDidnt: '', tuesdayTestProgress: '' },
+        clientVoice: { bestQuote: null, concernQuote: null },
+        nextSprintRecommendations: [],
+        advisorBrief: '',
+        generatedAt: new Date().toISOString(),
+        sprintNumber,
+      };
+
+      await supabase
+        .from('roadmap_stages')
+        .update({
+          status: 'generated',
+          generated_content: minimalSummary,
+          generation_completed_at: new Date().toISOString(),
+          generation_duration_ms: Date.now() - startTime,
+        })
+        .eq('id', stage.id);
+
+      return new Response(
+        JSON.stringify({ success: true, stageId: stage.id, duration: Date.now() - startTime }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const stats = buildStats(tasks);
+    const { systemPrompt, userPrompt } = buildPrompt(
+      userName,
+      sprintContent,
+      vision,
+      stats,
+      feedback,
+    );
+
+    const parsed = await callLLM(systemPrompt, userPrompt);
+
+    // Override completionStats with computed values (don't trust LLM for numbers)
+    const summaryContent = {
+      ...parsed,
+      generatedAt: new Date().toISOString(),
+      sprintNumber,
+      completionStats: {
+        ...parsed.completionStats,
+        totalTasks: stats.totalTasks,
+        completed: stats.completed.length,
+        skipped: stats.skipped.length,
+        inProgress: stats.inProgress.length,
+        pending: stats.pending.length,
+        completionRate: stats.completionRate,
+      },
+    };
 
     await supabase
       .from('roadmap_stages')
       .update({
         status: 'generated',
-        generated_content: {
-          summary: llmOutput,
-          analytics,
-          generatedAt: new Date().toISOString(),
-          sprintNumber,
-          inputData: {
-            totalTasks: analytics.totalTasks,
-            completedTasks: analytics.completedTasks,
-            skippedTasks: analytics.skippedTasks,
-            catchUpWeeks: analytics.catchUpWeeks,
-            calendarWeeksUsed: analytics.calendarWeeksUsed,
-          },
-        },
+        generated_content: summaryContent,
         generation_completed_at: new Date().toISOString(),
-        generation_duration_ms: duration,
+        generation_duration_ms: Date.now() - startTime,
       })
       .eq('id', stage.id);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        stageId: stage.id,
-        duration,
-      }),
+      JSON.stringify({ success: true, stageId: stage.id, duration: Date.now() - startTime }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
-  } catch (err) {
-    console.error('generate-sprint-summary error:', err);
+  } catch (error) {
+    console.error('generate-sprint-summary error:', error);
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : 'Unknown error' }),
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
 });
 
-async function getNextVersion(
+// ============================================================================
+// FETCH SPRINT DATA
+// ============================================================================
+
+async function fetchSprintData(
   supabase: SupabaseClient,
   clientId: string,
   sprintNumber: number,
-): Promise<number> {
-  const { data: rows } = await supabase
-    .from('roadmap_stages')
-    .select('version')
-    .eq('client_id', clientId)
-    .eq('stage_type', 'sprint_summary')
-    .eq('sprint_number', sprintNumber)
-    .order('version', { ascending: false })
-    .limit(1);
-  return rows?.[0]?.version != null ? rows[0].version + 1 : 1;
+): Promise<FetchSprintDataResult> {
+  const [tasksRes, sprintStageRes, visionStageRes, shiftStageRes, clientRes, feedbackRes] =
+    await Promise.all([
+      supabase
+        .from('client_tasks')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('sprint_number', sprintNumber)
+        .order('week_number', { ascending: true })
+        .order('sort_order', { ascending: true }),
+      supabase
+        .from('roadmap_stages')
+        .select('generated_content, approved_content')
+        .eq('client_id', clientId)
+        .eq('sprint_number', sprintNumber)
+        .in('stage_type', ['sprint_plan_part2', 'sprint_plan'])
+        .in('status', ['published', 'approved', 'generated'])
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('roadmap_stages')
+        .select('generated_content, approved_content')
+        .eq('client_id', clientId)
+        .in('stage_type', ['five_year_vision', 'vision_update'])
+        .in('status', ['published', 'approved', 'generated'])
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('roadmap_stages')
+        .select('generated_content, approved_content')
+        .eq('client_id', clientId)
+        .in('stage_type', ['six_month_shift', 'shift_update'])
+        .in('status', ['published', 'approved', 'generated'])
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase
+        .from('practice_members')
+        .select('name, client_company')
+        .eq('id', clientId)
+        .single(),
+      supabase
+        .from('generation_feedback')
+        .select('feedback_text, feedback_type, feedback_source')
+        .eq('client_id', clientId)
+        .eq('stage_type', 'sprint_plan_part2')
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ]);
+
+  const tasks = tasksRes.data ?? [];
+  const sprintStage = sprintStageRes.data;
+  const sprintContent =
+    sprintStage?.approved_content ?? sprintStage?.generated_content ?? null;
+  const visionStage = visionStageRes.data;
+  const vision = visionStage?.approved_content ?? visionStage?.generated_content ?? null;
+  const shiftStage = shiftStageRes.data;
+  const shift = shiftStage?.approved_content ?? shiftStage?.generated_content ?? null;
+  const client = clientRes.data ?? null;
+  const feedback = feedbackRes.data ?? [];
+
+  return { tasks, sprintContent, vision, shift, client, feedback };
+}
+
+// ============================================================================
+// BUILD STATS
+// ============================================================================
+
+function buildStats(tasks: any[]): BuiltStats {
+  const totalTasks = tasks.length;
+  const completed = tasks.filter((t) => t.status === 'completed');
+  const skipped = tasks.filter((t) => t.status === 'pending' && t.completed_at);
+  const inProgress = tasks.filter((t) => t.status === 'in_progress');
+  const pending = tasks.filter((t) => t.status === 'pending' && !t.completed_at);
+  const completionRate =
+    totalTasks > 0 ? Math.round((completed.length / totalTasks) * 100) : 0;
+
+  const weekStats: Record<number, { total: number; completed: number; skipped: number }> = {};
+  for (const t of tasks) {
+    const wn = t.week_number ?? 0;
+    if (!weekStats[wn]) weekStats[wn] = { total: 0, completed: 0, skipped: 0 };
+    weekStats[wn].total++;
+    if (t.status === 'completed') weekStats[wn].completed++;
+    if (t.status === 'pending' && t.completed_at) weekStats[wn].skipped++;
+  }
+
+  const categoryStats: Record<string, { total: number; completed: number }> = {};
+  for (const t of tasks) {
+    const cat = t.category || 'general';
+    if (!categoryStats[cat]) categoryStats[cat] = { total: 0, completed: 0 };
+    categoryStats[cat].total++;
+    if (t.status === 'completed') categoryStats[cat].completed++;
+  }
+
+  const taskFeedback = completed
+    .filter(
+      (t) =>
+        t.completion_feedback?.whatWentWell || t.completion_feedback?.whatDidntWork,
+    )
+    .map((t) => ({
+      week: t.week_number ?? 0,
+      title: t.title ?? '',
+      whatWentWell: t.completion_feedback?.whatWentWell ?? '',
+      whatDidntWork: t.completion_feedback?.whatDidntWork ?? '',
+      additionalNotes: t.completion_feedback?.additionalNotes ?? '',
+    }));
+
+  const skippedHighPriority = tasks
+    .filter(
+      (t) =>
+        t.status === 'pending' &&
+        t.completed_at &&
+        (t.priority === 'critical' || t.priority === 'high'),
+    )
+    .map((t) => ({
+      week: t.week_number ?? 0,
+      title: t.title ?? '',
+      priority: t.priority ?? 'high',
+    }));
+
+  return {
+    totalTasks,
+    completed,
+    skipped,
+    inProgress,
+    pending,
+    completionRate,
+    weekStats,
+    categoryStats,
+    taskFeedback,
+    skippedHighPriority,
+  };
+}
+
+// ============================================================================
+// BUILD PROMPT
+// ============================================================================
+
+function buildPrompt(
+  userName: string,
+  sprintContent: any,
+  vision: any,
+  stats: BuiltStats,
+  advisorFeedback: any[],
+): { systemPrompt: string; userPrompt: string } {
+  const systemPrompt = `You are reviewing a client's completed 12-week transformation sprint.
+
+Write with warmth and specificity — use their name, reference their actual tasks and feedback. 
+This is a celebration of progress AND an honest assessment of what still needs work.
+
+Sound like a thoughtful advisor who knows this person, not a corporate report generator.
+
+ANTI-AI-SLOP RULES:
+BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem, vibrant, intricate
+BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists
+THE TEST: If it sounds like a LinkedIn post, rewrite it.
+
+Return ONLY valid JSON — no markdown, no explanation. British English only (organise, colour, £).`;
+
+  const sprintTheme =
+    sprintContent?.sprintTheme ?? sprintContent?.theme ?? '';
+  const sprintPromise =
+    sprintContent?.sprintPromise ?? sprintContent?.promise ?? '';
+  const sprintGoals =
+    sprintContent?.sprintGoals ?? sprintContent?.goals ?? [];
+
+  const northStar =
+    vision?.tagline ?? vision?.northStar ?? 'Not available';
+
+  const weekBreakdown = Object.entries(stats.weekStats)
+    .map(
+      ([wk, s]) =>
+        `Week ${wk}: ${s.completed}/${s.total} completed, ${s.skipped} skipped`,
+    )
+    .join('\n');
+  const categoryBreakdown = Object.entries(stats.categoryStats)
+    .map(([cat, s]) => `${cat}: ${s.completed}/${s.total}`)
+    .join('\n');
+
+  const clientFeedbackSection =
+    stats.taskFeedback.length > 0
+      ? stats.taskFeedback
+          .map(
+            (f) =>
+              `Week ${f.week} — "${f.title}"\n  Went well: ${f.whatWentWell}\n  Didn't work: ${f.whatDidntWork}\n  Notes: ${f.additionalNotes}`,
+          )
+          .join('\n\n')
+      : 'No feedback submitted.';
+
+  const skippedHighSection =
+    stats.skippedHighPriority.length > 0
+      ? stats.skippedHighPriority
+          .map((t) => `Week ${t.week}: "${t.title}" (${t.priority})`)
+          .join('\n')
+      : 'None.';
+
+  const advisorNotes =
+    advisorFeedback?.map((f: any) => f.feedback_text).join('\n') || 'None.';
+
+  const userPrompt = `Generate a sprint summary for ${userName}.
+
+## SPRINT CONTEXT
+Sprint Theme: "${sprintTheme}"
+Sprint Promise: "${sprintPromise}"
+Sprint Goals: ${JSON.stringify(sprintGoals)}
+
+## THEIR NORTH STAR
+${northStar}
+
+## COMPLETION DATA
+Total tasks: ${stats.totalTasks}
+Completed: ${stats.completed.length} (${stats.completionRate}%)
+Skipped: ${stats.skipped.length}
+Still in progress: ${stats.inProgress.length}
+Still pending: ${stats.pending.length}
+
+Week-by-week breakdown:
+${weekBreakdown}
+
+Category breakdown:
+${categoryBreakdown}
+
+## CLIENT FEEDBACK (their exact words)
+${clientFeedbackSection}
+
+## SKIPPED HIGH-PRIORITY TASKS (potential concerns)
+${skippedHighSection}
+
+## ADVISOR NOTES
+${advisorNotes}
+
+Return JSON matching this structure:
+
+{
+  "headline": "One-sentence celebration of what they achieved (personalised, warm)",
+  "completionStats": {
+    "totalTasks": number,
+    "completed": number,
+    "skipped": number,
+    "completionRate": number,
+    "strongestWeek": number,
+    "weakestWeek": number
+  },
+  "achievements": [
+    {
+      "title": "Short title",
+      "description": "What they did and why it matters (2-3 sentences, reference specific tasks)",
+      "category": "category name",
+      "impactLevel": "high" | "medium"
+    }
+  ],
+  "growthAreas": [
+    {
+      "title": "Short title",
+      "description": "What didn't land and why (honest, constructive, not judgmental)",
+      "suggestedFocus": "What Sprint 2 should address"
+    }
+  ],
+  "behaviouralShifts": {
+    "whatChanged": "Narrative paragraph — what actually shifted in how they work/live (based on completed tasks and feedback)",
+    "whatDidnt": "Narrative paragraph — what patterns persist (based on skipped tasks and feedback)",
+    "tuesdayTestProgress": "How their Tuesday has changed (or hasn't) since sprint start"
+  },
+  "clientVoice": {
+    "bestQuote": "Most impactful thing they said in feedback (exact words)",
+    "concernQuote": "Most telling concern from their feedback (exact words or null)"
+  },
+  "nextSprintRecommendations": [
+    {
+      "focus": "Recommended focus area for next sprint",
+      "reason": "Why — based on this sprint's data"
+    }
+  ],
+  "advisorBrief": "3-4 sentence brief for the advisor: what to discuss in the renewal conversation, key concerns, suggested approach"
+}`;
+
+  return { systemPrompt, userPrompt };
+}
+
+// ============================================================================
+// CALL LLM
+// ============================================================================
+
+async function callLLM(systemPrompt: string, userPrompt: string): Promise<any> {
+  const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
+  if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${openRouterKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://torsor.co.uk',
+      'X-Title': 'Torsor Sprint Summary',
+    },
+    body: JSON.stringify({
+      model: 'anthropic/claude-sonnet-4.5',
+      max_tokens: 4000,
+      temperature: 0.6,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.text();
+    console.error(`LLM error: ${response.status} - ${err}`);
+    throw new Error(`LLM error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content ?? '';
+  const cleaned = content
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+  const start = cleaned.indexOf('{');
+  const end = cleaned.lastIndexOf('}');
+
+  if (start === -1 || end === -1) throw new Error('Failed to find JSON in response');
+
+  try {
+    return JSON.parse(cleaned.substring(start, end + 1));
+  } catch {
+    const fixed = cleaned
+      .substring(start, end + 1)
+      .replace(/,(\s*[}\]])/g, '$1');
+    return JSON.parse(fixed);
+  }
 }

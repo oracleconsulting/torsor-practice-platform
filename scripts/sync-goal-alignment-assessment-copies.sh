@@ -39,13 +39,14 @@ cp "$ROOT/supabase/functions/_shared/service-scorer-v2.ts" "$DEST/shared-service
 cp "$ROOT/supabase/functions/_shared/service-scorer.ts" "$DEST/shared-service-scorer-copy.ts" && echo "  shared-service-scorer-copy.ts"
 [ -f "$ROOT/supabase/functions/_shared/service-registry.ts" ] && cp "$ROOT/supabase/functions/_shared/service-registry.ts" "$DEST/shared-service-registry-copy.ts" && echo "  shared-service-registry-copy.ts"
 
-# --- Migrations (roadmap, 365, goal_alignment, generation_queue, service catalogue) ---
-for m in 20251212_update_scoring_weights 20251214_service_metadata_schema 20251214_split_sprint_plan_trigger 20251214_fix_trigger_chain_final 20251215_fix_service_value_calculations 20251216_staged_roadmap_architecture 20251216_fix_all_rls_policies 20251216_fix_generation_queue_rls 20251216_fix_service_line_assessments 20251216_add_value_analysis_to_trigger_chain 20251217_create_client_tasks_table 20260115_service_manuals 20260122_rename_365_to_goal_alignment 20260123_service_pricing 20260129_fix_goal_alignment_metadata 20260201_add_services_catalog 20260201_create_services_table 20260203_fix_service_pricing_models 20260203_new_client_type_services 20260204_context_intelligence_overhaul 20260209160000_service_catalogue; do
+# --- Migrations (roadmap, 365, goal_alignment, generation_queue, service catalogue, tier, renewal, sprint_summary) ---
+for m in 20251212_update_scoring_weights 20251214_service_metadata_schema 20251214_split_sprint_plan_trigger 20251214_fix_trigger_chain_final 20251215_fix_service_value_calculations 20251216_staged_roadmap_architecture 20251216_fix_all_rls_policies 20251216_fix_generation_queue_rls 20251216_fix_service_line_assessments 20251216_add_value_analysis_to_trigger_chain 20251217_create_client_tasks_table 20260115_service_manuals 20260122_rename_365_to_goal_alignment 20260123_service_pricing 20260129_fix_goal_alignment_metadata 20260201_add_services_catalog 20260201_create_services_table 20260203_fix_service_pricing_models 20260203_new_client_type_services 20260204_context_intelligence_overhaul 20260209160000_service_catalogue 20260214000000_add_sprint_summary_stage 20260215000000_renewal_pipeline 20260216000000_add_tier_to_client_service_lines; do
   [ -f "$ROOT/supabase/migrations/${m}.sql" ] && cp "$ROOT/supabase/migrations/${m}.sql" "$DEST/migrations-${m}.sql" && echo "  migrations-${m}.sql"
 done
 
 # --- Frontend: Admin (src/) ---
 cp "$ROOT/src/pages/admin/ClientServicesPage.tsx" "$DEST/frontend-admin-ClientServicesPage.tsx" && echo "  frontend-admin-ClientServicesPage.tsx"
+cp "$ROOT/src/components/admin/SprintEditorModal.tsx" "$DEST/frontend-admin-SprintEditorModal.tsx" && echo "  frontend-admin-SprintEditorModal.tsx"
 cp "$ROOT/src/pages/admin/DeliveryManagementPage.tsx" "$DEST/frontend-admin-DeliveryManagementPage.tsx" && echo "  frontend-admin-DeliveryManagementPage.tsx"
 cp "$ROOT/src/components/discovery/DiscoveryAdminModal.tsx" "$DEST/frontend-admin-DiscoveryAdminModal.tsx" && echo "  frontend-admin-DiscoveryAdminModal.tsx"
 cp "$ROOT/src/components/benchmarking/admin/ServiceSelectionPanel.tsx" "$DEST/frontend-admin-ServiceSelectionPanel.tsx" && echo "  frontend-admin-ServiceSelectionPanel.tsx"

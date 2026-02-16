@@ -10,7 +10,82 @@
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
+// Canonical: supabase/functions/_shared/context-enrichment.ts
+async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string): Promise<{ promptContext: string }> {
+  const log = (msg: string) => console.log(`[ContextEnrichment] ${msg}`);
+  log(`Enriching context for client ${clientId}`);
+  interface Fin { source: string; summary: string }
+  interface Sys { source: string; stage: string; systemsCount: number; integrationScore: number | null; automationScore: number | null; painPoints: string[]; findings: Array<{ title: string; severity: string; category: string }>; manualHoursMonthly: number | null; summary: string }
+  interface Mkt { source: string; industry: string | null; subSector: string | null; belowMedian: string[]; aboveMedian: string[]; opportunities: Array<{ area: string; potential: string }>; summary: string }
+  interface VA { source: string; summary: string }
+  interface Disc { responses: Record<string, unknown>; serviceScores: Record<string, number>; summary: string }
+  const [financial, systems, market, valueAnalysis, discovery] = await Promise.all([
+    (async (): Promise<Fin | null> => {
+      try {
+        const { data: d } = await supabase.from('client_financial_data').select('*').eq('client_id', clientId).order('period_end', { ascending: false }).limit(1).maybeSingle();
+        if (d) { const rev = d.revenue ?? d.turnover; const s = rev ? `Revenue: £${(Number(rev) / 1000).toFixed(0)}k` : ''; const g = d.gross_margin != null ? `; Gross margin: ${(Number(d.gross_margin) * 100).toFixed(1)}%` : ''; return { source: 'uploaded_accounts', summary: (s + g || 'Uploaded accounts data.') + '.' }; }
+        const { data: bm } = await supabase.from('bm_assessment_responses').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (bm) return { source: 'bm_assessment', summary: bm.revenue_numeric ? `Revenue: £${(bm.revenue_numeric / 1000).toFixed(0)}k` : 'BM assessment data.' };
+        const { data: bi } = await supabase.from('service_line_assessments').select('responses').eq('client_id', clientId).in('service_line_code', ['business_intelligence', 'management_accounts']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (bi?.responses) return { source: 'bi_assessment', summary: 'Financial data from BI assessment.' };
+        return null;
+      } catch (e) { console.warn('[ContextEnrichment] Financial failed', e); return null; }
+    })(),
+    (async (): Promise<Sys | null> => {
+      try {
+        const { data: eng } = await supabase.from('sa_engagements').select('id, status').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (!eng || eng.status === 'pending') return null;
+        const out: Sys = { source: 'sa_engagement', stage: eng.status, systemsCount: 0, integrationScore: null, automationScore: null, painPoints: [], findings: [], manualHoursMonthly: null, summary: '' };
+        const { count } = await supabase.from('sa_system_inventory').select('id', { count: 'exact', head: true }).eq('engagement_id', eng.id);
+        out.systemsCount = count ?? 0;
+        const { data: rep } = await supabase.from('sa_audit_reports').select('integration_score, automation_score').eq('engagement_id', eng.id).maybeSingle();
+        if (rep) { out.integrationScore = rep.integration_score; out.automationScore = rep.automation_score; }
+        out.summary = `Systems audit: ${out.stage}; ${out.systemsCount} systems.`;
+        return out;
+      } catch (e) { console.warn('[ContextEnrichment] Systems failed', e); return null; }
+    })(),
+    (async (): Promise<Mkt | null> => {
+      try {
+        const { data: r } = await supabase.from('bm_reports').select('report_data').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!r?.report_data) return null;
+        const d = r.report_data as Record<string, unknown>;
+        const percentiles = (d.percentiles || d.rankings || {}) as Record<string, number>;
+        const below: string[] = []; const above: string[] = [];
+        for (const [k, v] of Object.entries(percentiles)) { if (typeof v === 'number') { if (v < 50) below.push(k); else above.push(k); } }
+        const opps = ((d.opportunities as any[]) || []).slice(0, 5).map((o: any) => ({ area: o.area || o.title || '', potential: o.potential || o.value || '' }));
+        return { source: 'bm_report', industry: (d.industry as string) ?? null, subSector: (d.classification as any)?.sub_sector ?? null, belowMedian: below, aboveMedian: above, opportunities: opps, summary: `Industry: ${(d.industry as string) || 'N/A'}; below median: ${below.join(', ') || 'none'}.` };
+      } catch (e) { console.warn('[ContextEnrichment] Market failed', e); return null; }
+    })(),
+    (async (): Promise<VA | null> => {
+      try {
+        const { data: bm } = await supabase.from('bm_reports').select('value_analysis').eq('client_id', clientId).not('value_analysis', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!bm?.value_analysis) return null;
+        const va = bm.value_analysis as any;
+        const s = `Exit readiness: ${va.exitReadinessScore?.overall ?? va.exitReadiness?.score ?? 'N/A'}; hidden assets: ${(va.hiddenAssets || []).length}.`;
+        return { source: 'bm_report', summary: s };
+      } catch (e) { console.warn('[ContextEnrichment] Value analysis failed', e); return null; }
+    })(),
+    (async (): Promise<Disc | null> => {
+      try {
+        const { data: eng } = await supabase.from('discovery_engagements').select('responses, service_scores').eq('client_id', clientId).in('status', ['completed', 'report_generated', 'report_delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!eng?.responses) return null;
+        return { responses: eng.responses, serviceScores: (eng.service_scores as Record<string, number>) || {}, summary: `Discovery: ${JSON.stringify(eng.service_scores || {})}` };
+      } catch (e) { console.warn('[ContextEnrichment] Discovery failed', e); return null; }
+    })()
+  ]);
+  const parts: string[] = [];
+  if (financial) parts.push(`## Financial (${financial.source})\n${financial.summary}`);
+  if (systems) parts.push(`## Systems & Operations (${systems.stage})\n${systems.summary}`);
+  if (market) parts.push(`## Market & Competitive\n${market.summary}`);
+  if (valueAnalysis) parts.push(`## Value Analysis\n${valueAnalysis.summary}`);
+  if (discovery) parts.push(`## Discovery\n${discovery.summary}`);
+  const promptContext = parts.length > 0 ? `\n\n# ENRICHMENT DATA FROM OTHER SERVICE LINES\nUse as authoritative context.\n\n${parts.join('\n\n')}` : '';
+  log(`Complete. financial=${!!financial}, systems=${!!systems}, market=${!!market}, valueAnalysis=${!!valueAnalysis}, discovery=${!!discovery}`);
+  return { promptContext };
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,8 +100,9 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { clientId, practiceId } = await req.json();
-    
+    const { clientId, practiceId, sprintNumber: bodySprintNumber } = await req.json();
+    const sprintNumber = bodySprintNumber ?? 1;
+
     if (!clientId || !practiceId) {
       throw new Error('clientId and practiceId required');
     }
@@ -36,12 +112,26 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Check for existing stage
+    async function fetchStage(stageType: string, sn: number) {
+      let q = supabase
+        .from('roadmap_stages')
+        .select('generated_content, approved_content')
+        .eq('client_id', clientId)
+        .eq('stage_type', stageType)
+        .order('version', { ascending: false })
+        .limit(1);
+      if (sn != null) q = q.eq('sprint_number', sn);
+      const { data } = await q.maybeSingle();
+      return data?.approved_content || data?.generated_content;
+    }
+
+    // Check for existing stage (same sprint)
     const { data: existingStages } = await supabase
       .from('roadmap_stages')
       .select('version')
       .eq('client_id', clientId)
       .eq('stage_type', 'sprint_plan_part2')
+      .eq('sprint_number', sprintNumber)
       .order('version', { ascending: false })
       .limit(1);
 
@@ -49,7 +139,7 @@ serve(async (req) => {
       ? existingStages[0].version + 1 
       : 1;
 
-    console.log(`Creating sprint_plan_part2 stage with version ${nextVersion}`);
+    console.log(`Creating sprint_plan_part2 stage with version ${nextVersion}, sprint ${sprintNumber}`);
 
     const { data: stage, error: stageError } = await supabase
       .from('roadmap_stages')
@@ -57,6 +147,7 @@ serve(async (req) => {
         practice_id: practiceId,
         client_id: clientId,
         stage_type: 'sprint_plan_part2',
+        sprint_number: sprintNumber,
         version: nextVersion,
         status: 'generating',
         generation_started_at: new Date().toISOString(),
@@ -67,47 +158,18 @@ serve(async (req) => {
 
     if (stageError) throw stageError;
 
-    // Fetch dependencies
-    const { data: fitStage } = await supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'fit_assessment')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: part1Stage } = await supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'sprint_plan_part1')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: visionStage } = await supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'five_year_vision')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const { data: shiftStage } = await supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'six_month_shift')
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const fitProfile = fitStage?.approved_content || fitStage?.generated_content || {};
-    const sprintPart1 = part1Stage?.approved_content || part1Stage?.generated_content;
-    const vision = visionStage?.approved_content || visionStage?.generated_content;
-    const shift = shiftStage?.approved_content || shiftStage?.generated_content;
+    // Fetch dependencies: part1 must be same sprint; vision/shift/fit for renewal use updated stages
+    const fitProfile = sprintNumber > 1
+      ? (await fetchStage('life_design_refresh', sprintNumber)) || {}
+      : (await fetchStage('fit_assessment', 1)) || {};
+    const sprintPart1 = await fetchStage('sprint_plan_part1', sprintNumber);
+    const vision = sprintNumber > 1
+      ? await fetchStage('vision_update', sprintNumber)
+      : await fetchStage('five_year_vision', 1);
+    const shift = sprintNumber > 1
+      ? await fetchStage('shift_update', sprintNumber)
+      : await fetchStage('six_month_shift', 1);
+    const lifeDesignProfile = await fetchStage('life_design_profile', 1);
 
     if (!sprintPart1) {
       throw new Error('Sprint part 1 not found - cannot generate part 2');
@@ -122,6 +184,11 @@ serve(async (req) => {
 
     const part1Data = assessments?.find(a => a.assessment_type === 'part1')?.responses || {};
     const part2Data = assessments?.find(a => a.assessment_type === 'part2')?.responses || {};
+    const enoughNumber = part2Data?.lb_enough_number ?? null;
+    const quarterlyLifePriority = part2Data?.lb_quarter_priority ?? null;
+    const biggestLifeBlocker = part2Data?.lb_biggest_blocker ?? null;
+    const monthOffVision = part2Data?.lb_month_off ?? null;
+    const externalPerspective = part2Data?.lb_external_perspective ?? null;
 
     const { data: client } = await supabase
       .from('practice_members')
@@ -129,11 +196,23 @@ serve(async (req) => {
       .eq('id', clientId)
       .single();
 
-    const context = buildSprintContext(part1Data, part2Data, client, fitProfile, vision, shift, sprintPart1);
+    const context = buildSprintContext(part1Data, part2Data, client, fitProfile, vision, shift, sprintPart1, lifeDesignProfile, enoughNumber, quarterlyLifePriority, biggestLifeBlocker, monthOffVision, externalPerspective);
+
+    let enrichedContext: Awaited<ReturnType<typeof enrichRoadmapContext>> | null = null;
+    try {
+      enrichedContext = await enrichRoadmapContext(supabase, clientId);
+      if (enrichedContext?.hasEnrichment) console.log('[generate-sprint-plan-part2] Cross-service enrichment available');
+    } catch (err) {
+      console.warn('[generate-sprint-plan-part2] Enrichment not available:', err);
+    }
+    const { data: assessmentMeta } = await supabase.from('client_assessments').select('metadata').eq('client_id', clientId).eq('assessment_type', 'part2').maybeSingle();
+    if (assessmentMeta?.metadata?.adaptive) {
+      console.log('[generate-sprint-plan-part2] Adaptive assessment — skipped sections:', assessmentMeta.metadata.skippedSections?.map((s: any) => s.sectionId).join(', '));
+    }
 
     console.log(`Generating weeks 7-12 for ${context.userName}...`);
 
-    const sprintPart2 = await generateSprintPart2(context);
+    const sprintPart2 = await generateSprintPart2(context, enrichedContext?.promptContext || '');
     const completeSprint = mergeSprints(sprintPart1, sprintPart2);
 
     const duration = Date.now() - startTime;
@@ -215,37 +294,32 @@ serve(async (req) => {
   }
 });
 
-function buildSprintContext(part1: any, part2: any, client: any, fitProfile: any, vision: any, shift: any, sprintPart1: any) {
+function buildSprintContext(part1: any, part2: any, client: any, fitProfile: any, vision: any, shift: any, sprintPart1: any, lifeDesignProfile: any = null, enoughNumber: number | null = null, quarterlyLifePriority: string | null = null, _biggestLifeBlocker?: string | null, _monthOffVision?: string | null, _externalPerspective?: string | null) {
   return {
     userName: client?.name?.split(' ')[0] || part1.full_name?.split(' ')[0] || 'there',
     companyName: client?.client_company || part2.trading_name || part1.company_name || 'your business',
-    
-    // From fit profile
     northStar: fitProfile.northStar || vision?.northStar || '',
     archetype: fitProfile.archetype || 'balanced_achiever',
-    
-    // From vision
     year1Milestone: vision?.yearMilestones?.year1 || {},
     tuesdayTest: part1.tuesday_test || vision?.visualisation || '',
-    
-    // From shift
     shiftMilestones: shift?.keyMilestones || [],
     tuesdayEvolutionShift: shift?.tuesdayEvolution || {},
-    
-    // Sprint Part 1 context
     sprintTheme: sprintPart1.sprintTheme,
     sprintPromise: sprintPart1.sprintPromise,
     sprintGoals: sprintPart1.sprintGoals,
     phases: sprintPart1.phases,
     weeks1to6: sprintPart1.weeks,
     tuesdayEvolutionPart1: sprintPart1.tuesdayEvolution,
-    
-    // Their context
     dangerZone: part1.danger_zone || '',
     relationshipMirror: part1.relationship_mirror || '',
     commitmentHours: part1.commitment_hours || '10-15 hours',
     teamSize: part2.team_size || part2.staff_count || 'small team',
     toolsUsed: part2.tools_used || part2.current_tools || [],
+    lifeDesignProfile,
+    lifeCommitments: lifeDesignProfile?.lifeCommitments || [],
+    enoughNumber,
+    quarterlyLifePriority,
+    targetWeeklyHours: lifeDesignProfile?.targetWeeklyHours ?? part2?.target_working_hours ?? 35,
   };
 }
 
@@ -270,11 +344,11 @@ function mergeSprints(part1: any, part2: any): any {
   };
 }
 
-async function generateSprintPart2(ctx: any): Promise<any> {
+async function generateSprintPart2(ctx: any, enrichmentBlock = ''): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
   
-  const prompt = buildSprintPrompt(ctx);
+  const prompt = buildSprintPrompt(ctx) + enrichmentBlock;
 
   console.log('Making OpenRouter API request for sprint part 2...');
   console.log(`Prompt length: ${prompt.length} characters`);
@@ -350,11 +424,38 @@ British English only (organise, colour, £). Return ONLY valid JSON. Ensure all 
   
   let jsonString = cleaned.substring(start, end + 1);
   
+  let parsed: any;
   try {
-    return JSON.parse(jsonString);
+    parsed = JSON.parse(jsonString);
   } catch (parseError) {
     console.warn('Initial JSON parse failed, attempting advanced repair...');
-    return repairComplexJsonPart2(jsonString);
+    parsed = repairComplexJsonPart2(jsonString);
+  }
+  injectLifeTasksIfMissing(parsed, ctx?.lifeDesignProfile);
+  return parsed;
+}
+
+function injectLifeTasksIfMissing(generated: any, lifeDesignProfile: any) {
+  if (!lifeDesignProfile?.lifeCommitments?.length || !Array.isArray(generated.weeks)) return;
+  for (const week of generated.weeks) {
+    const tasks = week.tasks || [];
+    const hasLifeTask = tasks.some((t: any) => t.category?.startsWith?.('life_'));
+    if (hasLifeTask) continue;
+    const recurring = lifeDesignProfile.lifeCommitments.find((c: any) => c.frequency === 'weekly' || c.frequency === 'daily');
+    if (!recurring) continue;
+    const wNum = week.weekNumber ?? 0;
+    week.tasks = week.tasks || [];
+    week.tasks.push({
+      id: `w${wNum}_life`,
+      title: recurring.commitment,
+      description: `This is your life commitment. ${recurring.measurable || ''}`,
+      category: `life_${recurring.category}`,
+      whyThisMatters: "You identified this as essential to the life you're building.",
+      timeEstimate: '1 hour',
+      deliverable: recurring.measurable || 'Honour this commitment.',
+      celebrationMoment: 'Notice how it feels to honour this commitment to yourself.'
+    });
+    console.warn(`[Sprint Part 2] Week ${wNum} missing life task — injected from commitments`);
   }
 }
 
@@ -631,6 +732,17 @@ Emotional Shift: ${ctx.year1Milestone?.emotionalShift || 'From trapped to free'}
 Time: ${ctx.commitmentHours}
 Team: ${ctx.teamSize}
 Tools: ${ctx.toolsUsed?.join(', ') || 'Not specified'}
+${(ctx.lifeCommitments?.length > 0) ? `
+## LIFE DESIGN THREAD — NON-NEGOTIABLE
+
+Life commitments for ${ctx.userName} (must appear as tasks in weeks 7-12):
+${(ctx.lifeCommitments || []).map((c: any) => `- ${c.commitment} (${c.category}, ${c.frequency})`).join('\n')}
+
+${ctx.quarterlyLifePriority ? `QUARTERLY LIFE PRIORITY: "${ctx.quarterlyLifePriority}"\n` : ''}
+${ctx.enoughNumber ? `"ENOUGH" INCOME: £${ctx.enoughNumber}/month.\n` : ''}
+TARGET WEEKLY HOURS: ${ctx.targetWeeklyHours}
+Every week MUST include at least 1 life task (category: life_time, life_relationship, life_health, life_experience, life_identity). If over hours budget, cut BUSINESS tasks first, never life tasks.
+` : ''}
 
 ---
 
@@ -676,6 +788,7 @@ Return this JSON:
           "title": "Specific action title",
           "description": "2-3 sentences, step by step",
           "whyThisMatters": "Connection to their North Star or Year 1 goal",
+          "category": "life_time | life_relationship | life_health | life_experience | life_identity | financial | operations | team | marketing | product | systems | strategy",
           "milestone": "Which 6-month milestone this serves",
           "tools": "Specific tools",
           "timeEstimate": "2 hours",

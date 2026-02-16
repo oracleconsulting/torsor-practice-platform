@@ -69,6 +69,8 @@ import { TestClientPanel } from '../../components/admin/TestClientPanel';
 // Accounts Upload for Benchmarking
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
+import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
+import SprintEditorModal from '../../components/admin/SprintEditorModal';
 
 
 interface ClientServicesPageProps {
@@ -205,6 +207,8 @@ interface StaffMember {
   email: string;
 }
 
+const GA_DASHBOARD_STORAGE_KEY = 'gaDashboardSelected';
+
 export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPageProps) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
@@ -214,6 +218,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [pendingGAClientId, setPendingGAClientId] = useState<string | null>(null);
   const [assigningOwner, setAssigningOwner] = useState<string | null>(null);
   
   // Invitation modal state
@@ -402,6 +407,31 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
       setSavingService(false);
     }
   };
+
+  // When navigating from GA Dashboard: open Goal Alignment and preselect client
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(GA_DASHBOARD_STORAGE_KEY);
+      if (!raw) return;
+      const { clientId, serviceLineCode } = JSON.parse(raw) as { clientId?: string; serviceLineCode?: string };
+      sessionStorage.removeItem(GA_DASHBOARD_STORAGE_KEY);
+      if (clientId) {
+        setSelectedServiceLine(serviceLineCode || '365_method');
+        setPendingGAClientId(clientId);
+      }
+    } catch (_) {
+      sessionStorage.removeItem(GA_DASHBOARD_STORAGE_KEY);
+    }
+  }, []);
+
+  // Once clients are loaded and we have a pending GA client, open their detail modal
+  useEffect(() => {
+    if (!pendingGAClientId || clients.length === 0) return;
+    if (clients.some((c) => c.id === pendingGAClientId)) {
+      setSelectedClient(pendingGAClientId);
+      setPendingGAClientId(null);
+    }
+  }, [clients, pendingGAClientId]);
 
   // Fetch clients when service line is selected
   useEffect(() => {
@@ -7196,6 +7226,15 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [editingTask, setEditingTask] = useState<{weekNumber: number, taskId: string, original: any} | null>(null);
   const [editedTask, setEditedTask] = useState<{title: string, description: string}>({ title: '', description: '' });
   const [savingTask, setSavingTask] = useState(false);
+  const [showSprintEditor, setShowSprintEditor] = useState(false);
+  const [sprintStageRaw, setSprintStageRaw] = useState<any>(null);
+
+  // Goal Alignment tier (365_method only)
+  const [clientTier, setClientTier] = useState<string | null>(null);
+  const [savingTier, setSavingTier] = useState(false);
+  useEffect(() => {
+    if (client?.gaEnrollment?.tier_name) setClientTier(client.gaEnrollment.tier_name);
+  }, [client?.gaEnrollment?.tier_name]);
 
   useEffect(() => {
     fetchClientDetail();
@@ -7237,6 +7276,12 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
           }
         });
 
+        // Find the raw sprint stage for the editor
+        const rawSprintStage = stagesData?.find((s: any) =>
+          s.stage_type === 'sprint_plan_part2' || s.stage_type === 'sprint_plan'
+        );
+        setSprintStageRaw(rawSprintStage || null);
+
         // Build roadmap data structure from stages
         const roadmapData: any = {};
         
@@ -7275,6 +7320,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
           status: 'generated' // Staged data is generated
         };
       } else {
+        setSprintStageRaw(null);
         // Fallback to old client_roadmaps table
         console.log('[fetchClientDetail] No staged data, falling back to client_roadmaps');
         const { data: legacyRoadmap } = await supabase
@@ -7532,6 +7578,20 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         setIsMAReportShared(false);
       }
       
+      let gaEnrollment: any = null;
+      if (serviceLineCode === '365_method') {
+        const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+        if (sl?.id) {
+          const { data: enrollmentRow } = await supabase
+            .from('client_service_lines')
+            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status')
+            .eq('client_id', clientId)
+            .eq('service_line_id', sl.id)
+            .maybeSingle();
+          gaEnrollment = enrollmentRow;
+        }
+      }
+
       setClient({
         ...clientData,
         roadmap: roadmap ? {
@@ -7542,6 +7602,8 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
           status: roadmap.status || 'pending_review',
           needsRegeneration: roadmapNeedsRegeneration
         } : null,
+        roadmapStages: stagesData ?? [],
+        gaEnrollment: gaEnrollment ?? null,
         assessments: allAssessments,
         context: context || [],
         documents: documents,
@@ -7757,6 +7819,26 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
       alert('Failed to generate value analysis. Please try again.');
     } finally {
       setGeneratingValueAnalysis(false);
+    }
+  };
+
+  const handleTierChange = async (tier: string) => {
+    if (!client?.gaEnrollment?.service_line_id) return;
+    setSavingTier(true);
+    try {
+      const maxSprints = tier === 'Lite' ? 1 : 4;
+      await supabase
+        .from('client_service_lines')
+        .update({ tier_name: tier, max_sprints: maxSprints })
+        .eq('client_id', clientId)
+        .eq('service_line_id', client.gaEnrollment.service_line_id);
+      setClientTier(tier);
+      await fetchClientDetail();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to update tier.');
+    } finally {
+      setSavingTier(false);
     }
   };
 
@@ -8205,6 +8287,47 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* OVERVIEW TAB */}
               {activeTab === 'overview' && (
                 <div className="space-y-6">
+                  {serviceLineCode === '365_method' && (
+                    <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
+                      <p className="text-sm font-medium text-slate-700 mb-3">Goal Alignment Tier</p>
+                      <div className="flex gap-3 flex-wrap">
+                        {[
+                          { name: 'Lite', price: '£1,500/yr', sprints: '1 sprint', desc: 'Survey + plan' },
+                          { name: 'Growth', price: '£4,500/yr', sprints: '4 sprints', desc: 'Quarterly reviews' },
+                          { name: 'Partner', price: '£9,000/yr', sprints: '4 sprints + advisor edit', desc: 'Strategy day + BSG' },
+                        ].map((tier) => (
+                          <button
+                            key={tier.name}
+                            type="button"
+                            onClick={() => handleTierChange(tier.name)}
+                            disabled={savingTier}
+                            className={`flex-1 min-w-[140px] p-3 rounded-lg border-2 text-left transition-colors ${
+                              (clientTier || client?.gaEnrollment?.tier_name) === tier.name
+                                ? 'border-indigo-500 bg-indigo-50'
+                                : 'border-slate-200 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                                (clientTier || client?.gaEnrollment?.tier_name) === tier.name ? 'border-indigo-500' : 'border-slate-300'
+                              }`}>
+                                {(clientTier || client?.gaEnrollment?.tier_name) === tier.name && <div className="w-2 h-2 rounded-full bg-indigo-500" />}
+                              </div>
+                              <span className="font-medium text-slate-900">{tier.name}</span>
+                            </div>
+                            <p className="text-sm text-slate-500 mt-1 ml-6">{tier.price}</p>
+                            <p className="text-xs text-slate-400 ml-6">{tier.sprints}</p>
+                          </button>
+                        ))}
+                      </div>
+                      {client?.gaEnrollment && (
+                        <p className="text-xs text-slate-400 mt-2">
+                          Current: Sprint {client.gaEnrollment.current_sprint_number ?? 1} of {client.gaEnrollment.max_sprints ?? 1}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {client?.roadmap?.roadmap_data?.fiveYearVision?.northStar && (
                     <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl p-6 text-white">
                       <p className="text-sm opacity-80 mb-2">North Star</p>
@@ -10422,21 +10545,226 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         </div>
                       )}
 
-                      {client.roadmap.roadmap_data?.sprint?.weeks && (
-                        <div>
-                          <h3 className="font-semibold text-gray-900 mb-3">12-Week Sprint Overview</h3>
-                          <div className="grid grid-cols-4 gap-3">
-                            {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
-                              <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-3 text-center">
-                                <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 inline-flex items-center justify-center font-medium text-sm mb-2">
-                                  {week.weekNumber}
-                                </span>
-                                <p className="text-xs text-gray-600 line-clamp-2">{week.theme}</p>
-                              </div>
-                            ))}
+                      {client.roadmap.roadmap_data?.sprint?.weeks && (() => {
+                        const currentSprintNum = client.gaEnrollment?.current_sprint_number ?? 1;
+                        const sprintStage = (client.roadmapStages || []).find(
+                          (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === currentSprintNum
+                        );
+                        return (
+                          <div>
+                            <div className="flex items-center justify-between mb-3">
+                              <h3 className="font-semibold text-gray-900">12-Week Sprint Overview</h3>
+                              {sprintStage && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowSprintEditor(true)}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                >
+                                  <Settings className="w-4 h-4" />
+                                  {sprintStage.status === 'generated' ? 'Review & Edit' : 'Edit Sprint'}
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-4 gap-3">
+                              {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
+                                <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-3 text-center">
+                                  <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 inline-flex items-center justify-center font-medium text-sm mb-2">
+                                    {week.weekNumber}
+                                  </span>
+                                  <p className="text-xs text-gray-600 line-clamp-2">{week.theme}</p>
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
+
+                      {/* Sprint Summary (Phase 3 — generated when all 12 weeks resolved) */}
+                      {(client as any).roadmapStages && (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary')
+                        ? (() => {
+                            const sprintSummaryStage = (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary');
+                            const content = sprintSummaryStage?.approved_content || sprintSummaryStage?.generated_content;
+                            return (
+                              <div className="mt-6 pt-6 border-t border-gray-200">
+                                <div className="flex items-center justify-between mb-4">
+                                  <h3 className="text-lg font-semibold text-gray-900">Sprint Summary</h3>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
+                                      sprintSummaryStage.status === 'approved' || sprintSummaryStage.status === 'published'
+                                        ? 'bg-emerald-100 text-emerald-700'
+                                        : sprintSummaryStage.status === 'generated'
+                                          ? 'bg-amber-100 text-amber-700'
+                                          : 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {sprintSummaryStage.status}
+                                    </span>
+                                    {sprintSummaryStage.status === 'generated' && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            try {
+                                              const { error } = await supabase
+                                                .from('roadmap_stages')
+                                                .update({
+                                                  status: 'approved',
+                                                  approved_content: sprintSummaryStage.generated_content,
+                                                  approved_at: new Date().toISOString(),
+                                                })
+                                                .eq('id', sprintSummaryStage.id);
+                                              if (error) throw error;
+                                              await fetchClientDetail();
+                                            } catch (e) {
+                                              console.error(e);
+                                              alert('Failed to approve. Please try again.');
+                                            }
+                                          }}
+                                          className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                                        >
+                                          Approve & Publish
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            if (!confirm('Regenerate Sprint Summary? This will create a new version.')) return;
+                                            try {
+                                              await supabase.functions.invoke('generate-sprint-summary', {
+                                                body: {
+                                                  clientId: clientId,
+                                                  practiceId: client?.practice_id,
+                                                  sprintNumber: 1,
+                                                  action: 'regenerate',
+                                                },
+                                              });
+                                              await fetchClientDetail();
+                                            } catch (e) {
+                                              console.error(e);
+                                              alert('Failed to trigger regeneration.');
+                                            }
+                                          }}
+                                          className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                        >
+                                          Regenerate
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 max-h-[400px] overflow-y-auto">
+                                  <SprintSummaryAdminPreview content={content} />
+                                </div>
+                              </div>
+                            );
+                          })()
+                        : null}
+
+                      {/* Sprint Renewal (Phase 4) — only for 365_method */}
+                      {serviceLineCode === '365_method' && client.gaEnrollment
+                        ? (() => {
+                        const enrollment = client.gaEnrollment;
+                        const currentSprint = enrollment.current_sprint_number ?? 1;
+                        const maxSprints = enrollment.max_sprints ?? 1;
+                        const renewalStatus = enrollment.renewal_status || 'not_started';
+                        const tierName = enrollment.tier_name || 'Growth';
+                        const summaryStage = (client.roadmapStages || []).find(
+                          (s: any) => s.stage_type === 'sprint_summary' && (s.sprint_number ?? 1) === currentSprint
+                        );
+                        const summaryApproved = summaryStage && ['approved', 'published'].includes(summaryStage.status);
+                        const isEligible = summaryApproved && currentSprint < maxSprints;
+
+                        if (!isEligible && renewalStatus === 'not_started') return null;
+
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900">Sprint Renewal</h3>
+                                <p className="text-sm text-gray-500">
+                                  Sprint {currentSprint} of {maxSprints} ({tierName} tier)
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {renewalStatus === 'not_started' && isEligible && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'life_check_pending' })
+                                          .eq('client_id', clientId)
+                                          .eq('service_line_id', enrollment.service_line_id);
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to start renewal.');
+                                      }
+                                    }}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                  >
+                                    Start Sprint {currentSprint + 1} Renewal
+                                  </button>
+                                )}
+                                {renewalStatus === 'life_check_complete' && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const nextSprint = currentSprint + 1;
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'generating', current_sprint_number: nextSprint })
+                                          .eq('client_id', clientId)
+                                          .eq('service_line_id', enrollment.service_line_id);
+                                        await supabase.from('generation_queue').insert({
+                                          practice_id: client.practice_id,
+                                          client_id: clientId,
+                                          stage_type: 'life_design_refresh',
+                                          sprint_number: nextSprint,
+                                          status: 'pending',
+                                        });
+                                        await supabase.functions.invoke('roadmap-orchestrator', { body: { action: 'process' } });
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to trigger generation.');
+                                      }
+                                    }}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                  >
+                                    Generate Sprint {currentSprint + 1}
+                                  </button>
+                                )}
+                                {renewalStatus === 'review_pending' && tierName === 'Partner' && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'published' })
+                                          .eq('client_id', clientId)
+                                          .eq('service_line_id', enrollment.service_line_id);
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to publish.');
+                                      }
+                                    }}
+                                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                                  >
+                                    Approve & Publish Sprint {currentSprint}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Status: <span className="font-medium capitalize">{renewalStatus.replace(/_/g, ' ')}</span>
+                            </div>
+                          </div>
+                        );
+                          })()
+                        : null}
                     </>
                   ) : (
                     <div className="text-center py-12">
@@ -10444,6 +10772,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       <p className="text-gray-500">No roadmap generated yet</p>
                     </div>
                   )}
+
                 </div>
               )}
 
@@ -10788,15 +11117,44 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* SPRINT TAB - WITH EDITING */}
               {activeTab === 'sprint' && (
                 <div className="space-y-6">
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
-                      <p className="text-amber-700 text-sm mt-1">
-                        Click on any task to edit it. Changes are automatically logged to the knowledge base for future reference.
-                      </p>
-                    </div>
-                  </div>
+                  {(() => {
+                    const sprintData = client?.roadmap?.roadmap_data?.sprint;
+                    const sprintStageFromStages = (client?.roadmapStages || []).find(
+                      (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === (client?.gaEnrollment?.current_sprint_number ?? 1)
+                    );
+                    return (
+                      <>
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <p className="text-sm text-slate-500">
+                              {sprintData?.weeks?.length || 0} weeks •{' '}
+                              {sprintData?.weeks?.reduce((s: number, w: any) => s + (w.tasks?.length || 0), 0) || 0} tasks
+                            </p>
+                          </div>
+                          {sprintStageFromStages ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowSprintEditor(true)}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                            >
+                              <Settings className="w-4 h-4" />
+                              Open Sprint Editor
+                            </button>
+                          ) : (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
+                                <p className="text-amber-700 text-sm mt-1">
+                                  Click on any task to edit it. Changes are logged to the knowledge base. For full editing use the Sprint Editor when a sprint stage is available.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
 
                   {client?.roadmap?.roadmap_data?.sprint?.weeks ? (
                     <div className="space-y-4">
@@ -10953,6 +11311,24 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* Sprint Editor Modal — outside tab content so it opens from any tab */}
+              {showSprintEditor && sprintStageRaw && (
+                <SprintEditorModal
+                  isOpen={showSprintEditor}
+                  onClose={() => setShowSprintEditor(false)}
+                  onSave={() => { fetchClientDetail(); }}
+                  clientId={client?.id || clientId || ''}
+                  practiceId={client?.practice_id || ''}
+                  stageId={sprintStageRaw.id}
+                  sprintNumber={sprintStageRaw.sprint_number || 1}
+                  generatedContent={sprintStageRaw.generated_content}
+                  approvedContent={sprintStageRaw.approved_content}
+                  currentStatus={sprintStageRaw.status}
+                  clientName={client?.name || ''}
+                  tierName={clientTier || client?.gaEnrollment?.tier_name || 'Growth'}
+                />
               )}
             </>
           )}

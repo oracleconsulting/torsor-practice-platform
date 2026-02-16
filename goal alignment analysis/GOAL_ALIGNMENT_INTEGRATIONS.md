@@ -100,6 +100,7 @@
 
 - **Layout / App:** Routes for `/roadmap` and discovery report; discovery report links to “goal_alignment” for navigation.
 - **UnifiedDashboardPage:** Can show links or cards for both Discovery and Roadmap (Goal Alignment).
+- **Tier-based visibility:** **client_service_lines.tier_name** (Lite/Growth/Partner) is used in client portal **useAnalysis.ts**: for **Partner** tier, sprint stages are shown only when `status = 'published'`; other tiers see generated/approved content. Admin sets tier in ClientDetailModal Overview (365_method); **Sprint Editor** (SprintEditorModal) edits and publishes sprint content and syncs **client_tasks** by **sprint_number**.
 
 ### 5.4 Value Analysis
 

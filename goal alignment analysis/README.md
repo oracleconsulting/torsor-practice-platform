@@ -16,7 +16,7 @@ This folder holds **direct copies** of all live files related to the **Goal Alig
 - **Edge functions:** Roadmap pipeline (fit, vision, shift, sprint part1/2, value_analysis, orchestrator, notify), plus Discovery/BM functions that contain material Goal Alignment logic.
 - **Shared:** service-scorer-v2, service-scorer, service-registry.
 - **Migrations:** Roadmap, 365, goal_alignment, generation_queue, service catalogue, RLS, and related.
-- **Frontend:** Admin (ClientServicesPage, DeliveryManagementPage, DiscoveryAdminModal, ServiceSelectionPanel, issue-service-mapping, advisory-services-full, service-catalog, ServiceConfigPage); client portal (RoadmapPage, DiscoveryReportPage, DiscoveryReportView, Layout, App, UnifiedDashboardPage, hooks, config); platform (RoadmapReviewPage, ClientDetailPage).
+- **Frontend:** Admin (ClientServicesPage, **SprintEditorModal**, DeliveryManagementPage, DiscoveryAdminModal, ServiceSelectionPanel, issue-service-mapping, advisory-services-full, service-catalog, ServiceConfigPage); client portal (RoadmapPage, DiscoveryReportPage, DiscoveryReportView, Layout, App, UnifiedDashboardPage, hooks, config); platform (RoadmapReviewPage, ClientDetailPage). Tier (Lite/Growth/Partner) on client_service_lines; Partner clients see sprint only when published.
 - **Packages:** LLM roadmap/value-analysis prompts and generator; shared types (roadmap, client).
 - **Docs:** 365 alignment overviews, staged roadmap architecture, service lines architecture, roadmap-to-10, narrative design, client portal spec, discovery mapping.
 
@@ -28,6 +28,7 @@ File names in this folder use a flat naming convention with a `-copy` suffix (e.
 |----------|---------|
 | **GOAL_ALIGNMENT_ARCHITECTURE_AND_WORKFLOWS.md** | How Goal Alignment works: data model, pipeline, edge functions, admin/client UI, workflows, file reference. |
 | **GOAL_ALIGNMENT_INTEGRATIONS.md** | How Goal Alignment integrates with Discovery, Benchmarking, BI, Systems Audit, and shared platform. |
+| **GOAL_ALIGNMENT_FILES_INDEX.md** | Index of all copied files and their live paths. |
 | **README.md** (this file) | How to use this folder and sync. |
 
 ## Sync script

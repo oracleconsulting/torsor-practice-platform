@@ -675,157 +675,19 @@ export default function RoadmapPage() {
         )}
 
         {/* ================================================================
-            TAB: 12-WEEK SPRINT
+            TAB: 12-WEEK SPRINT — Redirect to Sprint Command Centre
         ================================================================ */}
         {activeTab === 'sprint' && (
-          <div className="space-y-6">
-            {/* Sprint Header */}
-            {sprint && (
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl overflow-hidden">
-                <div className="p-8 text-white">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Flag className="w-6 h-6" />
-                    <h2 className="text-xl font-bold">{sprint.sprintTheme || '90 Days to Transform'}</h2>
-                  </div>
-                  
-                  {/* Format sprint promise into readable sections */}
-                  <div className="space-y-4">
-                    {sprint.sprintPromise && (
-                      <div className="text-lg opacity-95 leading-relaxed">
-                        {/* Split on common sentence patterns for better readability */}
-                        {String(sprint.sprintPromise).split(/(?<=[.!?])\s+(?=[A-Z'"I])/).slice(0, 3).map((sentence: string, i: number) => (
-                          <p key={i} className={i > 0 ? 'mt-3' : ''}>{sentence.trim()}</p>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* What to Solve section - extract from promise if present */}
-                {sprint.sprintPromise && sprint.sprintPromise.toLowerCase().includes('solve') && (
-                  <div className="bg-white/10 p-6 border-t border-white/20">
-                    <h3 className="text-white/80 text-sm font-semibold uppercase tracking-wide mb-3">Key Challenge to Solve</h3>
-                    <p className="text-white opacity-90">
-                      {/* Extract the "solve" sentence if present */}
-                      {String(sprint.sprintPromise).split(/[.!?]+/).find((s: string) => 
-                        s.toLowerCase().includes('solve') || s.toLowerCase().includes('finding staff')
-                      )?.trim() || ''}
-                    </p>
-                  </div>
-                )}
-
-                {/* Progress Toward section */}
-                {(sprint.sprintGoals?.[0] || roadmapData?.summary?.northStar) && (
-                  <div className="bg-indigo-800/50 p-6 border-t border-white/10">
-                    <h3 className="text-indigo-200 text-sm font-semibold uppercase tracking-wide mb-2">Progress Toward</h3>
-                    <p className="text-white font-medium">{sprint.sprintGoals?.[0] || roadmapData?.summary?.northStar}</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Sprint Goals as Pills */}
-            {sprint?.sprintGoals && sprint.sprintGoals.length > 1 && (
-              <div className="bg-white rounded-xl border border-slate-200 p-6">
-                <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-4">90-Day Goals</h3>
-                <div className="flex flex-wrap gap-3">
-                  {sprint.sprintGoals.map((goal: string, i: number) => (
-                    <div key={i} className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg">
-                      <Target className="w-4 h-4" />
-                      <span className="text-sm font-medium">{goal}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Summary Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                    <Calendar className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Duration</p>
-                    <p className="text-xl font-bold text-slate-900">12 Weeks</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Tasks</p>
-                    <p className="text-xl font-bold text-slate-900">
-                      {tasks.filter(t => t.status === 'completed').length}/{tasks.length || roadmapData?.weeks?.reduce((sum: number, w: any) => sum + (w.tasks?.length || 0), 0) || sprint?.weeks?.reduce((sum: number, w: any) => sum + (w.tasks?.length || 0), 0) || 0}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                    <Target className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Value Score</p>
-                    <p className="text-xl font-bold text-slate-900">{valueAnalysis?.overallScore || 0}/100</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-slate-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                    <TrendingUp className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-slate-500">Opportunity</p>
-                    <p className="text-xl font-bold text-slate-900">£{((valueAnalysis?.totalOpportunity || 0) / 1000).toFixed(0)}k</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Weekly Timeline */}
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <div className="p-6 border-b border-slate-200">
-                <h3 className="font-bold text-slate-900">Weekly Breakdown</h3>
-                <p className="text-sm text-slate-500 mt-1">Click on a week to see tasks</p>
-              </div>
-
-              <div className="divide-y divide-slate-100">
-                {(sprint?.weeks || roadmapData?.weeks || []).map((week: any) => (
-                  <WeekCard
-                    key={week.weekNumber || week.week}
-                    week={week}
-                    tasks={tasks.filter(t => t.week_number === (week.weekNumber || week.week))}
-                    isActive={activeWeek === (week.weekNumber || week.week)}
-                    onToggle={() => setActiveWeek(activeWeek === (week.weekNumber || week.week) ? null : (week.weekNumber || week.week))}
-                    onTaskStatusChange={handleTaskStatusChange}
-                    clientId={clientSession?.clientId}
-                    practiceId={clientSession?.practiceId}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Tuesday Evolution */}
-            {sprint?.tuesdayEvolution && (
-              <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
-                <h3 className="font-bold text-indigo-900 mb-4">Your Tuesday Evolution</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {Object.entries(sprint.tuesdayEvolution).map(([week, description]) => (
-                    <div key={week} className="text-center">
-                      <p className="text-xs text-indigo-600 uppercase tracking-wide">{week.replace('week', 'Week ')}</p>
-                      <p className="text-sm text-indigo-800 mt-1">{description as string}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="text-center py-12">
+            <Flag className="w-12 h-12 text-indigo-500 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Sprint Command Centre</h2>
+            <p className="text-slate-600 mb-6">Your weekly tasks and progress tracking have moved to a dedicated page.</p>
+            <Link
+              to="/tasks"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors"
+            >
+              Go to Sprint <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         )}
 
