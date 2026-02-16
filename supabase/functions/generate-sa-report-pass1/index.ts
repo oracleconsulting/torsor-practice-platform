@@ -84,6 +84,16 @@ Change appetite: ${discovery.change_appetite}
 Fears: ${(discovery.systems_fears || []).join(', ')}
 Champion: ${discovery.internal_champion}
 
+TARGET STATE (where they want their operations to get to):
+- Desired outcomes (top 3): ${(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
+- Monday morning vision: "${discovery.monday_morning_vision || 'Not specified'}"
+- Time freedom priority: "${discovery.time_freedom_priority || 'Not specified'}"
+- Magic fix (from Focus Areas): "${discovery.magic_process_fix || 'Not specified'}"
+
+IMPORTANT: These are the client's OPERATIONAL GOALS. Every finding should show what it blocks.
+Every recommendation should show which of these goals it advances. The report is triage —
+stop the bleeding — but the treatment plan must pull toward THEIR specific target state.
+
 ═══════════════════════════════════════════════════════════════════════════════
 SYSTEM INVENTORY (${systems.length} systems)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -103,6 +113,7 @@ YOUR TASK
 Analyze the data and return a JSON object with this structure:
 
 {
+  "uniquenessBrief": "3-4 sentences: what makes THIS client's situation different from a generic business at the same size? What would surprise a consultant? What's the emotional core — not just the technical gap? This brief informs the tone of everything below.",
   "facts": {
     "companyName": "${clientName}",
     "teamSize": number,
@@ -116,6 +127,10 @@ Analyze the data and return a JSON object with this structure:
     "expensiveMistake": "EXACT verbatim quote",
     "magicFix": "EXACT verbatim quote - do not paraphrase",
     "fears": ["fear1", "fear2"],
+    "desiredOutcomes": ["exact text of outcome 1", "outcome 2", "outcome 3"],
+    "mondayMorningVision": "EXACT verbatim quote — do not paraphrase",
+    "timeFreedomPriority": "What they said they'd do with reclaimed time",
+    "aspirationGap": "2-3 sentences: the specific gap between where they ARE and where they WANT TO BE. Name the systems, hours, and capabilities missing. This is the bridge the recommendations must build.",
     
     "systems": [
       {
@@ -186,7 +201,8 @@ Analyze the data and return a JSON object with this structure:
       "hoursWastedWeekly": number,
       "annualCostImpact": number,
       "scalabilityImpact": "What happens at 1.5x growth",
-      "recommendation": "Specific fix"
+      "recommendation": "Specific fix",
+      "blocksGoal": "Which of their desired_outcomes this finding directly prevents — use their exact text. If it blocks monday_morning_vision, say what part."
     }
   ],
   
@@ -215,7 +231,8 @@ Analyze the data and return a JSON object with this structure:
       "hoursSavedWeekly": number,
       "annualBenefit": number,
       "paybackMonths": number,
-      "freedomUnlocked": "Connects to their magic fix verbatim"
+      "freedomUnlocked": "How this connects to their monday_morning_vision — use THEIR specific language. What becomes visible, automatic, or trustworthy?",
+      "goalsAdvanced": ["Which desired_outcomes this advances — use EXACT option text they selected"]
     }
   ],
   
@@ -326,6 +343,15 @@ ADMIN GUIDANCE RULES:
 17. Flag any risks: change appetite concerns, budget constraints, key person dependencies
 18. Client presentation must be jargon-free and focus on outcomes, not process
 
+SPECIFICITY RULES (non-negotiable):
+19. Write a uniquenessBrief FIRST. Identify what's different about THIS business before generating anything else.
+20. Every finding title must name something specific to THIS client: a system name, a person's role, a number, a process. NEVER "Improve system integration" or "Implement CRM". ALWAYS "Harvest→Xero disconnect: Maria transfers 8 hours/month manually and mis-billed a client £3,200".
+21. Every recommendation must reference at least ONE desired_outcome by name. Don't just fix pain — show how the fix advances their stated operational goal.
+22. freedomUnlocked must echo their monday_morning_vision language. If they said "one screen that tells me the truth" then show how THIS recommendation contributes to that screen.
+23. Quick wins must be things THIS specific team can do THIS week — name the person, the system, the setting to change.
+24. If a recommendation would be identical for a plumber and a creative agency, it's too generic. Rewrite with their industry, systems, and numbers.
+25. aspirationGap must name specific systems and hours that stand between current state and target state. Not "better integration" but "Harvest has no connection to Xero — 8 hrs/month of manual transfer blocks the 'see profit by client' goal".
+
 ═══════════════════════════════════════════════════════════════════════════════
 ANTI-AI-SLOP WRITING RULES
 ═══════════════════════════════════════════════════════════════════════════════
@@ -346,6 +372,10 @@ BANNED STRUCTURES:
 - Rule of three adjective lists (pick the best one)
 - "Despite challenges, positioned for growth" formula
 - Ending sentences with "-ing" phrases ("ensuring excellence, fostering growth")
+- Generic consulting recommendations: "implement a CRM", "automate invoicing", "improve reporting". These are CATEGORIES not recommendations. Name the specific tool, connection, or workflow change.
+- Findings that don't reference a specific system-to-system gap with evidence
+- Recommendations that don't trace back to at least one desired_outcome
+- freedomUnlocked text that could apply to any business ("save time and improve efficiency")
 
 THE HUMAN TEST:
 If it sounds like an annual report, rewrite it. If it sounds like coffee with a smart friend, keep it.
@@ -774,7 +804,7 @@ serve(async (req) => {
         category: finding.category,
         severity: finding.severity,
         title: finding.title,
-        description: `${finding.description}\n\nSystems affected: ${(finding.affectedSystems || []).join(', ')}\nProcesses affected: ${(finding.affectedProcesses || []).join(', ')}`,
+        description: `${finding.description}${finding.blocksGoal ? `\n\nBlocks goal: ${finding.blocksGoal}` : ''}\n\nSystems affected: ${(finding.affectedSystems || []).join(', ')}\nProcesses affected: ${(finding.affectedProcesses || []).join(', ')}`,
         evidence: finding.evidence || [],
         client_quote: finding.clientQuote,
         hours_wasted_weekly: finding.hoursWastedWeekly,
@@ -799,7 +829,7 @@ serve(async (req) => {
         hours_saved_weekly: rec.hoursSavedWeekly,
         annual_cost_savings: rec.annualBenefit,
         time_reclaimed_weekly: rec.hoursSavedWeekly,
-        freedom_unlocked: rec.freedomUnlocked
+        freedom_unlocked: `${rec.freedomUnlocked || ''}${rec.goalsAdvanced?.length ? `\n\nAdvances: ${rec.goalsAdvanced.join('; ')}` : ''}`
       }));
       await supabaseClient.from('sa_recommendations').insert(recRows);
     }

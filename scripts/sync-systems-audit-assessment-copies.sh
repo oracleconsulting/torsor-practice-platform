@@ -21,7 +21,7 @@ cp "$ROOT/supabase/functions/generate-sa-report-pass2/index.ts" "$DEST/generate-
 [ -f "$ROOT/supabase/functions/_shared/service-scorer.ts" ] && cp "$ROOT/supabase/functions/_shared/service-scorer.ts" "$DEST/shared-service-scorer-copy.ts" && echo "  shared-service-scorer-copy.ts"
 
 # --- Migrations (SA-specific: sa_engagements, sa_discovery_responses, sa_audit_reports, sa_findings, sa_recommendations, sa_system_*, sa_process_*, service_lines systems_audit) ---
-for m in 20251219_systems_audit_complete 20251220_fix_sa_deep_dives_client_rls 20251220_fix_sa_engagements_client_rls 20251221_add_admin_guidance_columns 20251221_update_sa_reports_status_constraint 20251221_add_pass1_data_column 20251221_fix_sa_engagements_admin_rls 20251222_fix_sa_reports_update_rls 20251222_fix_sa_reports_client_rls 20260114_sa_documents_and_context 20260114_fix_sa_reports_rls_member_role 20260204_add_systems_audit_service; do
+for m in 20251219_systems_audit_complete 20251220_fix_sa_deep_dives_client_rls 20251220_fix_sa_engagements_client_rls 20251221_add_admin_guidance_columns 20251221_update_sa_reports_status_constraint 20251221_add_pass1_data_column 20251221_fix_sa_engagements_admin_rls 20251222_fix_sa_reports_update_rls 20251222_fix_sa_reports_client_rls 20260114_sa_documents_and_context 20260114_fix_sa_reports_rls_member_role 20260204_add_systems_audit_service 20260216_sa_status_validation_and_sharing 20260216_sa_rls_systematic_review; do
   [ -f "$ROOT/supabase/migrations/${m}.sql" ] && cp "$ROOT/supabase/migrations/${m}.sql" "$DEST/migrations-${m}.sql" && echo "  migrations-${m}.sql"
 done
 
@@ -42,6 +42,7 @@ cp "$ROOT/apps/platform/src/types/systems-audit.ts" "$DEST/frontend-platform-typ
 cp "$ROOT/apps/client-portal/src/pages/services/ServiceAssessmentPage.tsx" "$DEST/frontend-client-ServiceAssessmentPage.tsx" 2>/dev/null && echo "  frontend-client-ServiceAssessmentPage.tsx" || true
 cp "$ROOT/apps/client-portal/src/pages/services/SystemInventoryPage.tsx" "$DEST/frontend-client-SystemInventoryPage.tsx" 2>/dev/null && echo "  frontend-client-SystemInventoryPage.tsx" || true
 cp "$ROOT/apps/client-portal/src/pages/services/ProcessDeepDivesPage.tsx" "$DEST/frontend-client-ProcessDeepDivesPage.tsx" 2>/dev/null && echo "  frontend-client-ProcessDeepDivesPage.tsx" || true
+cp "$ROOT/apps/client-portal/src/pages/services/SAReportPage.tsx" "$DEST/frontend-client-SAReportPage.tsx" 2>/dev/null && echo "  frontend-client-SAReportPage.tsx" || true
 cp "$ROOT/apps/client-portal/src/pages/UnifiedDashboardPage.tsx" "$DEST/frontend-client-UnifiedDashboardPage.tsx" 2>/dev/null && echo "  frontend-client-UnifiedDashboardPage.tsx" || true
 cp "$ROOT/apps/client-portal/src/App.tsx" "$DEST/frontend-client-App.tsx" 2>/dev/null && echo "  frontend-client-App.tsx" || true
 cp "$ROOT/apps/client-portal/src/config/serviceLineAssessments.ts" "$DEST/frontend-client-serviceLineAssessments.ts" 2>/dev/null && echo "  frontend-client-serviceLineAssessments.ts" || true

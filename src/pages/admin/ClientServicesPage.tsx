@@ -13849,8 +13849,11 @@ function SystemsAuditClientModal({
                               // Section 4: Focus Areas
                               { key: 'broken_areas', rawKey: 'sa_priority_areas', label: 'Which areas of your business feel most broken?', section: 'Focus Areas' },
                               { key: 'magic_process_fix', rawKey: 'sa_magic_fix', label: 'If you could fix one process by magic, what would it be?', section: 'Focus Areas' },
-                              
-                              // Section 5: Readiness
+                              // Section 5: Your Vision
+                              { key: 'desired_outcomes', rawKey: 'sa_desired_outcomes', label: 'What specific outcomes do you want from fixing systems?', section: 'Your Vision' },
+                              { key: 'monday_morning_vision', rawKey: 'sa_monday_morning', label: 'What does Monday morning look like when systems work?', section: 'Your Vision' },
+                              { key: 'time_freedom_priority', rawKey: 'sa_time_freedom', label: 'What would you do with 10+ hours/week back?', section: 'Your Vision' },
+                              // Section 6: Readiness
                               { key: 'change_appetite', rawKey: 'sa_change_appetite', label: 'What\'s your appetite for change right now?', section: 'Readiness' },
                               { key: 'systems_fears', rawKey: 'sa_fears', label: 'What are your biggest fears about changing systems?', section: 'Readiness' },
                               { key: 'internal_champion', rawKey: 'sa_champion', label: 'Who would champion systems improvements internally?', section: 'Readiness' },

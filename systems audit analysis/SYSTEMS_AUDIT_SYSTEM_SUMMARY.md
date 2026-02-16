@@ -3,6 +3,8 @@
 **Purpose:** Comprehensive reference for the Systems Audit (Systems & Process Audit) service line in torsor-practice-platform: data model, migrations, edge functions, front-end (admin, platform, client portal), and integration with Discovery/scoring.  
 **This folder and summary are read-only in normal work; update the summary only when explicitly requested.**
 
+**Last updated:** February 2026 (post Systems Audit 50/50 implementation).
+
 ---
 
 ## 1. Overview
@@ -13,6 +15,8 @@
 - **Outcome:** Map every system, process, and workaround; identify what to fix first; deliver an audit report with findings and recommendations.  
 - **Tiers:** Tier 1 (Systems map and priority list, £2,000 one-off); Tier 2 (Full audit with implementation roadmap, £4,500 one-off).
 
+**50/50 implementation (Feb 2026):** Status transition validation, `is_shared_with_client` and `hourly_rate` on engagements; comprehensive RLS review; 19-question 6-section Stage 1 assessment (including Context); Pass 1/Pass 2 pipeline (orchestrator deprecated); client-facing SA report page at `/service/systems_audit/report` when report is shared.
+
 ---
 
 ## 2. Data Model & Tables
@@ -21,37 +25,37 @@
 
 | Table | Purpose |
 |------|--------|
-| **sa_engagements** | One row per client engagement. Tracks `client_id`, `practice_id`, `status` (pending → stage_1_complete → stage_2_complete → stage_3_scheduled → stage_3_complete → analysis_complete → report_delivered → implementation → completed), stage timestamps (`stage_1_completed_at`, `stage_2_completed_at`, `stage_3_completed_at`), `stage_3_consultant_id`, dates, `engagement_type`, `scope_areas`, `quoted_price`. |
-| **sa_discovery_responses** | Stage 1 discovery: one row per engagement. Columns map to questions: Current Pain (`systems_breaking_point`, `operations_self_diagnosis`, `month_end_shame`), Impact (`manual_hours_monthly`, `month_end_close_duration`, `data_error_frequency`, `expensive_systems_mistake`, `information_access_frequency`), Tech Stack (`software_tools_used`, `integration_rating`, `critical_spreadsheets`), Focus (`broken_areas`, `magic_process_fix`), Readiness (`change_appetite`, `systems_fears`, `internal_champion`), Context (`team_size`, `expected_team_size_12mo`, `revenue_band`, `industry_sector`). Plus `raw_responses` JSONB. |
+| **sa_engagements** | One row per client engagement. Tracks `client_id`, `practice_id`, `status` with **validated transitions** (pending → stage_1_complete → stage_2_complete → stage_3_scheduled | stage_3_complete → analysis_complete → report_delivered → implementation | completed). **New (20260216):** `is_shared_with_client` (BOOLEAN, default FALSE), `hourly_rate` (NUMERIC, default 45.00). Stage timestamps, `stage_3_consultant_id`, dates, `engagement_type`, `scope_areas`, `quoted_price`. Trigger `enforce_sa_status_transition` blocks invalid status changes (service_role bypass). |
+| **sa_discovery_responses** | Stage 1 discovery: one row per engagement. Columns: Current Pain (`systems_breaking_point`, `operations_self_diagnosis`, `month_end_shame`), Impact (`manual_hours_monthly`, `month_end_close_duration`, `data_error_frequency`, `expensive_systems_mistake`, **`information_access_frequency`**), Tech Stack (`software_tools_used`, `integration_rating`, `critical_spreadsheets`), Focus (`broken_areas`, `magic_process_fix`), Readiness (`change_appetite`, `systems_fears`, `internal_champion`), **Context** (`team_size`, `expected_team_size_12mo`, `revenue_band`, `industry_sector`). Plus `raw_responses` JSONB. |
 
 ### 2.2 Stage 2 – System inventory
 
 | Table | Purpose |
 |------|--------|
 | **sa_system_categories** | Reference: category codes and names for grouping systems. |
-| **sa_system_inventory** | Per-engagement system cards: `system_name`, `category_code`, `usage_frequency`, `criticality`, pricing/cost, `integration_method`, `integrates_with`, `manual_transfer_required`, `manual_hours_monthly`, `data_quality_score`, `user_satisfaction`, `known_issues`, `workarounds_in_use`, `future_plan`, etc. |
+| **sa_system_inventory** | Per-engagement system cards: `system_name`, `category_code`, usage, criticality, pricing, `integration_method`, `integrates_with`, `manual_transfer_required`, `manual_hours_monthly`, `data_quality_score`, `user_satisfaction`, `known_issues`, `workarounds_in_use`, `future_plan`, etc. |
 
 ### 2.3 Stage 3 – Process deep dives
 
 | Table | Purpose |
 |------|--------|
-| **sa_process_chains** | Reference: process chains (e.g. quote_to_cash, procure_to_pay) with `chain_code`, `chain_name`, `process_steps`, `estimated_duration_mins`. |
-| **sa_process_deep_dives** | Per-engagement, per `chain_code`: consultant-led; `responses` JSONB, `key_pain_points`, `hours_identified`, `scheduled_at`, `conducted_at`, `duration_mins`. |
+| **sa_process_chains** | Reference: process chains (e.g. quote_to_cash, procure_to_pay). |
+| **sa_process_deep_dives** | Per-engagement, per `chain_code`: consultant-led; `responses` JSONB, `key_pain_points`, `hours_identified`, scheduling and conduct timestamps. |
 
 ### 2.4 Report and outputs
 
 | Table | Purpose |
 |------|--------|
-| **sa_audit_reports** | One per engagement. Holds `headline`, `executive_summary`, `total_hours_wasted_weekly`, `total_annual_cost_of_chaos`, scores (`integration_score`, `automation_score`, `data_accessibility_score`, `scalability_score`), `critical_findings_count`, `high_findings_count`, narrative fields, `pass1_data` JSONB (from Pass 1 edge function). Status: `generating` → `generated` → `approved` → `published` → `delivered`. |
-| **sa_findings** | Per engagement: `finding_code`, `source_stage`, `category`, `severity`, `title`, `description`, `evidence`, `hours_wasted_weekly`, `annual_cost_impact`, `recommendation`, `status`. |
-| **sa_recommendations** | Per engagement: `priority_rank`, `category`, `implementation_phase`, benefits, dependencies, `finding_ids`. |
+| **sa_audit_reports** | One per engagement. `headline`, `executive_summary`, `total_hours_wasted_weekly`, `total_annual_cost_of_chaos`, `growth_multiplier`, `projected_cost_at_scale`, scores, narrative fields, **`pass1_data`** JSONB (Pass 1 extraction). Status: `generating` → `pass1_complete` → (Pass 2) → `generated` → `approved` → `published` → `delivered`. Client can SELECT only when engagement has `is_shared_with_client = TRUE` and report status in (generated, approved, published, delivered). |
+| **sa_findings** | Per engagement: `finding_code`, `source_stage`, `category`, `severity`, `title`, `description`, `evidence`, `client_quote`, `hours_wasted_weekly`, `annual_cost_impact`, `recommendation`, `affected_systems`, `affected_processes`. Client SELECT only when engagement is shared. |
+| **sa_recommendations** | Per engagement: `priority_rank`, `title`, `description`, `category`, `implementation_phase`, `estimated_cost`, `hours_saved_weekly`, **`annual_cost_savings`**, `time_reclaimed_weekly`, `freedom_unlocked`. Client SELECT only when engagement is shared. |
 
 ### 2.5 Documents and context
 
 | Table | Purpose |
 |------|--------|
-| **sa_documents** | Documents attached to the engagement (e.g. process docs, spreadsheets). |
-| **sa_context_notes** | Admin context notes for the engagement. |
+| **sa_documents** | Documents attached to the engagement. Team only (no client access). |
+| **sa_context_notes** | Admin context notes. Team only (no client access). |
 
 ---
 
@@ -59,14 +63,14 @@
 
 All SA-related migrations are copied into this folder with the prefix `migrations-`. Key migrations:
 
-- **20251219_systems_audit_complete** – Creates `sa_engagements`, `sa_discovery_responses`, `sa_system_inventory`, `sa_system_categories`, `sa_process_chains`, `sa_process_deep_dives`, `sa_audit_reports`, `sa_findings`, `sa_recommendations`, RLS, indexes.
-- **20251220_fix_sa_deep_dives_client_rls** – RLS for `sa_process_deep_dives`.
-- **20251220_fix_sa_engagements_client_rls** – RLS for `sa_engagements`.
-- **20251221_*** – Admin guidance columns, `sa_reports` status constraint, pass1_data column, `sa_engagements` admin RLS.
-- **20251222_fix_sa_reports_*** – RLS for `sa_audit_reports` (update, client).
-- **20260114_sa_documents_and_context** – `sa_documents`, `sa_context_notes`.
-- **20260114_fix_sa_reports_rls_member_role** – RLS fix for member role on reports.
-- **20260204_add_systems_audit_service** – Inserts `SYSTEMS_AUDIT` (and other services) into `services` table.
+- **20251219_systems_audit_complete** – Creates all SA tables, RLS, indexes.
+- **20251220_fix_sa_*** – RLS for deep dives and engagements.
+- **20251221_*** – Admin guidance columns, report status constraint, `pass1_data` column, engagements admin RLS.
+- **20251222_fix_sa_reports_*** – RLS for `sa_audit_reports`.
+- **20260114_sa_documents_and_context** – `sa_documents`, `sa_context_notes`; RLS fix for member role on reports.
+- **20260204_add_systems_audit_service** – Inserts SYSTEMS_AUDIT into `services` table.
+- **20260216_sa_status_validation_and_sharing** – **Status trigger:** `validate_sa_status_transition()` on `sa_engagements` (BEFORE UPDATE OF status); allowed transitions only; skip if status unchanged; service_role bypass. **Columns:** `is_shared_with_client` (BOOLEAN DEFAULT FALSE), `hourly_rate` (NUMERIC(10,2) DEFAULT 45.00). **Index:** `idx_sa_engagements_shared` on `(client_id) WHERE is_shared_with_client = TRUE`.
+- **20260216_sa_rls_systematic_review** – **Helper functions:** `is_practice_team()`, `user_practice_ids()`, `user_client_ids()`. **Replaces all RLS** on the 8 SA tables: team policies via practice_id/engagement→practice; client policies via client_id or engagement→client; client can see reports/findings/recommendations only when `is_shared_with_client = TRUE` (and report status in generated/approved/published/delivered for reports). Uses dynamic DROP of existing policies from `pg_policies` then CREATE of new policies.
 
 ---
 
@@ -74,14 +78,11 @@ All SA-related migrations are copied into this folder with the prefix `migration
 
 | Function | Role |
 |----------|------|
-| **generate-sa-report** | Orchestrator: validates engagement and stages, calls Pass 1 then Pass 2, updates `sa_audit_reports` status, writes `sa_findings` and `sa_recommendations`. Uses LLM for extraction (Pass 1) and narrative (Pass 2). |
-| **generate-sa-report-pass1** | Reads Stage 1 (`sa_discovery_responses`), Stage 2 (`sa_system_inventory`), Stage 3 (`sa_process_deep_dives`). Extracts structured facts, system/process analysis, metrics, cost calculations. Writes `pass1_data` to `sa_audit_reports` and sets status for Pass 2. |
-| **generate-sa-report-pass2** | Reads `pass1_data` from `sa_audit_reports`. Writes narrative (story arc: Proof → Pattern → Price → Path → Plan). Updates report with `executive_summary`, `headline`, cost of chaos narrative, scores; status → `generated`. |
+| **generate-sa-report** | **Deprecated orchestrator.** Thin redirect: parses `engagementId`, logs deprecation, calls `generate-sa-report-pass1` via fetch, returns Pass 1 response with `_note: 'Routed through deprecated orchestrator → Pass 1 pipeline'`. No longer contains inline Pass 1/Pass 2 logic. |
+| **generate-sa-report-pass1** | Reads Stage 1 (`sa_discovery_responses`), Stage 2 (`sa_system_inventory`), Stage 3 (`sa_process_deep_dives`). Uses **configurable `hourly_rate`** from `sa_engagements` (default 45) for cost calculations and prompt. Extracts structured facts, system/process analysis, metrics; **batch inserts** findings and recommendations. Writes `pass1_data` to `sa_audit_reports`, then **verifies write** (re-read report); if `pass1_data` is null, sets status to `pass1_failed` and returns 500. If verified, **invokes Pass 2 directly** via fetch (no setTimeout). |
+| **generate-sa-report-pass2** | Reads `pass1_data` from `sa_audit_reports`. Writes narrative using **client’s actual system names** from inventory (no hardcoded Harvest/Asana/Xero); uses **`breakingPoint`** for framing; dynamic Path and time-freedom examples from `f.systems`. Updates report with headline, executive_summary, cost_of_chaos_narrative, time_freedom_narrative, scores; status → `generated`. |
 
-Shared modules used by SA and other services:
-
-- **\_shared/service-registry.ts** – Defines `systems_audit` (name, tiers, pricing, example PDFs).
-- **\_shared/service-scorer-v2.ts** – Discovery scoring: question/response → service points including `systems_audit` (chaos, manual work, awareness, key person risk, etc.).
+Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.ts** (Discovery scoring for `systems_audit`).
 
 ---
 
@@ -89,46 +90,36 @@ Shared modules used by SA and other services:
 
 ### 5.1 Admin (src/ and apps/platform)
 
-- **ClientServicesPage.tsx** – Service line list includes “Systems Audit”. When the user selects Systems Audit and a client, the **Systems Audit modal** opens (not ClientDetailModal). The modal shows: Stage 1 (sa_discovery_responses), Stage 2 (inventory), Stage 3 (deep dives), Report, Findings, Recommendations, Documents, Context notes. Data is loaded from `sa_engagements`, `sa_discovery_responses`, `sa_system_inventory`, `sa_process_deep_dives`, `sa_audit_reports`, `sa_findings`, `sa_recommendations`, `sa_documents`, `sa_context_notes`.
-- **apps/platform**  
-  - **ClientDetailPage.tsx** – Can show a “Systems Audit” view when the client has an SA engagement (checks `sa_engagements` and `client_service_lines` for `systems_audit`).  
-  - **SystemsAuditView.tsx** – Dedicated SA view: engagement status, Stage 1 discovery, systems list, deep dives, report, findings, recommendations, documents, context; can trigger report generation.
-- **Config and types**  
-  - **apps/platform/src/config/assessments/systems-audit-discovery.ts** – Stage 1 discovery config (19 questions, 6 sections) in `AssessmentConfig` format; used by platform admin.  
-  - **apps/platform/src/types/systems-audit.ts** – TypeScript types: `SAEngagement`, `SADiscoveryResponse`, `SASystemInventory`, `SAProcessDeepDive`, `SAFinding`, `SARecommendation`, `SAAuditReport`, etc.
+- **ClientServicesPage.tsx** – Service line list includes “Systems Audit”; Systems Audit modal shows Stage 1–3, Report, Findings, Recommendations, Documents, Context notes.
+- **apps/platform** – **ClientDetailPage.tsx**, **SystemsAuditView.tsx**; **systems-audit-discovery.ts** (19q config); **types/systems-audit.ts**.
 
 ### 5.2 Client portal (apps/client-portal)
 
 - **Routes**  
-  - `/service/systems_audit/assessment` → **ServiceAssessmentPage** (Stage 1; uses `SYSTEMS_AUDIT_ASSESSMENT` from `serviceLineAssessments.ts`). Submits to create/update `sa_engagements` and `sa_discovery_responses`. On completion can redirect to Stage 2.  
-  - `/service/systems_audit/inventory` → **SystemInventoryPage** – Stage 2 system inventory.  
-  - `/service/systems_audit/process-deep-dives` → **ProcessDeepDivesPage** – Stage 3 deep dives and report view.
-- **UnifiedDashboardPage** – Shows Systems Audit tile; route logic for `systems_audit` sends users to assessment / inventory / process-deep-dives by stage.
-- **App.tsx** – Declares routes for `ServiceAssessmentPage`, `SystemInventoryPage`, `ProcessDeepDivesPage` for `systems_audit`.
-- **Config**  
-  - **serviceLineAssessments.ts** – `SYSTEMS_AUDIT_ASSESSMENT` (sections: Current Pain, Impact Quantification, Tech Stack, Focus Areas, Readiness).  
-  - **service-registry.ts** – `systems_audit` entry (tiers, pricing).  
-  - **useServiceContext.ts** / **useAdaptiveAssessment.ts** – Service context and display name for `systems_audit`.
-- **Discovery**  
-  - **DiscoveryReportPage.tsx** / **DiscoveryReportView.tsx** – Map “Systems Audit” / “Systems & Process Audit” to code `systems_audit` for display and navigation.
+  - `/service/systems_audit/assessment` → **ServiceAssessmentPage** (Stage 1; **19 questions, 6 sections** including Context).  
+  - `/service/systems_audit/inventory` → **SystemInventoryPage** (Stage 2).  
+  - `/service/systems_audit/process-deep-dives` → **ProcessDeepDivesPage** (Stage 3).  
+  - **`/service/systems_audit/report`** → **SAReportPage** (client-facing report when `is_shared_with_client = TRUE`).
+- **UnifiedDashboardPage** – SA tile; **if `saReportShared`** then route to `/service/systems_audit/report` and status “Report Ready” (emerald); else stage-based routing (assessment → inventory → process-deep-dives).
+- **App.tsx** – Declares routes including **SAReportPage** at `/service/systems_audit/report`.
+- **Config** – **serviceLineAssessments.ts**: **SYSTEMS_AUDIT_ASSESSMENT** with **19 questions, 6 sections** (Current Pain, Impact Quantification, Tech Stack, Focus Areas, Readiness, **Context**). Includes **sa_information_access** (Q2.5), **sa_team_size**, **sa_expected_team_size**, **sa_revenue_band**, **sa_industry**; **sa_manual_hours** has 5 options only; **sa_fears** has 7 options including “No major fears – just want to get on with it” and “We’ll discover how bad things really are”.
+- **ServiceAssessmentPage** – Maps **information_access_frequency** from `sa_information_access`; maps **team_size**, **expected_team_size_12mo**, **revenue_band**, **industry_sector** from Context section.
+- **SAReportPage** – Full client report: sticky nav (Overview, Cost of Chaos, Findings, The Plan, Your Future); hero + score rings; cost narrative; findings accordion; recommendations with phase badges and payback; “Your Future” + magic-fix quote; CTA to `/appointments`. Loads from `sa_engagements` (checks `is_shared_with_client`), `sa_audit_reports`, `sa_findings`, `sa_recommendations`; redirects to dashboard if not shared or no report.
 
 ---
 
 ## 6. Integration with Discovery & Scoring
 
-- **Service catalogue** – Pass 1 and Pass 2 discovery use a service catalog that includes Systems Audit (e.g. £2,000–£4,500).
-- **service-scorer-v2** – Maps Discovery questionnaire responses to service points; high scores for chaos, manual work, “days later / blindsided”, key person risk, delegation issues, operational “what breaks if you double revenue” → `systems_audit`.
-- **Issue–service mapping** – **issue-service-mapping.ts** maps issues (e.g. “manual”, “process”, “system”, “chaos”) to `systems_audit` for recommendations.
-- **advisory-services-full.ts** – References Systems Audit in advisory/service content.
-
-Systems Audit and Goal Alignment are **parallel** service lines: same admin surface and discovery journey, but separate engagement and report tables; no direct pipeline between them.
+- Service catalogue and **service-scorer-v2** map Discovery responses to `systems_audit` (chaos, manual work, key person risk, etc.).
+- **issue-service-mapping.ts**, **advisory-services-full.ts** reference Systems Audit.
+- Systems Audit and Goal Alignment are parallel service lines; no direct pipeline between them.
 
 ---
 
-## 7. Assessment Configuration (Dual config)
+## 7. Assessment Configuration
 
-- **Client portal (live):** `apps/client-portal/src/config/serviceLineAssessments.ts` – **SYSTEMS_AUDIT_ASSESSMENT** in `ServiceLineAssessment` format (15 questions, 5 sections). Used by **ServiceAssessmentPage** for Stage 1.
-- **Platform admin (new Stage 1):** `apps/platform/src/config/assessments/systems-audit-discovery.ts` – **systemsAuditDiscoveryConfig** in `AssessmentConfig` format (19 questions, 6 sections). Used by platform for display/assessment; not yet wired as the single source for client portal. See **SYSTEMS_AUDIT_ASSESSMENT_STATUS.md** for current status and planned alignment.
+- **Client portal (live):** `apps/client-portal/src/config/serviceLineAssessments.ts` – **SYSTEMS_AUDIT_ASSESSMENT**: **19 questions, 6 sections** (Current Pain, Impact Quantification, Tech Stack, Focus Areas, Readiness, Context). Used by **ServiceAssessmentPage** for Stage 1. All fields map to `sa_discovery_responses` including `information_access_frequency`, `team_size`, `expected_team_size_12mo`, `revenue_band`, `industry_sector`.
+- **Platform admin:** `apps/platform/src/config/assessments/systems-audit-discovery.ts` – 19q config for platform display/assessment. See **docs-SYSTEMS_AUDIT_ASSESSMENT_STATUS.md** for alignment notes.
 
 ---
 
@@ -138,13 +129,13 @@ All files are in a **single folder** (no subfolders). Naming convention:
 
 - **Edge functions:** `generate-sa-report-copy.ts`, `generate-sa-report-pass1-copy.ts`, `generate-sa-report-pass2-copy.ts`
 - **Shared:** `shared-service-registry-copy.ts`, `shared-service-scorer-v2-copy.ts`, `shared-service-scorer-copy.ts`
-- **Migrations:** `migrations-20251219_systems_audit_complete.sql`, etc.
-- **Frontend admin:** `frontend-admin-ClientServicesPage.tsx`, `frontend-admin-issue-service-mapping.ts`, etc.
-- **Frontend platform:** `frontend-platform-SystemsAuditView.tsx`, `frontend-platform-ClientDetailPage.tsx`, `frontend-platform-systems-audit-discovery.ts`, `frontend-platform-types-systems-audit.ts`
-- **Frontend client:** `frontend-client-ServiceAssessmentPage.tsx`, `frontend-client-SystemInventoryPage.tsx`, `frontend-client-ProcessDeepDivesPage.tsx`, etc.
+- **Migrations:** `migrations-20251219_systems_audit_complete.sql`, … **`migrations-20260216_sa_status_validation_and_sharing.sql`**, **`migrations-20260216_sa_rls_systematic_review.sql`**
+- **Frontend admin:** `frontend-admin-ClientServicesPage.tsx`, etc.
+- **Frontend platform:** `frontend-platform-SystemsAuditView.tsx`, etc.
+- **Frontend client:** `frontend-client-ServiceAssessmentPage.tsx`, `frontend-client-SystemInventoryPage.tsx`, `frontend-client-ProcessDeepDivesPage.tsx`, **`frontend-client-SAReportPage.tsx`**, `frontend-client-UnifiedDashboardPage.tsx`, `frontend-client-App.tsx`, `frontend-client-serviceLineAssessments.ts`, etc.
 - **Docs:** `docs-SYSTEMS_AUDIT_ASSESSMENT_STATUS.md`, `docs-SYSTEMS_AUDIT_ASSESSMENT_QUESTIONS.md`, `docs-SERVICE_LINES_ARCHITECTURE_DISCOVERY.md`
-
-The **summary** (this file, **SYSTEMS_AUDIT_SYSTEM_SUMMARY.md**) is maintained in this folder and must **only be updated when explicitly requested** (see Cursor rule).
+- **Summary:** **SYSTEMS_AUDIT_SYSTEM_SUMMARY.md** (this file) — update only when explicitly requested.
+- **Master:** **TORSOR_PRACTICE_PLATFORM_MASTER.md** — copied from `docs/TORSOR_PRACTICE_PLATFORM_MASTER.md` by sync script.
 
 ---
 
@@ -156,9 +147,9 @@ From the **repository root**:
 ./torsor-practice-platform/scripts/sync-systems-audit-assessment-copies.sh
 ```
 
-This overwrites all **copied** files from the live codebase. It does **not** overwrite or regenerate **SYSTEMS_AUDIT_SYSTEM_SUMMARY.md**; that document is updated only when the user explicitly asks to update the Systems Audit summary.
+This overwrites all **copied** files from the live codebase (including the two 20260216 migrations and **frontend-client-SAReportPage.tsx**). It does **not** overwrite **SYSTEMS_AUDIT_SYSTEM_SUMMARY.md**; that document is updated only when the user explicitly asks to update the Systems Audit summary.
 
 ---
 
 **Document generated:** February 2026  
-**Scope:** torsor-practice-platform — Systems Audit service line only.
+**Scope:** torsor-practice-platform — Systems Audit service line (including 50/50 implementation).

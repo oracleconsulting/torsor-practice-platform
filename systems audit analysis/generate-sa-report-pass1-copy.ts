@@ -13,7 +13,7 @@ const corsHeaders = {
 // Triggers Pass 2 automatically
 // =============================================================================
 
-function buildPass1Prompt(discovery: any, systems: any[], deepDives: any[], clientName: string): string {
+function buildPass1Prompt(discovery: any, systems: any[], deepDives: any[], clientName: string, hourlyRate: number): string {
   // Build system details
   const systemDetails = systems.map(s => `
 **${s.system_name}** (${s.category_code})
@@ -167,8 +167,8 @@ Analyze the data and return a JSON object with this structure:
     },
     
     "hoursWastedWeekly": calculated total,
-    "annualCostOfChaos": hours * 35 * 52,
-    "projectedCostAtScale": annual * growth multiplier,
+    "annualCostOfChaos": hours * ${hourlyRate} * 52,
+    "projectedCostAtScale": annualCostOfChaos * growthMultiplier * 1.3,
     
     "allClientQuotes": ["every significant verbatim quote from discovery and deep dives"]
   },
@@ -312,8 +312,8 @@ RULES:
 
 CRITICAL NUMBER CONSISTENCY:
 7. facts.hoursWastedWeekly must equal the sum of all process hoursWasted divided by 4 (monthly to weekly conversion)
-8. facts.annualCostOfChaos must equal facts.hoursWastedWeekly × 35 × 52 exactly (no rounding errors)
-9. facts.projectedCostAtScale must equal facts.annualCostOfChaos × facts.growthMultiplier exactly
+8. facts.annualCostOfChaos must equal facts.hoursWastedWeekly × ${hourlyRate} × 52 exactly (no rounding errors)
+9. facts.projectedCostAtScale must equal facts.annualCostOfChaos × facts.growthMultiplier × 1.3 (complexity factor)
 10. Sum of all recommendations.hoursSavedWeekly should not exceed facts.hoursWastedWeekly (you can't save more hours than are wasted)
 11. Round all monetary values to nearest £10
 12. Round all hours to nearest whole number
@@ -414,7 +414,8 @@ serve(async (req) => {
     console.log('[SA Pass 1] Calling Sonnet for extraction...');
     const startTime = Date.now();
     
-    const prompt = buildPass1Prompt(discovery, systems || [], deepDives || [], clientName);
+    const hourlyRate = engagement?.hourly_rate != null ? Number(engagement.hourly_rate) : 45;
+    const prompt = buildPass1Prompt(discovery, systems || [], deepDives || [], clientName, hourlyRate);
     
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -535,11 +536,12 @@ serve(async (req) => {
       throw new Error(`Pass 1 parse failed: ${e.message}`);
     }
     
-    // Validate number consistency
+    // Validate number consistency (use same hourlyRate and 1.3 factor as prompt)
+    const hourlyRate = engagement?.hourly_rate != null ? Number(engagement.hourly_rate) : 45;
     const validateNumbers = (data: any) => {
       const f = data.facts;
-      const expectedAnnual = Math.round(f.hoursWastedWeekly * 35 * 52);
-      const expectedScale = Math.round(f.annualCostOfChaos * f.growthMultiplier);
+      const expectedAnnual = Math.round(f.hoursWastedWeekly * hourlyRate * 52);
+      const expectedScale = Math.round(f.annualCostOfChaos * f.growthMultiplier * 1.3);
       
       // Allow 5% tolerance
       const tolerance = 0.05;
@@ -762,32 +764,31 @@ serve(async (req) => {
       throw saveError || new Error('Failed to save report');
     }
     
-    // Clear and save findings
+    // Clear and save findings (batch insert)
     await supabaseClient.from('sa_findings').delete().eq('engagement_id', engagementId);
-    
-    for (const finding of pass1Data.findings) {
-      await supabaseClient.from('sa_findings').insert({
+    if (pass1Data.findings?.length) {
+      const findingRows = pass1Data.findings.map((finding: any) => ({
         engagement_id: engagementId,
         finding_code: `F-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         source_stage: 'ai_generated',
         category: finding.category,
         severity: finding.severity,
         title: finding.title,
-        description: `${finding.description}\n\nSystems affected: ${finding.affectedSystems.join(', ')}\nProcesses affected: ${finding.affectedProcesses.join(', ')}`,
-        evidence: finding.evidence,
+        description: `${finding.description}\n\nSystems affected: ${(finding.affectedSystems || []).join(', ')}\nProcesses affected: ${(finding.affectedProcesses || []).join(', ')}`,
+        evidence: finding.evidence || [],
         client_quote: finding.clientQuote,
         hours_wasted_weekly: finding.hoursWastedWeekly,
         annual_cost_impact: finding.annualCostImpact,
         scalability_impact: finding.scalabilityImpact,
         recommendation: finding.recommendation
-      });
+      }));
+      await supabaseClient.from('sa_findings').insert(findingRows);
     }
-    
-    // Clear and save recommendations
+
+    // Clear and save recommendations (batch insert)
     await supabaseClient.from('sa_recommendations').delete().eq('engagement_id', engagementId);
-    
-    for (const rec of pass1Data.recommendations) {
-      await supabaseClient.from('sa_recommendations').insert({
+    if (pass1Data.recommendations?.length) {
+      const recRows = pass1Data.recommendations.map((rec: any) => ({
         engagement_id: engagementId,
         priority_rank: rec.priorityRank,
         title: rec.title,
@@ -799,40 +800,52 @@ serve(async (req) => {
         annual_cost_savings: rec.annualBenefit,
         time_reclaimed_weekly: rec.hoursSavedWeekly,
         freedom_unlocked: rec.freedomUnlocked
-      });
+      }));
+      await supabaseClient.from('sa_recommendations').insert(recRows);
     }
-    
-    console.log('[SA Pass 1] Saved. Triggering Pass 2...');
-    
-    // Trigger Pass 2 asynchronously (with a small delay to ensure DB write is complete)
+
+    console.log('[SA Pass 1] Saved. Verifying pass1_data then triggering Pass 2...');
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
+
     if (supabaseUrl && serviceRoleKey) {
-      // Small delay to ensure database write is committed
-      setTimeout(async () => {
-        try {
-          console.log('[SA Pass 1] Calling Pass 2 function...');
-          const pass2Response = await fetch(`${supabaseUrl}/functions/v1/generate-sa-report-pass2`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${serviceRoleKey}`
-            },
-            body: JSON.stringify({ engagementId, reportId: report.id })
-          });
-          
-          if (!pass2Response.ok) {
-            const errorText = await pass2Response.text();
-            console.error('[SA Pass 1] Pass 2 trigger failed:', pass2Response.status, errorText);
-          } else {
-            console.log('[SA Pass 1] Pass 2 triggered successfully');
-          }
-        } catch (err) {
-          console.error('[SA Pass 1] Failed to trigger Pass 2:', err);
-          // Don't fail Pass 1 if Pass 2 trigger fails - it can be called manually
+      const { data: verifyReport } = await supabaseClient
+        .from('sa_audit_reports')
+        .select('id, pass1_data, status')
+        .eq('engagement_id', engagementId)
+        .single();
+
+      if (!verifyReport?.pass1_data) {
+        console.error('[SA Pass 1] pass1_data not found after write — aborting Pass 2 trigger');
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({ status: 'pass1_failed', review_notes: 'pass1_data write verification failed' })
+          .eq('engagement_id', engagementId);
+        return new Response(
+          JSON.stringify({ success: false, error: 'pass1_data write verification failed' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('[SA Pass 1] pass1_data verified. Triggering Pass 2...');
+      try {
+        const pass2Response = await fetch(`${supabaseUrl}/functions/v1/generate-sa-report-pass2`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceRoleKey}`
+          },
+          body: JSON.stringify({ engagementId, reportId: report.id })
+        });
+        if (!pass2Response.ok) {
+          console.error('[SA Pass 1] Pass 2 returned error:', pass2Response.status);
+        } else {
+          console.log('[SA Pass 1] Pass 2 triggered successfully');
         }
-      }, 2000); // 2 second delay
+      } catch (err) {
+        console.error('[SA Pass 1] Error triggering Pass 2:', err);
+      }
     } else {
       console.warn('[SA Pass 1] Missing SUPABASE_URL or SERVICE_ROLE_KEY - cannot trigger Pass 2');
     }

@@ -570,6 +570,14 @@ export default function ServiceAssessmentPage() {
           else if (val.includes('10-20')) discoveryData.critical_spreadsheets = '10_20';
           else if (val.includes('lost count')) discoveryData.critical_spreadsheets = 'lost_count';
         }
+        if (responses['sa_information_access']) {
+          const val = responses['sa_information_access'];
+          if (val.includes('Never')) discoveryData.information_access_frequency = 'never';
+          else if (val.includes('1-2 times')) discoveryData.information_access_frequency = '1_2_times';
+          else if (val.includes('Weekly')) discoveryData.information_access_frequency = 'weekly';
+          else if (val.includes('Daily')) discoveryData.information_access_frequency = 'daily';
+          else if (val.includes('Constantly')) discoveryData.information_access_frequency = 'constantly';
+        }
         if (responses['sa_priority_areas']) discoveryData.broken_areas = Array.isArray(responses['sa_priority_areas']) ? responses['sa_priority_areas'] : [responses['sa_priority_areas']];
         if (responses['sa_magic_fix']) discoveryData.magic_process_fix = responses['sa_magic_fix'];
         if (responses['sa_change_appetite']) {
@@ -589,7 +597,28 @@ export default function ServiceAssessmentPage() {
           else if (val.includes('IT')) discoveryData.internal_champion = 'it_lead';
           else discoveryData.internal_champion = 'other';
         }
-        
+        if (responses['sa_team_size']) {
+          const parsed = parseInt(responses['sa_team_size'], 10);
+          if (!isNaN(parsed)) discoveryData.team_size = parsed;
+        }
+        if (responses['sa_expected_team_size']) {
+          const parsed = parseInt(responses['sa_expected_team_size'], 10);
+          if (!isNaN(parsed)) discoveryData.expected_team_size_12mo = parsed;
+        }
+        if (responses['sa_revenue_band']) {
+          const val = responses['sa_revenue_band'];
+          if (val.includes('Under')) discoveryData.revenue_band = 'under_250k';
+          else if (val.includes('250k')) discoveryData.revenue_band = '250k_500k';
+          else if (val.includes('500k')) discoveryData.revenue_band = '500k_1m';
+          else if (val.includes('£1m') && val.includes('£2m')) discoveryData.revenue_band = '1m_2m';
+          else if (val.includes('£2m') && val.includes('£5m')) discoveryData.revenue_band = '2m_5m';
+          else if (val.includes('£5m') && val.includes('£10m')) discoveryData.revenue_band = '5m_10m';
+          else if (val.includes('10m')) discoveryData.revenue_band = 'over_10m';
+        }
+        if (responses['sa_industry']) {
+          discoveryData.industry_sector = responses['sa_industry'];
+        }
+
         // Upsert discovery responses
         console.log('💾 Saving discovery responses...');
         const { error: discoveryError } = await supabase

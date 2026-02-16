@@ -7584,7 +7584,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         if (sl?.id) {
           const { data: enrollmentRow } = await supabase
             .from('client_service_lines')
-            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status')
+            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status, advisor_notes')
             .eq('client_id', clientId)
             .eq('service_line_id', sl.id)
             .maybeSingle();
@@ -10891,6 +10891,43 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 Sprint {nextSprint} is live. Client can now start their next 12 weeks.
                               </div>
                             )}
+
+                            {/* Advisor Notes for next sprint */}
+                            <div className="mt-5 pt-4 border-t border-gray-100">
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium text-gray-700">
+                                  Advisor Notes for Sprint {nextSprint}
+                                </label>
+                                <span className="text-xs text-gray-400">
+                                  Fed into sprint generation
+                                </span>
+                              </div>
+                              <textarea
+                                defaultValue={enrollment.advisor_notes || ''}
+                                placeholder="Context the AI should know when generating the next sprint. E.g., 'Client is hiring a GM in March — factor delegation tasks into weeks 4-8' or 'Partner wants to reduce to 3 days/week by June'"
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-y"
+                                onBlur={async (e) => {
+                                  const newNotes = e.target.value.trim();
+                                  const currentNotes = (enrollment.advisor_notes || '').trim();
+                                  if (newNotes === currentNotes) return;
+                                  try {
+                                    await supabase
+                                      .from('client_service_lines')
+                                      .update({ advisor_notes: newNotes || null })
+                                      .eq('client_id', clientId)
+                                      .eq('service_line_id', enrollment.service_line_id);
+                                    console.log('Advisor notes saved');
+                                  } catch (err) {
+                                    console.error('Failed to save advisor notes:', err);
+                                    alert('Failed to save notes. Please try again.');
+                                  }
+                                }}
+                              />
+                              <p className="text-xs text-gray-400 mt-1">
+                                Auto-saves when you click away. These notes are included in the AI prompt when generating Sprint {nextSprint}.
+                              </p>
+                            </div>
                           </div>
                         );
                           })()

@@ -580,6 +580,18 @@ export default function ServiceAssessmentPage() {
         }
         if (responses['sa_priority_areas']) discoveryData.broken_areas = Array.isArray(responses['sa_priority_areas']) ? responses['sa_priority_areas'] : [responses['sa_priority_areas']];
         if (responses['sa_magic_fix']) discoveryData.magic_process_fix = responses['sa_magic_fix'];
+        // Your Vision section
+        if (responses['sa_desired_outcomes']) {
+          discoveryData.desired_outcomes = Array.isArray(responses['sa_desired_outcomes'])
+            ? responses['sa_desired_outcomes']
+            : [responses['sa_desired_outcomes']];
+        }
+        if (responses['sa_monday_morning']) {
+          discoveryData.monday_morning_vision = responses['sa_monday_morning'];
+        }
+        if (responses['sa_time_freedom']) {
+          discoveryData.time_freedom_priority = responses['sa_time_freedom'];
+        }
         if (responses['sa_change_appetite']) {
           const val = responses['sa_change_appetite'];
           if (val.includes('Urgent')) discoveryData.change_appetite = 'urgent';

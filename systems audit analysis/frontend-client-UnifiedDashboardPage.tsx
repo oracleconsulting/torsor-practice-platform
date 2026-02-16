@@ -86,6 +86,7 @@ export default function UnifiedDashboardPage() {
   const maInsightSharedRef = useRef(false);
   const maAssessmentCompletedRef = useRef(false);
   const biPeriodDeliveredRef = useRef(false);  // New: ref for immediate access
+  const [saReportShared, setSaReportShared] = useState(false);
   const [systemsAuditStage, setSystemsAuditStage] = useState<{
     stage1Complete: boolean;
     stage2Complete: boolean;
@@ -322,14 +323,17 @@ export default function UnifiedDashboardPage() {
         console.log('🔍 Checking Systems Audit engagement for client:', clientSession.clientId);
         const { data: saEngagement, error: saError } = await supabase
           .from('sa_engagements')
-          .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at')
+          .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, is_shared_with_client, status')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
+        
+        if (saEngagement?.is_shared_with_client) setSaReportShared(true);
         
         console.log('📊 Systems Audit engagement query result:', { saEngagement, saError });
         
         if (saError) {
           console.error('❌ Error fetching Systems Audit engagement:', saError);
+          setSaReportShared(false);
           setSystemsAuditStage({
             stage1Complete: false,
             stage2Complete: false,
@@ -337,7 +341,7 @@ export default function UnifiedDashboardPage() {
             engagementId: null,
             reportApproved: false
           });
-        } else         if (saEngagement) {
+        } else if (saEngagement) {
           // Check if report is approved
           let reportApproved = false;
           if (saEngagement.stage_3_completed_at) {
@@ -428,6 +432,7 @@ export default function UnifiedDashboardPage() {
           });
         } else {
           console.log('⚠️ No Systems Audit engagement found');
+          setSaReportShared(false);
           setSystemsAuditStage({
             stage1Complete: false,
             stage2Complete: false,
@@ -888,6 +893,7 @@ export default function UnifiedDashboardPage() {
       return '/assessment/part3';
     }
     if (code === 'systems_audit') {
+      if (saReportShared) return '/service/systems_audit/report';
       // Check stage completion status
       if (systemsAuditStage?.stage3Complete) {
         // Stage 3 complete - audit is complete, show completion or report
@@ -1039,6 +1045,9 @@ export default function UnifiedDashboardPage() {
     
     // Special handling for Systems Audit
     if (code === 'systems_audit') {
+      if (saReportShared) {
+        return { label: 'Report Ready', color: 'emerald', icon: FileText };
+      }
       if (systemsAuditStage?.stage3Complete && systemsAuditStage?.reportApproved) {
         return { label: 'View Report', color: 'emerald', icon: FileText };
       } else if (systemsAuditStage?.stage3Complete) {
