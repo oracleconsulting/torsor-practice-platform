@@ -9,12 +9,13 @@ const corsHeaders: Record<string, string> = {
 };
 
 // =============================================================================
-// PASS 1: 4-PHASE EXTRACTION (each phase ~120-130s, under Edge Function timeout)
-// Phase 1: EXTRACT CORE — facts, systems, metrics, quotes
-// Phase 2: ANALYSE PROCESSES — process deep dives, scores, uniquenessBrief, aspirationGap
-// Phase 3: DIAGNOSE — findings, quickWins
-// Phase 4: PRESCRIBE — recommendations, adminGuidance, clientPresentation
-// Then assemble final pass1_data, save findings/recommendations, trigger Pass 2
+// PASS 1: 5-PHASE EXTRACTION & ANALYSIS (each phase ~130s, under ~200s wall limit)
+// Phase 1: EXTRACT CORE — company facts, system inventory, metrics, quotes
+// Phase 2: ANALYSE PROCESSES — process deep dives, scores, uniquenessBrief, costs
+// Phase 3: DIAGNOSE — findings with evidence + quick wins
+// Phase 4: RECOMMEND — recommendations with ROI and freedom mapping
+// Phase 5: GUIDE & PRESENT — admin guidance + client presentation
+// Then assemble final pass1_data and set status='pass1_complete'
 // =============================================================================
 
 const TRUNCATE = (s: string | undefined | null, maxLen: number) =>
@@ -140,13 +141,42 @@ async function callSonnet(
     console.warn(`[SA Pass 1] Phase ${phase}: Response may be truncated (doesn't end with })`);
   }
 
-  const cleanContent = parseJsonFromContent(fullContent.trim(), wasTruncated);
-  const data = JSON.parse(cleanContent);
+  let cleanContent = parseJsonFromContent(fullContent.trim(), wasTruncated);
+
+  let data: any;
+  try {
+    data = JSON.parse(cleanContent);
+  } catch (parseErr) {
+    console.warn(`[SA Pass 1] Phase ${phase}: JSON parse failed, attempting repair...`);
+    let repaired = cleanContent;
+    repaired = repaired.replace(/,\s*"[^"]*"?\s*:\s*("[^"]*)?$/, '');
+    repaired = repaired.replace(/,\s*"[^"]*"?\s*:\s*\[?\s*(\{[^}]*)?$/, '');
+    let openBraces = 0, openBrackets = 0, inString = false, escape = false;
+    for (let i = 0; i < repaired.length; i++) {
+      if (escape) { escape = false; continue; }
+      if (repaired[i] === '\\') { escape = true; continue; }
+      if (repaired[i] === '"') { inString = !inString; continue; }
+      if (inString) continue;
+      if (repaired[i] === '{') openBraces++;
+      if (repaired[i] === '}') openBraces--;
+      if (repaired[i] === '[') openBrackets++;
+      if (repaired[i] === ']') openBrackets--;
+    }
+    repaired = repaired.replace(/,\s*$/, '');
+    for (let i = 0; i < openBrackets; i++) repaired += ']';
+    for (let i = 0; i < openBraces; i++) repaired += '}';
+    console.log(`[SA Pass 1] Phase ${phase}: Repaired JSON (closed ${openBraces} braces, ${openBrackets} brackets)`);
+    try {
+      data = JSON.parse(repaired);
+      console.log(`[SA Pass 1] Phase ${phase}: Repaired JSON parsed successfully`);
+    } catch (repairErr) {
+      console.error(`[SA Pass 1] Phase ${phase}: JSON repair failed. First 500 chars: ${cleanContent.substring(0, 500)}`);
+      console.error(`[SA Pass 1] Phase ${phase}: Last 500 chars: ${cleanContent.substring(cleanContent.length - 500)}`);
+      throw new Error(`Phase ${phase} JSON parse failed: ${(parseErr as Error).message}`);
+    }
+  }
 
   const cost = (tokensUsed / 1000000) * 3;
-
-  console.log(`[SA Pass 1] Phase ${phase}: Parsed successfully. Writing to DB...`);
-
   return { data, tokensUsed, cost, generationTime: elapsed };
 }
 
@@ -363,7 +393,9 @@ YOUR TASK — Return ONLY this JSON
     "automation": { "score": 0-100, "evidence": "Specific manual processes: quote creation (Xmins), invoice triggers (manual), time backfill (Yhrs/wk)" },
     "dataAccessibility": { "score": 0-100, "evidence": "X-day reporting lag. Can't answer [question] in under Y minutes" },
     "scalability": { "score": 0-100, "evidence": "At ${phase1Facts.growthMultiplier}x growth, [system] breaks because [reason]" }
-  }
+  },
+
+  "additionalClientQuotes": ["any significant verbatim quotes from deep dives NOT already captured in Phase 1"]
 }
 
 CRITICAL NUMBER CONSISTENCY:
@@ -395,14 +427,14 @@ async function runPhase1(
     {
       engagement_id: engagementId,
       status: 'generating',
-      executive_summary: 'Phase 1/4: Extracting facts and analysing systems...',
+      executive_summary: 'Phase 1/5: Extracting facts and analysing systems...',
       pass1_data: { phase1: data },
-      systems_count: data.facts.systems.length,
+      systems_count: (data.facts?.systems || []).length,
       llm_model: 'claude-sonnet-4.5',
       llm_tokens_used: tokensUsed,
       llm_cost: cost,
       generation_time_ms: generationTime,
-      prompt_version: 'v6-phase1',
+      prompt_version: 'v7-5phase',
     },
     { onConflict: 'engagement_id' }
   );
@@ -466,7 +498,7 @@ async function runPhase2Analyse(
     .from('sa_audit_reports')
     .update({
       pass1_data: { ...existingPass1, phase2: data },
-      executive_summary: 'Phase 2/4: Analysing processes and calculating scores...',
+      executive_summary: 'Phase 2/5: Analysing processes and calculating scores...',
       executive_summary_sentiment: sentiment,
       total_hours_wasted_weekly: Math.round(data.hoursWastedWeekly),
       total_annual_cost_of_chaos: Math.round(data.annualCostOfChaos / 10) * 10,
@@ -483,18 +515,16 @@ async function runPhase2Analyse(
   return { success: true, phase: 2 };
 }
 
-// ---------- Phase 3: DIAGNOSE (findings, quickWins) ----------
-const SPECIFICITY_AND_BANNED = `
+// ---------- Phase 3: DIAGNOSE (findings with full evidence + quick wins) ----------
+const SPECIFICITY_RULES = `
 SPECIFICITY RULES (non-negotiable):
-19. Every finding title must name something specific: system name, role, number, process. NEVER "Improve system integration". ALWAYS "Harvest→Xero disconnect: Maria transfers 8 hours/month manually..."
-20. Every recommendation must reference at least ONE desired_outcome by name.
-21. freedomUnlocked must echo their monday_morning_vision language.
-22. Quick wins must be things THIS team can do THIS week — name person, system, setting.
-23. If a recommendation would be identical for a plumber and a creative agency, it's too generic.
-24. aspirationGap must name specific systems and hours. Not "better integration" but "Harvest has no connection to Xero — 8 hrs/month blocks the goal".
+1. Every finding title must name something specific: system name, role, number, process. NEVER "Improve system integration". ALWAYS "Harvest→Xero disconnect: Maria transfers 8 hours/month manually..."
+2. Every finding must reference at least ONE desired_outcome by name in blocksGoal.
+3. Quick wins must be things THIS team can do THIS week — name person, system, setting.
+4. If a finding would be identical for a plumber and a creative agency, it's too generic. Rewrite it.
 
 BANNED: Additionally, Furthermore, Moreover, Delve, Crucial, pivotal, vital, Testament to, Showcases, fostering, Tapestry, landscape, Synergy, leverage, streamline, optimize, holistic.
-BANNED STRUCTURES: "Not only X but also Y"; "It's important to note..."; Generic recommendations like "implement a CRM", "automate invoicing". Name the specific tool. Findings without system-to-system gap evidence.
+BANNED STRUCTURES: "Not only X but also Y"; "It's important to note..."; Generic recommendations like "implement a CRM", "automate invoicing" — name the specific tool, the specific person, the specific setting.
 Return ONLY valid JSON.`;
 
 function buildPhase3DiagnosePrompt(phase1: any, phase2: any, clientName: string, hourlyRate: number): string {
@@ -509,11 +539,11 @@ function buildPhase3DiagnosePrompt(phase1: any, phase2: any, clientName: string,
   const factsStr = JSON.stringify(allFacts, null, 2);
   const scoresStr = JSON.stringify(phase2.scores, null, 2);
   return `
-Given these extracted facts about ${clientName}, generate specific findings and quick wins. Use EXACT verbatim quotes where relevant.
+Given these extracted facts about ${clientName}, generate specific, evidence-backed findings and actionable quick wins. Use EXACT verbatim quotes where relevant. Every finding must be tied to specific systems, specific processes, and specific numbers from the data.
 
 uniquenessBrief: ${phase2.uniquenessBrief}
 
-facts (extracted):
+facts (extracted from Phase 1 + Phase 2):
 ${factsStr}
 
 scores:
@@ -525,32 +555,34 @@ Return JSON:
     {
       "severity": "critical|high|medium|low",
       "category": "integration_gap|manual_process|data_silo|single_point_failure|scalability_risk",
-      "title": "Specific title with system names and numbers",
-      "description": "What's broken and why, using their words",
-      "evidence": ["Specific data point 1", "Data point 2"],
-      "clientQuote": "Their exact words",
+      "title": "Specific title with system names and numbers — e.g. 'Harvest→Xero disconnect costs 8hrs/week in manual time entry transfer'",
+      "description": "What's broken and why, using their words. Be detailed — this is the core diagnostic output.",
+      "evidence": ["Specific data point 1 with number", "Data point 2 with system name"],
+      "clientQuote": "Their exact words that prove this finding",
       "affectedSystems": ["Xero", "Asana"],
       "affectedProcesses": ["quote_to_cash", "record_to_report"],
       "hoursWastedWeekly": number,
       "annualCostImpact": number,
-      "scalabilityImpact": "What happens at 1.5x growth",
-      "recommendation": "Specific fix",
-      "blocksGoal": "Which desired_outcome this blocks — use their exact text"
+      "scalabilityImpact": "What specifically happens at ${allFacts.growthMultiplier}x growth — name the breaking point",
+      "recommendation": "Specific fix — name the integration, tool, or setting change",
+      "blocksGoal": "Which desired_outcome this blocks — use their exact text from desiredOutcomes"
     }
   ],
   "quickWins": [
     {
-      "title": "Action with system name",
-      "action": "Step 1, Step 2, Step 3",
+      "title": "Action with specific system name and person",
+      "action": "Step 1: [specific action], Step 2: [specific action], Step 3: [specific action]",
       "systems": ["Xero", "Asana"],
       "timeToImplement": "X hours",
       "hoursSavedWeekly": number,
       "annualBenefit": number,
-      "impact": "Specific outcome"
+      "impact": "Specific outcome — what changes for the team on Monday morning"
     }
   ]
 }
-${SPECIFICITY_AND_BANNED}
+
+Generate AT LEAST 6 findings (mix of critical, high, medium). Generate AT LEAST 4 quick wins.
+${SPECIFICITY_RULES}
 `;
 }
 
@@ -581,7 +613,7 @@ async function runPhase3Diagnose(
     .from('sa_audit_reports')
     .update({
       pass1_data: { ...existingPass1, phase3: data },
-      executive_summary: 'Phase 3/4: Generating findings and quick wins...',
+      executive_summary: 'Phase 3/5: Generating detailed findings and quick wins...',
     })
     .eq('engagement_id', engagementId);
   console.log('[SA Pass 1] Phase 3: DB write complete');
@@ -609,120 +641,92 @@ async function runPhase3Diagnose(
   return { success: true, phase: 3 };
 }
 
-// ---------- Phase 4: PRESCRIBE (recommendations, adminGuidance, clientPresentation) ----------
-function buildPhase4PrescribePrompt(phase1: any, phase2: any, phase3: any, clientName: string): string {
+// ---------- Phase 4: RECOMMEND (recommendations with ROI and freedom mapping) ----------
+function buildPhase4Prompt(phase1: any, phase2: any, phase3: any, clientName: string): string {
   const findingSummaries = (phase3.findings || []).map((f: any) => ({
-    title: f.title,
-    severity: f.severity,
-    affectedSystems: f.affectedSystems,
-    hoursWastedWeekly: f.hoursWastedWeekly,
-    blocksGoal: f.blocksGoal,
+    title: f.title, severity: f.severity, affectedSystems: f.affectedSystems,
+    hoursWastedWeekly: f.hoursWastedWeekly, annualCostImpact: f.annualCostImpact, blocksGoal: f.blocksGoal,
   }));
   return `
-Given these facts and findings for ${clientName}, generate recommendations, admin guidance, and client presentation.
+Given these facts, analysis, and findings for ${clientName}, generate detailed recommendations. Each recommendation must have clear ROI, connect to their specific goals, and reference their exact systems.
 
 uniquenessBrief: ${phase2.uniquenessBrief}
 
-Key facts: desiredOutcomes=${JSON.stringify(phase1.facts.desiredOutcomes)}, mondayMorningVision="${phase1.facts.mondayMorningVision}", aspirationGap="${phase2.aspirationGap}".
-Systems: ${JSON.stringify(phase1.facts.systems?.map((s: any) => ({ name: s.name, monthlyCost: s.monthlyCost, gaps: s.gaps })))}.
-Processes: ${JSON.stringify(phase2.processes?.map((p: any) => ({ chainName: p.chainName, hoursWasted: p.hoursWasted })))}.
-hoursWastedWeekly: ${phase2.hoursWastedWeekly}, annualCostOfChaos: ${phase2.annualCostOfChaos}.
+Key context:
+- Desired outcomes: ${JSON.stringify(phase1.facts.desiredOutcomes)}
+- Monday morning vision: "${phase1.facts.mondayMorningVision}"
+- Aspiration gap: "${phase2.aspirationGap}"
+- Hours wasted weekly: ${phase2.hoursWastedWeekly}
+- Annual cost of chaos: £${phase2.annualCostOfChaos}
 
-Finding summaries (for recommendations):
+Systems (name, cost, gaps):
+${JSON.stringify(phase1.facts.systems?.map((s: any) => ({ name: s.name, monthlyCost: s.monthlyCost, gaps: s.gaps, integrationMethod: s.integrationMethod })), null, 2)}
+
+Processes (name, hours wasted):
+${JSON.stringify(phase2.processes?.map((p: any) => ({ chainName: p.chainName, chainCode: p.chainCode, hoursWasted: p.hoursWasted, criticalGaps: p.criticalGaps })), null, 2)}
+
+Findings to address:
 ${JSON.stringify(findingSummaries, null, 2)}
+
+Quick wins already identified:
+${JSON.stringify((phase3.quickWins || []).map((q: any) => ({ title: q.title, hoursSavedWeekly: q.hoursSavedWeekly })), null, 2)}
 
 Return JSON:
 {
   "recommendations": [
     {
       "priorityRank": 1,
-      "title": "Recommendation with systems",
-      "description": "How this fixes their specific problems",
+      "title": "Recommendation title with specific systems — e.g. 'Connect Harvest→Xero for automated time-to-invoice flow'",
+      "description": "Detailed description of what this fixes, how it works, and why it matters for THIS client. Reference specific findings it addresses.",
       "category": "foundation|quick_win|strategic|optimization",
       "implementationPhase": "immediate|short_term|medium_term|long_term",
       "systemsInvolved": ["Xero", "Asana"],
       "processesFixed": ["quote_to_cash"],
+      "findingsAddressed": ["Finding title 1", "Finding title 2"],
       "estimatedCost": number,
       "hoursSavedWeekly": number,
       "annualBenefit": number,
       "paybackMonths": number,
-      "freedomUnlocked": "Echo their monday_morning_vision — use THEIR language",
-      "goalsAdvanced": ["Which desired_outcomes — EXACT option text"]
+      "freedomUnlocked": "Echo their monday_morning_vision — use THEIR language. What does Monday morning look like after this is done?",
+      "goalsAdvanced": ["Which desired_outcomes this advances — use EXACT text from their desiredOutcomes"]
     }
-  ],
-  "adminGuidance": {
-    "talkingPoints": [{ "topic": "...", "point": "...", "clientQuote": "...", "importance": "critical|high|medium" }],
-    "questionsToAsk": [{ "question": "...", "purpose": "...", "expectedInsight": "...", "followUp": "..." }],
-    "nextSteps": [{ "action": "...", "owner": "Practice team|Client|Joint", "timing": "...", "outcome": "...", "priority": 1 }],
-    "tasks": [{ "task": "...", "assignTo": "...", "dueDate": "...", "deliverable": "..." }],
-    "riskFlags": [{ "flag": "...", "mitigation": "...", "severity": "high|medium|low" }]
-  },
-  "clientPresentation": {
-    "executiveBrief": "One paragraph (under 100 words) for a busy MD — cost and path forward, no jargon",
-    "roiSummary": {
-      "currentAnnualCost": number,
-      "projectedSavings": number,
-      "implementationCost": number,
-      "paybackPeriod": "X months",
-      "threeYearROI": "X:1",
-      "timeReclaimed": "X hours/week"
-    },
-    "topThreeIssues": [{ "issue": "...", "impact": "£X or Y hours/week", "solution": "...", "timeToFix": "..." }]
-  }
+  ]
 }
 
-ADMIN GUIDANCE: At least 5 talking points, 4 questions, 3 next steps, 3 tasks. Flag risks. Client presentation jargon-free.
-${SPECIFICITY_AND_BANNED}
+Generate AT LEAST 5 recommendations, prioritised. Mix of immediate wins and strategic changes.
+Sum of all recommendations.hoursSavedWeekly must not exceed ${phase2.hoursWastedWeekly} (can't save more hours than are wasted).
+Every recommendation must reference at least one finding and at least one desired_outcome.
+${SPECIFICITY_RULES}
 `;
 }
 
-async function runPhase4Prescribe(
+async function runPhase4(
   supabaseClient: any,
   engagementId: string,
-  engagement: any,
   openRouterKey: string
-): Promise<{ success: boolean; phase: number; reportId: string }> {
-  const { data: reportRow } = await supabaseClient
-    .from('sa_audit_reports')
-    .select('id, pass1_data')
-    .eq('engagement_id', engagementId)
-    .single();
-  if (!reportRow?.pass1_data?.phase1 || !reportRow.pass1_data.phase2 || !reportRow.pass1_data.phase3) {
+): Promise<{ success: boolean; phase: number }> {
+  const { data: report } = await supabaseClient
+    .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase2 || !report.pass1_data.phase3) {
     throw new Error('Phase 1, 2, or 3 data not found');
   }
-  const phase1 = reportRow.pass1_data.phase1;
-  const phase2 = reportRow.pass1_data.phase2;
-  const phase3 = reportRow.pass1_data.phase3;
+
+  const phase1 = report.pass1_data.phase1;
+  const phase2 = report.pass1_data.phase2;
+  const phase3 = report.pass1_data.phase3;
   const clientName = phase1.facts.companyName || 'the business';
-  const prompt = buildPhase4PrescribePrompt(phase1, phase2, phase3, clientName);
-  const { data: phase4, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 4, openRouterKey);
+  const prompt = buildPhase4Prompt(phase1, phase2, phase3, clientName);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 4, openRouterKey);
 
-  const finalPass1Data = {
-    uniquenessBrief: phase2.uniquenessBrief,
-    facts: {
-      ...phase1.facts,
-      processes: phase2.processes,
-      hoursWastedWeekly: phase2.hoursWastedWeekly,
-      annualCostOfChaos: phase2.annualCostOfChaos,
-      projectedCostAtScale: phase2.projectedCostAtScale,
-      aspirationGap: phase2.aspirationGap,
-    },
-    scores: phase2.scores,
-    findings: phase3.findings,
-    quickWins: phase3.quickWins,
-    recommendations: phase4.recommendations,
-    adminGuidance: phase4.adminGuidance,
-    clientPresentation: phase4.clientPresentation,
-  };
-
-  const f = finalPass1Data.facts;
-  const recs = phase4.recommendations || [];
-  const totalInv = recs.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0);
-  const totalBenefit = recs.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0);
-  const hoursReclaimable = recs.reduce((sum: number, r: any) => sum + (parseFloat(r.hoursSavedWeekly) || 0), 0) ||
-    (phase3.quickWins || []).reduce((sum: number, q: any) => sum + (parseFloat(q.hoursSavedWeekly) || 0), 0);
+  console.log('[SA Pass 1] Phase 4: Writing to DB...');
+  await supabaseClient.from('sa_audit_reports').update({
+    pass1_data: { ...report.pass1_data, phase4: data },
+    executive_summary: 'Phase 4/5: Building recommendations with ROI analysis...',
+  }).eq('engagement_id', engagementId);
+  console.log('[SA Pass 1] Phase 4: DB write complete');
 
   await supabaseClient.from('sa_recommendations').delete().eq('engagement_id', engagementId);
+  const recs = data.recommendations || [];
   if (recs.length) {
     const recRows = recs.map((rec: any) => ({
       engagement_id: engagementId,
@@ -740,6 +744,177 @@ async function runPhase4Prescribe(
     await supabaseClient.from('sa_recommendations').insert(recRows);
   }
 
+  return { success: true, phase: 4 };
+}
+
+// ---------- Phase 5: GUIDE & PRESENT (admin guidance + client presentation + final assembly) ----------
+function buildPhase5Prompt(phase1: any, phase2: any, phase3: any, phase4: any, clientName: string): string {
+  const topFindings = (phase3.findings || []).slice(0, 5).map((f: any) => ({
+    title: f.title, severity: f.severity, hoursWastedWeekly: f.hoursWastedWeekly,
+    annualCostImpact: f.annualCostImpact, clientQuote: f.clientQuote, blocksGoal: f.blocksGoal,
+  }));
+  const topRecs = (phase4.recommendations || []).slice(0, 5).map((r: any) => ({
+    title: r.title, priorityRank: r.priorityRank, estimatedCost: r.estimatedCost,
+    annualBenefit: r.annualBenefit, hoursSavedWeekly: r.hoursSavedWeekly, freedomUnlocked: r.freedomUnlocked,
+  }));
+
+  return `
+Given the full analysis for ${clientName}, generate admin guidance for the practice team's client meeting AND a client-facing presentation summary.
+
+═══════════════════════════════════════════════════════════════════════════════
+CONTEXT
+═══════════════════════════════════════════════════════════════════════════════
+
+uniquenessBrief: ${phase2.uniquenessBrief}
+aspirationGap: ${phase2.aspirationGap}
+desiredOutcomes: ${JSON.stringify(phase1.facts.desiredOutcomes)}
+mondayMorningVision: "${phase1.facts.mondayMorningVision}"
+magicFix: "${phase1.facts.magicFix}"
+expensiveMistake: "${phase1.facts.expensiveMistake}"
+breakingPoint: "${phase1.facts.breakingPoint}"
+fears: ${JSON.stringify(phase1.facts.fears)}
+hoursWastedWeekly: ${phase2.hoursWastedWeekly}
+annualCostOfChaos: £${phase2.annualCostOfChaos}
+
+Top findings:
+${JSON.stringify(topFindings, null, 2)}
+
+Top recommendations:
+${JSON.stringify(topRecs, null, 2)}
+
+Quick wins: ${JSON.stringify((phase3.quickWins || []).map((q: any) => ({ title: q.title, impact: q.impact })))}
+
+═══════════════════════════════════════════════════════════════════════════════
+YOUR TASK — Return ONLY this JSON
+═══════════════════════════════════════════════════════════════════════════════
+
+{
+  "adminGuidance": {
+    "talkingPoints": [
+      {
+        "topic": "Short topic name — e.g. 'The invoice lag problem'",
+        "point": "What to say about this topic — be specific, actionable, reference their data. Write it as if coaching the practice team member before the meeting.",
+        "clientQuote": "Exact quote from their responses to reference in conversation",
+        "importance": "critical|high|medium"
+      }
+    ],
+    "questionsToAsk": [
+      {
+        "question": "Specific probing question to ask in the client meeting",
+        "purpose": "Why this question matters — what business insight it unlocks",
+        "expectedInsight": "What you expect to learn and how it affects the recommendation",
+        "followUp": "Natural follow-up question based on the likely answer"
+      }
+    ],
+    "nextSteps": [
+      {
+        "action": "Specific action to take — name systems, people, deliverables",
+        "owner": "Practice team|Client|Joint",
+        "timing": "Within X days/weeks",
+        "outcome": "What this achieves — be concrete",
+        "priority": 1
+      }
+    ],
+    "tasks": [
+      {
+        "task": "Specific task description — what exactly needs doing",
+        "assignTo": "Role who should do this",
+        "dueDate": "Before next meeting|Within 1 week|etc",
+        "deliverable": "What output is expected — be specific"
+      }
+    ],
+    "riskFlags": [
+      {
+        "flag": "What to watch out for — be specific to THIS client",
+        "mitigation": "How to address this concern — practical steps",
+        "severity": "high|medium|low"
+      }
+    ]
+  },
+  "clientPresentation": {
+    "executiveBrief": "One paragraph (under 100 words) for a busy MD — lead with the cost, name their goal, show the path. No jargon. This should be quotable in a proposal.",
+    "roiSummary": {
+      "currentAnnualCost": number,
+      "projectedSavings": number,
+      "implementationCost": number,
+      "paybackPeriod": "X months",
+      "threeYearROI": "X:1",
+      "timeReclaimed": "X hours/week"
+    },
+    "topThreeIssues": [
+      {
+        "issue": "Clear issue title a non-technical MD would understand",
+        "impact": "£X annual impact or Y hours/week — use the number",
+        "solution": "Specific solution in plain language — name the systems",
+        "timeToFix": "X days/weeks"
+      }
+    ]
+  }
+}
+
+ADMIN GUIDANCE RULES:
+- Generate AT LEAST 6 talking points — prioritise their expensive mistake, magic fix, and biggest findings
+- Generate AT LEAST 5 probing questions that uncover hidden costs or expand engagement scope
+- Generate AT LEAST 4 next steps with clear owners and timing
+- Generate AT LEAST 4 tasks for the practice team to prepare before the client meeting
+- Flag ALL risks: change appetite concerns, budget constraints, key person dependencies, data migration risks
+- Client presentation must be completely jargon-free — an MD who doesn't know what an API is should understand every word
+
+${SPECIFICITY_RULES}
+`;
+}
+
+async function runPhase5(
+  supabaseClient: any,
+  engagementId: string,
+  openRouterKey: string
+): Promise<{ success: boolean; phase: number; reportId: string }> {
+  const { data: reportRow } = await supabaseClient
+    .from('sa_audit_reports').select('id, pass1_data').eq('engagement_id', engagementId).single();
+  if (!reportRow?.pass1_data?.phase1 || !reportRow.pass1_data.phase2 || !reportRow.pass1_data.phase3 || !reportRow.pass1_data.phase4) {
+    throw new Error('Phase 1, 2, 3, or 4 data not found');
+  }
+
+  const phase1 = reportRow.pass1_data.phase1;
+  const phase2 = reportRow.pass1_data.phase2;
+  const phase3 = reportRow.pass1_data.phase3;
+  const phase4 = reportRow.pass1_data.phase4;
+  const clientName = phase1.facts.companyName || 'the business';
+  const prompt = buildPhase5Prompt(phase1, phase2, phase3, phase4, clientName);
+  const { data: phase5, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 5, openRouterKey);
+
+  const allQuotes = [
+    ...(phase1.facts.allClientQuotes || []),
+    ...(phase2.additionalClientQuotes || []),
+  ];
+
+  const finalPass1Data = {
+    uniquenessBrief: phase2.uniquenessBrief,
+    facts: {
+      ...phase1.facts,
+      processes: phase2.processes,
+      hoursWastedWeekly: phase2.hoursWastedWeekly,
+      annualCostOfChaos: phase2.annualCostOfChaos,
+      projectedCostAtScale: phase2.projectedCostAtScale,
+      aspirationGap: phase2.aspirationGap,
+      allClientQuotes: allQuotes,
+    },
+    scores: phase2.scores,
+    findings: phase3.findings,
+    quickWins: phase3.quickWins,
+    recommendations: phase4.recommendations,
+    adminGuidance: phase5.adminGuidance,
+    clientPresentation: phase5.clientPresentation,
+  };
+
+  const f = finalPass1Data.facts;
+  const recs = phase4.recommendations || [];
+  const totalInv = recs.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0);
+  const totalBenefit = recs.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0);
+  const hoursReclaimable = recs.reduce((sum: number, r: any) => sum + (parseFloat(r.hoursSavedWeekly) || 0), 0) ||
+    (phase3.quickWins || []).reduce((sum: number, q: any) => sum + (parseFloat(q.hoursSavedWeekly) || 0), 0);
+
+  console.log('[SA Pass 1] Phase 5: Writing final report to DB...');
   const updatePayload: any = {
     pass1_data: finalPass1Data,
     status: 'pass1_complete',
@@ -758,33 +933,30 @@ async function runPhase4Prescribe(
     cost_of_chaos_narrative: '[Pass 2 will generate narrative]',
     time_freedom_narrative: '[Pass 2 will generate narrative]',
     what_this_enables: [f.magicFix?.substring(0, 200) || ''],
-    client_quotes_used: f.allClientQuotes?.slice(0, 10) || [],
+    client_quotes_used: allQuotes.slice(0, 10),
     generated_at: new Date().toISOString(),
   };
-  if (phase4.adminGuidance) {
-    updatePayload.admin_talking_points = phase4.adminGuidance.talkingPoints || [];
-    updatePayload.admin_questions_to_ask = phase4.adminGuidance.questionsToAsk || [];
-    updatePayload.admin_next_steps = phase4.adminGuidance.nextSteps || [];
-    updatePayload.admin_tasks = phase4.adminGuidance.tasks || [];
-    updatePayload.admin_risk_flags = phase4.adminGuidance.riskFlags || [];
+  if (phase5.adminGuidance) {
+    updatePayload.admin_talking_points = phase5.adminGuidance.talkingPoints || [];
+    updatePayload.admin_questions_to_ask = phase5.adminGuidance.questionsToAsk || [];
+    updatePayload.admin_next_steps = phase5.adminGuidance.nextSteps || [];
+    updatePayload.admin_tasks = phase5.adminGuidance.tasks || [];
+    updatePayload.admin_risk_flags = phase5.adminGuidance.riskFlags || [];
   }
-  if (phase4.clientPresentation) {
-    updatePayload.client_executive_brief = phase4.clientPresentation.executiveBrief || null;
-    updatePayload.client_roi_summary = phase4.clientPresentation.roiSummary || null;
+  if (phase5.clientPresentation) {
+    updatePayload.client_executive_brief = phase5.clientPresentation.executiveBrief || null;
+    updatePayload.client_roi_summary = phase5.clientPresentation.roiSummary || null;
   }
 
-  console.log('[SA Pass 1] Phase 4: Writing to DB...');
   const { error: updateError } = await supabaseClient
-    .from('sa_audit_reports')
-    .update(updatePayload)
-    .eq('engagement_id', engagementId);
-  console.log('[SA Pass 1] Phase 4: DB write complete');
+    .from('sa_audit_reports').update(updatePayload).eq('engagement_id', engagementId);
   if (updateError) {
-    console.error('[SA Pass 1] Phase 4 update error:', updateError);
+    console.error('[SA Pass 1] Phase 5 update error:', updateError);
     throw updateError;
   }
+  console.log('[SA Pass 1] Phase 5: DB write complete. Status set to pass1_complete.');
 
-  return { success: true, phase: 4, reportId: reportRow.id };
+  return { success: true, phase: 5, reportId: reportRow.id };
 }
 
 // ---------- Entry: route by phase ----------
@@ -843,7 +1015,7 @@ serve(async (req) => {
     switch (phase) {
       case 1: {
         await supabaseClient.from('sa_audit_reports').upsert(
-          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/4: Extracting facts and analysing systems...' },
+          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/5: Extracting facts and analysing systems...' },
           { onConflict: 'engagement_id' }
         );
         const [discoveryRes, systemsRes] = await Promise.all([
@@ -868,7 +1040,7 @@ serve(async (req) => {
       case 2: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 2/4: Analysing processes and calculating scores...' })
+          .update({ executive_summary: 'Phase 2/5: Analysing processes and calculating scores...' })
           .eq('engagement_id', engagementId);
         result = await runPhase2Analyse(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
         break;
@@ -876,7 +1048,7 @@ serve(async (req) => {
       case 3: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 3/4: Generating findings and quick wins...' })
+          .update({ executive_summary: 'Phase 3/5: Generating detailed findings and quick wins...' })
           .eq('engagement_id', engagementId);
         result = await runPhase3Diagnose(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
         break;
@@ -884,9 +1056,17 @@ serve(async (req) => {
       case 4: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 4/4: Building recommendations and admin guidance...' })
+          .update({ executive_summary: 'Phase 4/5: Building recommendations with ROI analysis...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase4Prescribe(supabaseClient, engagementId, engagement, openRouterKey);
+        result = await runPhase4(supabaseClient, engagementId, openRouterKey);
+        break;
+      }
+      case 5: {
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({ executive_summary: 'Phase 5/5: Generating admin guidance and client presentation...' })
+          .eq('engagement_id', engagementId);
+        result = await runPhase5(supabaseClient, engagementId, openRouterKey);
         break;
       }
       default:
@@ -898,7 +1078,7 @@ serve(async (req) => {
         success: true,
         phase: result.phase,
         reportId: (result as any).reportId,
-        nextPhase: phase < 4 ? phase + 1 : null,
+        nextPhase: phase < 5 ? phase + 1 : null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
