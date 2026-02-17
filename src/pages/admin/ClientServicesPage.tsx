@@ -3,7 +3,7 @@ import type { Page } from '../../types/navigation';
 import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
-import { supabase } from '../../lib/supabase';
+import { supabase, supabaseUrl } from '../../lib/supabase';
 import { RPGCC_LOGO_LIGHT, RPGCC_LOGO_DARK, RPGCC_COLORS } from '../../constants/brandAssets';
 import { 
   TransformationJourney,
@@ -13338,85 +13338,107 @@ function SystemsAuditClientModal({
 
   const handleGenerateReport = async () => {
     if (!engagement) return;
-    
+
     setGenerating(true);
-    
-    try {
-      // Call Pass 1 (which triggers Pass 2 automatically)
-      console.log('[SA Report] Calling Pass 1...', { engagementId: engagement.id });
-      
+
+    const engagementId = engagement.id;
+    const pass1Url = `${supabaseUrl}/functions/v1/generate-sa-report-pass1`;
+    const body = { engagementId };
+
+    const tryDirectFetch = async (): Promise<{ ok: boolean; data?: any }> => {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session?.session?.access_token;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 240000); // 4 minute timeout
-      
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s
       try {
-        const { data, error } = await supabase.functions.invoke('generate-sa-report-pass1', {
-          body: { engagementId: engagement.id },
-          signal: controller.signal
+        const res = await fetch(pass1Url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
         });
-
         clearTimeout(timeoutId);
+        const data = await res.json().catch(() => ({}));
+        return { ok: res.ok, data };
+      } catch (e) {
+        clearTimeout(timeoutId);
+        return { ok: false };
+      }
+    };
 
-        if (error) {
-          console.error('[SA Report] Pass 1 error:', error);
-          // Check if it's a timeout/connection error
-          if (error.message?.includes('timeout') ||
-              error.message?.includes('connection closed') ||
-              error.message?.includes('aborted') ||
-              error.message?.includes('Failed to send')) {
+    try {
+      console.log('[SA Report] Calling Pass 1...', { engagementId });
+
+      let result: { data?: any; error?: any } = {};
+
+      try {
+        result = await supabase.functions.invoke('generate-sa-report-pass1', {
+          body: { engagementId },
+        });
+      } catch (invokeErr: any) {
+        const isFetchError =
+          invokeErr?.name === 'FunctionsFetchError' ||
+          invokeErr?.message?.includes('Failed to send') ||
+          invokeErr?.message?.includes('Edge Function');
+        if (isFetchError) {
+          console.warn('[SA Report] Supabase invoke failed, retrying with direct fetch...', invokeErr?.message);
+          const direct = await tryDirectFetch();
+          if (direct.ok && direct.data) {
+            result = { data: direct.data, error: null };
+          } else {
             setSaReportPollingAfterError(true);
-            console.log('[SA Report] Pass 1 request timed out or failed to connect, but may still be processing. Polling...');
-            pollForReport(engagement.id, 0);
+            pollForReport(engagementId, 0);
             return;
           }
-          throw error;
-        }
-
-        // Pass 1 completed - check if Pass 2 was triggered
-        if (data?.pass2Triggered) {
-          console.log('[SA Report] Pass 1 complete, Pass 2 triggered. Polling for completion...');
-          // Start polling for Pass 2 completion
-          pollForReport(engagement.id, 0);
         } else {
-          // Pass 1 completed but Pass 2 not triggered - refresh to show Pass 1 data
-          await fetchData();
-          setGenerating(false);
+          throw invokeErr;
         }
-      } catch (invokeError: any) {
-        clearTimeout(timeoutId);
-        // If invoke itself fails, check if it's a connection error
-        if (invokeError.name === 'AbortError' ||
-            invokeError.message?.includes('timeout') ||
-            invokeError.message?.includes('connection closed') ||
-            invokeError.message?.includes('aborted') ||
-            invokeError.message?.includes('Failed to send')) {
-          setSaReportPollingAfterError(true);
-          console.log('[SA Report] Function invoke failed, but may still be processing. Polling...');
-          pollForReport(engagement.id, 0);
-          return;
-        }
-        throw invokeError;
       }
-    } catch (error: any) {
-      // Check if it's a timeout/abort error
-      if (error.name === 'AbortError' ||
+
+      const { data, error } = result;
+
+      if (error) {
+        if (
           error.message?.includes('timeout') ||
           error.message?.includes('connection closed') ||
-          error.message?.includes('aborted')) {
+          error.message?.includes('aborted') ||
+          error.message?.includes('Failed to send')
+        ) {
+          setSaReportPollingAfterError(true);
+          pollForReport(engagementId, 0);
+          return;
+        }
+        throw error;
+      }
+
+      if (data?.pass2Triggered) {
+        console.log('[SA Report] Pass 1 complete, Pass 2 triggered. Polling for completion...');
+        pollForReport(engagementId, 0);
+      } else {
+        await fetchData();
+        setGenerating(false);
+      }
+    } catch (error: any) {
+      if (
+        error?.name === 'AbortError' ||
+        error?.message?.includes('timeout') ||
+        error?.message?.includes('connection closed') ||
+        error?.message?.includes('aborted')
+      ) {
         setSaReportPollingAfterError(true);
-        console.log('[SA Report] Connection timed out, but generation may still be in progress. Polling...');
-        pollForReport(engagement.id, 0);
+        pollForReport(engagementId, 0);
         return;
       }
-      
+      if (error?.message?.includes('Failed to send') || error?.message?.includes('Edge Function')) {
+        setSaReportPollingAfterError(true);
+        pollForReport(engagementId, 0);
+        return;
+      }
       console.error('[SA Report] Error generating report:', error);
-      // Check if it's a "Failed to send" error - this might mean the function is still starting
-      if (error.message?.includes('Failed to send') || error.message?.includes('Edge Function')) {
-        setSaReportPollingAfterError(true);
-        console.log('[SA Report] Edge Function connection failed, but it may still be processing. Starting polling...');
-        pollForReport(engagement.id, 0);
-        return;
-      }
-      alert(`Error generating report: ${error.message || 'Unknown error'}`);
+      alert(`Error generating report: ${error?.message || 'Unknown error'}`);
       setGenerating(false);
     }
   };
