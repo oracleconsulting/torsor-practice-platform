@@ -28,11 +28,13 @@ interface SystemInventory {
   primary_users: string[];
   number_of_users?: number;
   usage_frequency: 'daily' | 'weekly' | 'monthly' | 'rarely';
+  usage_frequency_context?: string;
   criticality: 'critical' | 'important' | 'nice_to_have';
   pricing_model: 'monthly' | 'annual' | 'per_user' | 'one_time' | 'free';
   monthly_cost?: number;
   annual_cost?: number;
   cost_trend: 'increasing' | 'stable' | 'decreasing' | 'dont_know';
+  cost_trend_context?: string;
   integrates_with?: string[];
   integrates_with_names?: string[];
   integration_method: 'native' | 'zapier_make' | 'custom_api' | 'manual' | 'none';
@@ -253,11 +255,13 @@ export default function SystemInventoryPage() {
         primary_users: formData.primary_users || [],
         number_of_users: formData.number_of_users || null,
         usage_frequency: formData.usage_frequency || 'daily',
+        usage_frequency_context: formData.usage_frequency_context || null,
         criticality: formData.criticality || 'important',
         pricing_model: formData.pricing_model || 'monthly',
         monthly_cost: formData.monthly_cost || null,
         annual_cost: formData.annual_cost || null,
         cost_trend: formData.cost_trend || 'stable',
+        cost_trend_context: formData.cost_trend_context || null,
         integrates_with: formData.integrates_with || null,
         integrates_with_names: formData.integrates_with_names || null,
         integration_method: formData.integration_method || 'none',
@@ -512,6 +516,13 @@ export default function SystemInventoryPage() {
                   <option value="rarely">Rarely</option>
                   <option value="weekly">Weekly</option>
                 </select>
+                <input
+                  type="text"
+                  value={formData.usage_frequency_context || ''}
+                  onChange={(e) => setFormData({ ...formData, usage_frequency_context: e.target.value })}
+                  className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  placeholder="Optional: e.g., supposed to be daily — actual compliance ~60%"
+                />
               </div>
 
               {/* Criticality */}
@@ -626,6 +637,13 @@ export default function SystemInventoryPage() {
                   <option value="increasing">Increasing</option>
                   <option value="stable">Stable</option>
                 </select>
+                <input
+                  type="text"
+                  value={formData.cost_trend_context || ''}
+                  onChange={(e) => setFormData({ ...formData, cost_trend_context: e.target.value })}
+                  className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  placeholder="Optional: e.g., adding seats as team grows"
+                />
               </div>
 
               {/* Website URL */}
