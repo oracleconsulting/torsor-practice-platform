@@ -151,6 +151,7 @@ export interface RoadmapData {
     fiveYearVision?: any;
     sixMonthShift?: any;
     sprint?: any;
+    sprintSummary?: any;
     summary?: {
       headline: string;
       northStar?: string;

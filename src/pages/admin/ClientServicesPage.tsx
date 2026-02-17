@@ -10827,7 +10827,6 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               {steps.map((step, i) => {
                                 const isComplete = step.complete;
                                 const isActive = !isComplete && (i === 0 || steps[i - 1].complete);
-                                const isPending = !isComplete && !isActive;
 
                                 return (
                                   <div key={step.label} className="flex-1 flex flex-col items-center text-center">

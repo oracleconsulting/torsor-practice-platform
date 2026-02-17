@@ -70,8 +70,8 @@ export function SprintSummaryClientView({
   const stats = summary.completionStats;
   const achievements = summary.achievements || [];
   const growthAreas = summary.growthAreas || [];
-  const shifts = summary.behaviouralShifts || {};
-  const clientVoice = summary.clientVoice || {};
+  const shifts = (summary.behaviouralShifts ?? {}) as Partial<NonNullable<SprintSummaryContent['behaviouralShifts']>>;
+  const clientVoice = (summary.clientVoice ?? {}) as Partial<NonNullable<SprintSummaryContent['clientVoice']>>;
   const nextSprint = summary.nextSprintRecommendations || [];
   const sprintNum = summary.sprintNumber ?? 1;
   const displayAchievements = showAllAchievements ? achievements : achievements.slice(0, ACHIEVEMENTS_SHOWN);
