@@ -51,6 +51,7 @@ interface SystemInventory {
   workarounds_in_use?: string;
   change_one_thing?: string;
   future_plan: 'keep' | 'replace' | 'upgrade' | 'unsure';
+  future_plan_context?: string;
   replacement_candidate?: string;
   contract_end_date?: string;
   created_at: string;
@@ -278,6 +279,7 @@ export default function SystemInventoryPage() {
         workarounds_in_use: formData.workarounds_in_use || null,
         change_one_thing: formData.change_one_thing || null,
         future_plan: formData.future_plan || 'keep',
+        future_plan_context: formData.future_plan_context || null,
         replacement_candidate: formData.replacement_candidate || null,
         contract_end_date: formData.contract_end_date || null
       };
@@ -898,6 +900,13 @@ export default function SystemInventoryPage() {
                     <option value="unsure">Unsure</option>
                     <option value="upgrade">Upgrade</option>
                   </select>
+                  <input
+                    type="text"
+                    value={formData.future_plan_context || ''}
+                    onChange={(e) => setFormData({ ...formData, future_plan_context: e.target.value })}
+                    className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                    placeholder="Optional: e.g., but open to replacing if something better exists"
+                  />
                 </div>
 
                 {/* Replacement Candidate */}

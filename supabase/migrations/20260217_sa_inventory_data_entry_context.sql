@@ -16,3 +16,11 @@ COMMENT ON COLUMN sa_system_inventory.usage_frequency_context IS
   'Optional context for usage frequency, e.g. "supposed to be daily — actual compliance ~60%"';
 COMMENT ON COLUMN sa_system_inventory.cost_trend_context IS
   'Optional context for cost trend, e.g. "adding seats as team grows"';
+
+-- Optional descriptor for future plan (e.g. "but open to replacing if something better exists").
+
+ALTER TABLE sa_system_inventory
+  ADD COLUMN IF NOT EXISTS future_plan_context TEXT;
+
+COMMENT ON COLUMN sa_system_inventory.future_plan_context IS
+  'Optional context for future plan, e.g. "but open to replacing if something better exists"';
