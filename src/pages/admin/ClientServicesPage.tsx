@@ -13341,134 +13341,158 @@ function SystemsAuditClientModal({
   const handleGenerateReport = async () => {
     if (!engagement) return;
 
-    saReportPollingCancelledRef.current = false;
-    saPass2TriggeredByClientRef.current = false;
     setGenerating(true);
 
     try {
-      // Phase 1: Extract facts, systems, scores
+      // Helper: poll DB until condition is met
+      const pollDB = async (
+        checkFn: () => Promise<boolean>,
+        label: string,
+        maxAttempts = 40,
+        intervalMs = 5000
+      ): Promise<void> => {
+        for (let i = 0; i < maxAttempts; i++) {
+          const done = await checkFn();
+          if (done) {
+            console.log(`[SA Report] ${label} confirmed in DB`);
+            return;
+          }
+          console.log(`[SA Report] Waiting for ${label}... (${i + 1}/${maxAttempts})`);
+          await new Promise(r => setTimeout(r, intervalMs));
+        }
+        throw new Error(`${label} did not complete within ${maxAttempts * intervalMs / 1000}s`);
+      };
+
+      // ── Phase 1: Extract facts, systems, scores ──
       console.log('[SA Report] Starting Phase 1/3: Extracting facts...', { engagementId: engagement.id });
 
-      const { error: p1Error } = await supabase.functions.invoke('generate-sa-report-pass1', {
-        body: { engagementId: engagement.id, phase: 1 },
+      supabase.functions.invoke('generate-sa-report-pass1', {
+        body: { engagementId: engagement.id, phase: 1 }
+      }).then(({ data, error }) => {
+        if (error) console.warn('[SA Report] Phase 1 invoke returned error (may still complete):', error.message);
+        else console.log('[SA Report] Phase 1 invoke returned:', data);
+      }).catch(err => {
+        console.warn('[SA Report] Phase 1 invoke connection failed (expected, polling DB):', err.message);
       });
 
-      if (p1Error) {
-        if (p1Error.message?.includes('timeout') || p1Error.message?.includes('aborted') || p1Error.message?.includes('connection closed') || p1Error.message?.includes('Failed to send')) {
-          console.warn('[SA Report] Phase 1 connection issue, checking DB...');
-          await new Promise(r => setTimeout(r, 3000));
-          const { data: check } = await supabase
-            .from('sa_audit_reports')
-            .select('pass1_data')
-            .eq('engagement_id', engagement.id)
-            .maybeSingle();
-          if (!check?.pass1_data?.phase1) {
-            throw new Error('Phase 1 failed: ' + p1Error.message);
-          }
-          console.log('[SA Report] Phase 1 completed despite connection issue');
-        } else {
-          throw new Error('Phase 1 failed: ' + p1Error.message);
-        }
-      }
+      await pollDB(async () => {
+        const { data } = await supabase
+          .from('sa_audit_reports')
+          .select('pass1_data')
+          .eq('engagement_id', engagement.id)
+          .maybeSingle();
+        return !!data?.pass1_data?.phase1;
+      }, 'Phase 1');
 
       console.log('[SA Report] Phase 1 complete');
 
       // ── Phase 2: Generate findings and quick wins ──
       console.log('[SA Report] Starting Phase 2/3: Generating findings...');
 
-      const { error: p2Error } = await supabase.functions.invoke('generate-sa-report-pass1', {
-        body: { engagementId: engagement.id, phase: 2 },
+      supabase.functions.invoke('generate-sa-report-pass1', {
+        body: { engagementId: engagement.id, phase: 2 }
+      }).then(({ data, error }) => {
+        if (error) console.warn('[SA Report] Phase 2 invoke returned error (may still complete):', error.message);
+        else console.log('[SA Report] Phase 2 invoke returned:', data);
+      }).catch(err => {
+        console.warn('[SA Report] Phase 2 invoke connection failed (expected, polling DB):', err.message);
       });
 
-      if (p2Error) {
-        if (p2Error.message?.includes('timeout') || p2Error.message?.includes('aborted') || p2Error.message?.includes('connection closed') || p2Error.message?.includes('Failed to send')) {
-          console.warn('[SA Report] Phase 2 connection issue, checking DB...');
-          await new Promise(r => setTimeout(r, 3000));
-          const { data: check } = await supabase
-            .from('sa_audit_reports')
-            .select('pass1_data')
-            .eq('engagement_id', engagement.id)
-            .maybeSingle();
-          if (!check?.pass1_data?.phase2) {
-            throw new Error('Phase 2 failed: ' + p2Error.message);
-          }
-          console.log('[SA Report] Phase 2 completed despite connection issue');
-        } else {
-          throw new Error('Phase 2 failed: ' + p2Error.message);
-        }
-      }
+      await pollDB(async () => {
+        const { data } = await supabase
+          .from('sa_audit_reports')
+          .select('pass1_data')
+          .eq('engagement_id', engagement.id)
+          .maybeSingle();
+        return !!data?.pass1_data?.phase2;
+      }, 'Phase 2');
 
       console.log('[SA Report] Phase 2 complete');
 
       // ── Phase 3: Recommendations, admin guidance, client presentation ──
       console.log('[SA Report] Starting Phase 3/3: Building recommendations...');
 
-      const { data: p3, error: p3Error } = await supabase.functions.invoke('generate-sa-report-pass1', {
-        body: { engagementId: engagement.id, phase: 3 },
+      supabase.functions.invoke('generate-sa-report-pass1', {
+        body: { engagementId: engagement.id, phase: 3 }
+      }).then(({ data, error }) => {
+        if (error) console.warn('[SA Report] Phase 3 invoke returned error (may still complete):', error.message);
+        else console.log('[SA Report] Phase 3 invoke returned:', data);
+      }).catch(err => {
+        console.warn('[SA Report] Phase 3 invoke connection failed (expected, polling DB):', err.message);
       });
 
-      if (p3Error) {
-        if (p3Error.message?.includes('timeout') || p3Error.message?.includes('aborted') || p3Error.message?.includes('connection closed') || p3Error.message?.includes('Failed to send')) {
-          console.warn('[SA Report] Phase 3 connection issue, checking DB...');
-          await new Promise(r => setTimeout(r, 3000));
-          const { data: check } = await supabase
-            .from('sa_audit_reports')
-            .select('status')
-            .eq('engagement_id', engagement.id)
-            .maybeSingle();
-          if (check?.status !== 'pass1_complete') {
-            throw new Error('Phase 3 failed: ' + p3Error.message);
-          }
-          console.log('[SA Report] Phase 3 completed despite connection issue');
-        } else {
-          throw new Error('Phase 3 failed: ' + p3Error.message);
-        }
-      }
+      await pollDB(async () => {
+        const { data } = await supabase
+          .from('sa_audit_reports')
+          .select('status')
+          .eq('engagement_id', engagement.id)
+          .maybeSingle();
+        return data?.status === 'pass1_complete';
+      }, 'Phase 3');
 
       console.log('[SA Report] All 3 phases complete. Starting narrative generation (Pass 2)...');
 
-      // Pass 2: Narrative generation (separate function, can take longer)
-      let reportId = p3?.reportId;
-      if (!reportId) {
-        const { data: reportRow } = await supabase
+      // ── Pass 2: Narrative generation ──
+      const { data: reportRow } = await supabase
+        .from('sa_audit_reports')
+        .select('id')
+        .eq('engagement_id', engagement.id)
+        .maybeSingle();
+
+      supabase.functions.invoke('generate-sa-report-pass2', {
+        body: { engagementId: engagement.id, reportId: reportRow?.id }
+      }).then(({ data, error }) => {
+        if (error) console.warn('[SA Report] Pass 2 invoke returned error (may still complete):', error.message);
+        else console.log('[SA Report] Pass 2 invoke returned:', data);
+      }).catch(err => {
+        console.warn('[SA Report] Pass 2 invoke connection failed (expected, polling DB):', err.message);
+      });
+
+      await pollDB(async () => {
+        const { data } = await supabase
           .from('sa_audit_reports')
-          .select('id')
+          .select('status')
           .eq('engagement_id', engagement.id)
           .maybeSingle();
-        reportId = reportRow?.id;
-      }
+        return data?.status === 'generated' || data?.status === 'pass2_failed';
+      }, 'Pass 2 (narratives)', 60, 5000);
 
-      try {
-        const { error: pass2Error } = await supabase.functions.invoke('generate-sa-report-pass2', {
-          body: { engagementId: engagement.id, reportId },
-        });
+      const { data: finalReport } = await supabase
+        .from('sa_audit_reports')
+        .select('status')
+        .eq('engagement_id', engagement.id)
+        .maybeSingle();
 
-        if (pass2Error) {
-          console.error('[SA Report] Pass 2 error:', pass2Error);
-          alert('Report data extracted successfully, but narrative generation had an issue. You can retry.');
-          await fetchData();
-          setGenerating(false);
-          return;
-        }
-
+      if (finalReport?.status === 'generated') {
         console.log('[SA Report] Report fully generated!');
-        await fetchData();
-        setGenerating(false);
-      } catch (pass2Err: any) {
-        if (pass2Err.name === 'AbortError' || pass2Err.message?.includes('timeout') || pass2Err.message?.includes('aborted') || pass2Err.message?.includes('connection closed') || pass2Err.message?.includes('Failed to send')) {
-          console.log('[SA Report] Pass 2 timed out, polling for completion...');
-          pollForReport(engagement.id, 0);
-          return;
-        }
-
-        console.error('[SA Report] Pass 2 error:', pass2Err);
+      } else if (finalReport?.status === 'pass2_failed') {
+        console.warn('[SA Report] Pass 2 failed — extracted data is still available');
         alert('Report data extracted successfully, but narrative generation failed. You can retry.');
-        await fetchData();
-        setGenerating(false);
       }
+
+      await fetchData();
+      setGenerating(false);
+
     } catch (error: any) {
       console.error('[SA Report] Generation failed:', error);
-      alert(`Report generation failed: ${error.message || 'Unknown error'}`);
+
+      const { data: partialReport } = await supabase
+        .from('sa_audit_reports')
+        .select('status, pass1_data')
+        .eq('engagement_id', engagement.id)
+        .maybeSingle();
+
+      if (partialReport?.pass1_data?.phase1) {
+        const phasesComplete = [
+          partialReport.pass1_data.phase1 ? '1' : null,
+          partialReport.pass1_data.phase2 ? '2' : null,
+          partialReport.status === 'pass1_complete' ? '3' : null,
+        ].filter(Boolean).join(', ');
+        alert(`Report generation stopped at: ${error.message}\n\nPhases completed: ${phasesComplete}. You can retry to continue.`);
+      } else {
+        alert(`Report generation failed: ${error.message || 'Unknown error'}`);
+      }
+
       await fetchData();
       setGenerating(false);
     }
