@@ -13363,8 +13363,8 @@ function SystemsAuditClientModal({
         throw new Error(`${label} did not complete within ${maxAttempts * intervalMs / 1000}s`);
       };
 
-      // ── Phase 1: Extract facts, systems, scores ──
-      console.log('[SA Report] Starting Phase 1/3: Extracting facts...', { engagementId: engagement.id });
+      // ── Phase 1: Extract facts, systems ──
+      console.log('[SA Report] Starting Phase 1/4: Extracting facts...', { engagementId: engagement.id });
 
       supabase.functions.invoke('generate-sa-report-pass1', {
         body: { engagementId: engagement.id, phase: 1 }
@@ -13382,12 +13382,12 @@ function SystemsAuditClientModal({
           .eq('engagement_id', engagement.id)
           .maybeSingle();
         return !!data?.pass1_data?.phase1;
-      }, 'Phase 1');
+      }, 'Phase 1', 60, 5000);
 
       console.log('[SA Report] Phase 1 complete');
 
-      // ── Phase 2: Generate findings and quick wins ──
-      console.log('[SA Report] Starting Phase 2/3: Generating findings...');
+      // ── Phase 2: Analyse processes and scores ──
+      console.log('[SA Report] Starting Phase 2/4: Analysing processes...');
 
       supabase.functions.invoke('generate-sa-report-pass1', {
         body: { engagementId: engagement.id, phase: 2 }
@@ -13405,12 +13405,12 @@ function SystemsAuditClientModal({
           .eq('engagement_id', engagement.id)
           .maybeSingle();
         return !!data?.pass1_data?.phase2;
-      }, 'Phase 2');
+      }, 'Phase 2', 60, 5000);
 
       console.log('[SA Report] Phase 2 complete');
 
-      // ── Phase 3: Recommendations, admin guidance, client presentation ──
-      console.log('[SA Report] Starting Phase 3/3: Building recommendations...');
+      // ── Phase 3: Generate findings and quick wins ──
+      console.log('[SA Report] Starting Phase 3/4: Generating findings...');
 
       supabase.functions.invoke('generate-sa-report-pass1', {
         body: { engagementId: engagement.id, phase: 3 }
@@ -13424,13 +13424,36 @@ function SystemsAuditClientModal({
       await pollDB(async () => {
         const { data } = await supabase
           .from('sa_audit_reports')
+          .select('pass1_data')
+          .eq('engagement_id', engagement.id)
+          .maybeSingle();
+        return !!data?.pass1_data?.phase3;
+      }, 'Phase 3', 60, 5000);
+
+      console.log('[SA Report] Phase 3 complete');
+
+      // ── Phase 4: Recommendations, admin guidance, client presentation ──
+      console.log('[SA Report] Starting Phase 4/4: Building recommendations...');
+
+      supabase.functions.invoke('generate-sa-report-pass1', {
+        body: { engagementId: engagement.id, phase: 4 }
+      }).then(({ data, error }) => {
+        if (error) console.warn('[SA Report] Phase 4 invoke returned error (may still complete):', error.message);
+        else console.log('[SA Report] Phase 4 invoke returned:', data);
+      }).catch(err => {
+        console.warn('[SA Report] Phase 4 invoke connection failed (expected, polling DB):', err.message);
+      });
+
+      await pollDB(async () => {
+        const { data } = await supabase
+          .from('sa_audit_reports')
           .select('status')
           .eq('engagement_id', engagement.id)
           .maybeSingle();
         return data?.status === 'pass1_complete';
-      }, 'Phase 3');
+      }, 'Phase 4', 60, 5000);
 
-      console.log('[SA Report] All 3 phases complete. Starting narrative generation (Pass 2)...');
+      console.log('[SA Report] All 4 phases complete. Starting narrative generation (Pass 2)...');
 
       // ── Pass 2: Narrative generation ──
       const { data: reportRow } = await supabase
@@ -13486,7 +13509,8 @@ function SystemsAuditClientModal({
         const phasesComplete = [
           partialReport.pass1_data.phase1 ? '1' : null,
           partialReport.pass1_data.phase2 ? '2' : null,
-          partialReport.status === 'pass1_complete' ? '3' : null,
+          partialReport.pass1_data.phase3 ? '3' : null,
+          partialReport.status === 'pass1_complete' ? '4' : null,
         ].filter(Boolean).join(', ');
         alert(`Report generation stopped at: ${error.message}\n\nPhases completed: ${phasesComplete}. You can retry to continue.`);
       } else {

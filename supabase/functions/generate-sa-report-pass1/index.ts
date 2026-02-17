@@ -9,10 +9,11 @@ const corsHeaders: Record<string, string> = {
 };
 
 // =============================================================================
-// PASS 1: 3-PHASE EXTRACTION (each phase ~60-100s, under Edge Function timeout)
-// Phase 1: EXTRACT — facts, systems, scores, uniquenessBrief
-// Phase 2: DIAGNOSE — findings, quickWins
-// Phase 3: PRESCRIBE — recommendations, adminGuidance, clientPresentation
+// PASS 1: 4-PHASE EXTRACTION (each phase ~120-130s, under Edge Function timeout)
+// Phase 1: EXTRACT CORE — facts, systems, metrics, quotes
+// Phase 2: ANALYSE PROCESSES — process deep dives, scores, uniquenessBrief, aspirationGap
+// Phase 3: DIAGNOSE — findings, quickWins
+// Phase 4: PRESCRIBE — recommendations, adminGuidance, clientPresentation
 // Then assemble final pass1_data, save findings/recommendations, trigger Pass 2
 // =============================================================================
 
@@ -149,19 +150,16 @@ async function callSonnet(
   return { data, tokensUsed, cost, generationTime: elapsed };
 }
 
-// ---------- Phase 1: EXTRACT (facts, systems, scores, uniquenessBrief) ----------
+// ---------- Phase 1: EXTRACT CORE (company info, system inventory, metrics, quotes) ----------
 function buildPhase1Prompt(
   discovery: any,
   systems: any[],
-  deepDives: any[],
   clientName: string,
   hourlyRate: number
 ): string {
   const MAX_SYSTEMS = 20;
-  const MAX_DEEP_DIVES = 12;
   const MAX_TEXT = 600;
   const systemsSlice = systems.slice(0, MAX_SYSTEMS);
-  const deepDivesSlice = deepDives.slice(0, MAX_DEEP_DIVES);
 
   const systemDetails = systemsSlice.map(s => `
 **${s.system_name}** (${s.category_code})
@@ -177,20 +175,8 @@ function buildPhase1Prompt(
 - Future plan: ${s.future_plan || 'keep'}
 `).join('\n');
 
-  const deepDiveDetails = deepDivesSlice.map(dd => {
-    const responses = dd.responses || {};
-    const pains = dd.key_pain_points || [];
-    return `
-### ${dd.chain_code.toUpperCase().replace(/_/g, ' ')}
-**Pain Points (their words):**
-${pains.slice(0, 15).map((p: string) => `- "${TRUNCATE(p, 300)}"`).join('\n')}
-**All Responses:**
-${Object.entries(responses).slice(0, 25).map(([k, v]) => `- ${k}: ${TRUNCATE(JSON.stringify(v), 400)}`).join('\n')}
-`;
-  }).join('\n\n');
-
   return `
-You are extracting structured data from a Systems Audit assessment. Extract ALL facts, numbers, and quotes. Do NOT generate findings, quick wins, or recommendations in this step — only facts and scores.
+You are extracting structured FACTS from a Systems Audit assessment. Extract ALL facts, numbers, and quotes. Analyse each system's integration status. Do NOT generate findings, process analysis, scores, or recommendations — only facts about the company and its systems.
 
 ═══════════════════════════════════════════════════════════════════════════════
 DISCOVERY DATA
@@ -229,17 +215,10 @@ SYSTEM INVENTORY (${systemsSlice.length} systems)
 ${systemDetails}
 
 ═══════════════════════════════════════════════════════════════════════════════
-PROCESS DEEP DIVES (${deepDivesSlice.length} processes)
-═══════════════════════════════════════════════════════════════════════════════
-
-${deepDiveDetails}
-
-═══════════════════════════════════════════════════════════════════════════════
-YOUR TASK — Return ONLY this JSON (no findings, quickWins, or recommendations)
+YOUR TASK — Return ONLY this JSON
 ═══════════════════════════════════════════════════════════════════════════════
 
 {
-  "uniquenessBrief": "3-4 sentences: what makes THIS client's situation different? Emotional core, not just technical gap.",
   "facts": {
     "companyName": "${clientName}",
     "teamSize": number,
@@ -255,7 +234,6 @@ YOUR TASK — Return ONLY this JSON (no findings, quickWins, or recommendations)
     "desiredOutcomes": ["exact text of outcome 1", "outcome 2", "outcome 3"],
     "mondayMorningVision": "EXACT verbatim quote",
     "timeFreedomPriority": "What they said they'd do with reclaimed time",
-    "aspirationGap": "2-3 sentences: gap between where they ARE and where they WANT TO BE. Name systems, hours, capabilities missing.",
     "systems": [
       {
         "name": "System name",
@@ -276,17 +254,6 @@ YOUR TASK — Return ONLY this JSON (no findings, quickWins, or recommendations)
     "criticalSystems": ["names"],
     "disconnectedSystems": ["systems with no/manual integration"],
     "integrationGaps": ["Specific gap: System A doesn't talk to System B, causing X"],
-    "processes": [
-      {
-        "chainCode": "quote_to_cash",
-        "chainName": "Quote-to-Cash",
-        "keyPainPoints": ["verbatim pain points"],
-        "specificMetrics": { "quoteTimeMins": 90, "invoiceLagDays": 10 },
-        "hoursWasted": number,
-        "criticalGaps": ["specific gap causing waste"],
-        "clientQuotes": ["relevant quotes from this chain"]
-      }
-    ],
     "metrics": {
       "quoteTimeMins": number,
       "invoiceLagDays": number,
@@ -299,39 +266,115 @@ YOUR TASK — Return ONLY this JSON (no findings, quickWins, or recommendations)
       "apVolume": number,
       "employeeCount": number
     },
-    "hoursWastedWeekly": number,
-    "annualCostOfChaos": number,
-    "projectedCostAtScale": number,
-    "allClientQuotes": ["every significant verbatim quote"]
-  },
-  "scores": {
-    "integration": { "score": 0-100, "evidence": "..." },
-    "automation": { "score": 0-100, "evidence": "..." },
-    "dataAccessibility": { "score": 0-100, "evidence": "..." },
-    "scalability": { "score": 0-100, "evidence": "..." }
+    "allClientQuotes": ["every significant verbatim quote from discovery and deep dives"]
   }
 }
-
-CRITICAL NUMBER CONSISTENCY:
-- facts.hoursWastedWeekly × ${hourlyRate} × 52 = facts.annualCostOfChaos (no rounding errors)
-- facts.projectedCostAtScale = facts.annualCostOfChaos × facts.growthMultiplier × 1.3
-- Round monetary to nearest £10, hours to whole number
 
 Return ONLY valid JSON.
 `;
 }
 
-function validatePhase1Numbers(data: any, hourlyRate: number): void {
-  const f = data.facts;
-  const expectedAnnual = Math.round(f.hoursWastedWeekly * hourlyRate * 52);
-  const expectedScale = Math.round(f.annualCostOfChaos * f.growthMultiplier * 1.3);
-  const tolerance = 0.05;
-  if (Math.abs(f.annualCostOfChaos - expectedAnnual) / Math.max(expectedAnnual, 1) > tolerance) {
-    f.annualCostOfChaos = expectedAnnual;
+// ---------- Phase 2: ANALYSE PROCESSES (scores, uniquenessBrief, aspirationGap) ----------
+function buildPhase2AnalysePrompt(
+  phase1Facts: any,
+  discovery: any,
+  deepDives: any[],
+  clientName: string,
+  hourlyRate: number
+): string {
+  const MAX_DEEP_DIVES = 12;
+  const MAX_TEXT = 600;
+  const deepDivesSlice = deepDives.slice(0, MAX_DEEP_DIVES);
+
+  const deepDiveDetails = deepDivesSlice.map(dd => {
+    const responses = dd.responses || {};
+    const pains = dd.key_pain_points || [];
+    return `
+### ${dd.chain_code.toUpperCase().replace(/_/g, ' ')}
+**Pain Points (their words):**
+${pains.slice(0, 15).map((p: string) => `- "${TRUNCATE(p, 300)}"`).join('\n')}
+**All Responses:**
+${Object.entries(responses).slice(0, 25).map(([k, v]) => `- ${k}: ${TRUNCATE(JSON.stringify(v), 400)}`).join('\n')}
+`;
+  }).join('\n\n');
+
+  const systemSummary = (phase1Facts.systems || []).map((s: any) =>
+    `- ${s.name} (${s.category}): ${s.criticality}, ${s.integrationMethod} integration, ${s.manualHours || 0} manual hrs/mo, gaps: ${(s.gaps || []).join('; ')}`
+  ).join('\n');
+
+  return `
+You are analysing process deep dives for ${clientName}. Phase 1 already extracted company facts and system inventory. Now analyse the PROCESSES, generate scores, and synthesise the client's unique situation.
+
+═══════════════════════════════════════════════════════════════════════════════
+CONTEXT FROM PHASE 1
+═══════════════════════════════════════════════════════════════════════════════
+
+Company: ${clientName}
+Team: ${phase1Facts.teamSize} → ${phase1Facts.projectedTeamSize} (12mo), growth multiplier: ${phase1Facts.growthMultiplier}
+Revenue: ${phase1Facts.revenueBand}
+Industry: ${phase1Facts.industry}
+
+Systems extracted (${(phase1Facts.systems || []).length} total):
+${systemSummary}
+
+Total system cost: £${phase1Facts.totalSystemCost || 0}/mo
+Disconnected systems: ${(phase1Facts.disconnectedSystems || []).join(', ')}
+Integration gaps: ${(phase1Facts.integrationGaps || []).join('; ')}
+
+TARGET STATE:
+- Desired outcomes: ${(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
+- Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
+- Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_TEXT)}"
+- Magic fix: "${TRUNCATE(discovery.magic_process_fix || 'Not specified', MAX_TEXT)}"
+
+═══════════════════════════════════════════════════════════════════════════════
+PROCESS DEEP DIVES (${deepDivesSlice.length} processes) — ANALYSE THESE
+═══════════════════════════════════════════════════════════════════════════════
+
+${deepDiveDetails}
+
+═══════════════════════════════════════════════════════════════════════════════
+YOUR TASK — Return ONLY this JSON
+═══════════════════════════════════════════════════════════════════════════════
+
+{
+  "uniquenessBrief": "3-4 sentences: what makes THIS client's situation different from any other small business? Emotional core, not just technical gap. Reference their specific systems, team dynamics, and aspirations.",
+
+  "aspirationGap": "2-3 sentences: gap between where they ARE and where they WANT TO BE. Name specific systems, hours, and capabilities that are missing. Reference their desired_outcomes and monday_morning_vision.",
+
+  "processes": [
+    {
+      "chainCode": "quote_to_cash",
+      "chainName": "Quote-to-Cash",
+      "keyPainPoints": ["verbatim pain points from deep dive"],
+      "specificMetrics": { "quoteTimeMins": 90, "invoiceLagDays": 10 },
+      "hoursWasted": "calculated hours per MONTH wasted in this process",
+      "criticalGaps": ["specific gap causing waste — name systems involved"],
+      "clientQuotes": ["relevant verbatim quotes from this chain"]
+    }
+  ],
+
+  "hoursWastedWeekly": "calculated total across ALL processes (sum of monthly hoursWasted / 4)",
+  "annualCostOfChaos": "hoursWastedWeekly × ${hourlyRate} × 52",
+  "projectedCostAtScale": "annualCostOfChaos × ${phase1Facts.growthMultiplier} × 1.3",
+
+  "scores": {
+    "integration": { "score": 0-100, "evidence": "X of Y systems have no integration. Specific gaps: A→B, C→D" },
+    "automation": { "score": 0-100, "evidence": "Specific manual processes: quote creation (Xmins), invoice triggers (manual), time backfill (Yhrs/wk)" },
+    "dataAccessibility": { "score": 0-100, "evidence": "X-day reporting lag. Can't answer [question] in under Y minutes" },
+    "scalability": { "score": 0-100, "evidence": "At ${phase1Facts.growthMultiplier}x growth, [system] breaks because [reason]" }
   }
-  if (Math.abs(f.projectedCostAtScale - expectedScale) / Math.max(expectedScale, 1) > tolerance) {
-    f.projectedCostAtScale = expectedScale;
-  }
+}
+
+CRITICAL NUMBER CONSISTENCY:
+- hoursWastedWeekly = sum of all process hoursWasted (monthly) divided by 4
+- annualCostOfChaos = hoursWastedWeekly × ${hourlyRate} × 52 (EXACT — no rounding errors)
+- projectedCostAtScale = annualCostOfChaos × ${phase1Facts.growthMultiplier} × 1.3
+- Round monetary to nearest £10, hours to whole number
+- Score evidence must cite SPECIFIC systems and numbers from the data above
+
+Return ONLY valid JSON.
+`;
 }
 
 async function runPhase1(
@@ -340,46 +383,26 @@ async function runPhase1(
   engagement: any,
   discovery: any,
   systems: any[],
-  deepDives: any[],
   clientName: string,
   hourlyRate: number,
   openRouterKey: string
 ): Promise<{ success: boolean; phase: number }> {
-  const prompt = buildPhase1Prompt(discovery, systems || [], deepDives || [], clientName, hourlyRate);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 6000, 1, openRouterKey);
-  validatePhase1Numbers(data, hourlyRate);
-
-  const f = data.facts;
-  const scores = data.scores;
-  let sentiment = 'good_with_gaps';
-  const avgScore = (scores.integration.score + scores.automation.score + scores.dataAccessibility.score + scores.scalability.score) / 4;
-  if (avgScore >= 70) sentiment = 'strong_foundation';
-  else if (avgScore >= 50) sentiment = 'good_with_gaps';
-  else if (avgScore >= 30) sentiment = 'significant_issues';
-  else sentiment = 'critical_attention';
+  const prompt = buildPhase1Prompt(discovery, systems || [], clientName, hourlyRate);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 1, openRouterKey);
 
   console.log('[SA Pass 1] Phase 1: Writing to DB...');
   await supabaseClient.from('sa_audit_reports').upsert(
     {
       engagement_id: engagementId,
       status: 'generating',
-      executive_summary: 'Phase 1/3: Extracting facts and analysing systems...',
-      executive_summary_sentiment: sentiment,
+      executive_summary: 'Phase 1/4: Extracting facts and analysing systems...',
       pass1_data: { phase1: data },
-      total_hours_wasted_weekly: Math.round(f.hoursWastedWeekly),
-      total_annual_cost_of_chaos: Math.round(f.annualCostOfChaos / 10) * 10,
-      growth_multiplier: f.growthMultiplier,
-      projected_cost_at_scale: Math.round(f.projectedCostAtScale / 10) * 10,
-      systems_count: f.systems.length,
-      integration_score: scores.integration.score,
-      automation_score: scores.automation.score,
-      data_accessibility_score: scores.dataAccessibility.score,
-      scalability_score: scores.scalability.score,
+      systems_count: data.facts.systems.length,
       llm_model: 'claude-sonnet-4.5',
       llm_tokens_used: tokensUsed,
       llm_cost: cost,
       generation_time_ms: generationTime,
-      prompt_version: 'v5-phase1',
+      prompt_version: 'v6-phase1',
     },
     { onConflict: 'engagement_id' }
   );
@@ -388,7 +411,79 @@ async function runPhase1(
   return { success: true, phase: 1 };
 }
 
-// ---------- Phase 2: DIAGNOSE (findings, quickWins) ----------
+// ---------- Phase 2: ANALYSE PROCESSES (scores, uniquenessBrief, aspirationGap) ----------
+async function runPhase2Analyse(
+  supabaseClient: any,
+  engagementId: string,
+  engagement: any,
+  hourlyRate: number,
+  openRouterKey: string
+): Promise<{ success: boolean; phase: number }> {
+  const { data: report } = await supabaseClient
+    .from('sa_audit_reports')
+    .select('pass1_data')
+    .eq('engagement_id', engagementId)
+    .single();
+  if (!report?.pass1_data?.phase1) {
+    throw new Error('Phase 1 data not found');
+  }
+  const phase1Facts = report.pass1_data.phase1.facts;
+
+  const [discoveryRes, deepDivesRes] = await Promise.all([
+    supabaseClient.from('sa_discovery_responses').select('*').eq('engagement_id', engagementId).single(),
+    supabaseClient.from('sa_process_deep_dives').select('*').eq('engagement_id', engagementId),
+  ]);
+  if (discoveryRes.error || !discoveryRes.data) {
+    throw new Error(`Discovery not found: ${discoveryRes.error?.message}`);
+  }
+
+  const clientName = phase1Facts.companyName || 'the business';
+  const prompt = buildPhase2AnalysePrompt(phase1Facts, discoveryRes.data, deepDivesRes.data || [], clientName, hourlyRate);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 2, openRouterKey);
+
+  const expectedAnnual = Math.round(data.hoursWastedWeekly * hourlyRate * 52);
+  const expectedScale = Math.round(expectedAnnual * phase1Facts.growthMultiplier * 1.3);
+  const tolerance = 0.05;
+  if (Math.abs((data.annualCostOfChaos || 0) - expectedAnnual) / Math.max(expectedAnnual, 1) > tolerance) {
+    data.annualCostOfChaos = expectedAnnual;
+  }
+  if (Math.abs((data.projectedCostAtScale || 0) - expectedScale) / Math.max(expectedScale, 1) > tolerance) {
+    data.projectedCostAtScale = expectedScale;
+  }
+
+  const scores = data.scores;
+  const avgScore = (scores.integration.score + scores.automation.score + scores.dataAccessibility.score + scores.scalability.score) / 4;
+  let sentiment = 'good_with_gaps';
+  if (avgScore >= 70) sentiment = 'strong_foundation';
+  else if (avgScore >= 50) sentiment = 'good_with_gaps';
+  else if (avgScore >= 30) sentiment = 'significant_issues';
+  else sentiment = 'critical_attention';
+
+  const existingPass1 = report.pass1_data as any;
+
+  console.log('[SA Pass 1] Phase 2: Writing to DB...');
+  await supabaseClient
+    .from('sa_audit_reports')
+    .update({
+      pass1_data: { ...existingPass1, phase2: data },
+      executive_summary: 'Phase 2/4: Analysing processes and calculating scores...',
+      executive_summary_sentiment: sentiment,
+      total_hours_wasted_weekly: Math.round(data.hoursWastedWeekly),
+      total_annual_cost_of_chaos: Math.round(data.annualCostOfChaos / 10) * 10,
+      growth_multiplier: phase1Facts.growthMultiplier,
+      projected_cost_at_scale: Math.round(data.projectedCostAtScale / 10) * 10,
+      integration_score: scores.integration.score,
+      automation_score: scores.automation.score,
+      data_accessibility_score: scores.dataAccessibility.score,
+      scalability_score: scores.scalability.score,
+    })
+    .eq('engagement_id', engagementId);
+  console.log('[SA Pass 1] Phase 2: DB write complete');
+
+  return { success: true, phase: 2 };
+}
+
+// ---------- Phase 3: DIAGNOSE (findings, quickWins) ----------
 const SPECIFICITY_AND_BANNED = `
 SPECIFICITY RULES (non-negotiable):
 19. Every finding title must name something specific: system name, role, number, process. NEVER "Improve system integration". ALWAYS "Harvest→Xero disconnect: Maria transfers 8 hours/month manually..."
@@ -402,13 +497,21 @@ BANNED: Additionally, Furthermore, Moreover, Delve, Crucial, pivotal, vital, Tes
 BANNED STRUCTURES: "Not only X but also Y"; "It's important to note..."; Generic recommendations like "implement a CRM", "automate invoicing". Name the specific tool. Findings without system-to-system gap evidence.
 Return ONLY valid JSON.`;
 
-function buildPhase2Prompt(phase1: any, clientName: string, hourlyRate: number): string {
-  const factsStr = JSON.stringify(phase1.facts, null, 2);
-  const scoresStr = JSON.stringify(phase1.scores, null, 2);
+function buildPhase3DiagnosePrompt(phase1: any, phase2: any, clientName: string, hourlyRate: number): string {
+  const allFacts = {
+    ...phase1.facts,
+    processes: phase2.processes,
+    hoursWastedWeekly: phase2.hoursWastedWeekly,
+    annualCostOfChaos: phase2.annualCostOfChaos,
+    projectedCostAtScale: phase2.projectedCostAtScale,
+    aspirationGap: phase2.aspirationGap,
+  };
+  const factsStr = JSON.stringify(allFacts, null, 2);
+  const scoresStr = JSON.stringify(phase2.scores, null, 2);
   return `
 Given these extracted facts about ${clientName}, generate specific findings and quick wins. Use EXACT verbatim quotes where relevant.
 
-uniquenessBrief: ${phase1.uniquenessBrief}
+uniquenessBrief: ${phase2.uniquenessBrief}
 
 facts (extracted):
 ${factsStr}
@@ -451,7 +554,7 @@ ${SPECIFICITY_AND_BANNED}
 `;
 }
 
-async function runPhase2(
+async function runPhase3Diagnose(
   supabaseClient: any,
   engagementId: string,
   engagement: any,
@@ -463,24 +566,25 @@ async function runPhase2(
     .select('pass1_data')
     .eq('engagement_id', engagementId)
     .single();
-  if (!report?.pass1_data?.phase1) {
-    throw new Error('Phase 1 data not found');
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase2) {
+    throw new Error('Phase 1 or Phase 2 data not found');
   }
   const phase1 = report.pass1_data.phase1;
+  const phase2 = report.pass1_data.phase2;
   const clientName = phase1.facts.companyName || 'the business';
-  const prompt = buildPhase2Prompt(phase1, clientName, hourlyRate);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 6000, 2, openRouterKey);
+  const prompt = buildPhase3DiagnosePrompt(phase1, phase2, clientName, hourlyRate);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 3, openRouterKey);
 
   const existingPass1 = report.pass1_data as any;
-  console.log('[SA Pass 1] Phase 2: Writing to DB...');
+  console.log('[SA Pass 1] Phase 3: Writing to DB...');
   await supabaseClient
     .from('sa_audit_reports')
     .update({
-      pass1_data: { ...existingPass1, phase2: data },
-      executive_summary: 'Phase 2/3: Generating findings and quick wins...',
+      pass1_data: { ...existingPass1, phase3: data },
+      executive_summary: 'Phase 3/4: Generating findings and quick wins...',
     })
     .eq('engagement_id', engagementId);
-  console.log('[SA Pass 1] Phase 2: DB write complete');
+  console.log('[SA Pass 1] Phase 3: DB write complete');
 
   await supabaseClient.from('sa_findings').delete().eq('engagement_id', engagementId);
   if (data.findings?.length) {
@@ -502,12 +606,12 @@ async function runPhase2(
     await supabaseClient.from('sa_findings').insert(findingRows);
   }
 
-  return { success: true, phase: 2 };
+  return { success: true, phase: 3 };
 }
 
-// ---------- Phase 3: PRESCRIBE (recommendations, adminGuidance, clientPresentation) ----------
-function buildPhase3Prompt(phase1: any, phase2: any, clientName: string): string {
-  const findingSummaries = (phase2.findings || []).map((f: any) => ({
+// ---------- Phase 4: PRESCRIBE (recommendations, adminGuidance, clientPresentation) ----------
+function buildPhase4PrescribePrompt(phase1: any, phase2: any, phase3: any, clientName: string): string {
+  const findingSummaries = (phase3.findings || []).map((f: any) => ({
     title: f.title,
     severity: f.severity,
     affectedSystems: f.affectedSystems,
@@ -517,12 +621,12 @@ function buildPhase3Prompt(phase1: any, phase2: any, clientName: string): string
   return `
 Given these facts and findings for ${clientName}, generate recommendations, admin guidance, and client presentation.
 
-uniquenessBrief: ${phase1.uniquenessBrief}
+uniquenessBrief: ${phase2.uniquenessBrief}
 
-Key facts: desiredOutcomes=${JSON.stringify(phase1.facts.desiredOutcomes)}, mondayMorningVision="${phase1.facts.mondayMorningVision}", aspirationGap="${phase1.facts.aspirationGap}".
-Systems (names, costs, gaps): ${JSON.stringify(phase1.facts.systems?.map((s: any) => ({ name: s.name, monthlyCost: s.monthlyCost, gaps: s.gaps })))}.
-Processes: ${JSON.stringify(phase1.facts.processes?.map((p: any) => ({ chainName: p.chainName, hoursWasted: p.hoursWasted })))}.
-hoursWastedWeekly: ${phase1.facts.hoursWastedWeekly}, annualCostOfChaos: ${phase1.facts.annualCostOfChaos}.
+Key facts: desiredOutcomes=${JSON.stringify(phase1.facts.desiredOutcomes)}, mondayMorningVision="${phase1.facts.mondayMorningVision}", aspirationGap="${phase2.aspirationGap}".
+Systems: ${JSON.stringify(phase1.facts.systems?.map((s: any) => ({ name: s.name, monthlyCost: s.monthlyCost, gaps: s.gaps })))}.
+Processes: ${JSON.stringify(phase2.processes?.map((p: any) => ({ chainName: p.chainName, hoursWasted: p.hoursWasted })))}.
+hoursWastedWeekly: ${phase2.hoursWastedWeekly}, annualCostOfChaos: ${phase2.annualCostOfChaos}.
 
 Finding summaries (for recommendations):
 ${JSON.stringify(findingSummaries, null, 2)}
@@ -572,7 +676,7 @@ ${SPECIFICITY_AND_BANNED}
 `;
 }
 
-async function runPhase3(
+async function runPhase4Prescribe(
   supabaseClient: any,
   engagementId: string,
   engagement: any,
@@ -583,32 +687,40 @@ async function runPhase3(
     .select('id, pass1_data')
     .eq('engagement_id', engagementId)
     .single();
-  if (!reportRow?.pass1_data?.phase1 || !reportRow.pass1_data.phase2) {
-    throw new Error('Phase 1 or Phase 2 data not found');
+  if (!reportRow?.pass1_data?.phase1 || !reportRow.pass1_data.phase2 || !reportRow.pass1_data.phase3) {
+    throw new Error('Phase 1, 2, or 3 data not found');
   }
   const phase1 = reportRow.pass1_data.phase1;
   const phase2 = reportRow.pass1_data.phase2;
+  const phase3 = reportRow.pass1_data.phase3;
   const clientName = phase1.facts.companyName || 'the business';
-  const prompt = buildPhase3Prompt(phase1, phase2, clientName);
-  const { data: phase3, tokensUsed, cost, generationTime } = await callSonnet(prompt, 6000, 3, openRouterKey);
+  const prompt = buildPhase4PrescribePrompt(phase1, phase2, phase3, clientName);
+  const { data: phase4, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 4, openRouterKey);
 
   const finalPass1Data = {
-    uniquenessBrief: phase1.uniquenessBrief,
-    facts: phase1.facts,
-    scores: phase1.scores,
-    findings: phase2.findings,
-    quickWins: phase2.quickWins,
-    recommendations: phase3.recommendations,
-    adminGuidance: phase3.adminGuidance,
-    clientPresentation: phase3.clientPresentation,
+    uniquenessBrief: phase2.uniquenessBrief,
+    facts: {
+      ...phase1.facts,
+      processes: phase2.processes,
+      hoursWastedWeekly: phase2.hoursWastedWeekly,
+      annualCostOfChaos: phase2.annualCostOfChaos,
+      projectedCostAtScale: phase2.projectedCostAtScale,
+      aspirationGap: phase2.aspirationGap,
+    },
+    scores: phase2.scores,
+    findings: phase3.findings,
+    quickWins: phase3.quickWins,
+    recommendations: phase4.recommendations,
+    adminGuidance: phase4.adminGuidance,
+    clientPresentation: phase4.clientPresentation,
   };
 
-  const f = phase1.facts;
-  const recs = phase3.recommendations || [];
+  const f = finalPass1Data.facts;
+  const recs = phase4.recommendations || [];
   const totalInv = recs.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0);
   const totalBenefit = recs.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0);
   const hoursReclaimable = recs.reduce((sum: number, r: any) => sum + (parseFloat(r.hoursSavedWeekly) || 0), 0) ||
-    (phase2.quickWins || []).reduce((sum: number, q: any) => sum + (parseFloat(q.hoursSavedWeekly) || 0), 0);
+    (phase3.quickWins || []).reduce((sum: number, q: any) => sum + (parseFloat(q.hoursSavedWeekly) || 0), 0);
 
   await supabaseClient.from('sa_recommendations').delete().eq('engagement_id', engagementId);
   if (recs.length) {
@@ -633,11 +745,11 @@ async function runPhase3(
     status: 'pass1_complete',
     executive_summary: '[Pass 2 will generate narrative]',
     headline: `[PENDING PASS 2] ${f.hoursWastedWeekly} hours/week wasted`,
-    quick_wins: phase2.quickWins,
-    critical_findings_count: (phase2.findings || []).filter((x: any) => x.severity === 'critical').length,
-    high_findings_count: (phase2.findings || []).filter((x: any) => x.severity === 'high').length,
-    medium_findings_count: (phase2.findings || []).filter((x: any) => x.severity === 'medium').length,
-    low_findings_count: (phase2.findings || []).filter((x: any) => x.severity === 'low').length,
+    quick_wins: phase3.quickWins,
+    critical_findings_count: (phase3.findings || []).filter((x: any) => x.severity === 'critical').length,
+    high_findings_count: (phase3.findings || []).filter((x: any) => x.severity === 'high').length,
+    medium_findings_count: (phase3.findings || []).filter((x: any) => x.severity === 'medium').length,
+    low_findings_count: (phase3.findings || []).filter((x: any) => x.severity === 'low').length,
     total_recommended_investment: Math.round(totalInv / 10) * 10,
     total_annual_benefit: Math.round(totalBenefit / 10) * 10,
     overall_payback_months: totalBenefit > 0 ? Math.round(totalInv / (totalBenefit / 12)) : 0,
@@ -649,30 +761,30 @@ async function runPhase3(
     client_quotes_used: f.allClientQuotes?.slice(0, 10) || [],
     generated_at: new Date().toISOString(),
   };
-  if (phase3.adminGuidance) {
-    updatePayload.admin_talking_points = phase3.adminGuidance.talkingPoints || [];
-    updatePayload.admin_questions_to_ask = phase3.adminGuidance.questionsToAsk || [];
-    updatePayload.admin_next_steps = phase3.adminGuidance.nextSteps || [];
-    updatePayload.admin_tasks = phase3.adminGuidance.tasks || [];
-    updatePayload.admin_risk_flags = phase3.adminGuidance.riskFlags || [];
+  if (phase4.adminGuidance) {
+    updatePayload.admin_talking_points = phase4.adminGuidance.talkingPoints || [];
+    updatePayload.admin_questions_to_ask = phase4.adminGuidance.questionsToAsk || [];
+    updatePayload.admin_next_steps = phase4.adminGuidance.nextSteps || [];
+    updatePayload.admin_tasks = phase4.adminGuidance.tasks || [];
+    updatePayload.admin_risk_flags = phase4.adminGuidance.riskFlags || [];
   }
-  if (phase3.clientPresentation) {
-    updatePayload.client_executive_brief = phase3.clientPresentation.executiveBrief || null;
-    updatePayload.client_roi_summary = phase3.clientPresentation.roiSummary || null;
+  if (phase4.clientPresentation) {
+    updatePayload.client_executive_brief = phase4.clientPresentation.executiveBrief || null;
+    updatePayload.client_roi_summary = phase4.clientPresentation.roiSummary || null;
   }
 
-  console.log('[SA Pass 1] Phase 3: Writing to DB...');
+  console.log('[SA Pass 1] Phase 4: Writing to DB...');
   const { error: updateError } = await supabaseClient
     .from('sa_audit_reports')
     .update(updatePayload)
     .eq('engagement_id', engagementId);
-  console.log('[SA Pass 1] Phase 3: DB write complete');
+  console.log('[SA Pass 1] Phase 4: DB write complete');
   if (updateError) {
-    console.error('[SA Pass 1] Phase 3 update error:', updateError);
+    console.error('[SA Pass 1] Phase 4 update error:', updateError);
     throw updateError;
   }
 
-  return { success: true, phase: 3, reportId: reportRow.id };
+  return { success: true, phase: 4, reportId: reportRow.id };
 }
 
 // ---------- Entry: route by phase ----------
@@ -731,13 +843,12 @@ serve(async (req) => {
     switch (phase) {
       case 1: {
         await supabaseClient.from('sa_audit_reports').upsert(
-          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/3: Extracting facts and analysing systems...' },
+          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/4: Extracting facts and analysing systems...' },
           { onConflict: 'engagement_id' }
         );
-        const [discoveryRes, systemsRes, deepDivesRes] = await Promise.all([
+        const [discoveryRes, systemsRes] = await Promise.all([
           supabaseClient.from('sa_discovery_responses').select('*').eq('engagement_id', engagementId).single(),
           supabaseClient.from('sa_system_inventory').select('*').eq('engagement_id', engagementId),
-          supabaseClient.from('sa_process_deep_dives').select('*').eq('engagement_id', engagementId),
         ]);
         if (discoveryRes.error || !discoveryRes.data) {
           throw new Error(`Discovery not found: ${discoveryRes.error?.message}`);
@@ -748,7 +859,6 @@ serve(async (req) => {
           engagement,
           discoveryRes.data,
           systemsRes.data || [],
-          deepDivesRes.data || [],
           clientName,
           hourlyRate,
           openRouterKey
@@ -758,17 +868,25 @@ serve(async (req) => {
       case 2: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 2/3: Generating findings and quick wins...' })
+          .update({ executive_summary: 'Phase 2/4: Analysing processes and calculating scores...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase2(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
+        result = await runPhase2Analyse(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
         break;
       }
       case 3: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 3/3: Building recommendations and admin guidance...' })
+          .update({ executive_summary: 'Phase 3/4: Generating findings and quick wins...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase3(supabaseClient, engagementId, engagement, openRouterKey);
+        result = await runPhase3Diagnose(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
+        break;
+      }
+      case 4: {
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({ executive_summary: 'Phase 4/4: Building recommendations and admin guidance...' })
+          .eq('engagement_id', engagementId);
+        result = await runPhase4Prescribe(supabaseClient, engagementId, engagement, openRouterKey);
         break;
       }
       default:
@@ -780,7 +898,7 @@ serve(async (req) => {
         success: true,
         phase: result.phase,
         reportId: (result as any).reportId,
-        nextPhase: phase < 3 ? phase + 1 : null,
+        nextPhase: phase < 4 ? phase + 1 : null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
