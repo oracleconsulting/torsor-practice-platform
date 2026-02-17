@@ -59,7 +59,8 @@ async function callSonnet(
   openRouterKey: string
 ): Promise<{ data: any; tokensUsed: number; cost: number; generationTime: number }> {
   const startTime = Date.now();
-  console.log(`[SA Pass 1] Phase ${phase}: Calling Sonnet...`);
+  console.log(`[SA Pass 1] Phase ${phase}: Calling Sonnet (streaming, max_tokens=${maxTokens})...`);
+
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -69,27 +70,83 @@ async function callSonnet(
       'X-Title': 'Torsor SA Pass 1',
     },
     body: JSON.stringify({
-      model: 'anthropic/claude-sonnet-4',
+      model: 'anthropic/claude-sonnet-4.5',
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1,
       max_tokens: maxTokens,
+      stream: true,
     }),
   });
-  const elapsed = Date.now() - startTime;
-  console.log(`[SA Pass 1] Phase ${phase}: Sonnet responded in ${elapsed}ms (status ${response.status})`);
+
   if (!response.ok) {
-    throw new Error(`Sonnet API failed: ${await response.text()}`);
+    const errText = await response.text();
+    throw new Error(`Sonnet API failed (${response.status}): ${errText}`);
   }
-  const result = await response.json();
-  const tokensUsed = result.usage?.total_tokens || 0;
+
+  console.log(`[SA Pass 1] Phase ${phase}: Stream connected in ${Date.now() - startTime}ms, reading chunks...`);
+
+  let fullContent = '';
+  let tokensUsed = 0;
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let chunkCount = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        const payload = trimmed.slice(6);
+        if (payload === '[DONE]') continue;
+
+        try {
+          const json = JSON.parse(payload);
+          const delta = json.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullContent += delta;
+            chunkCount++;
+          }
+          if (json.usage) {
+            tokensUsed = json.usage.total_tokens || json.usage.prompt_tokens + json.usage.completion_tokens || 0;
+          }
+        } catch {
+          // Skip malformed chunks
+        }
+      }
+
+      if (chunkCount > 0 && chunkCount % 100 === 0) {
+        console.log(`[SA Pass 1] Phase ${phase}: ${chunkCount} chunks received, ${fullContent.length} chars so far (${Math.round((Date.now() - startTime) / 1000)}s)`);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const elapsed = Date.now() - startTime;
+  console.log(`[SA Pass 1] Phase ${phase}: Stream complete in ${elapsed}ms. ${chunkCount} chunks, ${fullContent.length} chars, ${tokensUsed} tokens`);
+
+  const wasTruncated = fullContent.length > 0 && !fullContent.trimEnd().endsWith('}');
+  if (wasTruncated) {
+    console.warn(`[SA Pass 1] Phase ${phase}: Response may be truncated (doesn't end with })`);
+  }
+
+  const cleanContent = parseJsonFromContent(fullContent.trim(), wasTruncated);
+  const data = JSON.parse(cleanContent);
+
   const cost = (tokensUsed / 1000000) * 3;
-  let content = result.choices[0].message.content.trim();
-  const wasTruncated = result.choices[0].finish_reason === 'length';
-  if (wasTruncated) console.warn(`[SA Pass 1] Phase ${phase}: Response truncated`);
-  content = parseJsonFromContent(content, wasTruncated);
-  const data = JSON.parse(content);
-  console.log(`[SA Pass 1] Phase ${phase}: Sonnet responded in ${elapsed}ms (${tokensUsed} tokens)`);
-  return { data, tokensUsed, cost, generationTime: Date.now() - startTime };
+
+  console.log(`[SA Pass 1] Phase ${phase}: Parsed successfully. Writing to DB...`);
+
+  return { data, tokensUsed, cost, generationTime: elapsed };
 }
 
 // ---------- Phase 1: EXTRACT (facts, systems, scores, uniquenessBrief) ----------
@@ -289,7 +346,7 @@ async function runPhase1(
   openRouterKey: string
 ): Promise<{ success: boolean; phase: number }> {
   const prompt = buildPhase1Prompt(discovery, systems || [], deepDives || [], clientName, hourlyRate);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 1, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 6000, 1, openRouterKey);
   validatePhase1Numbers(data, hourlyRate);
 
   const f = data.facts;
@@ -301,6 +358,7 @@ async function runPhase1(
   else if (avgScore >= 30) sentiment = 'significant_issues';
   else sentiment = 'critical_attention';
 
+  console.log('[SA Pass 1] Phase 1: Writing to DB...');
   await supabaseClient.from('sa_audit_reports').upsert(
     {
       engagement_id: engagementId,
@@ -317,7 +375,7 @@ async function runPhase1(
       automation_score: scores.automation.score,
       data_accessibility_score: scores.dataAccessibility.score,
       scalability_score: scores.scalability.score,
-      llm_model: 'claude-sonnet-4',
+      llm_model: 'claude-sonnet-4.5',
       llm_tokens_used: tokensUsed,
       llm_cost: cost,
       generation_time_ms: generationTime,
@@ -325,6 +383,7 @@ async function runPhase1(
     },
     { onConflict: 'engagement_id' }
   );
+  console.log('[SA Pass 1] Phase 1: DB write complete');
 
   return { success: true, phase: 1 };
 }
@@ -410,9 +469,10 @@ async function runPhase2(
   const phase1 = report.pass1_data.phase1;
   const clientName = phase1.facts.companyName || 'the business';
   const prompt = buildPhase2Prompt(phase1, clientName, hourlyRate);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 10000, 2, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 6000, 2, openRouterKey);
 
   const existingPass1 = report.pass1_data as any;
+  console.log('[SA Pass 1] Phase 2: Writing to DB...');
   await supabaseClient
     .from('sa_audit_reports')
     .update({
@@ -420,6 +480,7 @@ async function runPhase2(
       executive_summary: 'Phase 2/3: Generating findings and quick wins...',
     })
     .eq('engagement_id', engagementId);
+  console.log('[SA Pass 1] Phase 2: DB write complete');
 
   await supabaseClient.from('sa_findings').delete().eq('engagement_id', engagementId);
   if (data.findings?.length) {
@@ -529,7 +590,7 @@ async function runPhase3(
   const phase2 = reportRow.pass1_data.phase2;
   const clientName = phase1.facts.companyName || 'the business';
   const prompt = buildPhase3Prompt(phase1, phase2, clientName);
-  const { data: phase3, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 3, openRouterKey);
+  const { data: phase3, tokensUsed, cost, generationTime } = await callSonnet(prompt, 6000, 3, openRouterKey);
 
   const finalPass1Data = {
     uniquenessBrief: phase1.uniquenessBrief,
@@ -600,10 +661,12 @@ async function runPhase3(
     updatePayload.client_roi_summary = phase3.clientPresentation.roiSummary || null;
   }
 
+  console.log('[SA Pass 1] Phase 3: Writing to DB...');
   const { error: updateError } = await supabaseClient
     .from('sa_audit_reports')
     .update(updatePayload)
     .eq('engagement_id', engagementId);
+  console.log('[SA Pass 1] Phase 3: DB write complete');
   if (updateError) {
     console.error('[SA Pass 1] Phase 3 update error:', updateError);
     throw updateError;
