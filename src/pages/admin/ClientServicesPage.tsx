@@ -13076,6 +13076,7 @@ function SystemsAuditClientModal({
   const [stage3DeepDives, setStage3DeepDives] = useState<any[]>([]);
   const [report, setReport] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
+  const [saReportPollingAfterError, setSaReportPollingAfterError] = useState(false);
   const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
   const [findings, setFindings] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
@@ -13358,11 +13359,11 @@ function SystemsAuditClientModal({
         if (error) {
           console.error('[SA Report] Pass 1 error:', error);
           // Check if it's a timeout/connection error
-          if (error.message?.includes('timeout') || 
+          if (error.message?.includes('timeout') ||
               error.message?.includes('connection closed') ||
               error.message?.includes('aborted') ||
               error.message?.includes('Failed to send')) {
-            // Pass 1 might still be running - start polling
+            setSaReportPollingAfterError(true);
             console.log('[SA Report] Pass 1 request timed out or failed to connect, but may still be processing. Polling...');
             pollForReport(engagement.id, 0);
             return;
@@ -13383,11 +13384,12 @@ function SystemsAuditClientModal({
       } catch (invokeError: any) {
         clearTimeout(timeoutId);
         // If invoke itself fails, check if it's a connection error
-        if (invokeError.name === 'AbortError' || 
-            invokeError.message?.includes('timeout') || 
+        if (invokeError.name === 'AbortError' ||
+            invokeError.message?.includes('timeout') ||
             invokeError.message?.includes('connection closed') ||
             invokeError.message?.includes('aborted') ||
             invokeError.message?.includes('Failed to send')) {
+          setSaReportPollingAfterError(true);
           console.log('[SA Report] Function invoke failed, but may still be processing. Polling...');
           pollForReport(engagement.id, 0);
           return;
@@ -13396,11 +13398,11 @@ function SystemsAuditClientModal({
       }
     } catch (error: any) {
       // Check if it's a timeout/abort error
-      if (error.name === 'AbortError' || 
-          error.message?.includes('timeout') || 
+      if (error.name === 'AbortError' ||
+          error.message?.includes('timeout') ||
           error.message?.includes('connection closed') ||
           error.message?.includes('aborted')) {
-        // Function is likely still processing - poll for completion
+        setSaReportPollingAfterError(true);
         console.log('[SA Report] Connection timed out, but generation may still be in progress. Polling...');
         pollForReport(engagement.id, 0);
         return;
@@ -13409,6 +13411,7 @@ function SystemsAuditClientModal({
       console.error('[SA Report] Error generating report:', error);
       // Check if it's a "Failed to send" error - this might mean the function is still starting
       if (error.message?.includes('Failed to send') || error.message?.includes('Edge Function')) {
+        setSaReportPollingAfterError(true);
         console.log('[SA Report] Edge Function connection failed, but it may still be processing. Starting polling...');
         pollForReport(engagement.id, 0);
         return;
@@ -13424,6 +13427,7 @@ function SystemsAuditClientModal({
     const pollInterval = 15000; // 15 seconds
     
     if (attempts >= maxAttempts) {
+      setSaReportPollingAfterError(false);
       alert('Report generation is taking longer than expected. Please refresh the page in a few minutes to check if it completed.');
       setGenerating(false);
       return;
@@ -13441,13 +13445,13 @@ function SystemsAuditClientModal({
       
       if (report) {
         if (report.status === 'generated') {
-          // Report fully complete - refresh data
+          setSaReportPollingAfterError(false);
           console.log('[SA Report] Report completed! Refreshing data...');
           await fetchData();
           setGenerating(false);
           return;
         } else if (report.status === 'pass2_failed') {
-          // Pass 2 failed - show error but keep Pass 1 data visible
+          setSaReportPollingAfterError(false);
           console.error('[SA Report] Pass 2 failed');
           alert('Report extraction completed, but narrative generation failed. You can retry Pass 2 or view the extracted data.');
           await fetchData();
@@ -14414,7 +14418,15 @@ function SystemsAuditClientModal({
                         )}
                         {generating ? 'Generating Analysis...' : 'Generate Analysis'}
                       </button>
-                      {!canGenerateOrRegenerate && (
+                      {saReportPollingAfterError && (
+                        <div className="mt-4 max-w-md mx-auto p-3 bg-amber-50 border border-amber-200 rounded-lg text-left">
+                          <p className="text-sm text-amber-800">
+                            The connection to the report service was interrupted. We&apos;re checking every 15 seconds for your report.
+                            If it doesn&apos;t appear in a few minutes, ensure the Edge Function <code className="text-xs bg-amber-100 px-1 rounded">generate-sa-report-pass1</code> is deployed for this project and refresh the page.
+                          </p>
+                        </div>
+                      )}
+                      {!canGenerateOrRegenerate && !saReportPollingAfterError && (
                         <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>
                       )}
                     </div>
