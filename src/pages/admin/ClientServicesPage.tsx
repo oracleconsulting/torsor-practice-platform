@@ -3,7 +3,7 @@ import type { Page } from '../../types/navigation';
 import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
-import { supabase, supabaseUrl } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { RPGCC_LOGO_LIGHT, RPGCC_LOGO_DARK, RPGCC_COLORS } from '../../constants/brandAssets';
 import { 
   TransformationJourney,
@@ -13349,7 +13349,7 @@ function SystemsAuditClientModal({
       // Phase 1: Extract facts, systems, scores
       console.log('[SA Report] Starting Phase 1/3: Extracting facts...', { engagementId: engagement.id });
 
-      const { data: p1, error: p1Error } = await supabase.functions.invoke('generate-sa-report-pass1', {
+      const { error: p1Error } = await supabase.functions.invoke('generate-sa-report-pass1', {
         body: { engagementId: engagement.id, phase: 1 },
       });
 
@@ -13376,7 +13376,7 @@ function SystemsAuditClientModal({
       // ── Phase 2: Generate findings and quick wins ──
       console.log('[SA Report] Starting Phase 2/3: Generating findings...');
 
-      const { data: p2, error: p2Error } = await supabase.functions.invoke('generate-sa-report-pass1', {
+      const { error: p2Error } = await supabase.functions.invoke('generate-sa-report-pass1', {
         body: { engagementId: engagement.id, phase: 2 },
       });
 
@@ -13439,7 +13439,7 @@ function SystemsAuditClientModal({
       }
 
       try {
-        const { data: pass2Result, error: pass2Error } = await supabase.functions.invoke('generate-sa-report-pass2', {
+        const { error: pass2Error } = await supabase.functions.invoke('generate-sa-report-pass2', {
           body: { engagementId: engagement.id, reportId },
         });
 
