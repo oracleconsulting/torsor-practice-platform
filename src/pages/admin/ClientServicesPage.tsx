@@ -13346,16 +13346,16 @@ function SystemsAuditClientModal({
     setGenerating(true);
 
     try {
-      // ── Phase 1: Extract facts, systems, scores ──
-      console.log('[SA Report] Starting Phase 1/3: Extracting facts...');
+      // Phase 1: Extract facts, systems, scores
+      console.log('[SA Report] Starting Phase 1/3: Extracting facts...', { engagementId: engagement.id });
 
       const { data: p1, error: p1Error } = await supabase.functions.invoke('generate-sa-report-pass1', {
         body: { engagementId: engagement.id, phase: 1 },
       });
 
       if (p1Error) {
-        if (p1Error.message?.includes('timeout') || p1Error.message?.includes('aborted') || p1Error.message?.includes('connection closed')) {
-          console.warn('[SA Report] Phase 1 connection issue, checking if it completed...');
+        if (p1Error.message?.includes('timeout') || p1Error.message?.includes('aborted') || p1Error.message?.includes('connection closed') || p1Error.message?.includes('Failed to send')) {
+          console.warn('[SA Report] Phase 1 connection issue, checking DB...');
           await new Promise(r => setTimeout(r, 3000));
           const { data: check } = await supabase
             .from('sa_audit_reports')
@@ -13381,8 +13381,8 @@ function SystemsAuditClientModal({
       });
 
       if (p2Error) {
-        if (p2Error.message?.includes('timeout') || p2Error.message?.includes('aborted') || p2Error.message?.includes('connection closed')) {
-          console.warn('[SA Report] Phase 2 connection issue, checking if it completed...');
+        if (p2Error.message?.includes('timeout') || p2Error.message?.includes('aborted') || p2Error.message?.includes('connection closed') || p2Error.message?.includes('Failed to send')) {
+          console.warn('[SA Report] Phase 2 connection issue, checking DB...');
           await new Promise(r => setTimeout(r, 3000));
           const { data: check } = await supabase
             .from('sa_audit_reports')
@@ -13408,12 +13408,12 @@ function SystemsAuditClientModal({
       });
 
       if (p3Error) {
-        if (p3Error.message?.includes('timeout') || p3Error.message?.includes('aborted') || p3Error.message?.includes('connection closed')) {
-          console.warn('[SA Report] Phase 3 connection issue, checking if it completed...');
+        if (p3Error.message?.includes('timeout') || p3Error.message?.includes('aborted') || p3Error.message?.includes('connection closed') || p3Error.message?.includes('Failed to send')) {
+          console.warn('[SA Report] Phase 3 connection issue, checking DB...');
           await new Promise(r => setTimeout(r, 3000));
           const { data: check } = await supabase
             .from('sa_audit_reports')
-            .select('status, id')
+            .select('status')
             .eq('engagement_id', engagement.id)
             .maybeSingle();
           if (check?.status !== 'pass1_complete') {
@@ -13427,7 +13427,7 @@ function SystemsAuditClientModal({
 
       console.log('[SA Report] All 3 phases complete. Starting narrative generation (Pass 2)...');
 
-      // ── Pass 2: Narrative generation (can take longer — timeout + polling fallback) ──
+      // Pass 2: Narrative generation (separate function, can take longer)
       let reportId = p3?.reportId;
       if (!reportId) {
         const { data: reportRow } = await supabase
@@ -13438,20 +13438,14 @@ function SystemsAuditClientModal({
         reportId = reportRow?.id;
       }
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000);
-
       try {
-        const { data: p2Result, error: pass2Error } = await supabase.functions.invoke('generate-sa-report-pass2', {
+        const { data: pass2Result, error: pass2Error } = await supabase.functions.invoke('generate-sa-report-pass2', {
           body: { engagementId: engagement.id, reportId },
-          signal: controller.signal,
         });
-
-        clearTimeout(timeoutId);
 
         if (pass2Error) {
           console.error('[SA Report] Pass 2 error:', pass2Error);
-          alert('Report data extracted successfully, but narrative generation had an issue. The data is saved — you can retry narrative generation.');
+          alert('Report data extracted successfully, but narrative generation had an issue. You can retry.');
           await fetchData();
           setGenerating(false);
           return;
@@ -13461,9 +13455,7 @@ function SystemsAuditClientModal({
         await fetchData();
         setGenerating(false);
       } catch (pass2Err: any) {
-        clearTimeout(timeoutId);
-
-        if (pass2Err.name === 'AbortError' || pass2Err.message?.includes('timeout') || pass2Err.message?.includes('aborted')) {
+        if (pass2Err.name === 'AbortError' || pass2Err.message?.includes('timeout') || pass2Err.message?.includes('aborted') || pass2Err.message?.includes('connection closed') || pass2Err.message?.includes('Failed to send')) {
           console.log('[SA Report] Pass 2 timed out, polling for completion...');
           pollForReport(engagement.id, 0);
           return;
