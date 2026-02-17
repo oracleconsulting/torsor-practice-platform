@@ -52,26 +52,6 @@ function parseJsonFromContent(content: string, wasTruncated: boolean): string {
   return content;
 }
 
-async function triggerNextPhase(engagementId: string, nextPhase: number): Promise<void> {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing SUPABASE_URL or SERVICE_ROLE_KEY');
-  }
-  console.log(`[SA Pass 1] Triggering phase ${nextPhase}...`);
-  const response = await fetch(`${supabaseUrl}/functions/v1/generate-sa-report-pass1`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${serviceRoleKey}`,
-    },
-    body: JSON.stringify({ engagementId, phase: nextPhase }),
-  });
-  if (!response.ok) {
-    console.error(`[SA Pass 1] Phase ${nextPhase} trigger failed:`, response.status);
-  }
-}
-
 async function callSonnet(
   prompt: string,
   maxTokens: number,
@@ -346,7 +326,6 @@ async function runPhase1(
     { onConflict: 'engagement_id' }
   );
 
-  triggerNextPhase(engagementId, 2).catch(err => console.error('[SA Pass 1] Failed to trigger phase 2:', err));
   return { success: true, phase: 1 };
 }
 
@@ -462,7 +441,6 @@ async function runPhase2(
     await supabaseClient.from('sa_findings').insert(findingRows);
   }
 
-  triggerNextPhase(engagementId, 3).catch(err => console.error('[SA Pass 1] Failed to trigger phase 3:', err));
   return { success: true, phase: 2 };
 }
 
@@ -629,23 +607,6 @@ async function runPhase3(
   if (updateError) {
     console.error('[SA Pass 1] Phase 3 update error:', updateError);
     throw updateError;
-  }
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (supabaseUrl && serviceRoleKey) {
-    console.log('[SA Pass 1] pass1_data assembled. Triggering Pass 2...');
-    fetch(`${supabaseUrl}/functions/v1/generate-sa-report-pass2`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${serviceRoleKey}`,
-      },
-      body: JSON.stringify({ engagementId, reportId: reportRow.id }),
-    }).then(r => {
-      if (!r.ok) console.error('[SA Pass 1] Pass 2 trigger failed:', r.status);
-      else console.log('[SA Pass 1] Pass 2 triggered successfully');
-    }).catch(err => console.error('[SA Pass 1] Pass 2 trigger error:', err));
   }
 
   return { success: true, phase: 3, reportId: reportRow.id };
