@@ -23,9 +23,11 @@ interface SystemInventory {
   system_name: string;
   category_code: string;
   sub_category?: string;
+  category_other_description?: string;
   vendor?: string;
   website_url?: string;
   primary_users: string[];
+  primary_users_other?: string;
   number_of_users?: number;
   usage_frequency: 'daily' | 'weekly' | 'monthly' | 'rarely';
   usage_frequency_context?: string;
@@ -206,9 +208,11 @@ export default function SystemInventoryPage() {
       system_name: system.system_name,
       category_code: system.category_code,
       sub_category: system.sub_category,
+      category_other_description: system.category_other_description,
       vendor: system.vendor,
       website_url: system.website_url,
       primary_users: system.primary_users || [],
+      primary_users_other: system.primary_users_other,
       number_of_users: system.number_of_users,
       usage_frequency: system.usage_frequency,
       criticality: system.criticality,
@@ -224,6 +228,9 @@ export default function SystemInventoryPage() {
       manual_process_description: system.manual_process_description,
       data_quality_score: system.data_quality_score,
       data_entry_method: system.data_entry_method || 'single_point',
+      data_entry_context: system.data_entry_context,
+      usage_frequency_context: system.usage_frequency_context,
+      cost_trend_context: system.cost_trend_context,
       user_satisfaction: system.user_satisfaction,
       fit_for_purpose: system.fit_for_purpose,
       would_recommend: system.would_recommend || 'yes',
@@ -231,6 +238,7 @@ export default function SystemInventoryPage() {
       workarounds_in_use: system.workarounds_in_use,
       change_one_thing: system.change_one_thing,
       future_plan: system.future_plan,
+      future_plan_context: system.future_plan_context,
       replacement_candidate: system.replacement_candidate,
       contract_end_date: system.contract_end_date
     });
@@ -251,9 +259,11 @@ export default function SystemInventoryPage() {
         system_name: formData.system_name,
         category_code: formData.category_code,
         sub_category: formData.sub_category || null,
+        category_other_description: formData.category_other_description || null,
         vendor: formData.vendor || null,
         website_url: formData.website_url || null,
         primary_users: formData.primary_users || [],
+        primary_users_other: formData.primary_users_other || null,
         number_of_users: formData.number_of_users || null,
         usage_frequency: formData.usage_frequency || 'daily',
         usage_frequency_context: formData.usage_frequency_context || null,
@@ -361,7 +371,7 @@ export default function SystemInventoryPage() {
   };
 
   const selectedCategory = categories.find(c => c.category_code === formData.category_code);
-  const primaryUserOptions = ['Admin', 'Everyone', 'Finance', 'HR', 'Operations', 'Owner', 'Sales'];
+  const primaryUserOptions = ['Admin', 'Everyone', 'Finance', 'HR', 'Operations', 'Owner', 'Sales', 'Other'];
 
   if (loading) {
     return (
@@ -477,7 +487,14 @@ export default function SystemInventoryPage() {
                 </label>
                 <select
                   value={formData.category_code || ''}
-                  onChange={(e) => setFormData({ ...formData, category_code: e.target.value })}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFormData({
+                      ...formData,
+                      category_code: v,
+                      ...(v !== 'other' ? { category_other_description: '' } : {})
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
                   <option value="">Select a category</option>
@@ -489,6 +506,15 @@ export default function SystemInventoryPage() {
                       </option>
                     ))}
                 </select>
+                {formData.category_code === 'other' && (
+                  <input
+                    type="text"
+                    value={formData.category_other_description || ''}
+                    onChange={(e) => setFormData({ ...formData, category_other_description: e.target.value })}
+                    className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                    placeholder="Please describe (e.g., Design)"
+                  />
+                )}
               </div>
 
               {/* Vendor */}
@@ -558,6 +584,7 @@ export default function SystemInventoryPage() {
                             setFormData({ ...formData, primary_users: [...current, user] });
                           } else {
                             setFormData({ ...formData, primary_users: current.filter(u => u !== user) });
+                            if (user === 'Other') setFormData(prev => ({ ...prev, primary_users_other: '' }));
                           }
                         }}
                         className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
@@ -566,6 +593,15 @@ export default function SystemInventoryPage() {
                     </label>
                   ))}
                 </div>
+                {(formData.primary_users || []).includes('Other') && (
+                  <input
+                    type="text"
+                    value={formData.primary_users_other || ''}
+                    onChange={(e) => setFormData({ ...formData, primary_users_other: e.target.value })}
+                    className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                    placeholder="Please describe (e.g., design team)"
+                  />
+                )}
               </div>
 
               {/* Number of Users */}
@@ -988,9 +1024,11 @@ export default function SystemInventoryPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold text-gray-900">{system.system_name}</h3>
-                        {category && (
+                        {(category || system.category_code === 'other') && (
                           <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded">
-                            {category.category_name}
+                            {system.category_code === 'other' && system.category_other_description
+                              ? `Other (${system.category_other_description})`
+                              : category?.category_name ?? 'Other'}
                           </span>
                         )}
                         <span className={`px-2 py-1 text-xs font-medium rounded ${
@@ -1022,7 +1060,11 @@ export default function SystemInventoryPage() {
                       {system.primary_users && system.primary_users.length > 0 && (
                         <div className="mt-2">
                           <span className="text-sm text-gray-600">Users: </span>
-                          <span className="text-sm text-gray-900">{system.primary_users.join(', ')}</span>
+                          <span className="text-sm text-gray-900">
+                            {system.primary_users
+                              .map(u => (u === 'Other' && system.primary_users_other ? `Other (${system.primary_users_other})` : u))
+                              .join(', ')}
+                          </span>
                         </div>
                       )}
                     </div>

@@ -24,3 +24,14 @@ ALTER TABLE sa_system_inventory
 
 COMMENT ON COLUMN sa_system_inventory.future_plan_context IS
   'Optional context for future plan, e.g. "but open to replacing if something better exists"';
+
+-- When category is "other", optional description (e.g. "Design"). When primary users includes "Other", optional description (e.g. "design team").
+
+ALTER TABLE sa_system_inventory
+  ADD COLUMN IF NOT EXISTS category_other_description TEXT,
+  ADD COLUMN IF NOT EXISTS primary_users_other TEXT;
+
+COMMENT ON COLUMN sa_system_inventory.category_other_description IS
+  'When category_code is other, optional description e.g. "Design"';
+COMMENT ON COLUMN sa_system_inventory.primary_users_other IS
+  'When primary_users includes Other, optional description e.g. "design team"';
