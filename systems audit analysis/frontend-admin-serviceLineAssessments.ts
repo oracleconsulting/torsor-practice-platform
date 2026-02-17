@@ -548,7 +548,9 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
     'Impact Quantification',
     'Tech Stack',
     'Focus Areas',
-    'Readiness'
+    'Your Vision',
+    'Readiness',
+    'Context'
   ],
   questions: [
     // Section 1: Current Pain
@@ -583,7 +585,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'If I followed you through a typical month-end, what would embarrass you most?',
       type: 'text',
       placeholder: 'The workaround you\'re ashamed of, the process you\'d never show an investor...',
-      charLimit: 300,
+      charLimit: 800,
       emotionalAnchor: 'month_end_shame',
       required: true
     },
@@ -641,7 +643,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'What\'s the most expensive mistake caused by a systems/process gap in the last 2 years?',
       type: 'text',
       placeholder: 'Lost client, tax penalty, missed opportunity, overpayment...',
-      charLimit: 300,
+      charLimit: 800,
       emotionalAnchor: 'expensive_systems_mistake',
       required: true
     },
@@ -725,12 +727,61 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'If you could fix ONE process by magic, which would have the biggest impact?',
       type: 'text',
       placeholder: 'Describe the process and why fixing it would matter...',
-      charLimit: 300,
+      charLimit: 800,
       emotionalAnchor: 'magic_process_fix',
       required: true
     },
 
-    // Section 5: Readiness
+    // Section 5: Your Vision
+    {
+      id: 'sa_desired_outcomes',
+      section: 'Your Vision',
+      question: 'What specific outcomes do you most want from fixing your systems?',
+      type: 'multi',
+      maxSelections: 3,
+      options: [
+        'Know which clients or jobs are actually profitable',
+        'See our cash position and forecast without asking anyone',
+        'Close month-end in under a week',
+        'Get quotes and proposals out within 48 hours',
+        'Track pipeline and forecast revenue with confidence',
+        'Free key people from manual admin and data entry',
+        'Get management information I actually use for decisions',
+        'Onboard new team members without things falling apart',
+        'Scale the team without scaling the admin',
+        'Have proper controls so mistakes don\'t slip through'
+      ],
+      technicalField: 'desired_outcomes',
+      required: true
+    },
+    {
+      id: 'sa_monday_morning',
+      section: 'Your Vision',
+      question: 'When your systems are working properly, what does your Monday morning look like?',
+      type: 'text',
+      placeholder: 'What do you see when you open your laptop? What questions can you answer instantly? What meetings do you no longer need?',
+      charLimit: 800,
+      emotionalAnchor: 'monday_morning_vision',
+      required: true
+    },
+    {
+      id: 'sa_time_freedom',
+      section: 'Your Vision',
+      question: 'If you got 10+ hours a week back, what would you actually spend that time on?',
+      type: 'single',
+      options: [
+        'Clients \u2014 the work I\'m actually good at',
+        'Business development \u2014 growing revenue',
+        'Strategy and planning \u2014 thinking about the future',
+        'Managing my team properly \u2014 not firefighting',
+        'My life outside work \u2014 family, health, headspace',
+        'Building something new \u2014 products, services, ideas'
+      ],
+      emotionalAnchor: 'time_freedom_priority',
+      required: true
+    },
+
+    // Section 6: Readiness
     {
       id: 'sa_change_appetite',
       section: 'Readiness',
@@ -776,6 +827,53 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
         'We don\'t have an obvious person'
       ],
       technicalField: 'internal_champion',
+      required: true
+    },
+
+    // Section 7: Context
+    {
+      id: 'sa_team_size',
+      section: 'Context',
+      question: 'How many people work in your business currently?',
+      type: 'text',
+      placeholder: 'Enter number',
+      technicalField: 'team_size',
+      required: true
+    },
+    {
+      id: 'sa_expected_team_size',
+      section: 'Context',
+      question: 'How many people do you expect in 12 months?',
+      type: 'text',
+      placeholder: 'Enter number',
+      technicalField: 'expected_team_size_12mo',
+      required: true
+    },
+    {
+      id: 'sa_revenue_band',
+      section: 'Context',
+      question: 'What\'s your annual revenue band?',
+      type: 'single',
+      options: [
+        'Under \u00a3250k',
+        '\u00a3250k - \u00a3500k',
+        '\u00a3500k - \u00a31m',
+        '\u00a31m - \u00a32m',
+        '\u00a32m - \u00a35m',
+        '\u00a35m - \u00a310m',
+        '\u00a310m+'
+      ],
+      technicalField: 'revenue_band',
+      required: true
+    },
+    {
+      id: 'sa_industry',
+      section: 'Context',
+      question: 'What industry are you in?',
+      type: 'text',
+      placeholder: 'e.g., Professional services, Manufacturing, Retail, Tech...',
+      charLimit: 100,
+      technicalField: 'industry_sector',
       required: true
     }
   ]

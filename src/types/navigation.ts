@@ -18,7 +18,8 @@ export type Page =
   | 'training' 
   | 'knowledge'
   | 'ma-portal'
-  | 'service-builder';
+  | 'service-builder'
+  | 'tech-database';
 
 export interface NavigationProps {
   currentPage: Page;

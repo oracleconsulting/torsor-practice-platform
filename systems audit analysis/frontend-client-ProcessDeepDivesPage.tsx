@@ -16,8 +16,9 @@ interface DeepDiveQuestion {
   id: string;
   field: string;
   question: string;
-  type: 'text' | 'select' | 'number' | 'multi_select';
+  type: 'text' | 'select' | 'multi_select';
   options?: { value: string; label: string }[];
+  placeholder?: string;
   aiAnchor?: boolean;
   required?: boolean;
 }
@@ -66,8 +67,9 @@ const quoteToCashConfig: ProcessChainConfig = {
         {
           id: 'qtc_quote_time',
           field: 'quote_time_mins',
-          question: 'How long does it take to produce a typical quote? (minutes)',
-          type: 'number',
+          question: 'How long does it take to produce a typical quote?',
+          type: 'text',
+          placeholder: 'e.g., 180 minutes — or describe: 3 hours average, sometimes a full day for big ones',
         },
         {
           id: 'qtc_pricing',
@@ -90,8 +92,9 @@ const quoteToCashConfig: ProcessChainConfig = {
         {
           id: 'qtc_conversion',
           field: 'quote_conversion',
-          question: 'What\'s your quote-to-win conversion rate? (estimate %)',
-          type: 'number',
+          question: 'What\'s your quote-to-win conversion rate?',
+          type: 'text',
+          placeholder: 'e.g., ~40% — or describe how it varies and what affects it',
         },
         {
           id: 'qtc_quote_pain',
@@ -157,14 +160,16 @@ const quoteToCashConfig: ProcessChainConfig = {
         {
           id: 'qtc_invoice_lag',
           field: 'invoice_lag_days',
-          question: 'How long from work complete to invoice sent? (days)',
-          type: 'number',
+          question: 'How long from work complete to invoice sent?',
+          type: 'text',
+          placeholder: 'e.g., 5–7 days — or describe the process and any bottlenecks',
         },
         {
           id: 'qtc_invoice_volume',
           field: 'invoice_volume_monthly',
           question: 'How many invoices per month?',
-          type: 'number',
+          type: 'text',
+          placeholder: 'e.g., ~50 — or describe volume and peaks',
         },
         {
           id: 'qtc_invoice_pain',
@@ -227,7 +232,8 @@ const quoteToCashConfig: ProcessChainConfig = {
           id: 'qtc_escalation',
           field: 'escalation_threshold_days',
           question: 'At what age (days overdue) do you escalate?',
-          type: 'number',
+          type: 'text',
+          placeholder: 'e.g., 30 days — or describe your escalation steps',
         },
         {
           id: 'qtc_debt_collection',
@@ -250,7 +256,8 @@ const quoteToCashConfig: ProcessChainConfig = {
           id: 'qtc_debtor_days',
           field: 'current_debtor_days',
           question: 'Current debtor days? (if known)',
-          type: 'number',
+          type: 'text',
+          placeholder: 'e.g., 45 — or describe how you track and what you see',
         },
         {
           id: 'qtc_collection_pain',
@@ -368,7 +375,8 @@ const procureToPayConfig: ProcessChainConfig = {
           id: 'ptp_ap_volume',
           field: 'ap_volume_monthly',
           question: 'Invoices processed per month?',
-          type: 'number',
+          type: 'text',
+          placeholder: 'e.g., ~120 — or describe volume and how it\'s handled',
         },
         {
           id: 'ptp_ap_pain',
@@ -679,7 +687,8 @@ const hireToRetireConfig: ProcessChainConfig = {
           id: 'htr_employee_count',
           field: 'employee_count',
           question: 'Number of employees on payroll?',
-          type: 'number',
+          type: 'text',
+          placeholder: 'e.g., 25 — or describe (FTE, contractors, seasonal)',
         },
         {
           id: 'htr_payroll_pain',
@@ -754,7 +763,8 @@ const recordToReportConfig: ProcessChainConfig = {
           id: 'rtr_transaction_volume',
           field: 'transaction_volume',
           question: 'Average transactions per month?',
-          type: 'number',
+          type: 'text',
+          placeholder: 'e.g., 500 — or describe volume and mix',
         },
         {
           id: 'rtr_bookkeeping_pain',
@@ -805,14 +815,16 @@ const recordToReportConfig: ProcessChainConfig = {
         {
           id: 'rtr_close_duration',
           field: 'close_duration_days',
-          question: 'How long does month-end take currently? (working days)',
-          type: 'number',
+          question: 'How long does month-end take currently?',
+          type: 'text',
+          placeholder: 'e.g., 10 working days — or describe the process and bottlenecks',
         },
         {
           id: 'rtr_close_target',
           field: 'close_target_days',
-          question: 'What\'s the target? (working days)',
-          type: 'number',
+          question: 'What\'s the target for month-end close?',
+          type: 'text',
+          placeholder: 'e.g., 5 working days — or describe target and blockers',
         },
         {
           id: 'rtr_month_end_pain',
@@ -875,7 +887,8 @@ const recordToReportConfig: ProcessChainConfig = {
           id: 'rtr_reporting_lag',
           field: 'reporting_lag_days',
           question: 'How many working days from month-end to reports delivered?',
-          type: 'number',
+          type: 'text',
+          placeholder: 'e.g., 15 days — or describe the lag and why',
         },
         {
           id: 'rtr_budget_comparison',
@@ -1008,8 +1021,9 @@ const leadToClientConfig: ProcessChainConfig = {
         {
           id: 'ltc_crm_quality',
           field: 'crm_data_quality',
-          question: 'CRM data quality rating? (1-5)',
-          type: 'number',
+          question: 'CRM data quality rating?',
+          type: 'text',
+          placeholder: 'e.g., 3/5 — or describe what\'s good, what\'s missing, what\'s wrong',
         },
         {
           id: 'ltc_crm_pain',
@@ -1776,11 +1790,11 @@ export default function ProcessDeepDivesPage() {
                   
                   {question.type === 'text' && (
                     <textarea
-                      value={responses[question.field] || ''}
+                      value={responses[question.field] ?? ''}
                       onChange={(e) => handleResponseChange(question.field, e.target.value)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       rows={3}
-                      placeholder="Enter your answer..."
+                      placeholder={question.placeholder || 'Enter your answer...'}
                     />
                   )}
                   
@@ -1795,16 +1809,6 @@ export default function ProcessDeepDivesPage() {
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
                       ))}
                     </select>
-                  )}
-                  
-                  {question.type === 'number' && (
-                    <input
-                      type="number"
-                      value={responses[question.field] || ''}
-                      onChange={(e) => handleResponseChange(question.field, e.target.value ? parseFloat(e.target.value) : undefined)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="Enter a number..."
-                    />
                   )}
                   
                   {question.type === 'multi_select' && (

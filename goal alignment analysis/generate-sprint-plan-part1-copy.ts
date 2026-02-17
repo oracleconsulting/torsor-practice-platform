@@ -14,7 +14,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
-async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string): Promise<{ promptContext: string }> {
+async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string): Promise<{ promptContext: string; hasEnrichment?: boolean; sources?: { financial: boolean; systems: boolean; market: boolean; valueAnalysis: boolean; discovery: boolean } }> {
   const log = (msg: string) => console.log(`[ContextEnrichment] ${msg}`);
   log(`Enriching context for client ${clientId}`);
   interface Fin { source: string; summary: string }
@@ -84,7 +84,17 @@ async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string):
   if (discovery) parts.push(`## Discovery\n${discovery.summary}`);
   const promptContext = parts.length > 0 ? `\n\n# ENRICHMENT DATA FROM OTHER SERVICE LINES\nUse as authoritative context.\n\n${parts.join('\n\n')}` : '';
   log(`Complete. financial=${!!financial}, systems=${!!systems}, market=${!!market}, valueAnalysis=${!!valueAnalysis}, discovery=${!!discovery}`);
-  return { promptContext };
+  return {
+    promptContext,
+    hasEnrichment: parts.length > 0,
+    sources: {
+      financial: !!financial,
+      systems: !!systems,
+      market: !!market,
+      valueAnalysis: !!valueAnalysis,
+      discovery: !!discovery,
+    },
+  };
 }
 
 const corsHeaders = {
@@ -204,6 +214,28 @@ serve(async (req) => {
     } catch (err) {
       console.warn('[generate-sprint-plan-part1] Enrichment not available:', err);
     }
+
+    let advisorNotesBlock = '';
+    if (sprintNumber > 1) {
+      try {
+        const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+        if (sl?.id) {
+          const { data: enrollment } = await supabase
+            .from('client_service_lines')
+            .select('advisor_notes')
+            .eq('client_id', clientId)
+            .eq('service_line_id', sl.id)
+            .maybeSingle();
+          if (enrollment?.advisor_notes?.trim()) {
+            advisorNotesBlock = `\n\n# ADVISOR NOTES\nThe following notes are from the client's advisor. Treat as high-priority context when designing tasks:\n\n${enrollment.advisor_notes.trim()}`;
+            console.log('[generate-sprint-plan-part1] Advisor notes included');
+          }
+        }
+      } catch (err) {
+        console.warn('[generate-sprint-plan-part1] Failed to fetch advisor notes:', err);
+      }
+    }
+
     const { data: assessmentMeta } = await supabase.from('client_assessments').select('metadata').eq('client_id', clientId).eq('assessment_type', 'part2').maybeSingle();
     if (assessmentMeta?.metadata?.adaptive) {
       console.log('[generate-sprint-plan-part1] Adaptive assessment — skipped sections:', assessmentMeta.metadata.skippedSections?.map((s: any) => s.sectionId).join(', '));
@@ -211,19 +243,36 @@ serve(async (req) => {
 
     console.log(`Generating weeks 1-6 for ${context.userName}...`);
 
-    const sprintPart1 = await generateSprintPart1(context, enrichedContext?.promptContext || '');
+    const sprintPart1 = await generateSprintPart1(context, (enrichedContext?.promptContext || '') + advisorNotesBlock);
 
     const duration = Date.now() - startTime;
-    
-    await supabase
-      .from('roadmap_stages')
-      .update({
-        status: 'generated',
-        generated_content: sprintPart1,
-        generation_completed_at: new Date().toISOString(),
-        generation_duration_ms: duration
-      })
-      .eq('id', stage.id);
+
+    try {
+      await supabase
+        .from('roadmap_stages')
+        .update({
+          status: 'generated',
+          generated_content: sprintPart1,
+          generation_completed_at: new Date().toISOString(),
+          generation_duration_ms: duration,
+          metadata: {
+            ...((stage as any)?.metadata || {}),
+            enrichmentSources: enrichedContext?.sources ?? null,
+          },
+        })
+        .eq('id', stage.id);
+    } catch (metaErr) {
+      console.warn('[generate-sprint-plan-part1] Metadata save failed (non-blocking):', metaErr);
+      await supabase
+        .from('roadmap_stages')
+        .update({
+          status: 'generated',
+          generated_content: sprintPart1,
+          generation_completed_at: new Date().toISOString(),
+          generation_duration_ms: duration,
+        })
+        .eq('id', stage.id);
+    }
 
     console.log(`Sprint plan part 1 (weeks 1-6) generated for client ${clientId} in ${duration}ms`);
 

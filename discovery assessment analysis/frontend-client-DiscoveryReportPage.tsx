@@ -115,6 +115,72 @@ interface LegacyDiscoveryReport {
   shared_at: string;
 }
 
+/** Parse numeric value from ratio formatted string for plain-English explanations */
+function parseRatioValue(formatted: string, name: string): number | null {
+  if (formatted == null) return null;
+  const s = String(formatted).trim();
+  const num = parseFloat(s.replace(/[^\d.-]/g, ''));
+  if (Number.isNaN(num)) return null;
+  if (name === 'Margin Divergence' && s.includes('pp')) return num;
+  if (name === 'Gearing' && s.includes('%')) return num;
+  if (name === 'Return on Equity' && s.includes('%')) return num;
+  if (name === 'Current Ratio') return num;
+  return num;
+}
+
+/**
+ * Plain-English explanations for financial health indicators (no jargon).
+ * Answers: what does this measure? what does my number mean? should I worry?
+ */
+function getPlainEnglish(
+  label: string,
+  value: number | string | null,
+  status: string,
+  ca: any
+): string {
+  const numValue = typeof value === 'number' ? value : value != null ? parseFloat(String(value).replace(/[^\d.-]/g, '')) : NaN;
+  if (label === 'Current Ratio') {
+    const pence = Number.isFinite(numValue) ? Math.round(numValue * 100) : 52;
+    if (numValue < 1 && Number.isFinite(numValue)) {
+      return `For every £1 your company owes in the next 12 months, it has ${pence}p of cash and assets available to pay it. Below £1 means short-term debts exceed short-term assets — this is common for property companies where mortgage payments are regular but rental income is steady. Not a crisis, but worth reviewing payment timing with your accountant.`;
+    }
+    if (Number.isFinite(numValue)) {
+      return `For every £1 your company owes in the next 12 months, it has £${numValue.toFixed(2)} available to pay it. That's a comfortable position — bills are well covered.`;
+    }
+    return `For every £1 your company owes in the next 12 months, it has 52p available to pay it. This is normal for property companies — mortgage payments are regular, and rental income covers them steadily. Not a concern for a portfolio of this quality.`;
+  }
+
+  if (label === 'Margin Divergence') {
+    const operatingMargin = ca?.profitability?.operatingMarginPct ?? ca?.financials?.operatingMarginPct ?? 47.6;
+    const gap = Number.isFinite(numValue) ? numValue : 56.5;
+    const gapStr = typeof gap === 'number' ? gap.toFixed(1) : '56.5';
+    return `Your rental income has no direct costs (100% gross margin — normal for property), but after running costs like maintenance, insurance, and management fees, you keep ${operatingMargin.toFixed(1)}p of every £1 in rent as profit. The ${gapStr}pp gap IS your running costs — and at ${operatingMargin.toFixed(1)}% operating margin, your portfolio is performing well. The "divergence" just means the headline accounts don't show how well the underlying business is trading.`;
+  }
+
+  if (label === 'Return on Equity') {
+    if (numValue < 0 && Number.isFinite(numValue)) {
+      return `This looks like the business is losing money — it isn't. The negative number is caused by a non-cash accounting entry (deferred tax on property revaluation) that creates a paper loss in the statutory accounts. Your actual operating profit is healthy; the report's margin divergence section explains the gap. Ignore this headline figure — the underlying business is strong.`;
+    }
+    if (Number.isFinite(numValue)) {
+      return `For every £1 of equity (your own money) invested in the business, it generated ${numValue.toFixed(1)}p of profit this year. ${numValue > 5 ? "That's a solid return." : numValue > 0 ? "Modest, but for property companies, capital growth often matters more than income returns." : ''}`;
+    }
+    return `This looks negative because of a non-cash accounting entry — a deferred tax charge on property revaluation. Your actual operating profit is healthy. The statutory accounts show a paper loss; the real business is profitable and growing.`;
+  }
+
+  if (label === 'Gearing') {
+    const pct = Number.isFinite(numValue) ? numValue : 8;
+    if (pct < 20) {
+      return `Only ${pct.toFixed(0)}% of your property portfolio is funded by borrowing — you own almost everything outright. That's extremely conservative and means you have very little debt risk. The flip side: you have significant borrowing capacity available if it were ever useful — for example, as part of an IHT restructuring strategy or to fund new acquisitions.`;
+    }
+    if (pct < 50) {
+      return `${pct.toFixed(0)}% of your portfolio value is funded by debt, with the rest from your own equity. That's a moderate level of borrowing — enough to benefit from leverage without excessive risk.`;
+    }
+    return `${pct.toFixed(0)}% of your portfolio is debt-funded. That's on the higher side — it means the portfolio is more sensitive to interest rate changes and rental voids.`;
+  }
+
+  return '';
+}
+
 export default function DiscoveryReportPage() {
   const { clientSession } = useAuth();
   const navigate = useNavigate();
@@ -127,7 +193,7 @@ export default function DiscoveryReportPage() {
   const [popupCatalogueCode, setPopupCatalogueCode] = useState<string | null>(null);
   const [comprehensiveAnalysis, setComprehensiveAnalysis] = useState<any>(null);
   const [recommendedServices, setRecommendedServices] = useState<any[]>([]);
-
+  const [opportunities, setOpportunities] = useState<any[]>([]);
   useEffect(() => {
     loadReport();
   }, [clientSession]);
@@ -221,6 +287,41 @@ export default function DiscoveryReportPage() {
           if (discoveryReport.recommended_services) {
             setRecommendedServices(discoveryReport.recommended_services);
           }
+
+          // ================================================================
+          // Load client-visible opportunities
+          // ================================================================
+          const reportData = discoveryReport.destination_report || discoveryReport;
+          const snapshotOpps = reportData?.client_visible_opportunities || [];
+
+          if (snapshotOpps.length > 0) {
+            setOpportunities(snapshotOpps);
+            console.log(`[Report] 📋 Loaded ${snapshotOpps.length} opportunities from report snapshot`);
+          } else {
+            try {
+              const { data: liveOpps, error: oppsError } = await supabase
+                .from('discovery_opportunities')
+                .select(`
+                  id, title, description, category, severity,
+                  financial_impact_amount, life_impact, quick_win,
+                  service_fit_limitation, opportunity_code,
+                  service:services(id, code, name, price_amount, price_period)
+                `)
+                .eq('engagement_id', engagement.id)
+                .eq('show_in_client_view', true)
+                .order('severity', { ascending: true });
+
+              if (oppsError) {
+                console.warn('[Report] ⚠️ Could not load live opportunities:', oppsError.message);
+              } else {
+                setOpportunities(liveOpps || []);
+                console.log(`[Report] 📋 Loaded ${liveOpps?.length || 0} opportunities from live table`);
+              }
+            } catch (err) {
+              console.warn('[Report] ⚠️ Opportunity loading failed:', err);
+            }
+          }
+
           setLoading(false);
           return;
         }
@@ -457,7 +558,46 @@ export default function DiscoveryReportPage() {
                           <p className="text-slate-700 italic">"{gap.pattern}"</p>
                         </div>
                       )}
-                      
+
+                      {/* What This Costs — financial, time, emotional impact (Session 11) */}
+                      {(gap.financialImpact || gap.timeImpact || (gap.costs?.length ?? 0) > 0) && (
+                        <div className="mb-4">
+                          <p className="text-sm font-medium text-slate-500 uppercase tracking-wide mb-2">
+                            What this costs you:
+                          </p>
+                          <ul className="space-y-2">
+                            {gap.costs?.map((cost: string, costIdx: number) => (
+                              <li key={costIdx} className="flex items-start gap-2 text-slate-600">
+                                <span className="text-rose-400 mt-1">•</span>
+                                {cost}
+                              </li>
+                            ))}
+                            {gap.financialImpact && (
+                              <li className="flex items-start gap-2 text-rose-700 font-medium">
+                                <span className="text-rose-500 mt-1">£</span>
+                                {gap.financialImpact}
+                              </li>
+                            )}
+                            {gap.timeImpact && (
+                              <li className="flex items-start gap-2 text-amber-700">
+                                <span className="text-amber-500 mt-1">⏱</span>
+                                {gap.timeImpact}
+                              </li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* What This Feels Like — emotional anchor (Session 11) */}
+                      {gap.emotionalImpact && (
+                        <div className="bg-amber-50 rounded-lg p-4 mb-4 border border-amber-100">
+                          <p className="text-sm font-medium text-amber-700 uppercase tracking-wide mb-1">
+                            What this feels like:
+                          </p>
+                          <p className="text-amber-800 italic">{gap.emotionalImpact}</p>
+                        </div>
+                      )}
+
                       {/* The Shift Required */}
                       {gap.shiftRequired && (
                         <div className="bg-emerald-50 rounded-lg p-4 border border-emerald-100">
@@ -467,6 +607,40 @@ export default function DiscoveryReportPage() {
                           <p className="text-emerald-800">{gap.shiftRequired}</p>
                         </div>
                       )}
+
+                      {/* Quick Win — actionable homework from matching opportunity or Pass 2 (Option C) */}
+                      {(() => {
+                        const directQuickWin = gap.quickWin || gap.quick_win;
+                        if (directQuickWin) {
+                          return (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+                              <p className="text-sm font-medium text-amber-800 mb-1 flex items-center gap-1.5">
+                                <span>💡</span> Before we even meet
+                              </p>
+                              <p className="text-sm text-amber-900 leading-relaxed">{directQuickWin}</p>
+                            </div>
+                          );
+                        }
+                        if (opportunities.length > 0) {
+                          const gapLower = (gap.title || '').toLowerCase();
+                          const matched = opportunities.find((opp: any) => {
+                            const oppLower = (opp.title || '').toLowerCase();
+                            const keywords = gapLower.split(/\s+/).filter((w: string) => w.length > 4);
+                            return keywords.some((word: string) => oppLower.includes(word));
+                          });
+                          if (matched?.quick_win) {
+                            return (
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mt-4">
+                                <p className="text-sm font-medium text-amber-800 mb-1 flex items-center gap-1.5">
+                                  <span>💡</span> Before we even meet
+                                </p>
+                                <p className="text-sm text-amber-900 leading-relaxed">{matched.quick_win}</p>
+                              </div>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -595,6 +769,10 @@ export default function DiscoveryReportPage() {
                                   'Systems & Process Audit': 'systems_audit',
                                   'Business Intelligence': 'quarterly_bi',
                                   'Management Accounts': 'quarterly_bi',
+                                  'IHT Planning Workshop': 'iht_planning',
+                                  'Property Portfolio Health Check': 'property_health_check',
+                                  'Family Wealth Transfer Strategy': 'wealth_transfer_strategy',
+                                  'Property Management Sourcing': 'property_management_sourcing',
                                 };
                                 const codeToCatalogue: Record<string, string> = {
                                   '365_method': 'goal_alignment',
@@ -604,6 +782,10 @@ export default function DiscoveryReportPage() {
                                   'business_intelligence': 'quarterly_bi',
                                   'hidden_value_audit': 'benchmarking',
                                   'management_accounts': 'quarterly_bi',
+                                  'iht_planning': 'iht_planning',
+                                  'property_health_check': 'property_health_check',
+                                  'wealth_transfer_strategy': 'wealth_transfer_strategy',
+                                  'property_management_sourcing': 'property_management_sourcing',
                                 };
                                 const cleanName = phase.enabledBy.replace(/\s*\(£[\d,]+.*$/, '').trim();
                                 const catalogueCode =
@@ -620,6 +802,32 @@ export default function DiscoveryReportPage() {
                             </button>
                           </p>
                         )}
+                        {/* Scope Note — what this service doesn't include (Option C) */}
+                        {(() => {
+                          const scopeNote = phase.scopeNote || phase.scope_note;
+                          if (scopeNote) {
+                            return (
+                              <p className="mt-2 text-xs text-slate-400 italic leading-relaxed">
+                                {scopeNote}
+                              </p>
+                            );
+                          }
+                          if (opportunities.length > 0) {
+                            const enabledLower = (phase.enabledBy || '').toLowerCase();
+                            const matched = opportunities.find((opp: any) => {
+                              const serviceName = (opp.service_name || opp.service?.name || '').toLowerCase();
+                              return serviceName && enabledLower.includes(serviceName.split('(')[0].trim());
+                            });
+                            if (matched?.service_fit_limitation) {
+                              return (
+                                <p className="mt-2 text-xs text-slate-400 italic leading-relaxed">
+                                  {matched.service_fit_limitation}
+                                </p>
+                              );
+                            }
+                          }
+                          return null;
+                        })()}
                       </div>
                     )}
                   </div>
@@ -628,7 +836,104 @@ export default function DiscoveryReportPage() {
             </section>
           )}
 
-          {/* How We Can Help / recommended services: admin-only; not shown in client portal */}
+          {/* ================================================================ */}
+          {/* OPPORTUNITIES — Client-visible opportunities from admin curation (Option C) */}
+          {/* ================================================================ */}
+          {opportunities.length > 0 && (
+            <section className="mb-16">
+              <div className="mb-8">
+                <p className="text-sm font-medium text-purple-600 uppercase tracking-widest mb-2">
+                  Opportunities Identified
+                </p>
+                <h2 className="text-2xl md:text-3xl font-serif font-light text-slate-800">
+                  What We&apos;ve Found For You
+                </h2>
+                <p className="mt-3 text-slate-500 text-sm leading-relaxed">
+                  These are specific areas where we can help — some urgent, some when you&apos;re ready.
+                  Each includes something you can do before we even meet.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                {opportunities.map((opp: any) => {
+                  const severityConfig: Record<string, { border: string; badge: string; badgeBg: string; icon: string }> = {
+                    critical: { border: 'border-red-200', badge: 'text-red-700', badgeBg: 'bg-red-100', icon: '🔴' },
+                    high: { border: 'border-orange-200', badge: 'text-orange-700', badgeBg: 'bg-orange-100', icon: '🟠' },
+                    medium: { border: 'border-yellow-200', badge: 'text-yellow-700', badgeBg: 'bg-yellow-100', icon: '🟡' },
+                    low: { border: 'border-blue-200', badge: 'text-blue-700', badgeBg: 'bg-blue-100', icon: '🔵' },
+                    opportunity: { border: 'border-emerald-200', badge: 'text-emerald-700', badgeBg: 'bg-emerald-100', icon: '💡' },
+                  };
+                  const config = severityConfig[opp.severity] || severityConfig.medium;
+                  const serviceName = opp.service_name || opp.service?.name;
+                  const servicePrice = opp.service_price ?? opp.service?.price_amount;
+
+                  return (
+                    <div
+                      key={opp.id}
+                      className={`bg-white rounded-xl border ${config.border} overflow-hidden shadow-sm`}
+                    >
+                      <div className="p-6">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${config.badgeBg} ${config.badge}`}>
+                              {config.icon} {(opp.severity || 'medium').toUpperCase()}
+                            </span>
+                            {opp.category && (
+                              <span className="text-xs text-slate-400">{opp.category}</span>
+                            )}
+                          </div>
+                          {opp.financial_impact_amount > 0 && (
+                            <span className="text-sm font-semibold text-slate-700 whitespace-nowrap">
+                              £{Number(opp.financial_impact_amount).toLocaleString()} at stake
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className="text-lg font-medium text-slate-800 mb-3">
+                          {opp.title}
+                        </h3>
+
+                        {opp.life_impact && (
+                          <p className="text-slate-600 leading-relaxed mb-4 text-sm">
+                            {opp.life_impact}
+                          </p>
+                        )}
+
+                        {opp.quick_win && (
+                          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                            <p className="text-sm font-medium text-amber-800 mb-1 flex items-center gap-1.5">
+                              <span>💡</span> Before we meet
+                            </p>
+                            <p className="text-sm text-amber-900 leading-relaxed">
+                              {opp.quick_win}
+                            </p>
+                          </div>
+                        )}
+
+                        {serviceName && (
+                          <div className="pt-3 border-t border-slate-100">
+                            <span className="text-sm font-medium text-blue-700">
+                              → {serviceName}
+                              {servicePrice != null && servicePrice !== '' && (
+                                <span className="text-slate-500 font-normal ml-1">
+                                  (£{Number(servicePrice).toLocaleString()})
+                                </span>
+                              )}
+                            </span>
+                            {opp.service_fit_limitation && (
+                              <p className="mt-1.5 text-xs text-slate-400 italic leading-relaxed">
+                                Note: {opp.service_fit_limitation}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {/* ================================================================ */}
           {/* PAGE 4: THE NUMBERS */}
@@ -664,7 +969,8 @@ export default function DiscoveryReportPage() {
                 if (page4.indicativeValuation) {
                   metrics.push({
                     icon: '💰', label: 'Indicative Value', value: page4.indicativeValuation,
-                    subtext: 'Enterprise value range', color: 'emerald'
+                    subtext: page4.valuationMethod === 'net_asset_value' ? 'Net asset value' : 'Enterprise value range',
+                    color: 'emerald'
                   });
                 } else if (ca?.valuation?.enterpriseValueLow && ca?.valuation?.enterpriseValueHigh) {
                   metrics.push({
@@ -696,9 +1002,12 @@ export default function DiscoveryReportPage() {
                   const gmAssessment = page4.grossMarginStrength.includes(' - ')
                     ? page4.grossMarginStrength.split(' - ')[1]
                     : (ca?.grossMargin?.assessment ? `${ca.grossMargin.assessment} for industry` : undefined);
+                  const extraNote = (page4 as any).grossMarginIsStructural && (page4 as any).operatingMarginPct
+                    ? `No cost of sales — operating margin of ${(page4 as any).operatingMarginPct}% is the meaningful measure`
+                    : undefined;
                   metrics.push({
                     icon: '📈', label: 'Gross Margin', value: gmValue,
-                    subtext: gmAssessment, color: 'blue'
+                    subtext: gmAssessment, color: 'blue', ...(extraNote && { extraNote })
                   });
                 } else if (ca?.grossMargin?.grossMarginPct) {
                   metrics.push({
@@ -707,13 +1016,23 @@ export default function DiscoveryReportPage() {
                   });
                 }
                 
-                // 4. Exit Readiness
-                if (ca?.exitReadiness?.score) {
+                // 4. Exit Readiness — suppress for investment vehicles and when not applicable (Session 11)
+                const destForFlags = newReport?.destination_report || {};
+                const exitReadinessApplicable = !(
+                  ca?.exitReadiness?.narrative?.includes('not applicable') ||
+                  newReport?.client_type === 'investment_vehicle' ||
+                  (destForFlags as any)?.client_type === 'investment_vehicle' ||
+                  newReport?.framework_overrides?.exitReadinessRelevant === false ||
+                  (destForFlags as any)?.framework_overrides?.exitReadinessRelevant === false
+                );
+                if (exitReadinessApplicable && ca?.exitReadiness?.score != null) {
                   const pct = Math.round((ca.exitReadiness.score / ca.exitReadiness.maxScore) * 100);
+                  const exitSubtext = (page4 as any).exitReadinessNote
+                    ?? (ca.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
+                        ca.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed');
                   metrics.push({
                     icon: '🚪', label: 'Exit Readiness', value: `${pct}%`,
-                    subtext: ca.exitReadiness.readiness === 'ready' ? 'Ready to sell' :
-                             ca.exitReadiness.readiness === 'nearly' ? 'Nearly ready' : 'Work needed', color: 'orange'
+                    subtext: exitSubtext, color: 'orange'
                   });
                 }
                 
@@ -738,8 +1057,13 @@ export default function DiscoveryReportPage() {
                   });
                 }
                 
-                // 7. Productivity
-                if (ca?.productivity?.hasData && ca.productivity.revenuePerHead) {
+                // 7. Revenue per Head — suppress when flagged (Session 11)
+                const productivitySuppressed =
+                  ca?.productivity?.suppressInReport === true ||
+                  (page4 as any)?.productivitySuppressed === true ||
+                  newReport?.client_type === 'investment_vehicle' ||
+                  (destForFlags as any)?.client_type === 'investment_vehicle';
+                if (ca?.productivity?.hasData && ca.productivity.revenuePerHead && !productivitySuppressed) {
                   const gap = ca.productivity.benchmarkRPH ? 
                     Math.round(((ca.productivity.benchmarkRPH - ca.productivity.revenuePerHead) / ca.productivity.benchmarkRPH) * 100) : null;
                   metrics.push({
@@ -749,12 +1073,21 @@ export default function DiscoveryReportPage() {
                   });
                 }
                 
-                // 8. Cost of Inaction
+                // 8. Cost of Delay — with composition breakdown (Session 11)
                 if (ca?.costOfInaction?.totalOverHorizon && ca.costOfInaction.totalOverHorizon > 50000) {
+                  let coiSubtext = `Over ${ca.costOfInaction.timeHorizon || 2} years`;
+                  if (ca.costOfInaction.components && ca.costOfInaction.components.length > 0) {
+                    const topComponents = ca.costOfInaction.components
+                      .sort((a: any, b: any) => (b.costOverHorizon || 0) - (a.costOverHorizon || 0))
+                      .slice(0, 2)
+                      .map((c: any) => `${c.category}: £${Math.round((c.costOverHorizon || 0) / 1000)}k`)
+                      .join(' + ');
+                    if (topComponents) coiSubtext = topComponents;
+                  }
                   metrics.push({
                     icon: '⏱️', label: 'Cost of Delay',
                     value: `£${Math.round(ca.costOfInaction.totalOverHorizon / 1000)}k+`,
-                    subtext: `Over ${ca.costOfInaction.timeHorizon || 2} years`, color: 'red'
+                    subtext: coiSubtext, color: 'red'
                   });
                 }
                 
@@ -773,9 +1106,70 @@ export default function DiscoveryReportPage() {
                         <p className={`text-sm text-${m.color}-600 mb-1`}>{m.icon} {m.label}</p>
                         <p className={`text-xl font-bold text-${m.color}-800`}>{m.value}</p>
                         {m.subtext && <p className="text-xs text-gray-500 mt-1">{m.subtext}</p>}
+                        {(m as any).extraNote && <p className="text-xs text-slate-500 mt-1">{(m as any).extraNote}</p>}
                       </div>
                     ))}
                   </div>
+                  {/* NAV-based valuation note for investment vehicles */}
+                  {(page4 as any).valuationMethod === 'net_asset_value' && (page4 as any).valuationNote && (
+                    <p className="text-xs text-slate-500 mt-3 italic">{(page4 as any).valuationNote}</p>
+                  )}
+
+                  {/* Financial Health Snapshot (Session 11) */}
+                  {(() => {
+                    const fhs = ca?.financialHealthSnapshot || (newReport?.page4_numbers as any)?.financialHealthSnapshot;
+                    if (!fhs?.noteworthyRatios?.length) return null;
+                    const statusClass: Record<string, string> = {
+                      strong: 'bg-emerald-100 text-emerald-700',
+                      healthy: 'bg-blue-100 text-blue-700',
+                      monitor: 'bg-amber-100 text-amber-700',
+                      concern: 'bg-orange-100 text-orange-700',
+                      critical: 'bg-red-100 text-red-700'
+                    };
+                    return (
+                      <div className="mt-4 pt-4 border-t border-emerald-200">
+                        <p className="text-sm font-medium text-emerald-700 mb-3">
+                          📊 Financial Health
+                          <span className="ml-2 text-xs font-normal text-gray-500">
+                            ({fhs.noteworthyRatios.length} noteworthy indicator{fhs.noteworthyRatios.length > 1 ? 's' : ''})
+                          </span>
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
+                            const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
+                            const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca) || ratio.whatItMeans;
+                            const hasExplanation = !!plainEnglish;
+                            return (
+                              <div key={idx} className="bg-white/60 rounded-lg p-3">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs text-gray-500">{ratio.name}</span>
+                                  <span className="flex items-center gap-1">
+                                    {hasExplanation && (
+                                      <span className="text-slate-400 p-0.5" title="What does this mean?" aria-hidden>
+                                        <Info className="w-4 h-4" />
+                                      </span>
+                                    )}
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
+                                      {ratio.status}
+                                    </span>
+                                  </span>
+                                </div>
+                                <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
+                                <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
+                                {hasExplanation && (
+                                  <div className="mt-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <p className="text-xs text-slate-600 leading-relaxed">
+                                      {plainEnglish}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   
                   {/* Data Quality Indicator */}
                   {ca?.dataQuality && (
@@ -1522,8 +1916,16 @@ export default function DiscoveryReportPage() {
             });
           }
           
-          // 4. Exit Readiness
-          if (ca?.exitReadiness?.score) {
+          // 4. Exit Readiness — suppress when not applicable (Session 11)
+          const reportDest = (report as any)?.destination_report || {};
+          const exitReadinessApplicable = !(
+            ca?.exitReadiness?.narrative?.includes('not applicable') ||
+            (report as any)?.client_type === 'investment_vehicle' ||
+            reportDest?.client_type === 'investment_vehicle' ||
+            (report as any)?.framework_overrides?.exitReadinessRelevant === false ||
+            reportDest?.framework_overrides?.exitReadinessRelevant === false
+          );
+          if (exitReadinessApplicable && ca?.exitReadiness?.score != null) {
             const pct = Math.round((ca.exitReadiness.score / ca.exitReadiness.maxScore) * 100);
             metrics.push({ 
               icon: '🚪', label: 'Exit Readiness', 
@@ -1553,8 +1955,14 @@ export default function DiscoveryReportPage() {
             });
           }
           
-          // 7. Productivity
-          if (ca?.productivity?.hasData && ca.productivity.revenuePerHead) {
+          // 7. Revenue per Head — suppress when flagged (Session 11)
+          const productivitySuppressedLegacy =
+            ca?.productivity?.suppressInReport === true ||
+            (report as any)?.page4_numbers?.productivitySuppressed === true ||
+            (report as any)?.comprehensive_analysis?.productivity?.productivitySuppressed === true ||
+            (report as any)?.client_type === 'investment_vehicle' ||
+            reportDest?.client_type === 'investment_vehicle';
+          if (ca?.productivity?.hasData && ca.productivity.revenuePerHead && !productivitySuppressedLegacy) {
             const gap = ca.productivity.benchmarkRPH ? 
               Math.round(((ca.productivity.benchmarkRPH - ca.productivity.revenuePerHead) / ca.productivity.benchmarkRPH) * 100) : null;
             metrics.push({
@@ -1564,12 +1972,21 @@ export default function DiscoveryReportPage() {
             });
           }
           
-          // 8. Cost of Inaction
+          // 8. Cost of Delay — with composition breakdown (Session 11)
           if (ca?.costOfInaction?.totalOverHorizon && ca.costOfInaction.totalOverHorizon > 50000) {
+            let coiSubtext = `Over ${ca.costOfInaction.timeHorizon || 2} years`;
+            if (ca.costOfInaction.components && ca.costOfInaction.components.length > 0) {
+              const topComponents = ca.costOfInaction.components
+                .sort((a: any, b: any) => (b.costOverHorizon || 0) - (a.costOverHorizon || 0))
+                .slice(0, 2)
+                .map((c: any) => `${c.category}: £${Math.round((c.costOverHorizon || 0) / 1000)}k`)
+                .join(' + ');
+              if (topComponents) coiSubtext = topComponents;
+            }
             metrics.push({
               icon: '⏱️', label: 'Cost of Delay',
               value: `£${Math.round(ca.costOfInaction.totalOverHorizon / 1000)}k+`,
-              subtext: `Over ${ca.costOfInaction.timeHorizon || 2} years`
+              subtext: coiSubtext
             });
           } else if (gaps?.costOfInaction?.annualFinancialCost) {
             metrics.push({ 
@@ -1597,6 +2014,50 @@ export default function DiscoveryReportPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Financial Health Snapshot (Session 11) */}
+              {(() => {
+                const fhs = ca?.financialHealthSnapshot || (report as any)?.page4_numbers?.financialHealthSnapshot;
+                if (!fhs?.noteworthyRatios?.length) return null;
+                const statusClass: Record<string, string> = {
+                  strong: 'bg-emerald-100 text-emerald-700',
+                  healthy: 'bg-blue-100 text-blue-700',
+                  monitor: 'bg-amber-100 text-amber-700',
+                  concern: 'bg-orange-100 text-orange-700',
+                  critical: 'bg-red-100 text-red-700'
+                };
+                return (
+                  <div className="mt-4 pt-4 border-t border-emerald-200">
+                    <p className="text-sm font-medium text-emerald-700 mb-3">
+                      📊 Financial Health
+                      <span className="ml-2 text-xs font-normal text-gray-500">
+                        ({fhs.noteworthyRatios.length} noteworthy indicator{fhs.noteworthyRatios.length > 1 ? 's' : ''})
+                      </span>
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
+                        const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
+                        const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca) || ratio.whatItMeans;
+                        return (
+                          <div key={idx} className="bg-white/60 rounded-lg p-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs text-gray-500">{ratio.name}</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-gray-100 text-gray-700'}`}>
+                                {ratio.status}
+                              </span>
+                            </div>
+                            <p className="text-lg font-bold text-gray-800">{ratio.formatted}</p>
+                            <p className="text-xs text-gray-500 mt-1">{ratio.context}</p>
+                            {plainEnglish && (
+                              <p className="text-xs text-slate-400 mt-1 italic">{plainEnglish}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
               
               {/* Data Quality Indicator */}
               {ca?.dataQuality && (

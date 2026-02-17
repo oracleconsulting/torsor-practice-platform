@@ -253,30 +253,40 @@ CREATE POLICY "sa_recs_client_select" ON sa_recommendations
   );
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 8. sa_documents + sa_context_notes — team only
+-- 8. sa_documents + sa_context_notes — team only (skip if tables don't exist)
+-- Tables are created in 20260114_sa_documents_and_context.sql; this migration
+-- is safe to run even if that migration has not been applied.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 DO $$
 DECLARE r RECORD;
+  doc_exists BOOLEAN;
+  notes_exists BOOLEAN;
 BEGIN
-  FOR r IN (SELECT policyname FROM pg_policies WHERE tablename = 'sa_documents')
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON sa_documents', r.policyname);
-  END LOOP;
-  FOR r IN (SELECT policyname FROM pg_policies WHERE tablename = 'sa_context_notes')
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON sa_context_notes', r.policyname);
-  END LOOP;
+  SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'sa_documents') INTO doc_exists;
+  SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'sa_context_notes') INTO notes_exists;
+
+  IF doc_exists THEN
+    FOR r IN (SELECT policyname FROM pg_policies WHERE tablename = 'sa_documents')
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON sa_documents', r.policyname);
+    END LOOP;
+    EXECUTE 'CREATE POLICY "sa_documents_team_all" ON sa_documents
+      FOR ALL USING (
+        engagement_id IN (SELECT id FROM sa_engagements WHERE practice_id IN (SELECT user_practice_ids()))
+        AND is_practice_team()
+      )';
+  END IF;
+
+  IF notes_exists THEN
+    FOR r IN (SELECT policyname FROM pg_policies WHERE tablename = 'sa_context_notes')
+    LOOP
+      EXECUTE format('DROP POLICY IF EXISTS %I ON sa_context_notes', r.policyname);
+    END LOOP;
+    EXECUTE 'CREATE POLICY "sa_context_notes_team_all" ON sa_context_notes
+      FOR ALL USING (
+        engagement_id IN (SELECT id FROM sa_engagements WHERE practice_id IN (SELECT user_practice_ids()))
+        AND is_practice_team()
+      )';
+  END IF;
 END $$;
-
-CREATE POLICY "sa_documents_team_all" ON sa_documents
-  FOR ALL USING (
-    engagement_id IN (SELECT id FROM sa_engagements WHERE practice_id IN (SELECT user_practice_ids()))
-    AND is_practice_team()
-  );
-
-CREATE POLICY "sa_context_notes_team_all" ON sa_context_notes
-  FOR ALL USING (
-    engagement_id IN (SELECT id FROM sa_engagements WHERE practice_id IN (SELECT user_practice_ids()))
-    AND is_practice_team()
-  );

@@ -33,6 +33,33 @@ Every good consulting narrative follows this arc:
 
 Your job is to weave these elements into compelling prose that reads like a story, not a report.
 
+╔══════════════════════════════════════════════════════════════════════════════╗
+WHAT MAKES THIS CLIENT UNIQUE
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+${pass1Data.uniquenessBrief || 'Not available — treat this as a generic brief and work harder to find specificity in the data below.'}
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+WHERE THEY WANT THEIR OPERATIONS TO GET TO
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Their operational goals (top 3):
+${(f.desiredOutcomes || []).map((o: string, i: number) => `${i + 1}. ${o}`).join('\n')}
+
+Their Monday morning vision (QUOTE EXACTLY — this is the emotional anchor):
+"${f.mondayMorningVision || f.magicFix}"
+
+What they'd do with the time back:
+"${f.timeFreedomPriority || 'Not specified'}"
+
+The gap between now and there:
+${f.aspirationGap || 'See findings for gap analysis.'}
+
+CRITICAL FRAMING: This report is triage — stop the bleeding first. But the treatment plan must
+PULL TOWARD their stated operational goals. Every recommendation should show the bridge from
+current chaos to their Monday morning vision. Don't just say "this is broken." Say "this is
+broken, and here's specifically how fixing it gets you closer to [their goal]."
+
 ═══════════════════════════════════════════════════════════════════════════════
 1. THE PROOF - Their Expensive Mistake (LEAD WITH THIS)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -128,8 +155,12 @@ Write these four narrative sections as a JSON object:
     PARAGRAPH 2 - THE PATTERN:
     Now explain WHY that happened. Show specific system-to-system disconnects from the inventory. Name their actual systems, not generic examples. Use their numbers: ${f.metrics?.quoteTimeMins || '?'}-min quotes, ${f.metrics?.invoiceLagDays || '?'}-day invoice lag, ${f.metrics?.reportingLagDays || '?'}-day reporting. Quote their month-end shame. Show this wasn't bad luck—it was structural.
     
-    PARAGRAPH 3 - THE PATH FORWARD:
-    Quote their magic fix VERBATIM (the full thing about true cash position, margin by service line, etc.). Then show how each integration delivers each part of their goal. End with what changes: decisions stop being debates.",
+    PARAGRAPH 3 - THE PATH:
+    Their operational goals: ${(f.desiredOutcomes || []).slice(0, 3).join(', ')}.
+    Map the top 3 recommendations directly to these goals — not generic outcomes, THEIR outcomes.
+    Show them the bridge: from [specific current pain] → through [specific fix] → to [their specific goal].
+    Close with what Monday morning looks like after implementation — use their vision:
+    '${f.mondayMorningVision || f.magicFix}'.",
     
   "costOfChaosNarrative": "One paragraph that:
     - Opens with 'The ${f.hoursWastedWeekly} hours your team loses each week aren't spread evenly...'
@@ -138,12 +169,22 @@ Write these four narrative sections as a JSON object:
     - Shows the scaling danger: 'At ${f.growthMultiplier}x growth, [specific pain point] becomes [specific crisis]'
     - Uses their own framing: \"${f.breakingPoint}\"",
     
-  "timeFreedomNarrative": "One paragraph that:
-    - Opens by quoting their magic fix EXACTLY: 'You said you want to see [full quote]'
-    - Maps each system integration to each part of their goal. Use ONLY their actual systems from inventory. For example:
-      ${(f.systems || []).slice(0, 4).map((s: any) => `* ${s.name}→${(s.integratesWith || ['other systems'])[0]} delivers...`).join('\n      ')}
-    - Show the specific connections that make their magic fix real.
-    - Ends with what 'decisions stop being debates driven by gut feel' actually looks like day-to-day"
+  "timeFreedomNarrative": "Two paragraphs.
+    
+    PARAGRAPH 1 — THE BRIDGE:
+    Start with their Monday morning vision: '${f.mondayMorningVision || f.magicFix}'
+    Show how each key recommendation builds toward that specific picture.
+    Map their actual systems to their actual goals:
+    ${(f.systems || []).slice(0, 4).map((s: any) => `* ${s.name} → connects to [goal] by [specific change]`).join('\n      ')}
+    Every sentence must name a real system AND a real goal from their desired_outcomes.
+    
+    PARAGRAPH 2 — THE FREEDOM:
+    They said they'd use reclaimed time for: '${f.timeFreedomPriority || 'their core work'}'.
+    Paint THEIR specific picture. If they said 'Clients — the work I'm actually good at' then
+    show them back doing that work — not stuck in spreadsheets at 9pm. If they said 'My life
+    outside work' then show them closing the laptop at a reasonable hour, not checking bank
+    balances at 6am.
+    End with their Monday morning vision as the closing image. Make it feel like a promise."
 }
 
 ═══════════════════════════════════════════════════════════════════════════════

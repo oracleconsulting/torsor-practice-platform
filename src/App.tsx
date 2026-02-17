@@ -17,6 +17,7 @@ import { TrainingPlansPage } from './pages/admin/TrainingPlansPage';
 import { KnowledgeBasePage } from './pages/admin/KnowledgeBasePage';
 import { MAPortalPage } from './pages/admin/MAPortalPage';
 import { ServiceLineBuilderPage } from './pages/admin/ServiceLineBuilderPage';
+import { TechDatabasePage } from './pages/admin/TechDatabasePage';
 import { GADashboardPage } from './pages/admin/GADashboardPage';
 import { AssessmentReviewPage } from './pages/public/AssessmentReviewPage';
 import type { Page } from './types/navigation';
@@ -103,6 +104,10 @@ function AppContent() {
 
   if (currentPage === 'service-builder') {
     return <ServiceLineBuilderPage {...navProps} />;
+  }
+
+  if (currentPage === 'tech-database') {
+    return <TechDatabasePage {...navProps} />;
   }
 
   if (currentPage === 'management') {

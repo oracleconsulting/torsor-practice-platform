@@ -22,9 +22,11 @@ import {
   Loader2,
   Eye,
   EyeOff,
-  RefreshCw
+  RefreshCw,
+  Wrench
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { ServiceLineBuilderModal } from '../admin/ServiceLineBuilderModal';
 
 // ============================================================================
 // Types
@@ -110,6 +112,13 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
   const [serviceCategory, setServiceCategory] = useState('advisory');
   const [servicePrice, setServicePrice] = useState('');
   const [servicePricePeriod, setServicePricePeriod] = useState<'monthly' | 'annual' | 'fixed'>('monthly');
+  const [builderModalOpen, setBuilderModalOpen] = useState(false);
+  const [builderModalData, setBuilderModalData] = useState<{
+    conceptId?: string;
+    opportunityId: string;
+    initialSourceName: string;
+  } | null>(null);
+  const [clientPreviewMode, setClientPreviewMode] = useState(false);
 
   useEffect(() => {
     if (engagementId) {
@@ -302,14 +311,18 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
     { key: 'when_ready' as const, label: '💡 When Ready', subtitle: 'Optimisation opportunities', bgClass: 'bg-gray-50 border-gray-200', textClass: 'text-gray-900' },
   ];
 
+  const displayedOpportunities = clientPreviewMode
+    ? opportunities.filter(o => o.show_in_client_view)
+    : opportunities;
+
   const groupedByPriority = priorityGroups
     .map(group => ({
       ...group,
-      opportunities: opportunities.filter(o => (o.priority || 'when_ready') === group.key),
+      opportunities: displayedOpportunities.filter(o => (o.priority || 'when_ready') === group.key),
     }))
     .filter(group => group.opportunities.length > 0);
 
-  const totalValue = opportunities.reduce((s, o) => s + (o.financial_impact_amount || 0), 0);
+  const totalValue = displayedOpportunities.reduce((s, o) => s + (o.financial_impact_amount || 0), 0);
 
   return (
     <div className="space-y-8">
@@ -323,10 +336,23 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
               • £{totalValue.toLocaleString()} total value
             </p>
           </div>
-          <button onClick={loadOpportunities} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setClientPreviewMode(!clientPreviewMode)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                clientPreviewMode
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200'
+              }`}
+            >
+              {clientPreviewMode ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              {clientPreviewMode ? 'Client Preview' : 'Admin View'}
+            </button>
+            <button onClick={loadOpportunities} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
 
@@ -400,47 +426,51 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
                   {/* Expanded Body */}
                   {isExpanded && (
                     <div className="border-t px-4 pb-4 space-y-4 bg-gray-50/50">
-                      {opp.data_evidence && (
-                        <div className="pt-4">
-                          <p className="text-sm text-gray-800 leading-relaxed">{opp.data_evidence}</p>
-                        </div>
-                      )}
-                      {opp.data_values?.benchmarkComparison && (
-                        <p className="text-sm text-gray-600 italic">{opp.data_values.benchmarkComparison}</p>
-                      )}
-                      {opp.impact_calculation && (
-                        <p className="text-xs text-gray-500 leading-relaxed">Impact calculation: {opp.impact_calculation}</p>
+                      {!clientPreviewMode && (
+                        <>
+                          {opp.data_evidence && (
+                            <div className="pt-4">
+                              <p className="text-sm text-gray-800 leading-relaxed">{opp.data_evidence}</p>
+                            </div>
+                          )}
+                          {opp.data_values?.benchmarkComparison && (
+                            <p className="text-sm text-gray-600 italic">{opp.data_values.benchmarkComparison}</p>
+                          )}
+                          {opp.impact_calculation && (
+                            <p className="text-xs text-gray-500 leading-relaxed">Impact calculation: {opp.impact_calculation}</p>
+                          )}
+                          {opp.talking_point && (
+                            <div className="bg-white border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                  <p className="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1.5">💬 SAY THIS:</p>
+                                  <p className="text-sm text-gray-800 italic leading-relaxed">&quot;{opp.talking_point}&quot;</p>
+                                </div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCopyTalkingPoint(opp.talking_point!, opp.id); }}
+                                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
+                                  title="Copy to clipboard"
+                                >
+                                  {copiedId === opp.id ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {opp.question_to_ask && (
+                            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                              <p className="text-sm">
+                                <span className="font-bold text-indigo-700">ASK: </span>
+                                <span className="text-indigo-800">&quot;{opp.question_to_ask}&quot;</span>
+                              </p>
+                            </div>
+                          )}
+                        </>
                       )}
                       {opp.life_impact && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                           <p className="text-sm">
                             <span className="font-bold text-red-700">FOR THE OWNER: </span>
                             <span className="text-red-800">{opp.life_impact}</span>
-                          </p>
-                        </div>
-                      )}
-                      {opp.talking_point && (
-                        <div className="bg-white border border-gray-200 rounded-lg p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <p className="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1.5">💬 SAY THIS:</p>
-                              <p className="text-sm text-gray-800 italic leading-relaxed">&quot;{opp.talking_point}&quot;</p>
-                            </div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleCopyTalkingPoint(opp.talking_point!, opp.id); }}
-                              className="p-2 rounded-lg hover:bg-gray-100 transition-colors flex-shrink-0"
-                              title="Copy to clipboard"
-                            >
-                              {copiedId === opp.id ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-gray-400" />}
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {opp.question_to_ask && (
-                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
-                          <p className="text-sm">
-                            <span className="font-bold text-indigo-700">ASK: </span>
-                            <span className="text-indigo-800">&quot;{opp.question_to_ask}&quot;</span>
                           </p>
                         </div>
                       )}
@@ -467,13 +497,15 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
                               <h5 className="font-semibold text-purple-900">{opp.concept.suggested_name}</h5>
                               <p className="text-sm text-purple-700 mt-1">{opp.concept.problem_it_solves}</p>
                             </div>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleCreateService(opp.id, opp.concept?.id); }}
-                              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1 flex-shrink-0"
-                            >
-                              <Plus className="w-4 h-4" />
-                              Create Service
-                            </button>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleCreateService(opp.id, opp.concept?.id); }}
+                                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm flex items-center gap-1"
+                              >
+                                <Plus className="w-4 h-4" />
+                                Create Service
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -498,6 +530,25 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
                           </div>
                         </div>
                       )}
+                      {/* Send any opportunity to Service Line Builder (with or without concept) */}
+                      <div className="pt-2 border-t border-gray-200 flex justify-end">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBuilderModalData({
+                              conceptId: opp.concept?.id ?? undefined,
+                              opportunityId: opp.id,
+                              initialSourceName: opp.concept?.suggested_name || opp.title,
+                            });
+                            setBuilderModalOpen(true);
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm flex items-center gap-1"
+                          title="Generate full blueprint (triggers, skills, assessment, narrative) for this opportunity"
+                        >
+                          <Wrench className="w-4 h-4" />
+                          Build Full Service Line
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -608,6 +659,18 @@ export function DiscoveryOpportunityPanel({ engagementId, clientId: _clientId, p
             </div>
           </div>
         </div>
+      )}
+
+      {builderModalOpen && practiceId && (
+        <ServiceLineBuilderModal
+          open={builderModalOpen}
+          onClose={() => { setBuilderModalOpen(false); setBuilderModalData(null); }}
+          practiceId={practiceId}
+          conceptId={builderModalData?.conceptId}
+          opportunityId={builderModalData?.opportunityId}
+          initialSourceName={builderModalData?.initialSourceName}
+          onImplemented={() => { loadOpportunities(); onVisibilityChange?.(); }}
+        />
       )}
     </div>
   );

@@ -23,16 +23,20 @@ interface SystemInventory {
   system_name: string;
   category_code: string;
   sub_category?: string;
+  category_other_description?: string;
   vendor?: string;
   website_url?: string;
   primary_users: string[];
+  primary_users_other?: string;
   number_of_users?: number;
   usage_frequency: 'daily' | 'weekly' | 'monthly' | 'rarely';
+  usage_frequency_context?: string;
   criticality: 'critical' | 'important' | 'nice_to_have';
   pricing_model: 'monthly' | 'annual' | 'per_user' | 'one_time' | 'free';
   monthly_cost?: number;
   annual_cost?: number;
   cost_trend: 'increasing' | 'stable' | 'decreasing' | 'dont_know';
+  cost_trend_context?: string;
   integrates_with?: string[];
   integrates_with_names?: string[];
   integration_method: 'native' | 'zapier_make' | 'custom_api' | 'manual' | 'none';
@@ -41,6 +45,7 @@ interface SystemInventory {
   manual_process_description?: string;
   data_quality_score?: number;
   data_entry_method?: 'single_point' | 'duplicated' | 'dont_know';
+  data_entry_context?: string;
   user_satisfaction?: number;
   fit_for_purpose?: number;
   would_recommend?: 'yes' | 'maybe' | 'no';
@@ -48,6 +53,7 @@ interface SystemInventory {
   workarounds_in_use?: string;
   change_one_thing?: string;
   future_plan: 'keep' | 'replace' | 'upgrade' | 'unsure';
+  future_plan_context?: string;
   replacement_candidate?: string;
   contract_end_date?: string;
   created_at: string;
@@ -202,9 +208,11 @@ export default function SystemInventoryPage() {
       system_name: system.system_name,
       category_code: system.category_code,
       sub_category: system.sub_category,
+      category_other_description: system.category_other_description,
       vendor: system.vendor,
       website_url: system.website_url,
       primary_users: system.primary_users || [],
+      primary_users_other: system.primary_users_other,
       number_of_users: system.number_of_users,
       usage_frequency: system.usage_frequency,
       criticality: system.criticality,
@@ -220,6 +228,9 @@ export default function SystemInventoryPage() {
       manual_process_description: system.manual_process_description,
       data_quality_score: system.data_quality_score,
       data_entry_method: system.data_entry_method || 'single_point',
+      data_entry_context: system.data_entry_context,
+      usage_frequency_context: system.usage_frequency_context,
+      cost_trend_context: system.cost_trend_context,
       user_satisfaction: system.user_satisfaction,
       fit_for_purpose: system.fit_for_purpose,
       would_recommend: system.would_recommend || 'yes',
@@ -227,6 +238,7 @@ export default function SystemInventoryPage() {
       workarounds_in_use: system.workarounds_in_use,
       change_one_thing: system.change_one_thing,
       future_plan: system.future_plan,
+      future_plan_context: system.future_plan_context,
       replacement_candidate: system.replacement_candidate,
       contract_end_date: system.contract_end_date
     });
@@ -247,16 +259,20 @@ export default function SystemInventoryPage() {
         system_name: formData.system_name,
         category_code: formData.category_code,
         sub_category: formData.sub_category || null,
+        category_other_description: formData.category_other_description || null,
         vendor: formData.vendor || null,
         website_url: formData.website_url || null,
         primary_users: formData.primary_users || [],
+        primary_users_other: formData.primary_users_other || null,
         number_of_users: formData.number_of_users || null,
         usage_frequency: formData.usage_frequency || 'daily',
+        usage_frequency_context: formData.usage_frequency_context || null,
         criticality: formData.criticality || 'important',
         pricing_model: formData.pricing_model || 'monthly',
         monthly_cost: formData.monthly_cost || null,
         annual_cost: formData.annual_cost || null,
         cost_trend: formData.cost_trend || 'stable',
+        cost_trend_context: formData.cost_trend_context || null,
         integrates_with: formData.integrates_with || null,
         integrates_with_names: formData.integrates_with_names || null,
         integration_method: formData.integration_method || 'none',
@@ -265,6 +281,7 @@ export default function SystemInventoryPage() {
         manual_process_description: formData.manual_process_description || null,
         data_quality_score: formData.data_quality_score || null,
         data_entry_method: formData.data_entry_method || 'single_point',
+        data_entry_context: formData.data_entry_context || null,
         user_satisfaction: formData.user_satisfaction || null,
         fit_for_purpose: formData.fit_for_purpose || null,
         would_recommend: formData.would_recommend || 'yes',
@@ -272,6 +289,7 @@ export default function SystemInventoryPage() {
         workarounds_in_use: formData.workarounds_in_use || null,
         change_one_thing: formData.change_one_thing || null,
         future_plan: formData.future_plan || 'keep',
+        future_plan_context: formData.future_plan_context || null,
         replacement_candidate: formData.replacement_candidate || null,
         contract_end_date: formData.contract_end_date || null
       };
@@ -353,7 +371,7 @@ export default function SystemInventoryPage() {
   };
 
   const selectedCategory = categories.find(c => c.category_code === formData.category_code);
-  const primaryUserOptions = ['Owner', 'Finance', 'Operations', 'Sales', 'HR', 'Admin', 'Everyone'];
+  const primaryUserOptions = ['Admin', 'Everyone', 'Finance', 'HR', 'Operations', 'Owner', 'Sales', 'Other'];
 
   if (loading) {
     return (
@@ -469,16 +487,34 @@ export default function SystemInventoryPage() {
                 </label>
                 <select
                   value={formData.category_code || ''}
-                  onChange={(e) => setFormData({ ...formData, category_code: e.target.value })}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setFormData({
+                      ...formData,
+                      category_code: v,
+                      ...(v !== 'other' ? { category_other_description: '' } : {})
+                    });
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
                   <option value="">Select a category</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.category_code}>
-                      {cat.category_name}
-                    </option>
-                  ))}
+                  {[...categories]
+                    .sort((a, b) => a.category_name.localeCompare(b.category_name))
+                    .map(cat => (
+                      <option key={cat.id} value={cat.category_code}>
+                        {cat.category_name}
+                      </option>
+                    ))}
                 </select>
+                {formData.category_code === 'other' && (
+                  <input
+                    type="text"
+                    value={formData.category_other_description || ''}
+                    onChange={(e) => setFormData({ ...formData, category_other_description: e.target.value })}
+                    className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                    placeholder="Please describe (e.g., Design)"
+                  />
+                )}
               </div>
 
               {/* Vendor */}
@@ -504,10 +540,17 @@ export default function SystemInventoryPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
                   <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
                   <option value="rarely">Rarely</option>
+                  <option value="weekly">Weekly</option>
                 </select>
+                <input
+                  type="text"
+                  value={formData.usage_frequency_context || ''}
+                  onChange={(e) => setFormData({ ...formData, usage_frequency_context: e.target.value })}
+                  className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  placeholder="Optional: e.g., supposed to be daily — actual compliance ~60%"
+                />
               </div>
 
               {/* Criticality */}
@@ -541,6 +584,7 @@ export default function SystemInventoryPage() {
                             setFormData({ ...formData, primary_users: [...current, user] });
                           } else {
                             setFormData({ ...formData, primary_users: current.filter(u => u !== user) });
+                            if (user === 'Other') setFormData(prev => ({ ...prev, primary_users_other: '' }));
                           }
                         }}
                         className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
@@ -549,6 +593,15 @@ export default function SystemInventoryPage() {
                     </label>
                   ))}
                 </div>
+                {(formData.primary_users || []).includes('Other') && (
+                  <input
+                    type="text"
+                    value={formData.primary_users_other || ''}
+                    onChange={(e) => setFormData({ ...formData, primary_users_other: e.target.value })}
+                    className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                    placeholder="Please describe (e.g., design team)"
+                  />
+                )}
               </div>
 
               {/* Number of Users */}
@@ -573,11 +626,11 @@ export default function SystemInventoryPage() {
                   onChange={(e) => setFormData({ ...formData, pricing_model: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="monthly">Monthly</option>
                   <option value="annual">Annual</option>
-                  <option value="per_user">Per User</option>
-                  <option value="one_time">One-time</option>
                   <option value="free">Free</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="one_time">One-time</option>
+                  <option value="per_user">Per User</option>
                 </select>
               </div>
 
@@ -617,11 +670,18 @@ export default function SystemInventoryPage() {
                   onChange={(e) => setFormData({ ...formData, cost_trend: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="increasing">Increasing</option>
-                  <option value="stable">Stable</option>
                   <option value="decreasing">Decreasing</option>
                   <option value="dont_know">Don't Know</option>
+                  <option value="increasing">Increasing</option>
+                  <option value="stable">Stable</option>
                 </select>
+                <input
+                  type="text"
+                  value={formData.cost_trend_context || ''}
+                  onChange={(e) => setFormData({ ...formData, cost_trend_context: e.target.value })}
+                  className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  placeholder="Optional: e.g., adding seats as team grows"
+                />
               </div>
 
               {/* Website URL */}
@@ -651,11 +711,11 @@ export default function SystemInventoryPage() {
                     onChange={(e) => setFormData({ ...formData, integration_method: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="native">Native Integration</option>
-                    <option value="zapier_make">Zapier/Make</option>
                     <option value="custom_api">Custom API</option>
                     <option value="manual">Manual</option>
+                    <option value="native">Native Integration</option>
                     <option value="none">None</option>
+                    <option value="zapier_make">Zapier/Make</option>
                   </select>
                 </div>
 
@@ -742,11 +802,28 @@ export default function SystemInventoryPage() {
                     onChange={(e) => setFormData({ ...formData, data_entry_method: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="single_point">Single Point</option>
-                    <option value="duplicated">Duplicated</option>
                     <option value="dont_know">Don't Know</option>
+                    <option value="duplicated">Duplicated</option>
+                    <option value="single_point">Single Point</option>
                   </select>
                 </div>
+
+                {/* Data entry context (e.g. what's duplicated) - shown when Duplicated selected */}
+                {formData.data_entry_method === 'duplicated' && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      What&apos;s being duplicated?
+                    </label>
+                    <textarea
+                      value={formData.data_entry_context || ''}
+                      onChange={(e) => setFormData({ ...formData, data_entry_context: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      rows={2}
+                      placeholder="e.g., Maria enters things in both Xero and the Master Tracker"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">This helps us understand where duplication happens for ongoing analysis.</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -790,9 +867,9 @@ export default function SystemInventoryPage() {
                     onChange={(e) => setFormData({ ...formData, would_recommend: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="yes">Yes</option>
                     <option value="maybe">Maybe</option>
                     <option value="no">No</option>
+                    <option value="yes">Yes</option>
                   </select>
                 </div>
               </div>
@@ -856,9 +933,16 @@ export default function SystemInventoryPage() {
                   >
                     <option value="keep">Keep</option>
                     <option value="replace">Replace</option>
-                    <option value="upgrade">Upgrade</option>
                     <option value="unsure">Unsure</option>
+                    <option value="upgrade">Upgrade</option>
                   </select>
+                  <input
+                    type="text"
+                    value={formData.future_plan_context || ''}
+                    onChange={(e) => setFormData({ ...formData, future_plan_context: e.target.value })}
+                    className="mt-1.5 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                    placeholder="Optional: e.g., but open to replacing if something better exists"
+                  />
                 </div>
 
                 {/* Replacement Candidate */}
@@ -940,9 +1024,11 @@ export default function SystemInventoryPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-lg font-semibold text-gray-900">{system.system_name}</h3>
-                        {category && (
+                        {(category || system.category_code === 'other') && (
                           <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded">
-                            {category.category_name}
+                            {system.category_code === 'other' && system.category_other_description
+                              ? `Other (${system.category_other_description})`
+                              : category?.category_name ?? 'Other'}
                           </span>
                         )}
                         <span className={`px-2 py-1 text-xs font-medium rounded ${
@@ -974,7 +1060,11 @@ export default function SystemInventoryPage() {
                       {system.primary_users && system.primary_users.length > 0 && (
                         <div className="mt-2">
                           <span className="text-sm text-gray-600">Users: </span>
-                          <span className="text-sm text-gray-900">{system.primary_users.join(', ')}</span>
+                          <span className="text-sm text-gray-900">
+                            {system.primary_users
+                              .map(u => (u === 'Other' && system.primary_users_other ? `Other (${system.primary_users_other})` : u))
+                              .join(', ')}
+                          </span>
                         </div>
                       )}
                     </div>

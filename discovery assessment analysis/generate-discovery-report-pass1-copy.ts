@@ -283,7 +283,9 @@ interface ExtractedFinancials {
   directorLoans?: number;                // Loans from/to directors
   taxLiability?: number;                 // Corporation tax
   vatLiability?: number;
-  
+  interestPaid?: number;                 // Interest expense (for interest cover)
+  currentAssets?: number;                // Total current assets (or derived from components)
+
   // === EQUITY ===
   shareCapital?: number;
   calledUpShareCapital?: number;
@@ -304,6 +306,12 @@ interface ExtractedFinancials {
   // === INVESTMENT/PROPERTY (for investment vehicles) ===
   investmentProperty?: number;           // Investment property value
   rentalIncome?: number;                 // Rental income (if applicable)
+  deferredTax?: number;                  // Deferred tax provision (Session 11) — balance sheet balance (cumulative)
+  deferredTaxProvision?: number;         // Current year balance (cumulative)
+  deferredTaxProvisionPrior?: number;    // Prior year balance (for movement calc)
+  corporationTaxPayable?: number;        // From creditors note: current year CT
+  taxCharge?: number;                    // P&L: total tax on profit
+  // bankLoans already above under LIABILITIES
   
   // === CONTRACTOR COSTS (for agencies) ===
   consultingCosts?: number;              // Contractor/consulting costs (primary field)
@@ -703,6 +711,469 @@ function calculateAssetBasedValuation(
     freeholdProperty,
     totalAssetValue,
     narrative: `Asset-based valuation: £${(totalAssetValue!/1000000).toFixed(1)}M net assets${propertyText}`
+  };
+}
+
+// ============================================================================
+// IHT EXPOSURE CALCULATOR (Session 11 — Investment Vehicles)
+// ============================================================================
+
+interface IHTExposureAnalysis {
+  hasData: boolean;
+  estateValue: number | null;
+  nilRateBand: number;
+  singleNRB?: number;
+  marriedNRB?: number;
+  taxableAmount: number | null;
+  taxableAmountLow?: number;
+  taxableAmountHigh?: number;
+  ihtLiability: number | null;
+  ihtLiabilityRange: { low: number; high: number } | null;
+  ihtLiabilityLow?: number;
+  ihtLiabilityHigh?: number;
+  ihtRange?: string;  // e.g. "£2.30M – £2.43M" for Pass 2 mandatory phrase
+  narrative: string;
+  caveats: string[];
+}
+
+function calculateIHTExposure(
+  financials: ExtractedFinancials,
+  _responses: Record<string, unknown>
+): IHTExposureAnalysis {
+  const netAssets = financials.netAssets || null;
+
+  if (!netAssets || netAssets < 325000) {
+    return {
+      hasData: false,
+      estateValue: netAssets,
+      nilRateBand: 325000,
+      taxableAmount: null,
+      ihtLiability: null,
+      ihtLiabilityRange: null,
+      narrative: 'Insufficient data or estate below nil rate band threshold',
+      caveats: []
+    };
+  }
+
+  const singleNRB = 325000;
+  const marriedNRB = 650000;
+
+  const taxableSingle = netAssets - singleNRB;
+  const taxableMarried = netAssets - marriedNRB;
+
+  const ihtSingle = Math.round(taxableSingle * 0.40);
+  const ihtMarried = Math.round(Math.max(0, taxableMarried) * 0.40);
+
+  const caveats: string[] = [
+    'Business Property Relief does not apply to property investment companies',
+    'Residence nil rate band (RNRB) of up to £175k per person may also apply but depends on circumstances',
+    'Figures are indicative — formal IHT planning requires specialist tax advice'
+  ];
+
+  const lowM = (ihtMarried / 1000000).toFixed(2);
+  const highM = (ihtSingle / 1000000).toFixed(2);
+  const estateM = (netAssets / 1000000).toFixed(1);
+  const ihtRange = `£${lowM}M – £${highM}M`;
+
+  const narrative = ihtMarried === ihtSingle
+    ? `Potential IHT liability of £${highM}M on an estate of £${estateM}M (after £325k nil rate band)`
+    : `Estimated IHT exposure: £${lowM}M – £${highM}M (depending on nil rate band availability). Business Property Relief does NOT apply to property investment companies.`;
+
+  return {
+    hasData: true,
+    estateValue: netAssets,
+    nilRateBand: singleNRB,
+    singleNRB,
+    marriedNRB,
+    taxableAmount: taxableSingle,
+    taxableAmountLow: taxableMarried,
+    taxableAmountHigh: taxableSingle,
+    ihtLiability: ihtSingle,
+    ihtLiabilityRange: { low: ihtMarried, high: ihtSingle },
+    ihtLiabilityLow: ihtMarried,
+    ihtLiabilityHigh: ihtSingle,
+    ihtRange,
+    narrative,
+    caveats
+  };
+}
+
+// ============================================================================
+// FINANCIAL HEALTH RATIOS (Session 11 — new feature)
+// ============================================================================
+
+interface FinancialRatio {
+  name: string;
+  value: number;
+  formatted: string;
+  category: 'liquidity' | 'leverage' | 'profitability' | 'efficiency';
+  status: 'strong' | 'healthy' | 'monitor' | 'concern' | 'critical';
+  isNoteworthy: boolean;
+  narrativePhrase: string;
+  context: string;
+  /** Plain-English explanation for client (investment_vehicle / context-aware) */
+  whatItMeans?: string;
+  priorYear?: number | null;
+  benchmark?: number | null;
+}
+
+interface FinancialHealthSnapshot {
+  hasData: boolean;
+  ratioCount: number;
+  allRatios: FinancialRatio[];
+  noteworthyRatios: FinancialRatio[];
+  overallHealth: 'strong' | 'healthy' | 'mixed' | 'concerning';
+  summaryNarrative: string;
+}
+
+function calculateFinancialHealthSnapshot(
+  financials: ExtractedFinancials,
+  clientTypeLabel: string
+): FinancialHealthSnapshot {
+  const allRatios: FinancialRatio[] = [];
+
+  const turnover = financials.turnover || 0;
+  const operatingProfit = financials.operatingProfit || 0;
+  const netProfit = financials.netProfit ?? (financials as any).profitBeforeTax ?? null;
+  const netAssets = financials.netAssets || 0;
+  const totalAssets = financials.totalAssets || 0;
+  const currentAssets = financials.currentAssets ?? (
+    (financials.cash ?? 0) + (financials.debtors ?? 0) + (financials.otherDebtors ?? 0) +
+    (financials.prepayments ?? 0) + (financials.stock ?? 0)
+  );
+  const currentLiabilities = financials.currentLiabilities ?? null;
+  const stock = financials.stock || 0;
+  const bankLoans = financials.bankLoans ?? financials.longTermLiabilities ?? 0;
+  const interestPaid = financials.interestPaid ?? (financials as any).interestPaid ?? null;
+  const cash = financials.cash ?? null;
+
+  // ========================================================================
+  // LIQUIDITY RATIOS
+  // ========================================================================
+
+  if (currentAssets != null && currentLiabilities != null && currentLiabilities > 0) {
+    const currentRatio = currentAssets / currentLiabilities;
+    const formatted = currentRatio.toFixed(2);
+
+    let status: FinancialRatio['status'] = 'healthy';
+    let isNoteworthy = false;
+    let narrativePhrase = '';
+    let context = '';
+
+    let whatItMeans: string | undefined;
+    if (currentRatio < 0.8) {
+      status = 'concern';
+      isNoteworthy = true;
+      narrativePhrase = `Current ratio of ${formatted} means current liabilities exceed current assets — short-term liquidity needs attention`;
+      context = 'May need to restructure short-term debt or improve cash collection';
+      if (clientTypeLabel === 'investment_vehicle') {
+        whatItMeans = `For every £1 you owe in the next 12 months, you have ${(currentRatio * 100).toFixed(0)}p available. This is common for property companies where mortgage payments fall due regularly but rental income is steady. Worth reviewing with your accountant to ensure no short-term cash pressure.`;
+      }
+    } else if (currentRatio < 1.0) {
+      status = 'monitor';
+      isNoteworthy = true;
+      narrativePhrase = `Current ratio of ${formatted} — current liabilities slightly exceed current assets`;
+      context = clientTypeLabel === 'investment_vehicle'
+        ? 'Not unusual for property companies with long-term debt structures, but worth monitoring'
+        : 'Worth monitoring to ensure short-term obligations can be met';
+      if (clientTypeLabel === 'investment_vehicle') {
+        whatItMeans = `Your short-term debts slightly exceed your short-term assets — not unusual for a property investment company, but worth monitoring.`;
+      }
+    } else if (currentRatio > 3.0) {
+      status = 'strong';
+      isNoteworthy = true;
+      narrativePhrase = `Current ratio of ${formatted} — very strong short-term liquidity`;
+      context = 'Significant headroom, though excess liquidity could be deployed more productively';
+    } else {
+      status = currentRatio >= 1.5 ? 'strong' : 'healthy';
+      narrativePhrase = `Current ratio of ${formatted} — ${status === 'strong' ? 'healthy' : 'adequate'} short-term liquidity`;
+      context = 'No immediate liquidity concerns';
+    }
+
+    allRatios.push({
+      name: 'Current Ratio',
+      value: currentRatio,
+      formatted,
+      category: 'liquidity',
+      status,
+      isNoteworthy,
+      narrativePhrase,
+      context,
+      ...(whatItMeans && { whatItMeans })
+    });
+
+    // Quick Ratio (Acid Test)
+    const quickRatio = (currentAssets - stock) / currentLiabilities;
+    const qrFormatted = quickRatio.toFixed(2);
+    const stockImpact = Math.abs(currentRatio - quickRatio);
+    const qrNoteworthy = stockImpact > 0.3 && stock > 50000;
+    let qrStatus: FinancialRatio['status'] = quickRatio >= 1.0 ? 'healthy' : quickRatio >= 0.7 ? 'monitor' : 'concern';
+
+    allRatios.push({
+      name: 'Quick Ratio',
+      value: quickRatio,
+      formatted: qrFormatted,
+      category: 'liquidity',
+      status: qrStatus,
+      isNoteworthy: qrNoteworthy,
+      narrativePhrase: qrNoteworthy
+        ? `Quick ratio of ${qrFormatted} (vs current ratio of ${formatted}) — £${Math.round(stock / 1000)}k in stock is tying up working capital`
+        : `Quick ratio of ${qrFormatted}`,
+      context: qrNoteworthy ? 'Stock levels are materially impacting liquidity' : 'Stock not a significant factor'
+    });
+  }
+
+  // ========================================================================
+  // LEVERAGE RATIOS
+  // ========================================================================
+
+  if (bankLoans > 0 && netAssets > 0) {
+    const gearing = (bankLoans / netAssets) * 100;
+    const formatted = `${gearing.toFixed(1)}%`;
+
+    let status: FinancialRatio['status'] = 'healthy';
+    let isNoteworthy = false;
+    let narrativePhrase = '';
+    let context = '';
+    let gearingWhatItMeans: string | undefined;
+
+    if (gearing < 10) {
+      status = 'strong';
+      isNoteworthy = true;
+      narrativePhrase = `Gearing of ${formatted} — extremely conservative debt position`;
+      context = 'Very low leverage could mean capital is sitting idle or there is capacity for strategic borrowing';
+      if (clientTypeLabel === 'investment_vehicle') {
+        gearingWhatItMeans = `You've built a significant portfolio with only ${formatted} of debt — that's extremely conservative. You own almost everything outright, which gives you security and flexibility. There's significant borrowing capacity available if you ever wanted to reinvest or restructure for IHT purposes.`;
+      }
+    } else if (gearing < 25) {
+      status = 'healthy';
+      narrativePhrase = `Gearing of ${formatted} — comfortably within healthy range`;
+      context = 'Balanced approach to debt financing';
+    } else if (gearing < 50) {
+      status = 'monitor';
+      isNoteworthy = gearing > 40;
+      narrativePhrase = `Gearing of ${formatted} — moderate leverage`;
+      context = 'Approaching levels where lenders may want closer monitoring';
+    } else {
+      status = gearing > 75 ? 'critical' : 'concern';
+      isNoteworthy = true;
+      narrativePhrase = `Gearing of ${formatted} — high leverage warrants attention`;
+      context = 'Significant debt relative to equity — refinancing risk if asset values fall';
+    }
+
+    allRatios.push({
+      name: 'Gearing',
+      value: gearing,
+      formatted,
+      category: 'leverage',
+      status,
+      isNoteworthy,
+      narrativePhrase,
+      context,
+      ...(gearingWhatItMeans && { whatItMeans: gearingWhatItMeans })
+    });
+  }
+
+  if (interestPaid != null && interestPaid > 0 && operatingProfit > 0) {
+    const interestCover = operatingProfit / interestPaid;
+    const formatted = `${interestCover.toFixed(1)}x`;
+
+    let status: FinancialRatio['status'] = 'healthy';
+    let isNoteworthy = false;
+    let narrativePhrase = '';
+    const context = interestCover < 3 ? 'Would be a concern for lenders or refinancing' : 'No debt servicing concerns';
+
+    if (interestCover < 2) {
+      status = 'critical';
+      isNoteworthy = true;
+      narrativePhrase = `Interest cover of ${formatted} — operating profit barely covers debt servicing`;
+    } else if (interestCover < 3) {
+      status = 'concern';
+      isNoteworthy = true;
+      narrativePhrase = `Interest cover of ${formatted} — adequate but leaves limited margin for error`;
+    } else if (interestCover > 10) {
+      status = 'strong';
+      isNoteworthy = true;
+      narrativePhrase = `Interest cover of ${formatted} — debt is very comfortably serviced`;
+    } else {
+      status = interestCover >= 5 ? 'strong' : 'healthy';
+      narrativePhrase = `Interest cover of ${formatted} — healthy debt servicing capacity`;
+    }
+
+    allRatios.push({
+      name: 'Interest Cover',
+      value: interestCover,
+      formatted,
+      category: 'leverage',
+      status,
+      isNoteworthy,
+      narrativePhrase,
+      context
+    });
+  }
+
+  // ========================================================================
+  // PROFITABILITY RATIOS (margin divergence)
+  // ========================================================================
+
+  const operatingMarginPct = financials.operatingMarginPct ?? (turnover > 0 ? (operatingProfit / turnover) * 100 : null);
+  const netMarginPct = financials.netMarginPct ?? (netProfit != null && turnover > 0 ? (netProfit / turnover) * 100 : null);
+
+  if (operatingMarginPct != null && netMarginPct != null) {
+    const divergence = operatingMarginPct - netMarginPct;
+
+    if (Math.abs(divergence) > 15) {
+      let narrativePhrase = '';
+      let context = '';
+      let marginWhatItMeans: string | undefined;
+
+      if (netMarginPct < 0 && operatingMarginPct > 0) {
+        narrativePhrase = `Net margin of ${netMarginPct.toFixed(1)}% masks operating margin of ${operatingMarginPct.toFixed(1)}% — likely driven by non-cash items (deferred tax, revaluation, exceptional costs)`;
+        context = 'The headline profit figure understates true trading performance';
+        if (clientTypeLabel === 'investment_vehicle') {
+          const grossPct = financials.grossMarginPct ?? 100;
+          marginWhatItMeans = `Your gross margin is ${grossPct.toFixed(0)}% (${grossPct >= 99 ? 'no cost of sales — normal for rental income' : 'after direct costs'}) but your operating margin is ${operatingMarginPct.toFixed(1)}%. The ${divergence.toFixed(1)} percentage point gap is your running costs: maintenance, insurance, management, and professional fees. Your actual trading is healthy — the negative net figure is an accounting artefact, not poor performance.`;
+        }
+      } else if (divergence > 20) {
+        narrativePhrase = `${divergence.toFixed(0)} percentage point gap between operating margin (${operatingMarginPct.toFixed(1)}%) and net margin (${netMarginPct.toFixed(1)}%) — interest, tax, or exceptional items are significant`;
+        context = 'Worth investigating what sits between operating and net profit';
+        if (clientTypeLabel === 'investment_vehicle') {
+          const grossPct = financials.grossMarginPct ?? 100;
+          marginWhatItMeans = `Your gross margin is ${grossPct.toFixed(0)}% (${grossPct >= 99 ? 'no cost of sales — normal for rental income' : 'after direct costs'}) and your operating margin is ${operatingMarginPct.toFixed(1)}%. The ${divergence.toFixed(1)}pp gap represents your running costs. At ${operatingMarginPct.toFixed(1)}% operating margin, you keep a solid share of every pound of rent as profit.`;
+        }
+      }
+
+      if (narrativePhrase) {
+        allRatios.push({
+          name: 'Margin Divergence',
+          value: divergence,
+          formatted: `${divergence.toFixed(1)}pp gap`,
+          category: 'profitability',
+          status: netMarginPct < 0 ? 'monitor' : 'healthy',
+          isNoteworthy: true,
+          narrativePhrase,
+          context,
+          ...(marginWhatItMeans && { whatItMeans: marginWhatItMeans })
+        });
+      }
+    }
+  }
+
+  if (netProfit != null && netAssets > 0) {
+    const roe = (netProfit / netAssets) * 100;
+    const formatted = `${roe.toFixed(1)}%`;
+    const isNoteworthy = roe < 0 || roe < 2 || roe > 25;
+    let status: FinancialRatio['status'] = 'healthy';
+    if (roe < 0) status = 'monitor';
+    else if (roe < 5) status = 'monitor';
+    else if (roe > 20) status = 'strong';
+
+    const hasLargeDivergence = operatingMarginPct != null && netMarginPct != null && Math.abs(operatingMarginPct - netMarginPct) > 15;
+    let roeWhatItMeans: string | undefined;
+    if (clientTypeLabel === 'investment_vehicle' && roe < 0 && hasLargeDivergence) {
+      roeWhatItMeans = "This looks alarming but it's misleading. The statutory accounts show a loss because of non-cash items (e.g. deferred tax on property revaluation). Your actual operating profit is healthy — the report's margin divergence section explains the gap. Ignore this headline number; your properties are performing.";
+    } else if (clientTypeLabel === 'investment_vehicle' && roe < 0) {
+      roeWhatItMeans = "Don't interpret this as poor performance. The negative figure is likely an accounting artefact (e.g. deferred tax on revaluation). Your actual cash returns may be healthy.";
+    } else if (clientTypeLabel === 'investment_vehicle' && roe >= 0 && roe < 5) {
+      roeWhatItMeans = 'For property investment, capital growth often matters more than income yield. This number reflects the income return on equity; asset values may be growing separately.';
+    }
+
+    allRatios.push({
+      name: 'Return on Equity',
+      value: roe,
+      formatted,
+      category: 'profitability',
+      status,
+      isNoteworthy,
+      narrativePhrase: roe < 0
+        ? `Return on equity of ${formatted} — reflects accounting adjustments rather than poor trading (see margin divergence above)`
+        : `Return on equity of ${formatted}`,
+      context: roe < 0
+        ? "Don't interpret this as poor performance — check what drives the net profit figure"
+        : roe > 20 ? 'Strong returns on capital employed' : 'Adequate returns on capital',
+      ...(roeWhatItMeans && { whatItMeans: roeWhatItMeans })
+    });
+  }
+
+  // ========================================================================
+  // EFFICIENCY RATIOS
+  // ========================================================================
+
+  if (turnover > 0 && totalAssets > 0) {
+    const assetTurnover = turnover / totalAssets;
+    const formatted = assetTurnover.toFixed(2);
+    const isNoteworthy = assetTurnover < 0.1 || assetTurnover > 3;
+
+    allRatios.push({
+      name: 'Asset Turnover',
+      value: assetTurnover,
+      formatted,
+      category: 'efficiency',
+      status: assetTurnover < 0.1 ? 'monitor' : 'healthy',
+      isNoteworthy,
+      narrativePhrase: assetTurnover < 0.1
+        ? `Asset turnover of ${formatted} — typical for asset-heavy businesses like property investment, but highlights this is a wealth-holding structure, not a high-activity trading model`
+        : `Asset turnover of ${formatted}`,
+      context: clientTypeLabel === 'investment_vehicle'
+        ? 'Expected for property companies — the value is in the assets, not the trading activity'
+        : assetTurnover < 0.5 ? 'Low asset utilisation — common in asset-heavy industries' : 'Healthy asset utilisation'
+    });
+  }
+
+  // ========================================================================
+  // SELECT NOTEWORTHY RATIOS (max 5)
+  // ========================================================================
+
+  const statusPriority: Record<string, number> = {
+    critical: 1,
+    concern: 2,
+    monitor: 3,
+    strong: 4,
+    healthy: 5
+  };
+  const noteworthyRatios = allRatios
+    .filter(r => r.isNoteworthy)
+    .sort((a, b) => (statusPriority[a.status] || 5) - (statusPriority[b.status] || 5))
+    .slice(0, 5);
+
+  // ========================================================================
+  // OVERALL HEALTH
+  // ========================================================================
+
+  const statusCounts = {
+    critical: allRatios.filter(r => r.status === 'critical').length,
+    concern: allRatios.filter(r => r.status === 'concern').length,
+    monitor: allRatios.filter(r => r.status === 'monitor').length,
+    healthy: allRatios.filter(r => r.status === 'healthy').length,
+    strong: allRatios.filter(r => r.status === 'strong').length
+  };
+
+  let overallHealth: FinancialHealthSnapshot['overallHealth'] = 'healthy';
+  if (statusCounts.critical > 0 || statusCounts.concern >= 2) overallHealth = 'concerning';
+  else if (statusCounts.concern > 0 || statusCounts.monitor >= 2) overallHealth = 'mixed';
+  else if (statusCounts.strong >= 2) overallHealth = 'strong';
+
+  let summaryNarrative = '';
+  if (noteworthyRatios.length === 0) {
+    summaryNarrative = 'Financial health indicators are within normal ranges across the board.';
+  } else {
+    const concerns = noteworthyRatios.filter(r => r.status === 'concern' || r.status === 'critical');
+    const strengths = noteworthyRatios.filter(r => r.status === 'strong');
+    const monitors = noteworthyRatios.filter(r => r.status === 'monitor');
+    const parts: string[] = [];
+    if (concerns.length > 0) parts.push(`Areas requiring attention: ${concerns.map(r => r.name.toLowerCase()).join(', ')}`);
+    if (strengths.length > 0) parts.push(`Strengths: ${strengths.map(r => r.name.toLowerCase()).join(', ')}`);
+    if (monitors.length > 0) parts.push(`Worth monitoring: ${monitors.map(r => r.name.toLowerCase()).join(', ')}`);
+    summaryNarrative = parts.join('. ') + '.';
+  }
+
+  return {
+    hasData: allRatios.length > 0,
+    ratioCount: allRatios.length,
+    allRatios,
+    noteworthyRatios,
+    overallHealth,
+    summaryNarrative
   };
 }
 
@@ -1631,8 +2102,49 @@ function calculateCostOfInaction(
       confidence: 'calculated'
     });
   }
-  
-  // 2. Revenue decline (existing)
+
+  // 2. Operating margin recovery (replaces LLM-guessed "margin leakage")
+  // Uses client's own best-achieved operating margin vs current
+  if (financials?.multiYearEarnings && financials.multiYearEarnings.length >= 2 && turnover > 0) {
+    const currentOP = financials.operatingProfit || 0;
+    const currentMarginPct = currentOP > 0 ? (currentOP / turnover) * 100 : 0;
+
+    // Find peak operating margin across all available years
+    let peakMarginPct = currentMarginPct;
+    let peakYear: number | null = null;
+
+    for (const yearData of financials.multiYearEarnings) {
+      const yearOP = (yearData as any).operatingProfit;
+      const yearRev = yearData.revenue;
+      if (yearOP && yearRev && yearRev > 0) {
+        const yearMarginPct = (yearOP / yearRev) * 100;
+        if (yearMarginPct > peakMarginPct) {
+          peakMarginPct = yearMarginPct;
+          peakYear = yearData.year;
+        }
+      }
+    }
+
+    // Only include if there's a meaningful gap (> 1 percentage point)
+    const marginGapPct = peakMarginPct - currentMarginPct;
+    if (marginGapPct > 1.0 && peakYear !== null) {
+      const annualRecovery = Math.round((marginGapPct / 100) * turnover);
+
+      if (annualRecovery > 5000) {
+        components.push({
+          category: 'Operating Margin Recovery',
+          annualCost: annualRecovery,
+          costOverHorizon: annualRecovery * timeHorizon,
+          calculation: `Peak margin ${peakMarginPct.toFixed(1)}% (${peakYear}) vs current ${currentMarginPct.toFixed(1)}% = ${marginGapPct.toFixed(1)}pp gap. ${marginGapPct.toFixed(1)}% × £${(turnover / 1000).toFixed(0)}k = £${(annualRecovery / 1000).toFixed(0)}k/year`,
+          confidence: 'calculated'
+        });
+
+        console.log(`[Pass1] 📊 Operating margin recovery: ${peakMarginPct.toFixed(1)}% (${peakYear}) → ${currentMarginPct.toFixed(1)}% = £${(annualRecovery / 1000).toFixed(0)}k/year gap`);
+      }
+    }
+  }
+
+  // 3. Revenue decline (existing)
   if (trajectoryAnalysis?.trend === 'declining' && trajectoryAnalysis.absoluteChange) {
     const annualDecline = Math.abs(trajectoryAnalysis.absoluteChange);
     let totalDecline = annualDecline;
@@ -1648,7 +2160,7 @@ function calculateCostOfInaction(
     });
   }
   
-  // 3. Valuation erosion (existing, plus volatile_recovering)
+  // 4. Valuation erosion (existing, plus volatile_recovering)
   if (valuationAnalysis?.conservativeValue && 
       (trajectoryAnalysis?.trend === 'declining' || trajectoryAnalysis?.trend === 'volatile_recovering')) {
     const erosionRate = trajectoryAnalysis?.trend === 'declining' ? 0.05 : 0.03;
@@ -1664,7 +2176,7 @@ function calculateCostOfInaction(
     }
   }
   
-  // 4. Founder time on below-pay-grade work
+  // 5. Founder time on below-pay-grade work
   const founderDependency = (responses.sd_founder_dependency || responses.dd_founder_dependency || '').toLowerCase();
   const coreFrustration = (responses.rl_core_frustration || responses.dd_core_frustration || '').toLowerCase();
   const magicFix = (responses.dd_magic_fix || responses.dd_90_day_magic || '').toLowerCase();
@@ -1690,7 +2202,7 @@ function calculateCostOfInaction(
     }
   }
   
-  // 5. Client concentration risk
+  // 6. Client concentration risk
   const allText = JSON.stringify(responses).toLowerCase();
   const hasConcentration = allText.includes('concentration') || allText.includes('one client') || 
                           allText.includes('single client') || allText.includes('biggest client');
@@ -1710,7 +2222,7 @@ function calculateCostOfInaction(
     }
   }
   
-  // 6. Delayed growth / opportunity cost
+  // 7. Delayed growth / opportunity cost
   const mentionsGrowth = coreFrustration.includes('growth') || coreFrustration.includes('stuck') || 
                          coreFrustration.includes('ceiling') || coreFrustration.includes('capacity') ||
                          magicFix.includes('sales') || magicFix.includes('new business');
@@ -2332,7 +2844,11 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
     { code: 'fractional_cfo', name: 'Fractional CFO Services' },
     { code: 'fractional_coo', name: 'Fractional COO Services' },
     { code: 'automation', name: 'Automation Services' },
-    { code: 'business_advisory', name: 'Business Advisory & Exit Planning' }
+    { code: 'business_advisory', name: 'Business Advisory & Exit Planning' },
+    { code: 'iht_planning', name: 'IHT Planning Workshop' },
+    { code: 'property_health_check', name: 'Property Portfolio Health Check' },
+    { code: 'wealth_transfer_strategy', name: 'Family Wealth Transfer Strategy' },
+    { code: 'property_management_sourcing', name: 'Property Management Sourcing' },
   ];
   
   services.forEach(s => {
@@ -2583,7 +3099,37 @@ function scoreServicesFromDiscovery(responses: Record<string, any>): ScoringResu
     scores['fractional_coo'].score += 20;
     scores['fractional_coo'].triggers.push('People management issues');
   }
-  
+
+  // Investment vehicle services (Session 11)
+  const ihtKeywords = ['inheritance', 'iht', 'estate', 'wealth transfer', 'pass on', 'will', 'trust', 'gifting'];
+  if (ihtKeywords.some(kw => allText.includes(kw))) {
+    if (scores['iht_planning']) {
+      scores['iht_planning'].score += 30;
+      scores['iht_planning'].triggers.push('IHT/inheritance language detected');
+    }
+  }
+  const propertyKeywords = ['property', 'portfolio', 'rental', 'tenant', 'landlord', 'yield', 'investment property'];
+  if (propertyKeywords.some(kw => allText.includes(kw))) {
+    if (scores['property_health_check']) {
+      scores['property_health_check'].score += 25;
+      scores['property_health_check'].triggers.push('Property portfolio language detected');
+    }
+  }
+  const successionKeywords = ['succession', 'next generation', 'family', 'legacy', 'children', 'hand over'];
+  if (successionKeywords.some(kw => allText.includes(kw))) {
+    if (scores['wealth_transfer_strategy']) {
+      scores['wealth_transfer_strategy'].score += 25;
+      scores['wealth_transfer_strategy'].triggers.push('Succession/wealth transfer language detected');
+    }
+  }
+  const delegationKeywords = ['delegate', 'someone to', 'reliable person', 'property manager', 'hand off', 'step back'];
+  if (delegationKeywords.some(kw => allText.includes(kw))) {
+    if (scores['property_management_sourcing']) {
+      scores['property_management_sourcing'].score += 20;
+      scores['property_management_sourcing'].triggers.push('Delegation/property management language detected');
+    }
+  }
+
   const urgencyMultiplier = isInCrisis ? 1.5 : isExitFocused ? 1.2 : 1.0;
   
   // Build recommendations
@@ -2700,6 +3246,40 @@ function buildPrebuiltPhrases(
       topStrength: e.strengths?.[0] || 'Foundation being built',
       topBlocker: e.blockers?.[0] || 'No major blockers'
     };
+  }
+
+  // IHT Exposure phrases (Session 11) — use ihtRange when available for precision
+  const iht = (analysis as any).ihtExposure;
+  if (iht?.hasData) {
+    const rangeText = iht.ihtRange ?? (iht.ihtLiabilityRange
+      ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(2)}M – £${(iht.ihtLiabilityRange.high / 1000000).toFixed(2)}M`
+      : `£${((iht.ihtLiability || 0) / 1000000).toFixed(2)}M`);
+    phrases.ihtExposure = {
+      headline: `Potential IHT liability: ${rangeText}`,
+      estateValue: `£${((iht.estateValue || 0) / 1000000).toFixed(1)}M`,
+      range: rangeText,
+      narrative: iht.narrative,
+      caveats: Array.isArray(iht.caveats) ? iht.caveats.join(' ') : 'Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.'
+    };
+  }
+
+  // Deferred tax impact phrase (Session 11)
+  const deferredTaxImpact = (analysis as any).deferredTaxImpact;
+  if (deferredTaxImpact?.isSignificant) {
+    phrases.deferredTaxImpact = { explanation: deferredTaxImpact.explanation };
+  }
+
+  // Structural GM phrase (Session 11)
+  if ((analysis as any).grossMarginIsStructural) {
+    phrases.grossMarginIsStructural = true;
+    phrases.grossMarginStrength = (analysis as any).grossMarginStrengthOverride || '100% gross margin (structural). Operating margin is the meaningful measure.';
+  }
+
+  // Employee count context (Session 11)
+  const employeeCtx = (analysis as any).employeeCountContext;
+  if (employeeCtx) {
+    phrases.employeeCountContext = employeeCtx;
+    phrases.isNotSoloPractitioner = (analysis as any).isNotSoloPractitioner === 'true';
   }
   
   // Closing phrases
@@ -2826,6 +3406,51 @@ Blockers: ${e.blockers?.join(', ') || 'None'}
 Total over ${c.timeHorizon || 2} years: £${totalK}k+
 
 ⛔ USE THIS: "Cost of inaction: £${totalK}k+ over ${c.timeHorizon || 2} years"
+
+---
+`;
+  }
+
+  // IHT Exposure section (Session 11) — use ihtRange when available for precision
+  const iht = (analysis as any).ihtExposure;
+  if (iht?.hasData) {
+    const rangeText = iht.ihtRange ?? (iht.ihtLiabilityRange
+      ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(2)}M – £${(iht.ihtLiabilityRange.high / 1000000).toFixed(2)}M`
+      : `£${((iht.ihtLiability || 0) / 1000000).toFixed(2)}M`);
+    const estateM = ((iht.estateValue || 0) / 1000000).toFixed(1);
+    const singleNRB = iht.singleNRB ?? 325000;
+    const marriedNRB = iht.marriedNRB ?? 650000;
+    const caveatsList = Array.isArray(iht.caveats) ? iht.caveats : ['Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.'];
+    injection += `
+## IHT EXPOSURE (MANDATORY — USE THESE EXACT FIGURES)
+
+Estate value: £${estateM}M
+IHT liability range: ${rangeText}
+Single nil rate band: £${(singleNRB / 1000).toFixed(0)}k
+Married nil rate band: £${(marriedNRB / 1000).toFixed(0)}k (transferable)
+
+⛔ YOU MUST USE the range "${rangeText}" when discussing IHT exposure.
+⛔ DO NOT say "up to £X" or "significant chunk" — use the calculated range.
+⛔ DO NOT recalculate. These figures include nil rate band deductions.
+
+Caveats to mention:
+${caveatsList.map((c: string) => `- ${c}`).join('\n')}
+
+---
+`;
+  }
+
+  // Deferred tax note (Session 11)
+  const deferredTaxImpact = (analysis as any).deferredTaxImpact;
+  if (deferredTaxImpact?.hasData || deferredTaxImpact?.isSignificant) {
+    injection += `
+## DEFERRED TAX EXPLANATION (MANDATORY)
+
+${deferredTaxImpact.explanation}
+
+⛔ DO NOT describe the business as "loss-making" or "unprofitable."
+⛔ The statutory loss is a non-cash accounting adjustment, not poor trading.
+⛔ ALWAYS explain the difference between operating profit and statutory result.
 
 ---
 `;
@@ -3480,6 +4105,13 @@ serve(async (req) => {
       const totalLiabilities = latest.total_liabilities ?? null;
       const currentLiabilities = latest.current_liabilities ?? null;
       const longTermLiabilities = latest.long_term_liabilities ?? null;
+      const currentAssets = (latest as any).current_assets ?? null;
+      const interestPaid = (latest as any).interest_paid ?? null;
+      // Investment vehicle fields (Session 11)
+      const investmentProperty = (latest as any).investment_property ?? null;
+      const deferredTax = (latest as any).deferred_tax ?? (latest as any).deferred_tax_provision ?? null;
+      const deferredTaxPrior = (prior as any)?.deferred_tax ?? (prior as any)?.deferred_tax_provision ?? null;
+      const bankLoans = (latest as any).bank_loans ?? (latest as any).long_term_liabilities ?? null;
       const costOfSales = latest.cost_of_sales ?? null;
       const costOfSalesPriorYear = prior?.cost_of_sales ?? null;
 
@@ -3536,6 +4168,15 @@ serve(async (req) => {
         totalLiabilities: totalLiabilities != null ? Number(totalLiabilities) : undefined,
         currentLiabilities: currentLiabilities != null ? Number(currentLiabilities) : undefined,
         longTermLiabilities: longTermLiabilities != null ? Number(longTermLiabilities) : undefined,
+        currentAssets: currentAssets != null ? Number(currentAssets) : undefined,
+        interestPaid: interestPaid != null ? Number(interestPaid) : undefined,
+        investmentProperty: investmentProperty != null ? Number(investmentProperty) : undefined,
+        deferredTax: deferredTax != null ? Number(deferredTax) : undefined,
+        deferredTaxProvision: deferredTax != null ? Number(deferredTax) : undefined,
+        deferredTaxProvisionPrior: deferredTaxPrior != null ? Number(deferredTaxPrior) : undefined,
+        taxCharge: (latest as any).tax != null ? Number((latest as any).tax) : undefined,
+        corporationTaxPayable: (latest as any).corporation_tax_payable != null ? Number((latest as any).corporation_tax_payable) : undefined,
+        bankLoans: bankLoans != null ? Number(bankLoans) : undefined,
         multiYearEarnings,
       };
 
@@ -3582,6 +4223,12 @@ serve(async (req) => {
               (extractedFinancials as any).staffCostsPercentOfRevenue = (staffCosts / turnoverNum * 100);
               console.log('[Pass1] ✅ Recovered staff costs from upload notes:', staffCosts);
             }
+          }
+          // Session 11: Recover corporation_tax_payable for deferred tax movement fallback
+          const corpTaxPayable = latestUploadYear?.corporation_tax_payable ?? latestUploadYear?.corporation_tax;
+          if (corpTaxPayable != null) {
+            (extractedFinancials as any).corporationTaxPayable = Number(corpTaxPayable);
+            console.log('[Pass1] ✅ Recovered corporation_tax_payable from upload:', corpTaxPayable);
           }
         }
       } catch (e) {
@@ -3738,7 +4385,152 @@ serve(async (req) => {
         totalValue: assetValuation.totalAssetValue
       });
     }
-    
+
+    // IHT Exposure Calculator (only for investment vehicles or high-net-asset clients) (Session 11)
+    const ihtExposure = (clientType.type === 'investment_vehicle' ||
+                         (extractedFinancials.netAssets != null && extractedFinancials.netAssets > 1000000))
+      ? calculateIHTExposure(extractedFinancials, discoveryResponses)
+      : null;
+
+    if (ihtExposure?.hasData) {
+      console.log('[Pass1] 🏛️ IHT Exposure:', {
+        estateValue: ihtExposure.estateValue,
+        ihtRange: ihtExposure.ihtLiabilityRange,
+        narrative: ihtExposure.narrative
+      });
+      (comprehensiveAnalysis as any).ihtExposure = ihtExposure;
+    }
+
+    // ========================================================================
+    // DEFERRED TAX DETECTION (Session 11)
+    // CRITICAL: Balance sheet shows CUMULATIVE provision (e.g. £775k).
+    // The annual CHARGE is the MOVEMENT between years (e.g. £186k).
+    // ========================================================================
+    if (extractedFinancials.operatingProfit != null && extractedFinancials.operatingProfit > 0) {
+      const netProfit = extractedFinancials.netProfit ?? (extractedFinancials as any).profitBeforeTax ?? null;
+      const deferredTaxBalance = (extractedFinancials as any).deferredTaxProvision ?? extractedFinancials.deferredTax ?? null;
+      const deferredTaxBalancePrior = (extractedFinancials as any).deferredTaxProvisionPrior ?? null;
+      const deferredTaxMovement = (deferredTaxBalance != null && deferredTaxBalancePrior != null)
+        ? deferredTaxBalance - deferredTaxBalancePrior
+        : null;
+      const totalTaxCharge = (extractedFinancials as any).taxCharge ?? null;
+      const corpTaxPayable = (extractedFinancials as any).corporationTaxPayable ?? null;
+      const deferredTaxFromTaxLine = (totalTaxCharge != null && corpTaxPayable != null)
+        ? totalTaxCharge - corpTaxPayable
+        : null;
+      const annualDeferredTax = deferredTaxMovement ?? deferredTaxFromTaxLine ?? null;
+
+      if (netProfit != null && netProfit < 0) {
+        const movementK = annualDeferredTax != null ? Math.round(Math.abs(annualDeferredTax) / 1000) : null;
+        const balanceK = deferredTaxBalance != null ? Math.round(deferredTaxBalance / 1000) : null;
+        const explanation = (movementK != null && balanceK != null)
+          ? `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k is driven by a £${movementK}k deferred tax movement (the in-year charge on property revaluation). The £${balanceK}k figure on the balance sheet is the cumulative provision, not the annual charge. Operating performance is strong at £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit.`
+          : movementK != null
+            ? `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k is driven by a £${movementK}k deferred tax movement (likely on property revaluation). Operating performance is strong at £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit.`
+            : `Statutory loss of £${Math.abs(Math.round(netProfit / 1000))}k despite £${Math.round(extractedFinancials.operatingProfit / 1000)}k operating profit — likely driven by non-cash deferred tax on property revaluation.`;
+        (comprehensiveAnalysis as any).deferredTaxImpact = {
+          hasData: true,
+          isSignificant: true,
+          operatingProfit: extractedFinancials.operatingProfit,
+          netProfit: netProfit,
+          deferredTaxBalance: deferredTaxBalance,
+          deferredTaxBalancePrior: deferredTaxBalancePrior,
+          deferredTaxMovement: annualDeferredTax,
+          explanation
+        };
+        console.log('[Pass1] 📊 Deferred tax:', { balance: deferredTaxBalance, priorBalance: deferredTaxBalancePrior, movement: annualDeferredTax });
+      }
+    }
+
+    // Structural 100% gross margin (no cost of sales — property/investment companies) (Session 11)
+    const grossMarginPct = extractedFinancials.grossMarginPct ?? null;
+    const isStructural100GM = grossMarginPct != null && grossMarginPct >= 99.5 &&
+      (!extractedFinancials.costOfSales || extractedFinancials.costOfSales === 0);
+    if (isStructural100GM) {
+      console.log('[Pass1] 📊 100% GM detected with no cost of sales — structural, not performance');
+      (comprehensiveAnalysis as any).grossMarginIsStructural = true;
+      (comprehensiveAnalysis as any).operatingMarginPct = extractedFinancials.operatingMarginPct;
+      (comprehensiveAnalysis as any).grossMarginStrengthOverride = extractedFinancials.operatingMarginPct != null
+        ? `100% gross margin (no cost of sales — structural). Operating margin of ${extractedFinancials.operatingMarginPct.toFixed(1)}% is the meaningful profitability measure`
+        : '100% gross margin (no cost of sales — structural). Operating margin is the meaningful profitability measure';
+    }
+
+    // Employee count context (Session 11)
+    if (extractedFinancials.employeeCount != null) {
+      (comprehensiveAnalysis as any).employeeCountContext = extractedFinancials.employeeCount > 1
+        ? `${extractedFinancials.employeeCount} people (including director)`
+        : 'sole operator';
+      (comprehensiveAnalysis as any).isNotSoloPractitioner = extractedFinancials.employeeCount > 1 ? 'true' : 'false';
+    } else {
+      (comprehensiveAnalysis as any).employeeCountContext = 'sole operator';
+      (comprehensiveAnalysis as any).isNotSoloPractitioner = 'false';
+    }
+
+    // Business size phrasing (Session 11) — asset-based for investment vehicles, not revenue
+    const turnoverForSize = extractedFinancials.turnover || 0;
+    const netAssetsForSize = extractedFinancials.netAssets ?? 0;
+    const investmentPropertyForSize = extractedFinancials.investmentProperty ?? 0;
+    if (clientType.type === 'investment_vehicle' && netAssetsForSize > 1000000) {
+      (comprehensiveAnalysis as any).businessSizePhrase = `a £${(netAssetsForSize / 1000000).toFixed(1)}M estate`;
+      (comprehensiveAnalysis as any).businessSizeContext = `${(investmentPropertyForSize / 1000000).toFixed(1)}M in investment property with net assets of £${(netAssetsForSize / 1000000).toFixed(1)}M`;
+    } else if (turnoverForSize > 0) {
+      (comprehensiveAnalysis as any).businessSizePhrase = turnoverForSize >= 1000000
+        ? `a £${(turnoverForSize / 1000000).toFixed(1)}M business`
+        : `a £${Math.round(turnoverForSize / 1000)}k business`;
+    }
+
+    // IHT exposure growth component in Cost of Inaction (Session 11)
+    const ihtForCoI = (comprehensiveAnalysis as any).ihtExposure;
+    if (ihtForCoI?.hasData && extractedFinancials.turnoverGrowth != null && extractedFinancials.turnoverGrowth > 0 &&
+        comprehensiveAnalysis.costOfInaction?.components) {
+      const estateValue = ihtForCoI.estateValue || 0;
+      const growthRate = Math.min(extractedFinancials.turnoverGrowth / 100, 0.10);
+      const annualEstateGrowth = estateValue * growthRate;
+      const annualIHTGrowth = Math.round(annualEstateGrowth * 0.40);
+      if (annualIHTGrowth > 5000) {
+        const timeHorizon = comprehensiveAnalysis.costOfInaction.timeHorizon || 3;
+        comprehensiveAnalysis.costOfInaction.components.push({
+          category: 'IHT Exposure Growth',
+          annualCost: annualIHTGrowth,
+          costOverHorizon: annualIHTGrowth * timeHorizon,
+          calculation: `Estate growing at ~${(growthRate * 100).toFixed(1)}%/year — each year adds ~£${Math.round(annualIHTGrowth / 1000)}k to the IHT liability`,
+          confidence: 'calculated' as const
+        });
+        const coi = comprehensiveAnalysis.costOfInaction;
+        coi.totalAnnual = (coi.components as any[]).reduce((sum: number, c: any) => sum + c.annualCost, 0);
+        coi.totalOverHorizon = (coi.components as any[]).reduce((sum: number, c: any) => sum + c.costOverHorizon, 0);
+        console.log('[Pass1] 🏛️ IHT growth CoI component:', annualIHTGrowth);
+      }
+    }
+
+    // Suppress revenue per head for investment vehicles or very small teams (Session 11)
+    if ((clientType.type === 'investment_vehicle' ||
+         (extractedFinancials.employeeCount != null && extractedFinancials.employeeCount < 5)) &&
+        comprehensiveAnalysis.productivity) {
+      (comprehensiveAnalysis.productivity as any).suppressInReport = true;
+      console.log('[Pass1] 📊 Revenue per head suppressed (investment vehicle or <5 employees)');
+    }
+
+    // ========================================================================
+    // FINANCIAL HEALTH SNAPSHOT (Session 11 — new feature)
+    // Available for ALL clients with at least one set of accounts uploaded
+    // ========================================================================
+    if (extractedFinancials.source !== 'none') {
+      const financialHealthSnapshot = calculateFinancialHealthSnapshot(
+        extractedFinancials,
+        clientType.type
+      );
+      (comprehensiveAnalysis as any).financialHealthSnapshot = financialHealthSnapshot;
+      if (financialHealthSnapshot.hasData) {
+        console.log('[Pass1] 📊 Financial Health Snapshot:', {
+          ratioCount: financialHealthSnapshot.ratioCount,
+          noteworthyCount: financialHealthSnapshot.noteworthyRatios.length,
+          overallHealth: financialHealthSnapshot.overallHealth,
+          noteworthy: financialHealthSnapshot.noteworthyRatios.map(r => `${r.name}: ${r.formatted} (${r.status})`)
+        });
+      }
+    }
+
     const destinationClarity = calculateDestinationClarity(discoveryResponses);
     
     console.log('[Pass1] Analysis Results:', {
@@ -3774,13 +4566,38 @@ serve(async (req) => {
 
     const scoringResult = scoreServicesFromDiscovery(discoveryResponses);
 
-    const primaryRecommendations = scoringResult.recommendations
+    let primaryRecommendations = scoringResult.recommendations
       .filter(r => r.recommended)
       .slice(0, 3);
-    
-    const secondaryRecommendations = scoringResult.recommendations
+
+    let secondaryRecommendations = scoringResult.recommendations
       .filter(r => r.recommended)
       .slice(3);
+
+    let page3Journey: { title: string; phases: any[] } | null = null;
+
+    // ========================================================================
+    // INVESTMENT VEHICLE: Override recommendations and build page3_journey
+    // (Session 11 — the scorer doesn't know about these services)
+    // ========================================================================
+    if (clientType.type === 'investment_vehicle') {
+      primaryRecommendations = [
+        { code: 'iht_planning', name: 'IHT Planning Workshop', score: 95, recommended: true },
+        { code: 'property_health_check', name: 'Property Portfolio Health Check', score: 90, recommended: true },
+        { code: 'wealth_transfer_strategy', name: 'Family Wealth Transfer Strategy', score: 85, recommended: true },
+      ];
+      secondaryRecommendations = [];
+      page3Journey = {
+        title: 'From Here to Protected',
+        phases: [
+          { phase: 1, timeframe: 'Month 1-3', title: "You'll Know What's At Risk", service: 'iht_planning', serviceId: 'iht_planning', enabledBy: 'IHT Planning Workshop (£2,500)', enabledByCode: 'iht_planning', price: '£2,500' },
+          { phase: 2, timeframe: 'Month 3-6', title: "You'll See Which Properties Earn Their Keep", service: 'property_health_check', serviceId: 'property_health_check', enabledBy: 'Property Portfolio Health Check (£3,500 — when ready)', enabledByCode: 'property_health_check', price: '£3,500' },
+          { phase: 3, timeframe: 'Month 6-12', title: "Your Family Is Protected", service: 'wealth_transfer_strategy', serviceId: 'wealth_transfer_strategy', enabledBy: 'Family Wealth Transfer Strategy (£5,500 — when ready)', enabledByCode: 'wealth_transfer_strategy', price: '£5,500' },
+        ],
+      };
+      console.log('[Pass1] 🏠 Investment vehicle primary_recommendations overridden:', primaryRecommendations.map((r: { code: string }) => r.code));
+      console.log('[Pass1] 🏠 Investment vehicle journey phases built');
+    }
 
     const processingTime = Date.now() - startTime;
 
@@ -3910,6 +4727,9 @@ serve(async (req) => {
       // pass2_prompt_injection: pass2PromptInjection,
       // prebuilt_phrases: prebuiltPhrases
     };
+    if (page3Journey) {
+      reportData.page3_journey = page3Journey;
+    }
 
     // DEBUG: Log exactly what comprehensive_analysis contains before saving
     console.log('[Pass1] 🔍 SAVING comprehensive_analysis:', {

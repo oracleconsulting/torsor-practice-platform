@@ -227,6 +227,21 @@ export default function SprintEditorModal({
         } catch { /* non-fatal */ }
       }
 
+      // Send notification email (non-blocking — don't fail publish if email fails)
+      try {
+        const theme = editedSprint.sprintTheme || editedSprint.weeks?.[0]?.theme || '';
+        await supabase.functions.invoke('notify-sprint-lifecycle', {
+          body: {
+            clientId,
+            type: 'sprint_published',
+            sprintNumber,
+            sprintTheme: theme,
+          },
+        });
+      } catch (emailErr) {
+        console.warn('Sprint notification email failed:', emailErr);
+      }
+
       setShowPublishConfirm(false);
       setIsDirty(false);
       onSave();

@@ -236,7 +236,7 @@ export default function SAReportPage() {
     }
   };
 
-  const scrollTo = (ref: React.RefObject<HTMLDivElement>, section: string) => {
+  const scrollTo = (ref: React.RefObject<HTMLDivElement | null>, section: string) => {
     setActiveSection(section);
     ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };

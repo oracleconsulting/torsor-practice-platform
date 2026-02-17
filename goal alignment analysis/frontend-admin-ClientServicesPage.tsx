@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Page } from '../../types/navigation';
 import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
@@ -7584,12 +7584,23 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         if (sl?.id) {
           const { data: enrollmentRow } = await supabase
             .from('client_service_lines')
-            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status')
+            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status, advisor_notes')
             .eq('client_id', clientId)
             .eq('service_line_id', sl.id)
             .maybeSingle();
           gaEnrollment = enrollmentRow;
         }
+      }
+
+      let lifeCheckData: any = null;
+      if (serviceLineCode === '365_method' && gaEnrollment) {
+        const { data: lc } = await supabase
+          .from('quarterly_life_checks')
+          .select('completed_at, created_at')
+          .eq('client_id', clientId)
+          .eq('sprint_number', gaEnrollment.current_sprint_number ?? 1)
+          .maybeSingle();
+        lifeCheckData = lc;
       }
 
       setClient({
@@ -7604,6 +7615,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         } : null,
         roadmapStages: stagesData ?? [],
         gaEnrollment: gaEnrollment ?? null,
+        lifeCheckData: lifeCheckData ?? null,
         assessments: allAssessments,
         context: context || [],
         documents: documents,
@@ -10614,6 +10626,17 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                                 .eq('id', sprintSummaryStage.id);
                                               if (error) throw error;
                                               await fetchClientDetail();
+                                              try {
+                                                await supabase.functions.invoke('notify-sprint-lifecycle', {
+                                                  body: {
+                                                    clientId,
+                                                    type: 'sprint_summary_ready',
+                                                    sprintNumber: sprintSummaryStage.sprint_number ?? 1,
+                                                  },
+                                                });
+                                              } catch (emailErr) {
+                                                console.warn('Summary notification email failed:', emailErr);
+                                              }
                                             } catch (e) {
                                               console.error(e);
                                               alert('Failed to approve. Please try again.');
@@ -10658,7 +10681,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           })()
                         : null}
 
-                      {/* Sprint Renewal (Phase 4) — only for 365_method */}
+                      {/* Sprint Renewal (Phase 4) — only for 365_method — Renewal Progress Tracker */}
                       {serviceLineCode === '365_method' && client.gaEnrollment
                         ? (() => {
                         const enrollment = client.gaEnrollment;
@@ -10666,100 +10689,243 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         const maxSprints = enrollment.max_sprints ?? 1;
                         const renewalStatus = enrollment.renewal_status || 'not_started';
                         const tierName = enrollment.tier_name || 'Growth';
-                        const summaryStage = (client.roadmapStages || []).find(
-                          (s: any) => s.stage_type === 'sprint_summary' && (s.sprint_number ?? 1) === currentSprint
-                        );
-                        const summaryApproved = summaryStage && ['approved', 'published'].includes(summaryStage.status);
-                        const isEligible = summaryApproved && currentSprint < maxSprints;
+                        const nextSprint = currentSprint + 1;
 
-                        if (!isEligible && renewalStatus === 'not_started') return null;
+                        const sprintTasks = (client.tasks || []).filter(
+                          (t: any) => (t.sprint_number ?? 1) === currentSprint
+                        );
+                        const hasWeek12Tasks = sprintTasks.some((t: any) => t.week_number === 12);
+                        const allTasksResolved = sprintTasks.length > 0 && hasWeek12Tasks &&
+                          sprintTasks.every((t: any) => t.status === 'completed' || t.status === 'skipped');
+                        const sprintCompleteTimestamp = allTasksResolved
+                          ? sprintTasks.reduce((latest: string, t: any) => {
+                              const ts = t.completed_at || (t as any).skipped_at;
+                              return ts && ts > latest ? ts : latest;
+                            }, '')
+                          : null;
+
+                        const summaryStage = (client.roadmapStages || []).find(
+                          (s: any) => s.stage_type === 'sprint_summary' &&
+                            (s.sprint_number ?? 1) === currentSprint &&
+                            ['generated', 'approved', 'published'].includes(s.status)
+                        );
+
+                        const lifeCheckSent = renewalStatus !== 'not_started';
+                        const lifeCheckComplete = ['life_check_complete', 'generating', 'review_pending', 'published'].includes(renewalStatus);
+                        const lifeCheckTimestamp = client.lifeCheckData?.completed_at || null;
+
+                        const nextSprintStage = (client.roadmapStages || []).find(
+                          (s: any) => ['sprint_plan_part2', 'sprint_plan'].includes(s.stage_type) &&
+                            (s.sprint_number ?? 1) === nextSprint &&
+                            ['generated', 'approved', 'published'].includes(s.status)
+                        );
+                        const nextSprintPublished = nextSprintStage?.status === 'published';
+
+                        const steps = [
+                          {
+                            label: 'Sprint Complete',
+                            complete: allTasksResolved,
+                            timestamp: sprintCompleteTimestamp,
+                            hint: !allTasksResolved ? `${sprintTasks.filter((t: any) => t.status === 'completed' || t.status === 'skipped').length}/${sprintTasks.length} tasks resolved` : null,
+                          },
+                          {
+                            label: 'Summary Ready',
+                            complete: !!summaryStage,
+                            timestamp: summaryStage?.generation_completed_at || summaryStage?.created_at,
+                            hint: allTasksResolved && !summaryStage ? 'Generating...' : null,
+                          },
+                          {
+                            label: 'Life Check Sent',
+                            complete: lifeCheckSent,
+                            timestamp: null,
+                            action: allTasksResolved && summaryStage && !lifeCheckSent && currentSprint < maxSprints ? {
+                              label: `Start Sprint ${nextSprint} Renewal`,
+                              onClick: async () => {
+                                try {
+                                  await supabase
+                                    .from('client_service_lines')
+                                    .update({ renewal_status: 'life_check_pending' })
+                                    .eq('client_id', clientId)
+                                    .eq('service_line_id', enrollment.service_line_id);
+                                  try {
+                                    await supabase.functions.invoke('notify-sprint-lifecycle', {
+                                      body: { clientId, type: 'life_check_pending', sprintNumber: currentSprint }
+                                    });
+                                  } catch {}
+                                  await fetchClientDetail();
+                                } catch (e) {
+                                  console.error(e);
+                                  alert('Failed to start renewal.');
+                                }
+                              },
+                            } : null,
+                          },
+                          {
+                            label: 'Life Check Done',
+                            complete: lifeCheckComplete,
+                            timestamp: lifeCheckTimestamp,
+                            hint: lifeCheckSent && !lifeCheckComplete ? 'Waiting for client...' : null,
+                          },
+                          {
+                            label: `Sprint ${nextSprint} Generated`,
+                            complete: !!nextSprintStage,
+                            timestamp: nextSprintStage?.generation_completed_at || nextSprintStage?.created_at,
+                            action: lifeCheckComplete && !nextSprintStage ? {
+                              label: `Generate Sprint ${nextSprint}`,
+                              onClick: async () => {
+                                try {
+                                  await supabase
+                                    .from('client_service_lines')
+                                    .update({ renewal_status: 'generating', current_sprint_number: nextSprint })
+                                    .eq('client_id', clientId)
+                                    .eq('service_line_id', enrollment.service_line_id);
+                                  await supabase.from('generation_queue').insert({
+                                    practice_id: client.practice_id,
+                                    client_id: clientId,
+                                    stage_type: 'life_design_refresh',
+                                    sprint_number: nextSprint,
+                                    status: 'pending',
+                                  });
+                                  await supabase.functions.invoke('roadmap-orchestrator', { body: { action: 'process' } });
+                                  await fetchClientDetail();
+                                } catch (e) {
+                                  console.error(e);
+                                  alert('Failed to trigger generation.');
+                                }
+                              },
+                            } : null,
+                          },
+                          {
+                            label: `Sprint ${nextSprint} Published`,
+                            complete: nextSprintPublished,
+                            timestamp: nextSprintStage?.published_at,
+                            hint: nextSprintStage && !nextSprintPublished
+                              ? tierName === 'Partner' ? 'Open Sprint Editor to review' : 'Auto-visible to client'
+                              : null,
+                            action: nextSprintStage && !nextSprintPublished && tierName === 'Partner' ? {
+                              label: 'Open Sprint Editor',
+                              onClick: () => {
+                                alert('Switch to the Sprint tab and use "Open Sprint Editor" to review and publish.');
+                              },
+                            } : null,
+                          },
+                        ];
+
+                        if (sprintTasks.length === 0 && renewalStatus === 'not_started') return null;
+                        if (!allTasksResolved && renewalStatus === 'not_started') return null;
 
                         return (
                           <div className="mt-6 pt-6 border-t border-gray-200">
-                            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-                              <div>
-                                <h3 className="text-lg font-semibold text-gray-900">Sprint Renewal</h3>
-                                <p className="text-sm text-gray-500">
-                                  Sprint {currentSprint} of {maxSprints} ({tierName} tier)
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {renewalStatus === 'not_started' && isEligible && (
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      try {
-                                        await supabase
-                                          .from('client_service_lines')
-                                          .update({ renewal_status: 'life_check_pending' })
-                                          .eq('client_id', clientId)
-                                          .eq('service_line_id', enrollment.service_line_id);
-                                        await fetchClientDetail();
-                                      } catch (e) {
-                                        console.error(e);
-                                        alert('Failed to start renewal.');
-                                      }
-                                    }}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
-                                  >
-                                    Start Sprint {currentSprint + 1} Renewal
-                                  </button>
-                                )}
-                                {renewalStatus === 'life_check_complete' && (
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      try {
-                                        const nextSprint = currentSprint + 1;
-                                        await supabase
-                                          .from('client_service_lines')
-                                          .update({ renewal_status: 'generating', current_sprint_number: nextSprint })
-                                          .eq('client_id', clientId)
-                                          .eq('service_line_id', enrollment.service_line_id);
-                                        await supabase.from('generation_queue').insert({
-                                          practice_id: client.practice_id,
-                                          client_id: clientId,
-                                          stage_type: 'life_design_refresh',
-                                          sprint_number: nextSprint,
-                                          status: 'pending',
-                                        });
-                                        await supabase.functions.invoke('roadmap-orchestrator', { body: { action: 'process' } });
-                                        await fetchClientDetail();
-                                      } catch (e) {
-                                        console.error(e);
-                                        alert('Failed to trigger generation.');
-                                      }
-                                    }}
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
-                                  >
-                                    Generate Sprint {currentSprint + 1}
-                                  </button>
-                                )}
-                                {renewalStatus === 'review_pending' && tierName === 'Partner' && (
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      try {
-                                        await supabase
-                                          .from('client_service_lines')
-                                          .update({ renewal_status: 'published' })
-                                          .eq('client_id', clientId)
-                                          .eq('service_line_id', enrollment.service_line_id);
-                                        await fetchClientDetail();
-                                      } catch (e) {
-                                        console.error(e);
-                                        alert('Failed to publish.');
-                                      }
-                                    }}
-                                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
-                                  >
-                                    Approve & Publish Sprint {currentSprint}
-                                  </button>
-                                )}
-                              </div>
+                            <div className="mb-4">
+                              <h3 className="text-lg font-semibold text-gray-900">Sprint Renewal</h3>
+                              <p className="text-sm text-gray-500">
+                                Sprint {currentSprint} → {nextSprint} ({tierName} tier)
+                              </p>
                             </div>
-                            <div className="text-sm text-gray-600">
-                              Status: <span className="font-medium capitalize">{renewalStatus.replace(/_/g, ' ')}</span>
+
+                            <div className="flex items-start justify-between gap-1">
+                              {steps.map((step, i) => {
+                                const isComplete = step.complete;
+                                const isActive = !isComplete && (i === 0 || steps[i - 1].complete);
+
+                                return (
+                                  <div key={step.label} className="flex-1 flex flex-col items-center text-center">
+                                    <div className="flex items-center w-full mb-2">
+                                      {i > 0 && (
+                                        <div className={`flex-1 h-0.5 ${steps[i - 1].complete ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+                                      )}
+                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                        isComplete ? 'bg-emerald-500 text-white' :
+                                        isActive ? 'bg-indigo-500 text-white ring-4 ring-indigo-100' :
+                                        'bg-gray-200 text-gray-400'
+                                      }`}>
+                                        {isComplete ? (
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                          </svg>
+                                        ) : (
+                                          <span className="text-[10px] font-bold">{i + 1}</span>
+                                        )}
+                                      </div>
+                                      {i < steps.length - 1 && (
+                                        <div className={`flex-1 h-0.5 ${isComplete ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+                                      )}
+                                    </div>
+
+                                    <span className={`text-xs font-medium leading-tight ${
+                                      isComplete ? 'text-emerald-700' :
+                                      isActive ? 'text-indigo-700' :
+                                      'text-gray-400'
+                                    }`}>
+                                      {step.label}
+                                    </span>
+
+                                    {step.timestamp && (
+                                      <span className="text-[10px] text-gray-400 mt-0.5">
+                                        {new Date(step.timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                      </span>
+                                    )}
+                                    {step.hint && !step.timestamp && (
+                                      <span className={`text-[10px] mt-0.5 ${isActive ? 'text-indigo-500' : 'text-gray-400'}`}>
+                                        {step.hint}
+                                      </span>
+                                    )}
+
+                                    {step.action && isActive && (
+                                      <button
+                                        type="button"
+                                        onClick={step.action.onClick}
+                                        className="mt-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-xs font-medium whitespace-nowrap"
+                                      >
+                                        {step.action.label}
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {nextSprintPublished && (
+                              <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
+                                Sprint {nextSprint} is live. Client can now start their next 12 weeks.
+                              </div>
+                            )}
+
+                            {/* Advisor Notes for next sprint */}
+                            <div className="mt-5 pt-4 border-t border-gray-100">
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium text-gray-700">
+                                  Advisor Notes for Sprint {nextSprint}
+                                </label>
+                                <span className="text-xs text-gray-400">
+                                  Fed into sprint generation
+                                </span>
+                              </div>
+                              <textarea
+                                defaultValue={enrollment.advisor_notes || ''}
+                                placeholder="Context the AI should know when generating the next sprint. E.g., 'Client is hiring a GM in March — factor delegation tasks into weeks 4-8' or 'Partner wants to reduce to 3 days/week by June'"
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-y"
+                                onBlur={async (e) => {
+                                  const newNotes = e.target.value.trim();
+                                  const currentNotes = (enrollment.advisor_notes || '').trim();
+                                  if (newNotes === currentNotes) return;
+                                  try {
+                                    await supabase
+                                      .from('client_service_lines')
+                                      .update({ advisor_notes: newNotes || null })
+                                      .eq('client_id', clientId)
+                                      .eq('service_line_id', enrollment.service_line_id);
+                                    console.log('Advisor notes saved');
+                                  } catch (err) {
+                                    console.error('Failed to save advisor notes:', err);
+                                    alert('Failed to save notes. Please try again.');
+                                  }
+                                }}
+                              />
+                              <p className="text-xs text-gray-400 mt-1">
+                                Auto-saves when you click away. These notes are included in the AI prompt when generating Sprint {nextSprint}.
+                              </p>
                             </div>
                           </div>
                         );
@@ -12910,6 +13076,9 @@ function SystemsAuditClientModal({
   const [stage3DeepDives, setStage3DeepDives] = useState<any[]>([]);
   const [report, setReport] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
+  const [saReportPollingAfterError, setSaReportPollingAfterError] = useState(false);
+  const saReportPollingCancelledRef = useRef(false);
+  const saPass2TriggeredByClientRef = useRef(false);
   const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
   const [findings, setFindings] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
@@ -13171,98 +13340,156 @@ function SystemsAuditClientModal({
 
   const handleGenerateReport = async () => {
     if (!engagement) return;
-    
+
     setGenerating(true);
-    
+
     try {
-      // Call Pass 1 (which triggers Pass 2 automatically)
-      console.log('[SA Report] Calling Pass 1...', { engagementId: engagement.id });
-      
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 240000); // 4 minute timeout
-      
-      try {
-        const { data, error } = await supabase.functions.invoke('generate-sa-report-pass1', {
-          body: { engagementId: engagement.id },
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-
-        if (error) {
-          console.error('[SA Report] Pass 1 error:', error);
-          // Check if it's a timeout/connection error
-          if (error.message?.includes('timeout') || 
-              error.message?.includes('connection closed') ||
-              error.message?.includes('aborted') ||
-              error.message?.includes('Failed to send')) {
-            // Pass 1 might still be running - start polling
-            console.log('[SA Report] Pass 1 request timed out or failed to connect, but may still be processing. Polling...');
-            pollForReport(engagement.id, 0);
+      const pollDB = async (
+        checkFn: () => Promise<boolean>,
+        label: string,
+        maxAttempts = 60,
+        intervalMs = 5000
+      ): Promise<void> => {
+        for (let i = 0; i < maxAttempts; i++) {
+          const done = await checkFn();
+          if (done) {
+            console.log(`[SA Report] ${label} confirmed in DB`);
             return;
           }
-          throw error;
+          console.log(`[SA Report] Waiting for ${label}... (${i + 1}/${maxAttempts})`);
+          await new Promise(r => setTimeout(r, intervalMs));
         }
+        throw new Error(`${label} did not complete within ${maxAttempts * intervalMs / 1000}s`);
+      };
 
-        // Pass 1 completed - check if Pass 2 was triggered
-        if (data?.pass2Triggered) {
-          console.log('[SA Report] Pass 1 complete, Pass 2 triggered. Polling for completion...');
-          // Start polling for Pass 2 completion
-          pollForReport(engagement.id, 0);
-        } else {
-          // Pass 1 completed but Pass 2 not triggered - refresh to show Pass 1 data
-          await fetchData();
-          setGenerating(false);
-        }
-      } catch (invokeError: any) {
-        clearTimeout(timeoutId);
-        // If invoke itself fails, check if it's a connection error
-        if (invokeError.name === 'AbortError' || 
-            invokeError.message?.includes('timeout') || 
-            invokeError.message?.includes('connection closed') ||
-            invokeError.message?.includes('aborted') ||
-            invokeError.message?.includes('Failed to send')) {
-          console.log('[SA Report] Function invoke failed, but may still be processing. Polling...');
-          pollForReport(engagement.id, 0);
-          return;
-        }
-        throw invokeError;
+      const firePhase = (phaseNum: number) => {
+        supabase.functions.invoke('generate-sa-report-pass1', {
+          body: { engagementId: engagement.id, phase: phaseNum }
+        }).then(({ data, error }) => {
+          if (error) console.warn(`[SA Report] Phase ${phaseNum} invoke returned error (may still complete):`, error.message);
+          else console.log(`[SA Report] Phase ${phaseNum} invoke returned:`, data);
+        }).catch(err => {
+          console.warn(`[SA Report] Phase ${phaseNum} invoke connection failed (expected, polling DB):`, err.message);
+        });
+      };
+
+      // ── Phase 1: Extract core facts and system inventory ──
+      console.log('[SA Report] Starting Phase 1/5: Extracting facts...', { engagementId: engagement.id });
+      firePhase(1);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase1;
+      }, 'Phase 1');
+      console.log('[SA Report] Phase 1 complete');
+
+      // ── Phase 2: Analyse processes, scores, costs ──
+      console.log('[SA Report] Starting Phase 2/5: Analysing processes...');
+      firePhase(2);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase2;
+      }, 'Phase 2');
+      console.log('[SA Report] Phase 2 complete');
+
+      // ── Phase 3: Generate findings and quick wins ──
+      console.log('[SA Report] Starting Phase 3/5: Generating findings...');
+      firePhase(3);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase3;
+      }, 'Phase 3');
+      console.log('[SA Report] Phase 3 complete');
+
+      // ── Phase 4: Build recommendations ──
+      console.log('[SA Report] Starting Phase 4/5: Building recommendations...');
+      firePhase(4);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase4;
+      }, 'Phase 4');
+      console.log('[SA Report] Phase 4 complete');
+
+      // ── Phase 5: Admin guidance and client presentation ──
+      console.log('[SA Report] Starting Phase 5/5: Generating admin guidance...');
+      firePhase(5);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
+        return data?.status === 'pass1_complete';
+      }, 'Phase 5');
+      console.log('[SA Report] All 5 phases complete. Starting narrative generation (Pass 2)...');
+
+      // ── Pass 2: Narrative generation (Opus) ──
+      const { data: reportRow } = await supabase
+        .from('sa_audit_reports').select('id').eq('engagement_id', engagement.id).maybeSingle();
+
+      supabase.functions.invoke('generate-sa-report-pass2', {
+        body: { engagementId: engagement.id, reportId: reportRow?.id }
+      }).then(({ data, error }) => {
+        if (error) console.warn('[SA Report] Pass 2 invoke returned error (may still complete):', error.message);
+        else console.log('[SA Report] Pass 2 invoke returned:', data);
+      }).catch(err => {
+        console.warn('[SA Report] Pass 2 invoke connection failed (expected, polling DB):', err.message);
+      });
+
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
+        return data?.status === 'generated' || data?.status === 'pass2_failed';
+      }, 'Pass 2 (narratives)', 90, 5000);
+
+      const { data: finalReport } = await supabase
+        .from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
+
+      if (finalReport?.status === 'generated') {
+        console.log('[SA Report] Report fully generated!');
+      } else if (finalReport?.status === 'pass2_failed') {
+        console.warn('[SA Report] Pass 2 failed — extracted data is still available');
+        alert('Report data extracted successfully, but narrative generation failed. You can retry.');
       }
+
+      await fetchData();
+      setGenerating(false);
+
     } catch (error: any) {
-      // Check if it's a timeout/abort error
-      if (error.name === 'AbortError' || 
-          error.message?.includes('timeout') || 
-          error.message?.includes('connection closed') ||
-          error.message?.includes('aborted')) {
-        // Function is likely still processing - poll for completion
-        console.log('[SA Report] Connection timed out, but generation may still be in progress. Polling...');
-        pollForReport(engagement.id, 0);
-        return;
+      console.error('[SA Report] Generation failed:', error);
+      const { data: partialReport } = await supabase
+        .from('sa_audit_reports')
+        .select('status, pass1_data')
+        .eq('engagement_id', engagement.id)
+        .maybeSingle();
+
+      const phasesComplete = [
+        partialReport?.pass1_data?.phase1 ? '1 (Extract)' : null,
+        partialReport?.pass1_data?.phase2 ? '2 (Analyse)' : null,
+        partialReport?.pass1_data?.phase3 ? '3 (Diagnose)' : null,
+        partialReport?.pass1_data?.phase4 ? '4 (Recommend)' : null,
+        partialReport?.status === 'pass1_complete' ? '5 (Guide)' : null,
+      ].filter(Boolean).join(', ');
+
+      if (phasesComplete) {
+        alert(`Report generation stopped at: ${error.message}\n\nPhases completed: ${phasesComplete}. You can retry to continue.`);
+      } else {
+        alert(`Report generation failed: ${error.message || 'Unknown error'}`);
       }
-      
-      console.error('[SA Report] Error generating report:', error);
-      // Check if it's a "Failed to send" error - this might mean the function is still starting
-      if (error.message?.includes('Failed to send') || error.message?.includes('Edge Function')) {
-        console.log('[SA Report] Edge Function connection failed, but it may still be processing. Starting polling...');
-        pollForReport(engagement.id, 0);
-        return;
-      }
-      alert(`Error generating report: ${error.message || 'Unknown error'}`);
+
+      await fetchData();
       setGenerating(false);
     }
   };
 
   // Poll for report completion (checks for 'generated' or 'pass2_failed' status)
   const pollForReport = async (engagementId: string, attempts: number) => {
+    if (saReportPollingCancelledRef.current) return;
+
     const maxAttempts = 30; // Poll for up to 7.5 minutes (15s * 30 = 7.5 min) to allow for both passes
     const pollInterval = 15000; // 15 seconds
-    
+
     if (attempts >= maxAttempts) {
-      alert('Report generation is taking longer than expected. Please refresh the page in a few minutes to check if it completed.');
+      setSaReportPollingAfterError(false);
       setGenerating(false);
+      alert('Report generation didn\'t complete in time (the server may have timed out). Click "Generate Analysis" below to try again.');
       return;
     }
-    
+
     try {
       // Check report status
       const { data: report } = await supabase
@@ -13275,34 +13502,46 @@ function SystemsAuditClientModal({
       
       if (report) {
         if (report.status === 'generated') {
-          // Report fully complete - refresh data
+          setSaReportPollingAfterError(false);
           console.log('[SA Report] Report completed! Refreshing data...');
           await fetchData();
           setGenerating(false);
           return;
         } else if (report.status === 'pass2_failed') {
-          // Pass 2 failed - show error but keep Pass 1 data visible
+          setSaReportPollingAfterError(false);
           console.error('[SA Report] Pass 2 failed');
           alert('Report extraction completed, but narrative generation failed. You can retry Pass 2 or view the extracted data.');
           await fetchData();
           setGenerating(false);
           return;
         } else if (report.status === 'pass1_complete') {
-          // Pass 1 complete, waiting for Pass 2
+          // Pass 1 complete: trigger Pass 2 from client if not yet done (fallback if server-side trigger failed)
+          if (!saPass2TriggeredByClientRef.current) {
+            saPass2TriggeredByClientRef.current = true;
+            supabase.functions.invoke('generate-sa-report-pass2', {
+              body: { engagementId, reportId: report.id }
+            }).then(({ error }) => {
+              if (error) console.warn('[SA Report] Client-triggered Pass 2 error:', error);
+              else console.log('[SA Report] Pass 2 triggered from client (fallback).');
+            });
+          }
           console.log(`[SA Report] Pass 1 complete, waiting for Pass 2... (attempt ${attempts + 1}/${maxAttempts})`);
-          // Continue polling
-          setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+          if (!saReportPollingCancelledRef.current) {
+            setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+          }
           return;
         }
       }
-      
+
       // Report not ready yet - poll again
+      if (saReportPollingCancelledRef.current) return;
       console.log(`[SA Report] Polling attempt ${attempts + 1}/${maxAttempts}...`);
       setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
     } catch (error: any) {
       console.error('[SA Report] Error polling for report:', error);
-      // Continue polling despite errors
-      setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+      if (!saReportPollingCancelledRef.current) {
+        setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+      }
     }
   };
 
@@ -13682,8 +13921,11 @@ function SystemsAuditClientModal({
                               // Section 4: Focus Areas
                               { key: 'broken_areas', rawKey: 'sa_priority_areas', label: 'Which areas of your business feel most broken?', section: 'Focus Areas' },
                               { key: 'magic_process_fix', rawKey: 'sa_magic_fix', label: 'If you could fix one process by magic, what would it be?', section: 'Focus Areas' },
-                              
-                              // Section 5: Readiness
+                              // Section 5: Your Vision
+                              { key: 'desired_outcomes', rawKey: 'sa_desired_outcomes', label: 'What specific outcomes do you want from fixing systems?', section: 'Your Vision' },
+                              { key: 'monday_morning_vision', rawKey: 'sa_monday_morning', label: 'What does Monday morning look like when systems work?', section: 'Your Vision' },
+                              { key: 'time_freedom_priority', rawKey: 'sa_time_freedom', label: 'What would you do with 10+ hours/week back?', section: 'Your Vision' },
+                              // Section 6: Readiness
                               { key: 'change_appetite', rawKey: 'sa_change_appetite', label: 'What\'s your appetite for change right now?', section: 'Readiness' },
                               { key: 'systems_fears', rawKey: 'sa_fears', label: 'What are your biggest fears about changing systems?', section: 'Readiness' },
                               { key: 'internal_champion', rawKey: 'sa_champion', label: 'Who would champion systems improvements internally?', section: 'Readiness' },
@@ -14245,7 +14487,27 @@ function SystemsAuditClientModal({
                         )}
                         {generating ? 'Generating Analysis...' : 'Generate Analysis'}
                       </button>
-                      {!canGenerateOrRegenerate && (
+                      {saReportPollingAfterError && (
+                        <div className="mt-4 max-w-md mx-auto p-3 bg-amber-50 border border-amber-200 rounded-lg text-left space-y-3">
+                          <p className="text-sm text-amber-800">
+                            The connection to the report service was interrupted. We&apos;re checking every 15 seconds for your report.
+                            If the function timed out, no report will appear and you can retry below.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              saReportPollingCancelledRef.current = true;
+                              setSaReportPollingAfterError(false);
+                              handleGenerateReport();
+                            }}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            Retry generation
+                          </button>
+                        </div>
+                      )}
+                      {!canGenerateOrRegenerate && !saReportPollingAfterError && (
                         <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>
                       )}
                     </div>

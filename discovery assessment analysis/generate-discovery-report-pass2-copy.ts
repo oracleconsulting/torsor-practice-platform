@@ -33,6 +33,11 @@ const SERVICE_REGISTRY: Record<string, ServiceDefinition> = {
   fractional_cfo: { code: 'fractional_cfo', name: 'Fractional CFO', displayName: 'Fractional CFO Services', category: 'strategic', outcome: "You'll Have Strategic Financial Leadership", description: 'Part-time strategic finance leadership.', keywords: ['cfo', 'finance director', 'strategic finance', 'fractional cfo'], tiers: [{ name: '2 days/month', tagline: 'Strategic finance leadership', pricingModel: 'fixed', price: 4000, priceFormatted: '£4,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
   fractional_coo: { code: 'fractional_coo', name: 'Fractional COO', displayName: 'Fractional COO Services', category: 'strategic', outcome: "Someone Else Carries The Load", description: 'Operational leadership to build systems that run without you.', keywords: ['coo', 'operations', 'fractional coo'], tiers: [{ name: '2 days/month', tagline: 'Operational leadership', pricingModel: 'fixed', price: 3750, priceFormatted: '£3,750', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
   combined_advisory: { code: 'combined_advisory', name: 'Combined CFO/COO Advisory', displayName: 'Combined CFO/COO Advisory', category: 'strategic', outcome: "Complete Business Transformation", description: 'Executive partnership covering both financial and operational strategy.', keywords: ['combined', 'cfo coo', 'executive partnership'], tiers: [{ name: 'Standard', tagline: 'Full executive partnership', pricingModel: 'fixed', price: 6000, priceFormatted: '£6,000', period: 'monthly', periodLabel: '/month', showInPopup: true, popupCtaLabel: 'Talk to us' }], defaultTierIndex: 0, isActive: false },
+  // Investment vehicle services (Session 11)
+  iht_planning: { code: 'iht_planning', name: 'IHT Planning Workshop', displayName: 'IHT Planning Workshop', category: 'strategic', outcome: "You'll Know What's At Risk", description: 'Map your inheritance tax exposure and create an action plan', keywords: ['iht', 'inheritance', 'estate', 'wealth transfer', 'trust', 'gifting'], tiers: [{ name: 'Workshop', tagline: 'IHT exposure and action plan', pricingModel: 'fixed', price: 2500, priceFormatted: '£2,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
+  property_health_check: { code: 'property_health_check', name: 'Property Portfolio Health Check', displayName: 'Property Portfolio Health Check', category: 'strategic', outcome: "You'll See Which Properties Earn Their Keep", description: 'Property-by-property performance analysis and rationalisation strategy', keywords: ['property', 'portfolio', 'yield', 'rationalisation'], tiers: [{ name: 'Health Check', tagline: 'Yield and rationalisation', pricingModel: 'fixed', price: 3500, priceFormatted: '£3,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
+  wealth_transfer_strategy: { code: 'wealth_transfer_strategy', name: 'Family Wealth Transfer Strategy', displayName: 'Family Wealth Transfer Strategy', category: 'strategic', outcome: "Your Family Is Protected", description: 'Comprehensive succession planning for investment portfolios', keywords: ['wealth transfer', 'succession', 'family', 'legacy'], tiers: [{ name: 'Strategy', tagline: 'Succession and family governance', pricingModel: 'fixed', price: 5500, priceFormatted: '£5,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
+  property_management_sourcing: { code: 'property_management_sourcing', name: 'Property Management Sourcing', displayName: 'Property Management Sourcing', category: 'operational', outcome: "You'll Have a Reliable Property Manager", description: 'Find and vet a reliable property management partner', keywords: ['property manager', 'delegate', 'sourcing'], tiers: [{ name: 'Sourcing', tagline: 'Find and vet property manager', pricingModel: 'fixed', price: 1500, priceFormatted: '£1,500', period: 'one-off', periodLabel: '', showInPopup: true, popupCtaLabel: 'Learn more' }], defaultTierIndex: 0, isActive: true },
 };
 function getPriceForTurnover(tier: ServiceTier, turnover: number): { price: number; priceFormatted: string } {
   if (tier.pricingModel === 'fixed') return { price: tier.price!, priceFormatted: tier.priceFormatted! };
@@ -328,6 +333,26 @@ This client owns investment properties, NOT a trading business. EVERYTHING chang
 - Succession planning (who manages when they step back?)
 - Property management delegation
 - Will/trust structuring
+
+**IHT:**
+- ⛔ DO NOT calculate IHT yourself — use the pre-calculated range from Pass 1
+- ⛔ DO NOT say "£X at 40%" without mentioning nil rate band
+- ✅ Present the range and caveat: "depending on nil rate band availability and personal circumstances"
+- ✅ Flag that Business Property Relief does NOT apply to property investment companies
+
+**EMPLOYEE COUNT:**
+- If prebuilt phrase says "2 people (including director)" — DO NOT say "one-man band"
+- ✅ Say "the strategic burden sits with you" or "operational decisions all run through you"
+- ✅ You can acknowledge delegation frustration without claiming they're completely alone
+
+**GROSS MARGIN:**
+- If grossMarginIsStructural is true — DO NOT say "excellent gross margin" or praise 100% GM
+- ✅ Say "100% gross margin is structural — no cost of sales. The meaningful measure is operating margin of X%"
+- ✅ Lead with operating margin as the profitability metric
+
+**DEFERRED TAX:**
+- If deferredTaxImpact is provided, use it when discussing profitability
+- ✅ Acknowledge that the statutory accounts show a loss, but explain the underlying performance is strong
 `,
 
     'funded_startup': `
@@ -793,6 +818,11 @@ serve(async (req) => {
       'fractional_coo':      { phase1: 'Fractional COO (£3,750/month)',                                        deferred: 'Fractional COO (£3,750/month — when ready)' },
       'business_advisory':   { phase1: 'Business Advisory & Exit Planning (£2,000 - £4,000)',                 deferred: 'Business Advisory & Exit Planning (£2,000 - £4,000 — when ready)' },
       'automation':          { phase1: 'Automation Services (£1,500 - £5,000)',                                 deferred: 'Automation Services (£1,500 - £5,000 — when ready)' },
+      // Investment vehicle services (Session 11)
+      'iht_planning': { phase1: 'IHT Planning Workshop (£2,500)', deferred: 'IHT Planning Workshop (£2,500 — when ready)' },
+      'property_health_check': { phase1: 'Property Portfolio Health Check (£3,500)', deferred: 'Property Portfolio Health Check (£3,500 — when ready)' },
+      'wealth_transfer_strategy': { phase1: 'Family Wealth Transfer Strategy (£5,500)', deferred: 'Family Wealth Transfer Strategy (£5,500 — when ready)' },
+      'property_management_sourcing': { phase1: 'Property Management Sourcing (£1,500)', deferred: 'Property Management Sourcing (£1,500 — when ready)' },
     };
 
     function detectServiceFromText(text: string): string | null {
@@ -808,6 +838,10 @@ serve(async (req) => {
       if (lower.includes('fractional coo') || (lower.includes('coo') && !lower.includes('cfo'))) return 'fractional_coo';
       if (lower.includes('business advisory') || lower.includes('exit planning')) return 'business_advisory';
       if (lower.includes('automation'))                                   return 'automation';
+      if (lower.includes('iht') || (lower.includes('inheritance') && lower.includes('planning'))) return 'iht_planning';
+      if (lower.includes('property') && lower.includes('health check')) return 'property_health_check';
+      if (lower.includes('wealth transfer') || (lower.includes('family') && lower.includes('wealth'))) return 'wealth_transfer_strategy';
+      if (lower.includes('property') && lower.includes('management') && lower.includes('sourcing')) return 'property_management_sourcing';
 
       return null;
     }
@@ -1482,8 +1516,14 @@ No validated financial data available. When discussing financial figures:
       console.log('[Pass2] ✅ Built hidden assets phrase from Pass 1:', preBuiltPhrases.hiddenAssetsTotal, '-', preBuiltPhrases.hiddenAssetsBreakdown);
     }
     
-    // GROSS MARGIN PHRASE (show if healthy or better)
-    if (comprehensiveAnalysis?.grossMargin?.grossMarginPct) {
+    // GROSS MARGIN PHRASE (show if healthy or better) — or structural 100% for investment vehicles (Session 11)
+    const grossMarginStrengthOverride = (comprehensiveAnalysis as any)?.grossMarginStrengthOverride;
+    const grossMarginIsStructural = (comprehensiveAnalysis as any)?.grossMarginIsStructural;
+    if (grossMarginIsStructural && grossMarginStrengthOverride) {
+      preBuiltPhrases.grossMarginStrength = grossMarginStrengthOverride;
+      (preBuiltPhrases as any).grossMarginIsStructural = 'true';
+      console.log('[Pass2] ✅ Structural gross margin phrase:', preBuiltPhrases.grossMarginStrength);
+    } else if (comprehensiveAnalysis?.grossMargin?.grossMarginPct) {
       const gm = comprehensiveAnalysis.grossMargin;
       const assessment = gm.assessment || (gm.grossMarginPct > 50 ? 'excellent' : gm.grossMarginPct > 40 ? 'healthy' : 'typical');
       
@@ -1494,6 +1534,31 @@ No validated financial data available. When discussing financial figures:
         
         console.log('[Pass2] ✅ Built gross margin phrase from Pass 1:', preBuiltPhrases.grossMarginStrength);
       }
+    }
+    
+    // IHT Exposure phrases (Session 11) — use ihtRange when available for precision
+    const iht = (comprehensiveAnalysis as any)?.ihtExposure;
+    if (iht?.hasData) {
+      const rangeText = iht.ihtRange ?? (iht.ihtLiabilityRange
+        ? `£${(iht.ihtLiabilityRange.low / 1000000).toFixed(2)}M – £${(iht.ihtLiabilityRange.high / 1000000).toFixed(2)}M`
+        : `£${((iht.ihtLiability || 0) / 1000000).toFixed(2)}M`);
+      (preBuiltPhrases as any).ihtHeadline = `Potential IHT liability: ${rangeText}`;
+      (preBuiltPhrases as any).ihtRange = rangeText;
+      (preBuiltPhrases as any).ihtEstateValue = `£${((iht.estateValue || 0) / 1000000).toFixed(1)}M`;
+      (preBuiltPhrases as any).ihtCaveats = Array.isArray(iht.caveats) ? iht.caveats.join(' ') : 'Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.';
+    }
+
+    // Deferred tax impact (Session 11)
+    const deferredTaxImpact = (comprehensiveAnalysis as any)?.deferredTaxImpact;
+    if (deferredTaxImpact?.hasData || deferredTaxImpact?.isSignificant) {
+      (preBuiltPhrases as any).deferredTaxExplanation = deferredTaxImpact.explanation;
+    }
+    
+    // Employee count context (Session 11)
+    const employeeCountContext = (comprehensiveAnalysis as any)?.employeeCountContext;
+    if (employeeCountContext) {
+      (preBuiltPhrases as any).employeeCountContext = employeeCountContext;
+      (preBuiltPhrases as any).isNotSoloPractitioner = (comprehensiveAnalysis as any)?.isNotSoloPractitioner || 'false';
     }
     
     // PRODUCTIVITY PHRASE
@@ -1515,6 +1580,22 @@ No validated financial data available. When discussing financial figures:
       preBuiltPhrases.costOfInaction = `£${totalK}k+ over ${coi.timeHorizon || 2} years`;
       
       console.log('[Pass2] ✅ Built cost of inaction phrase from Pass 1:', preBuiltPhrases.costOfInaction);
+    }
+
+    // FINANCIAL HEALTH SNAPSHOT PHRASES (Session 11)
+    const fhsData = (comprehensiveAnalysis as any)?.financialHealthSnapshot;
+    if (fhsData?.hasData) {
+      const fhs = fhsData;
+      (preBuiltPhrases as any).financialHealthOverall = fhs.overallHealth;
+      (preBuiltPhrases as any).financialHealthSummary = fhs.summaryNarrative;
+      (preBuiltPhrases as any).financialHealthRatios = fhs.noteworthyRatios.map(
+        (r: { name: string; formatted: string; narrativePhrase: string }) => `${r.name}: ${r.formatted} — ${r.narrativePhrase}`
+      );
+      console.log('[Pass2] ✅ Built financial health phrases:', {
+        overall: fhs.overallHealth,
+        noteworthyCount: fhs.noteworthyRatios.length,
+        ratios: fhs.noteworthyRatios.map((r: { name: string; formatted: string }) => `${r.name}: ${r.formatted}`)
+      });
     }
     
     // YoY GROWTH PHRASES — prefer page4_numbers.yearOnYearComparisons (where Pass 1 saves), else comprehensive_analysis
@@ -1555,15 +1636,21 @@ No validated financial data available. When discussing financial figures:
       console.log('[Pass2] ✅ Built net profit growth:', preBuiltPhrases.netProfitGrowth);
     }
 
-    // BUSINESS SCALE (for anchoring the report)
-    const turnoverForScale = revYoY?.current ?? validatedPayroll?.turnover ?? comprehensiveAnalysis?.payroll?.turnover;
-    const empCount = comprehensiveAnalysis?.productivity?.employeeCount ?? comprehensiveAnalysis?.productivity?.headcount ?? comprehensiveAnalysis?.payroll?.employeeCount;
-    if (turnoverForScale) {
-      const scaleM = (Number(turnoverForScale) / 1000000).toFixed(1);
-      preBuiltPhrases.businessScale = empCount
-        ? `a £${scaleM}M business with ${empCount} staff`
-        : `a £${scaleM}M business`;
-      console.log('[Pass2] ✅ Built business scale phrase:', preBuiltPhrases.businessScale);
+    // BUSINESS SCALE (for anchoring the report) — use asset-based phrase for investment vehicles (Session 11)
+    const businessSizePhrasePass1 = (comprehensiveAnalysis as any)?.businessSizePhrase;
+    if (businessSizePhrasePass1) {
+      preBuiltPhrases.businessScale = businessSizePhrasePass1;
+      console.log('[Pass2] ✅ Built business scale phrase (Pass 1):', preBuiltPhrases.businessScale);
+    } else {
+      const turnoverForScale = revYoY?.current ?? validatedPayroll?.turnover ?? comprehensiveAnalysis?.payroll?.turnover;
+      const empCount = comprehensiveAnalysis?.productivity?.employeeCount ?? comprehensiveAnalysis?.productivity?.headcount ?? comprehensiveAnalysis?.payroll?.employeeCount;
+      if (turnoverForScale) {
+        const scaleM = (Number(turnoverForScale) / 1000000).toFixed(1);
+        preBuiltPhrases.businessScale = empCount
+          ? `a £${scaleM}M business with ${empCount} staff`
+          : `a £${scaleM}M business`;
+        console.log('[Pass2] ✅ Built business scale phrase:', preBuiltPhrases.businessScale);
+      }
     }
 
     // ========================================================================
@@ -1630,7 +1717,7 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
    "The business could be worth [valuation range]. Plus ${preBuiltPhrases.hiddenAssetsTotal} in hidden assets 
    sitting outside the earnings valuation - ${preBuiltPhrases.hiddenAssetsBreakdown}. 
    This is cash/property a buyer pays for SEPARATELY, on top of the earnings multiple. 
-   But the real return? [Their emotional goal - walking away on their terms, etc.]"
+   [Then connect to their emotional goal in their own words. DO NOT include the phrase \"But the real return?\" - the frontend adds this automatically.]"
 
 ⛔ DO NOT just say "hidden assets" without explaining what they are and why they matter.
 
@@ -1650,6 +1737,31 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
 `;
       }
       
+      // Employee count context (Session 11)
+      if ((preBuiltPhrases as any).employeeCountContext) {
+        mandatoryPhrasesSection += `
+👥 EMPLOYEE COUNT (DO NOT say "one-man band" if more than 1):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+► "${(preBuiltPhrases as any).employeeCountContext}"
+${(preBuiltPhrases as any).isNotSoloPractitioner === 'true'
+  ? '⛔ DO NOT call them a "one-man band". Say "the strategic burden sits with you" instead.'
+  : ''}
+
+`;
+      }
+      
+      // Structural gross margin override (Session 11)
+      if ((preBuiltPhrases as any).grossMarginIsStructural === 'true') {
+        mandatoryPhrasesSection += `
+📊 GROSS MARGIN IS STRUCTURAL (DO NOT praise 100% GM):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+► "${preBuiltPhrases.grossMarginStrength}"
+⛔ DO NOT say "excellent gross margin" — 100% GM with no cost of sales is structural, not performance.
+✅ Use operating margin as the profitability headline instead.
+
+`;
+      }
+      
       if (preBuiltPhrases.productivityGap) {
         mandatoryPhrasesSection += `
 👥 PRODUCTIVITY (USE THESE PHRASES):
@@ -1661,10 +1773,26 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
       }
       
       if (preBuiltPhrases.costOfInaction) {
+        const c = (comprehensiveAnalysis as any)?.costOfInaction;
+        const totalK = c?.totalOverHorizon ? Math.round(c.totalOverHorizon / 1000) : 0;
+        const timeH = c?.timeHorizon || 5;
+        let componentBreakdown = '';
+        if (c?.components?.length > 0) {
+          componentBreakdown = c.components
+            .filter((comp: { costOverHorizon?: number }) => (comp.costOverHorizon || 0) > 0)
+            .sort((a: { costOverHorizon?: number }, b: { costOverHorizon?: number }) => (b.costOverHorizon || 0) - (a.costOverHorizon || 0))
+            .map((comp: { category: string; costOverHorizon?: number; calculation?: string }) => `- ${comp.category}: £${Math.round((comp.costOverHorizon || 0) / 1000)}k (${comp.calculation || ''})`)
+            .join('\n');
+        }
         mandatoryPhrasesSection += `
-⏱️ COST OF INACTION (USE THIS PHRASE):
+⏱️ COST OF DELAY — £${totalK}k+ OVER ${timeH} YEARS (MANDATORY)
 ────────────────────────────────────────────────────────────────────────────
-► "Cost of inaction: ${preBuiltPhrases.costOfInaction}"
+Total: £${totalK}k+
+Time horizon: ${timeH} years
+${componentBreakdown ? `\nBREAKDOWN:\n${componentBreakdown}\n` : ''}
+⛔ WHEN USING THE £${totalK}k FIGURE, YOU MUST EXPLAIN WHAT IT CONTAINS.
+⛔ DO NOT just say "£${totalK}k+ over ${timeH} years" without breaking it down.
+⛔ USE phrases like: "£${totalK}k+ at risk — [top components from breakdown above]"
 
 `;
       }
@@ -1694,6 +1822,57 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
 ════════════════════════════════════════════════════════════════════════════════
 ► "This is ${preBuiltPhrases.businessScale}"
 ⛔ You MUST anchor the reader with the business scale in the Reality section opening.
+
+`;
+      }
+
+      // IHT exposure mandatory phrases (Session 11 polish)
+      const iht = (comprehensiveAnalysis as any)?.ihtExposure;
+      if (iht?.hasData && (preBuiltPhrases as any).ihtRange) {
+        const estateM = ((iht.estateValue || 0) / 1000000).toFixed(1);
+        const singleNRB = iht.singleNRB ?? 325000;
+        const marriedNRB = iht.marriedNRB ?? 650000;
+        const caveatsList = Array.isArray(iht.caveats) ? iht.caveats : ['Based on company net assets. Nil rate band, marital status, and personal assets will affect the final position.'];
+        mandatoryPhrasesSection += `
+## IHT EXPOSURE (MANDATORY — USE THESE EXACT FIGURES)
+Estate value: £${estateM}M
+IHT liability range: ${(preBuiltPhrases as any).ihtRange}
+Single nil rate band: £${(singleNRB / 1000).toFixed(0)}k
+Married nil rate band: £${(marriedNRB / 1000).toFixed(0)}k (transferable)
+
+⛔ YOU MUST USE the range "${(preBuiltPhrases as any).ihtRange}" when discussing IHT exposure.
+⛔ DO NOT say "up to £X" or "significant chunk" — use the calculated range.
+⛔ DO NOT recalculate. These figures include nil rate band deductions.
+
+Caveats to mention:
+${caveatsList.map((c: string) => `- ${c}`).join('\n')}
+
+`;
+      }
+
+      // Deferred tax mandatory explanation (Session 11) — balance vs movement
+      const dtImpact = (comprehensiveAnalysis as any)?.deferredTaxImpact;
+      if (dtImpact?.hasData) {
+        const balanceK = dtImpact.deferredTaxBalance != null ? Math.round(dtImpact.deferredTaxBalance / 1000) : null;
+        const movementK = dtImpact.deferredTaxMovement != null ? Math.round(Math.abs(dtImpact.deferredTaxMovement) / 1000) : null;
+        mandatoryPhrasesSection += `
+## DEFERRED TAX — CRITICAL DISTINCTION (MANDATORY)
+${dtImpact.explanation}
+
+⛔ THE £${balanceK ?? '???'}k FIGURE ON THE BALANCE SHEET IS THE CUMULATIVE PROVISION, NOT THE ANNUAL CHARGE.
+⛔ The annual deferred tax MOVEMENT is £${movementK ?? '???'}k. Use this figure when explaining the statutory loss.
+⛔ DO NOT say "£${balanceK ?? '???'}k deferred tax provision" when explaining the annual loss — that is the balance, not the charge.
+⛔ DO NOT describe the business as "loss-making" or "unprofitable."
+⛔ ALWAYS use the phrase: "The statutory loss is driven by a £${movementK ?? '???'}k deferred tax movement"
+`;
+      } else if ((preBuiltPhrases as any).deferredTaxExplanation) {
+        mandatoryPhrasesSection += `
+## DEFERRED TAX EXPLANATION (MANDATORY)
+${(preBuiltPhrases as any).deferredTaxExplanation}
+
+⛔ DO NOT describe the business as "loss-making" or "unprofitable."
+⛔ The statutory loss is a non-cash accounting adjustment, not poor trading.
+⛔ ALWAYS explain the difference between operating profit and statutory result.
 
 `;
       }
@@ -1859,6 +2038,71 @@ Mention the business scale in the Reality section to anchor the reader.
 `;
       
       console.log('[Pass2] ✅ Injected client revenue concentration data');
+    }
+
+    // Financial Health Snapshot guidance for LLM (Session 11)
+    let financialHealthSection = '';
+    const fhsForPrompt = (comprehensiveAnalysis as any)?.financialHealthSnapshot;
+    if (fhsForPrompt?.noteworthyRatios?.length > 0) {
+      const fhs = fhsForPrompt;
+      financialHealthSection = `
+
+## FINANCIAL HEALTH SNAPSHOT (USE IN PAGE 2 AND PAGE 4)
+
+Overall financial health: ${fhs.overallHealth}
+
+KEY RATIOS TO WEAVE INTO THE NARRATIVE (use naturally, don't list them as bullet points):
+${fhs.noteworthyRatios.map((r: { name: string; formatted: string; status: string; narrativePhrase: string; context: string }) => `
+- ${r.name}: ${r.formatted}
+  Status: ${r.status}
+  Narrative: ${r.narrativePhrase}
+  Context: ${r.context}
+`).join('')}
+
+RULES FOR USING RATIOS:
+1. DO NOT create a separate "financial health" section — weave insights into existing gaps (Page 2) and investment case (Page 4)
+2. Only mention the ratios listed above — they've been selected as the ones that tell a story
+3. Use the pre-built narrative phrases — DO NOT recalculate or reinterpret the numbers
+4. If a ratio supports an existing gap (e.g., current ratio supports liquidity concern), fold it in there
+5. If a ratio reveals something new (e.g., very low gearing = untapped borrowing capacity), it can be a new insight in Page 2
+6. Maximum 3 ratio references across the entire report — be selective, not exhaustive
+7. NEVER present ratios as a data dump or table. They should feel like advisor observations.
+
+EXAMPLE OF GOOD RATIO USAGE:
+"Your gearing of 8% tells a clear story — you've built a £6.4M estate with almost no debt. That's conservative, and it's served you well. But it also means there's borrowing capacity you're not using. Whether that matters depends on where you want to take the portfolio next."
+
+EXAMPLE OF BAD RATIO USAGE:
+"Your current ratio is 0.52, gearing is 8%, interest cover is 6.5x, asset turnover is 0.06, and return on equity is -0.7%."
+`;
+    }
+
+    // Business size + asset relationship for investment vehicles (Session 11 J-A, K-A)
+    let investmentVehicleExtraSection = '';
+    if (clientType === 'investment_vehicle' && assetValuation?.hasData) {
+      const netAssetsVal = assetValuation.netAssets || 0;
+      const investmentPropVal = assetValuation.investmentProperty || assetValuation.freeholdProperty || 0;
+      const turnoverVal = report.page4_numbers?.payrollAnalysis?.turnover ?? (comprehensiveAnalysis as any)?.payroll?.turnover ?? 0;
+      const businessSizePhraseVal = (comprehensiveAnalysis as any)?.businessSizePhrase;
+      const deferredTaxBalVal = (comprehensiveAnalysis as any)?.deferredTaxImpact?.deferredTaxBalance ?? 0;
+      investmentVehicleExtraSection = `
+
+## BUSINESS SIZE FRAMING (MANDATORY for investment vehicles)
+⛔ DO NOT describe this as "a £${turnoverVal ? Math.round(turnoverVal / 1000) : '?'}k business" or use turnover to indicate size.
+⛔ For property investment companies, the ASSET BASE defines the business, not the rental income.
+✅ USE: "${businessSizePhraseVal || `a £${(netAssetsVal / 1000000).toFixed(1)}M estate`}" or "a property portfolio worth £${(investmentPropVal / 1000000).toFixed(1)}M"
+✅ Revenue (£${turnoverVal ? Math.round(turnoverVal / 1000) : '?'}k) is rental income — mention it for context, not as a size indicator.
+
+## ASSET VALUES — USE CONSISTENTLY (MANDATORY)
+Investment property portfolio: £${(investmentPropVal / 1000000).toFixed(1)}M (gross value)
+Net assets: £${(netAssetsVal / 1000000).toFixed(1)}M (after deducting bank loans, £${deferredTaxBalVal ? Math.round(deferredTaxBalVal / 1000) : '?'}k deferred tax provision, and other liabilities)
+
+RULES:
+1. When talking about PORTFOLIO SIZE or PROPERTY VALUE: use £${(investmentPropVal / 1000000).toFixed(1)}M
+2. When talking about NET WORTH, IHT EXPOSURE, or ESTATE VALUE: use £${(netAssetsVal / 1000000).toFixed(1)}M
+3. ALWAYS explain the difference at least once: "a £${(investmentPropVal / 1000000).toFixed(1)}M property portfolio with net assets of £${(netAssetsVal / 1000000).toFixed(1)}M after mortgages and provisions"
+4. For IHT: the taxable estate is £${(netAssetsVal / 1000000).toFixed(1)}M (debts are deductible)
+5. DO NOT use both figures in the same sentence without explaining the relationship
+`;
     }
 
     // ========================================================================
@@ -2134,6 +2378,70 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
         score: r.score,
         triggers: r.triggers
       }));
+
+    // ========================================================================
+    // FOR INVESTMENT VEHICLES: Force wealth protection service ordering
+    // (Session 11 — runs BEFORE exit-focused check)
+    // ========================================================================
+    const isInvestmentVehicle = clientType === 'investment_vehicle';
+
+    if (isInvestmentVehicle) {
+      console.log(`[Pass2] 🏠 INVESTMENT VEHICLE: Forcing wealth protection service order`);
+
+      const investmentVehicleServices = [];
+
+      // PHASE 1: IHT Planning Workshop — ALWAYS first for wealth protection
+      investmentVehicleServices.push({
+        code: 'iht_planning',
+        ...SERVICE_DETAILS['iht_planning'],
+        score: 95,
+        triggers: ['investment_vehicle', 'iht_exposure', 'wealth_protection'],
+        phase: 1,
+        rationale: 'IHT exposure is the highest-priority risk for investment vehicles'
+      });
+
+      // PHASE 2: Property Portfolio Health Check
+      investmentVehicleServices.push({
+        code: 'property_health_check',
+        ...SERVICE_DETAILS['property_health_check'],
+        score: 90,
+        triggers: ['investment_vehicle', 'portfolio_performance', 'rationalisation'],
+        phase: 2,
+        rationale: 'Property-level data needed for rationalisation and delegation decisions'
+      });
+
+      // PHASE 3: Family Wealth Transfer Strategy
+      investmentVehicleServices.push({
+        code: 'wealth_transfer_strategy',
+        ...SERVICE_DETAILS['wealth_transfer_strategy'],
+        score: 85,
+        triggers: ['investment_vehicle', 'succession', 'family_wealth'],
+        phase: 3,
+        rationale: 'Long-term succession and wealth transfer planning'
+      });
+
+      // Check if advisor has pinned any additional services
+      for (const pinnedCode of pinnedServices) {
+        const alreadyIncluded = investmentVehicleServices.some((s: { code: string }) => s.code === pinnedCode);
+        if (!alreadyIncluded && !blockedServices.includes(pinnedCode)) {
+          const serviceDetail = SERVICE_DETAILS[pinnedCode];
+          if (serviceDetail) {
+            investmentVehicleServices.push({
+              code: pinnedCode,
+              ...serviceDetail,
+              score: 80,
+              triggers: ['advisor_pinned'],
+              pinnedByAdvisor: true
+            });
+            console.log(`[Pass2] Added advisor-pinned service for investment vehicle: ${pinnedCode}`);
+          }
+        }
+      }
+
+      // Override the recommended services
+      recommendedServices = investmentVehicleServices;
+      console.log(`[Pass2] INVESTMENT VEHICLE SERVICE ORDER: ${recommendedServices.map((s: { phase?: number; code?: string }) => `${(s as { phase?: number }).phase || '?'}. ${(s as { code?: string }).code}`).join(', ')}`);
+    }
     
     // ========================================================================
     // FOR EXIT-FOCUSED CLIENTS: Force correct service ordering
@@ -2290,9 +2598,24 @@ The advisor has reviewed the following opportunities and marked some as client-v
 Your journey phases (Page 3) MUST reference the pinned/recommended services.
 Your gap analysis (Page 2) should align with the opportunity themes below.
 
-${(curatedOpportunities || []).map((o: { severity?: string; title?: string; category?: string; financial_impact_amount?: number; show_in_client_view?: boolean; opportunity_code?: string }) =>
-  `- [${(o.severity || '').toUpperCase()}] ${o.title || 'Untitled'} (${o.category || 'General'}) — £${Number(o.financial_impact_amount || 0).toLocaleString()} impact${o.show_in_client_view ? ' [CLIENT VISIBLE]' : ''}${(o.opportunity_code || '').startsWith('pinned_') ? ' [ADVISOR PINNED]' : ''}`
-).join('\n')}
+IMPORTANT: For each gap on Page 2, you MUST include a "quickWin" field — a specific,
+actionable thing the client can do BEFORE the first meeting. These come from the
+opportunity quick_win fields below. Copy them nearly verbatim — do NOT paraphrase
+or embellish. Quick wins are pre-calculated advice, not narrative suggestions.
+
+IMPORTANT: For each phase on Page 3, you MUST include a "scopeNote" field — a single
+sentence explaining what the service does NOT include. This builds trust by being honest
+about boundaries. These come from the service_fit_limitation fields below.
+
+${(curatedOpportunities || []).map((o: any) => {
+  let entry = `[${(o.severity || '').toUpperCase()}] ${o.title || 'Untitled'} (${o.category || 'General'}) — £${Number(o.financial_impact_amount || 0).toLocaleString()} impact`;
+  if (o.show_in_client_view) entry += ' [CLIENT VISIBLE]';
+  if ((o.opportunity_code || '').startsWith('pinned_')) entry += ' [ADVISOR PINNED]';
+  if (o.quick_win) entry += `\n  QUICK WIN: ${o.quick_win}`;
+  if (o.service_fit_limitation) entry += `\n  SCOPE LIMITATION: ${o.service_fit_limitation}`;
+  if (o.life_impact) entry += `\n  CLIENT IMPACT: ${o.life_impact}`;
+  return entry;
+}).join('\n\n')}
 
 PINNED SERVICES (advisor wants these in the journey):
 ${pinnedServices.map((code: string) => {
@@ -2306,6 +2629,105 @@ ${blockedServicesFromAdvisor.map((code: string) => {
   return detail ? `- ${(detail as { name?: string }).name} (${code})` : `- ${code}`;
 }).join('\n')}
 ` : '';
+
+    // Build MANDATORY PRICING section by client type (Session 11 — investment vehicle)
+    const mandatoryPricingSection = isInvestmentVehicle
+      ? `
+PAGE 4 — THE INVESTMENT:
+
+MANDATORY PRICING (INVESTMENT VEHICLE — these override standard prices):
+- IHT Planning Workshop: £2,500 (one-off) — Phase 1
+- Property Portfolio Health Check: £3,500 (one-off) — Phase 2
+- Family Wealth Transfer Strategy: £5,500 (one-off) — Phase 3
+- Property Management Sourcing: £1,500 (one-off) — optional/parallel
+
+EXACT SERVICE PRICING (use these figures, do not invent prices):
+- IHT Planning Workshop: £2,500 (one-off)
+- Property Portfolio Health Check: £3,500 (one-off)
+- Family Wealth Transfer Strategy: £5,500 (one-off)
+- Property Management Sourcing: £1,500 (one-off)
+
+PRICING RULES:
+1. Total Year 1 cost = Phase 1 only = £2,500. Phases 2-3 are "when ready."
+2. The "first step" price in Page 5 must be £2,500.
+3. Do NOT reference Benchmarking, Systems Audit, or Goal Alignment pricing.
+
+PHASE STRUCTURE:
+- Phase 1 (Month 1-3): IHT Planning Workshop — £2,500
+- Phase 2 (Month 3-6): Property Portfolio Health Check — £3,500 (when ready)
+- Phase 3 (Month 6-12): Family Wealth Transfer Strategy — £5,500 (when ready)
+
+ENABLED BY FORMAT:
+- Phase 1: "Enabled by: IHT Planning Workshop (£2,500)"
+- Phase 2: "Enabled by: Property Portfolio Health Check (£3,500 — when ready)"
+- Phase 3: "Enabled by: Family Wealth Transfer Strategy (£5,500 — when ready)"
+
+DELIVERABLE BOUNDARIES:
+- IHT Planning delivers: IHT exposure calculation, nil rate band analysis, BPR exclusion mapping, trust/gifting options, action plan for solicitor, tax advisor introduction
+- Property Health Check delivers: yield analysis by property, LTV review, maintenance cost trends, tenant assessment, rationalisation recommendations, portfolio projection
+- Wealth Transfer delivers: family governance, next-gen readiness, trust structuring, management succession plan, advisor coordination, family communication planning
+- Property Management Sourcing delivers: brief development, candidate evaluation, reference checks, contract negotiation support
+
+Do NOT mix these. IHT Planning does NOT do property-level yield analysis. Property Health Check does NOT do succession planning.
+
+PAGE 5 — NEXT STEPS:
+
+The "Your First Step" section must recommend ONLY the Phase 1 service (IHT Planning Workshop at £2,500).
+Do NOT bundle phases. The price in the call-to-action must be £2,500.
+`
+      : `
+PAGE 4 — THE INVESTMENT:
+
+MANDATORY PRICING (these override any other prices you see in the data):
+- Systems & Process Audit: £2,000 (NOT £1,500 — this has been updated)
+- Industry Benchmarking (Full Package): £2,000
+- Goal Alignment Programme (Growth): £4,500/year
+
+EXACT SERVICE PRICING (use these figures, do not invent prices):
+- Industry Benchmarking (Full Package): £2,000 (one-off)
+- Systems & Process Audit: £2,000 (one-off)
+- Goal Alignment Programme (Growth): £4,500/year (ongoing)
+
+PRICING RULES:
+1. Total Year 1 cost should reflect ONLY the firm Phase 1 commitment (e.g., £2,000), NOT the sum of all phases. The client is committing to Phase 1 only. Phases 2 and 3 are next steps.
+2. List each phase with its price; phases 2+ are offered when the client is ready.
+3. The "first step" price in Page 5 must match the Phase 1 price exactly.
+4. Do NOT bundle Phase 1 + Phase 2 into a single price. They are separate engagements.
+
+Example format:
+- Months 1-3: Know where you stand — £2,000
+- Months 3-6: See where the time goes — £2,000 (when ready)
+- Months 6-12: Someone in your corner — £4,500/year (when ready)
+- Total Year 1 commitment: £2,000
+
+PAGE 5 — NEXT STEPS:
+
+The "Your First Step" section must recommend ONLY the Phase 1 service.
+Do NOT bundle Phase 1 + Phase 2 into the first step.
+The price in the call-to-action must match Phase 1's price exactly.
+
+If Phase 1 is Benchmarking at £2,000, the CTA should be "£2,000 to know where you stand" — NOT "£3,500 for benchmarking and systems audit."
+
+The systems audit comes AFTER the client has seen the benchmarking results and decided to proceed. Bundling them together undermines the "start small, prove value" approach.
+
+PAGE 5 — NEXT STEPS (continued):
+
+QUICK WIN FIRST: The "This Week" section must LEAD with the most actionable quick win
+from the opportunities — something the client can do BEFORE the first paid engagement.
+For example: "Gather your will, trust details, and beneficiary list before your lawyer meeting."
+
+The quick win goes in the "thisWeek.tone" field — reframe it as preparation advice,
+not a task list. E.g.: "Before we even meet, there's something you can do that will
+make our first conversation twice as productive: [quick win]."
+
+RECOMMENDED STEPS: If the opportunities include specific "QUICK WIN" fields, incorporate
+the top 2-3 as preparation steps in the thisWeek.tone. The client should feel they've
+already started the journey before any money changes hands.
+
+DO NOT reference services that are not in the journey phases. If the journey has
+IHT Planning → Property Health Check → Wealth Transfer Strategy, the next steps
+must reference THOSE services, not Benchmarking or Hidden Value Audit or Systems Audit.
+`;
 
     // ============================================================================
     // THE MASTER PROMPT - Destination-Focused Discovery Report
@@ -2374,11 +2796,19 @@ WRITING STYLE:
 6. Empathy before solutions - name their pain before offering hope
 7. Personal anchors - reference spouse names, kids' ages, specific details
 8. Services as footnotes - headline the OUTCOME, service is just how
+
+⛔ FABRICATED QUOTE GUARD:
+- The client NEVER said "one man band" or "a one-man band." DO NOT use this phrase.
+- The client NEVER said "I am a one man band." DO NOT put these words in their mouth.
+- Only use EXACT phrases from the assessment responses listed in CLIENT'S OWN WORDS above.
+- To describe the client working alone, say "the strategic burden sits with you" or use their actual words about delegation.
 ${financialDataSection}
+${financialHealthSection}
 ${mandatoryPhrasesSection}
 ${servicePriceConstraints}
 ${mandatoryDimensionsPrompt}
 ${clientTypeGuidance}
+${investmentVehicleExtraSection}
 ============================================================================
 DATA COMPLETENESS STATUS
 ============================================================================
@@ -2639,39 +3069,7 @@ DELIVERABLE BOUNDARIES:
 
 Do NOT mix these. If a bullet point describes "mapping operational systems" or "where time disappears", that belongs in the Systems Audit phase, NOT the Benchmarking phase.
 
-PAGE 4 — THE INVESTMENT:
-
-MANDATORY PRICING (these override any other prices you see in the data):
-- Systems & Process Audit: £2,000 (NOT £1,500 — this has been updated)
-- Industry Benchmarking (Full Package): £2,000
-- Goal Alignment Programme (Growth): £4,500/year
-
-EXACT SERVICE PRICING (use these figures, do not invent prices):
-- Industry Benchmarking (Full Package): £2,000 (one-off)
-- Systems & Process Audit: £2,000 (one-off)
-- Goal Alignment Programme (Growth): £4,500/year (ongoing)
-
-PRICING RULES:
-1. Total Year 1 cost should reflect ONLY the firm Phase 1 commitment (e.g., £2,000), NOT the sum of all phases. The client is committing to Phase 1 only. Phases 2 and 3 are next steps.
-2. List each phase with its price; phases 2+ are offered when the client is ready.
-3. The "first step" price in Page 5 must match the Phase 1 price exactly.
-4. Do NOT bundle Phase 1 + Phase 2 into a single price. They are separate engagements.
-
-Example format:
-- Months 1-3: Know where you stand — £2,000
-- Months 3-6: See where the time goes — £2,000 (when ready)
-- Months 6-12: Someone in your corner — £4,500/year (when ready)
-- Total Year 1 commitment: £2,000
-
-PAGE 5 — NEXT STEPS:
-
-The "Your First Step" section must recommend ONLY the Phase 1 service.
-Do NOT bundle Phase 1 + Phase 2 into the first step.
-The price in the call-to-action must match Phase 1's price exactly.
-
-If Phase 1 is Benchmarking at £2,000, the CTA should be "£2,000 to know where you stand" — NOT "£3,500 for benchmarking and systems audit."
-
-The systems audit comes AFTER the client has seen the benchmarking results and decided to proceed. Bundling them together undermines the "start small, prove value" approach.
+${mandatoryPricingSection}
 
 ============================================================================
 PAGE 1 — YOUR VISION / THE TUESDAY:
@@ -2708,7 +3106,8 @@ Return a JSON object with this exact structure:
         "timeImpact": "Specific hours or pattern",
         "financialImpact": "Specific amount or 'Unknown - you suspect significant'",
         "emotionalImpact": "The personal/relationship/health cost",
-        "shiftRequired": "One sentence describing what needs to change"
+        "shiftRequired": "One sentence describing what needs to change",
+        "quickWin": "A specific, actionable thing the client can do THIS WEEK before any paid engagement. Copy from the matching opportunity's QUICK WIN above. If no matching opportunity has a quick win, use null."
       }
     ]
   },
@@ -2733,7 +3132,8 @@ Return a JSON object with this exact structure:
         "feelsLike": "Emotional description using their language and metaphors. What the transformation FEELS like.",
         "outcome": "Single sentence: the tangible result they can point to",
         "enabledBy": "Service Name (footnote only)",
-        "price": "£X/month or £X one-time"
+        "price": "£X/month or £X one-time",
+        "scopeNote": "One sentence explaining what this service does NOT include, and who handles that part. Copy from the matching opportunity's SCOPE LIMITATION. E.g. 'This workshop gives you the strategy — your solicitor handles legal drafting and trust administration.' If no limitation, use null."
       }
     ]
   },
@@ -2780,7 +3180,7 @@ Return a JSON object with this exact structure:
       }
     },
     "paybackPeriod": "X-Y months",
-    "realReturn": "REQUIRED FORMAT: 'The business could be worth [valuation]. Plus [hidden assets total] in hidden assets sitting outside the earnings valuation - [breakdown, e.g. excess cash on the balance sheet]. This is value a buyer pays for SEPARATELY. But the real return? [Their emotional goal in their words].'"
+    "realReturn": "REQUIRED FORMAT: 'The business could be worth [valuation]. Plus [hidden assets total] in hidden assets sitting outside the earnings valuation - [breakdown]. This is value a buyer pays for SEPARATELY. [Then connect to their emotional goal in their own words - what this means for their life, their family, their freedom. DO NOT start with or include the phrase \"But the real return?\" - the frontend adds this automatically.]'"
   },
   
   "page5_nextSteps": {
@@ -2933,6 +3333,40 @@ Before returning, verify:
     console.log('[Pass2] Applied text cleanup to fix kk typos');
     
     // ========================================================================
+    // Session 11 (Fix I-A): Strip fabricated "one man band" from page2_gaps
+    // The client never said this — remove it so it cannot appear in the report.
+    // ========================================================================
+    if (narratives.page2_gaps) {
+      const p2 = narratives.page2_gaps;
+      const stripOneManBand = (s: string | undefined): string => {
+        if (!s || typeof s !== 'string') return s || '';
+        return s
+          .replace(/\bYou(?:'re| are) a one[- ]man band[^."]*/gi, '')
+          .replace(/\bYou described yourself as ["']a one[- ]man band["'][^.]*/gi, '')
+          .replace(/\bone[- ]man band\b/gi, 'the strategic burden sits with you')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+      };
+      if (p2.openingLine) {
+        const before = p2.openingLine;
+        p2.openingLine = stripOneManBand(p2.openingLine);
+        if (p2.openingLine !== before) console.log('[Pass2] Stripped "one man band" from page2_gaps.openingLine');
+      }
+      if (p2.gaps && Array.isArray(p2.gaps)) {
+        for (const gap of p2.gaps) {
+          if (gap.pattern) {
+            const before = gap.pattern;
+            gap.pattern = stripOneManBand(gap.pattern);
+            if (gap.pattern !== before) console.log('[Pass2] Stripped "one man band" from gap.pattern');
+          }
+          if (gap.title && /one[- ]man band/i.test(gap.title)) {
+            gap.title = gap.title.replace(/\bone[- ]man band\b/gi, 'strategic burden').trim();
+          }
+        }
+      }
+    }
+    
+    // ========================================================================
     // CRITICAL: Map field names to match client view expectations
     // The LLM output uses different field names than the client components expect
     // ========================================================================
@@ -3011,6 +3445,10 @@ Before returning, verify:
           if (!gap.shiftRequired) {
             gap.shiftRequired = gap.shift || gap.recommendation || gap.action || gap.fix || '';
           }
+          // Map quickWin field (Option C — hybrid opportunity surfacing)
+          if (!gap.quickWin) {
+            gap.quickWin = gap.quick_win || gap.beforeWeMeet || gap.homework || null;
+          }
         }
       }
       
@@ -3035,6 +3473,10 @@ Before returning, verify:
         // Map whatChanges to array if it's a string
         if (typeof phase.whatChanges === 'string') {
           phase.whatChanges = [phase.whatChanges];
+        }
+        // Map scopeNote field (Option C — hybrid opportunity surfacing)
+        if (!phase.scopeNote) {
+          phase.scopeNote = phase.scope_note || phase.limitation || phase.scopeClarity || null;
         }
       }
       console.log('[Pass2] ✅ Page 3 phase field mapping applied:', {
@@ -3580,6 +4022,70 @@ Before returning, verify:
         narratives.page4_numbers.grossMarginStrength = preBuiltPhrases.grossMarginStrength;
         console.log('[Pass2] 📊 Added grossMarginStrength to page4_numbers:', preBuiltPhrases.grossMarginStrength);
       }
+
+      // Financial Health Snapshot (Session 11) — for frontend and narrative consistency
+      const fhsForSave = (comprehensiveAnalysis as any)?.financialHealthSnapshot;
+      if (fhsForSave?.hasData) {
+        (narratives.page4_numbers as any).financialHealthSnapshot = {
+          overallHealth: fhsForSave.overallHealth,
+          noteworthyRatios: fhsForSave.noteworthyRatios.map((r: { name: string; value: number; formatted: string; category: string; status: string; narrativePhrase: string; context: string }) => ({
+            name: r.name,
+            value: r.value,
+            formatted: r.formatted,
+            category: r.category,
+            status: r.status,
+            narrativePhrase: r.narrativePhrase,
+            context: r.context
+          }))
+        };
+        console.log('[Pass2] 📊 Added financialHealthSnapshot to page4_numbers:', fhsForSave.noteworthyRatios.length, 'noteworthy ratios');
+      }
+      
+      // Productivity suppressed for investment vehicles / small teams (Session 11)
+      if ((comprehensiveAnalysis as any)?.productivity?.suppressInReport) {
+        (narratives.page4_numbers as any).productivitySuppressed = true;
+      }
+      
+      // Structural GM and operating margin for frontend (Session 11)
+      if ((preBuiltPhrases as any).grossMarginIsStructural === 'true') {
+        (narratives.page4_numbers as any).grossMarginIsStructural = true;
+        const opMargin = (comprehensiveAnalysis as any)?.operatingMarginPct;
+        (narratives.page4_numbers as any).operatingMarginPct = opMargin != null ? String(opMargin.toFixed(1)) : null;
+      }
+    }
+
+    // For investment vehicles: override valuation with NAV when assets dwarf earnings (Session 11)
+    if (clientType === 'investment_vehicle' && assetValuation?.hasData) {
+      const navValue = assetValuation.netAssets ?? (assetValuation as any).totalAssetValue;
+      const earningsValue = comprehensiveAnalysis?.valuation?.conservativeValue;
+      if (navValue && earningsValue && navValue > earningsValue * 3 && narratives.page4_numbers) {
+        const navM = (navValue / 1000000).toFixed(1);
+        const earnLowM = (earningsValue / 1000000).toFixed(1);
+        const earnHighM = ((comprehensiveAnalysis?.valuation?.optimisticValue || earningsValue) / 1000000).toFixed(1);
+        (narratives.page4_numbers as any).indicativeValuation = `£${navM}M (net asset value)`;
+        (narratives.page4_numbers as any).valuationMethod = 'net_asset_value';
+        (narratives.page4_numbers as any).valuationNote =
+          `For a property investment company, value is asset-based, not earnings-based. ` +
+          `The earnings-based range (£${earnLowM}M-£${earnHighM}M) significantly understates the company's worth.`;
+        console.log('[Pass2] 🏠 Overrode valuation with NAV for investment vehicle:', navM + 'M');
+      }
+    }
+
+    // Reframe exit readiness for investment vehicles (Session 11)
+    if (clientType === 'investment_vehicle' && narratives.page4_numbers?.exitReadiness) {
+      (narratives.page4_numbers as any).exitReadinessNote =
+        'For a property company, exit means asset disposal, company dissolution, or share transfer — not a trade sale.';
+      console.log('[Pass2] 🏠 Added exit readiness context for investment vehicle');
+    }
+
+    // Strip "But the real return?" from realReturn if the LLM included it
+    // (the frontend hardcodes this as a prefix — having it in the data creates duplication)
+    if (narratives.page4_numbers?.realReturn) {
+      narratives.page4_numbers.realReturn = narratives.page4_numbers.realReturn
+        .replace(/^But the real return\?\s*/i, '')
+        .replace(/\.\s*But the real return\?\s*/i, '. ')
+        .trim();
+      console.log('[Pass2] 🧹 Stripped "But the real return?" from realReturn to prevent frontend duplication');
     }
     
     // ========================================================================
@@ -3977,6 +4483,48 @@ Before returning, verify:
     const reportJsonStr = JSON.stringify(narratives);
     const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
     narratives = JSON.parse(cleanedStr);
+
+    // ========================================================================
+    // QUOTE VERIFICATION (Session 11)
+    // Detect potential fabricated quotes by checking if quoted text appears
+    // in the original assessment responses
+    // ========================================================================
+    const allResponseText = JSON.stringify(discoveryResponses).toLowerCase();
+    const narrativeText = JSON.stringify(narratives);
+    const directQuotes = narrativeText.match(/"([^"]{10,80})"/g) || [];
+    for (const quote of directQuotes) {
+      const cleanQuote = quote.replace(/^"|"$/g, '').toLowerCase().trim();
+      if (cleanQuote.length < 15) continue;
+      if (cleanQuote.startsWith('inheritance planning')) continue;
+      if (cleanQuote.startsWith('having a highly reliable')) continue;
+      if (cleanQuote.startsWith('not having someone')) continue;
+      if (cleanQuote.startsWith('holidays and time')) continue;
+      if (cleanQuote.startsWith('giving it up')) continue;
+      if (cleanQuote.startsWith('nothing with respect')) continue;
+      if (cleanQuote.startsWith('a normal marriage')) continue;
+      if (!allResponseText.includes(cleanQuote)) {
+        console.warn(`[Pass2] ⚠️ POTENTIAL FABRICATED QUOTE: "${cleanQuote}" — not found in assessment responses`);
+      }
+    }
+
+    // Snapshot client-visible opportunities into the report (Option C — hybrid surfacing)
+    const clientVisibleSnapshot = (curatedOpportunities || [])
+      .filter((o: any) => o.show_in_client_view)
+      .map((o: any) => ({
+        id: o.id,
+        title: o.title,
+        description: o.description,
+        category: o.category,
+        severity: o.severity,
+        financial_impact_amount: o.financial_impact_amount,
+        life_impact: o.life_impact,
+        quick_win: o.quick_win,
+        service_fit_limitation: o.service_fit_limitation,
+        service_name: o.service?.name || null,
+        service_price: o.service?.price_amount || null,
+      }));
+    narratives.client_visible_opportunities = clientVisibleSnapshot;
+    console.log(`[Pass2] 📋 Snapshotted ${clientVisibleSnapshot.length} client-visible opportunities into report`);
 
     // Update report with Pass 2 results
     console.log('[Pass2] 📝 Final headline being saved:', narratives.meta?.headline);

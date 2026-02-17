@@ -9,8 +9,8 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
   name: 'Systems Audit - Discovery',
   description: 'Help us understand your current operational state',
   estimatedMinutes: 15,
-  totalQuestions: 19,
-  aiAnchors: 6,
+  totalQuestions: 22,
+  aiAnchors: 8,
   
   sections: [
     // =========================================================================
@@ -53,7 +53,7 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
           aiAnchor: true,
           label: 'If I followed you through a typical month-end, what would embarrass you most?',
           placeholder: 'The workaround you\'re ashamed of, the process you\'d never show an investor...',
-          maxLength: 300,
+          maxLength: 800,
         },
       ],
     },
@@ -116,7 +116,7 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
           aiAnchor: true,
           label: 'What\'s the most expensive mistake caused by a systems/process gap in the last 2 years?',
           placeholder: 'Lost client, tax penalty, missed opportunity, overpayment...',
-          maxLength: 300,
+          maxLength: 800,
         },
         {
           id: 'q2_5',
@@ -260,13 +260,70 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
           aiAnchor: true,
           label: 'If you could fix ONE process by magic, which would have the biggest impact?',
           placeholder: 'Describe the process and why fixing it would matter...',
-          maxLength: 300,
+          maxLength: 800,
         },
       ],
     },
     
     // =========================================================================
-    // SECTION 5: READINESS
+    // SECTION 5: YOUR VISION
+    // =========================================================================
+    {
+      id: 'your_vision',
+      title: 'Your Vision',
+      description: 'What does "fixed" look like for your business?',
+      questions: [
+        {
+          id: 'q5_1',
+          field: 'desired_outcomes',
+          type: 'multiple_choice',
+          required: true,
+          maxSelections: 3,
+          label: 'What specific outcomes do you most want from fixing your systems?',
+          options: [
+            { value: 'client_profitability', label: 'Know which clients or jobs are actually profitable' },
+            { value: 'cash_visibility', label: 'See our cash position and forecast without asking anyone' },
+            { value: 'fast_month_end', label: 'Close month-end in under a week' },
+            { value: 'fast_quoting', label: 'Get quotes and proposals out within 48 hours' },
+            { value: 'pipeline_confidence', label: 'Track pipeline and forecast revenue with confidence' },
+            { value: 'free_key_people', label: 'Free key people from manual admin and data entry' },
+            { value: 'useful_mi', label: 'Get management information I actually use for decisions' },
+            { value: 'smooth_onboarding', label: 'Onboard new team members without things falling apart' },
+            { value: 'scale_without_admin', label: 'Scale the team without scaling the admin' },
+            { value: 'proper_controls', label: 'Have proper controls so mistakes don\'t slip through' },
+          ],
+        },
+        {
+          id: 'q5_2',
+          field: 'monday_morning_vision',
+          type: 'free_text',
+          required: true,
+          aiAnchor: true,
+          label: 'When your systems are working properly, what does your Monday morning look like?',
+          placeholder: 'What do you see when you open your laptop? What questions can you answer instantly? What meetings do you no longer need?',
+          maxLength: 800,
+        },
+        {
+          id: 'q5_3',
+          field: 'time_freedom_priority',
+          type: 'single_choice',
+          required: true,
+          aiAnchor: true,
+          label: 'If you got 10+ hours a week back, what would you actually spend that time on?',
+          options: [
+            { value: 'client_work', label: 'Clients \u2014 the work I\'m actually good at' },
+            { value: 'business_development', label: 'Business development \u2014 growing revenue' },
+            { value: 'strategy', label: 'Strategy and planning \u2014 thinking about the future' },
+            { value: 'team_management', label: 'Managing my team properly \u2014 not firefighting' },
+            { value: 'life_outside', label: 'My life outside work \u2014 family, health, headspace' },
+            { value: 'build_new', label: 'Building something new \u2014 products, services, ideas' },
+          ],
+        },
+      ],
+    },
+    
+    // =========================================================================
+    // SECTION 6: READINESS
     // =========================================================================
     {
       id: 'readiness',
@@ -274,11 +331,11 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
       description: 'Understanding your capacity for change',
       questions: [
         {
-          id: 'q5_1',
+          id: 'q6_1',
           field: 'change_appetite',
           type: 'single_choice',
           required: true,
-          label: 'What\'s your appetite for change right now?',
+          label: "What's your appetite for change right now?",
           options: [
             { value: 'urgent', label: 'Urgent – we need to fix this yesterday' },
             { value: 'ready', label: 'Ready – we\'ve budgeted time and money for this' },
@@ -287,7 +344,7 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
           ],
         },
         {
-          id: 'q5_2',
+          id: 'q6_2',
           field: 'systems_fears',
           type: 'multiple_choice',
           required: true,
@@ -304,7 +361,7 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
           ],
         },
         {
-          id: 'q5_3',
+          id: 'q6_3',
           field: 'internal_champion',
           type: 'single_choice',
           required: true,
@@ -322,7 +379,7 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
     },
     
     // =========================================================================
-    // SECTION 6: CONTEXT
+    // SECTION 7: CONTEXT
     // =========================================================================
     {
       id: 'context',
@@ -330,7 +387,7 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
       description: 'Help us understand your scale and growth',
       questions: [
         {
-          id: 'q6_1',
+          id: 'q7_1',
           field: 'team_size',
           type: 'number',
           required: true,
@@ -339,7 +396,7 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
           max: 1000,
         },
         {
-          id: 'q6_2',
+          id: 'q7_2',
           field: 'expected_team_size_12mo',
           type: 'number',
           required: true,
@@ -348,7 +405,7 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
           max: 2000,
         },
         {
-          id: 'q6_3',
+          id: 'q7_3',
           field: 'revenue_band',
           type: 'single_choice',
           required: true,
@@ -364,7 +421,7 @@ export const systemsAuditDiscoveryConfig: AssessmentConfig = {
           ],
         },
         {
-          id: 'q6_4',
+          id: 'q7_4',
           field: 'industry_sector',
           type: 'free_text',
           required: true,

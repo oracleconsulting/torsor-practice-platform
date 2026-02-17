@@ -50,6 +50,8 @@ function journeyPhaseToCatalogueCode(phase: { enabledBy?: string; enabledByCode?
     'SYSTEMS_AUDIT': 'systems_audit', 'GOAL_ALIGNMENT': 'goal_alignment', '365_METHOD': 'goal_alignment',
     'FRACTIONAL_CFO': 'fractional_cfo', 'PROFIT_EXTRACTION': 'profit_extraction', 'QUARTERLY_BI': 'quarterly_bi',
     'MANAGEMENT_ACCOUNTS': 'quarterly_bi', 'HIDDEN_VALUE_AUDIT': 'benchmarking',
+    'IHT_PLANNING': 'iht_planning', 'PROPERTY_HEALTH_CHECK': 'property_health_check',
+    'WEALTH_TRANSFER_STRATEGY': 'wealth_transfer_strategy', 'PROPERTY_MANAGEMENT_SOURCING': 'property_management_sourcing',
   };
   if (map[code]) return map[code];
   const name = (phase.enabledBy || '').toLowerCase();
@@ -59,6 +61,10 @@ function journeyPhaseToCatalogueCode(phase: { enabledBy?: string; enabledByCode?
   if (name.includes('fractional cfo')) return 'fractional_cfo';
   if (name.includes('profit extraction')) return 'profit_extraction';
   if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+  if (name.includes('iht') || name.includes('inheritance')) return 'iht_planning';
+  if (name.includes('property') && name.includes('health')) return 'property_health_check';
+  if (name.includes('wealth') && name.includes('transfer')) return 'wealth_transfer_strategy';
+  if (name.includes('property') && name.includes('management') && name.includes('sourcing')) return 'property_management_sourcing';
   return 'benchmarking';
 }
 
@@ -419,6 +425,47 @@ export function DiscoveryReportView({ clientId }: DiscoveryReportViewProps) {
               {page4.headerLine || "The Investment in Your Tuesday"}
             </h2>
           </div>
+
+          {/* NAV-based valuation note for investment vehicles (Session 11) */}
+          {(page4 as any).valuationMethod === 'net_asset_value' && (page4 as any).valuationNote && (
+            <p className="text-xs text-slate-500 mt-1 mb-4 italic">{(page4 as any).valuationNote}</p>
+          )}
+
+          {/* Financial Health Snapshot (Session 11) */}
+          {(page4 as any).financialHealthSnapshot?.noteworthyRatios?.length > 0 && (() => {
+            const fhs = (page4 as any).financialHealthSnapshot;
+            const statusClass: Record<string, string> = {
+              strong: 'bg-emerald-100 text-emerald-700',
+              healthy: 'bg-blue-100 text-blue-700',
+              monitor: 'bg-amber-100 text-amber-700',
+              concern: 'bg-orange-100 text-orange-700',
+              critical: 'bg-red-100 text-red-700'
+            };
+            return (
+              <div className="bg-emerald-50 rounded-xl p-4 mb-6 border border-emerald-200">
+                <p className="text-sm font-medium text-emerald-700 mb-3">
+                  📊 Financial Health
+                  <span className="ml-2 text-xs font-normal text-slate-500">
+                    ({fhs.noteworthyRatios.length} noteworthy indicator{fhs.noteworthyRatios.length > 1 ? 's' : ''})
+                  </span>
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string }, idx: number) => (
+                    <div key={idx} className="bg-white/60 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-slate-500">{ratio.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${statusClass[ratio.status] || 'bg-slate-100 text-slate-700'}`}>
+                          {ratio.status}
+                        </span>
+                      </div>
+                      <p className="text-lg font-bold text-slate-800">{ratio.formatted}</p>
+                      <p className="text-xs text-slate-500 mt-1">{ratio.context}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Cost of Staying - Uses calculated financialInsights when available */}
           <div className="bg-rose-50 rounded-xl p-6 mb-6 border border-rose-100">

@@ -43,7 +43,7 @@ Canonical list from **ClientServicesPage** (`SERVICE_LINES`) and **service regis
 | `fractional_cfo` | Fractional CFO Services | ready | strategic | |
 | `fractional_coo` | Fractional COO Services | development | strategic | |
 | `combined_advisory` | Combined CFO/COO Advisory | ready | strategic | |
-| `systems_audit` | Systems Audit | ready | foundation | 3-stage: discovery → inventory → deep dives → report |
+| `systems_audit` | Systems Audit | ready | foundation | 3-stage: discovery → inventory → deep dives → report. Stage 1: 19q, 6 sections (incl. Context). Client report at `/service/systems_audit/report` when `is_shared_with_client`; status validation + RLS (Feb 2026). |
 | `business_intelligence` | Business Intelligence | ready | operational | Replaces Management Accounts; BI/MA dashboards |
 | `management_accounts` | (legacy BI label) | — | — | Mapped to business_intelligence in places |
 | `benchmarking` | Benchmarking | ready | operational | Benchmarking + Hidden Value; bm_engagements, bm_reports |
@@ -64,7 +64,7 @@ Each service line that has a client-facing or admin assessment is listed with **
 | **Goal Alignment (365)** | Multi-stage (fit, vision, shift, sprint, value) | Roadmap pipeline | `roadmap_stages`, `client_roadmaps` | `/roadmap`, `/roadmap/tasks` |
 | **Business Intelligence** | Config-driven | `serviceLineAssessments.ts` → MANAGEMENT_ACCOUNTS_ASSESSMENT | `service_line_assessments` (responses JSONB) | `/service/business_intelligence/assessment`, MA dashboard/report |
 | **Benchmarking** | DB-driven | `assessment_questions` (service_line_code=benchmarking) | `service_line_assessments` + `bm_assessment_responses`, `bm_engagements` | `/service/benchmarking/*`, report when shared |
-| **Systems Audit** | 3-stage: Stage 1 discovery, Stage 2 inventory, Stage 3 deep dives | Config: `serviceLineAssessments.ts` (SYSTEMS_AUDIT_ASSESSMENT); platform: `systems-audit-discovery.ts` (19q) | `sa_engagements`, `sa_discovery_responses`, `sa_system_inventory`, `sa_process_deep_dives` | `/service/systems_audit/assessment`, `/inventory`, `/process-deep-dives` |
+| **Systems Audit** | 3-stage: Stage 1 discovery (19q, 6 sections), Stage 2 inventory, Stage 3 deep dives | Config: `serviceLineAssessments.ts` (SYSTEMS_AUDIT_ASSESSMENT, 19q); platform: `systems-audit-discovery.ts` (19q) | `sa_engagements`, `sa_discovery_responses`, `sa_system_inventory`, `sa_process_deep_dives` | `/service/systems_audit/assessment`, `/inventory`, `/process-deep-dives`, **`/report`** when report shared |
 | **Management Accounts** | (Same as Business Intelligence in current setup) | As above | `service_line_assessments`, `ma_assessment_responses` (if used) | As BI |
 | **Other (Fractional CFO/COO, etc.)** | Varies | Some in `serviceLineAssessments.ts` or DB | `service_line_assessments` or service-specific | `/service/:code/assessment` where implemented |
 
@@ -178,7 +178,7 @@ From **`SERVICE_LINE_SKILLS_MAPPING.md`** (repo root). Each service line lists *
 
 ### 6.5 Client portal overlap
 
-- **UnifiedDashboardPage:** Shows tiles per **enrolled** service; route logic (e.g. by stage) sends client to correct page (e.g. systems_audit → assessment vs inventory vs process-deep-dives).
+- **UnifiedDashboardPage:** Shows tiles per **enrolled** service; route logic (e.g. by stage) sends client to correct page. For **systems_audit**: if report is shared (`is_shared_with_client`), tile shows “Report Ready” and links to **`/service/systems_audit/report`** (SAReportPage); otherwise assessment → inventory → process-deep-dives by stage.
 - **ServiceAssessmentPage:** Generic; **serviceCode** from URL + **serviceLineAssessments** config determine which assessment and where to save (e.g. systems_audit → sa_engagements + sa_discovery_responses).
 - **DiscoveryReportPage / DiscoveryReportView:** Map display names to codes for navigation to service routes.
 
@@ -202,7 +202,7 @@ From **`SERVICE_LINE_SKILLS_MAPPING.md`** (repo root). Each service line lists *
 - **Discovery:** generate-discovery-report, generate-discovery-report-pass1, generate-discovery-report-pass2, generate-discovery-analysis, generate-discovery-opportunities, generate-discovery-pdf, prepare-discovery-data, start-discovery-report, generate-service-recommendations, process-client-context, detect-assessment-patterns, generate-value-proposition.
 - **Goal Alignment / Roadmap:** generate-roadmap, generate-five-year-vision, generate-six-month-shift, generate-sprint-plan, generate-sprint-plan-part1/2, roadmap-orchestrator, generate-fit-profile, generate-value-analysis, notify-roadmap-ready, notify-sprint-lifecycle, generate-life-design-refresh, generate-vision-update, generate-shift-update, generate-sprint-summary.
 - **Benchmarking:** generate-bm-report-pass1, generate-bm-report-pass2, generate-benchmarking-pdf, generate-bm-opportunities, generate-value-analysis (shared).
-- **Systems Audit:** generate-sa-report, generate-sa-report-pass1, generate-sa-report-pass2.
+- **Systems Audit:** generate-sa-report (deprecated: thin redirect to Pass 1), generate-sa-report-pass1 (extraction + write verify + triggers Pass 2), generate-sa-report-pass2 (narrative from pass1_data).
 - **Shared / utility:** _shared/service-registry.ts, _shared/service-scorer-v2.ts, _shared/service-scorer.ts, build-service-line, process-documents, send-client-invitation, accept-invitation, client-signup, send-assessment-review.
 
 (Exact list may vary with migrations; see `supabase/functions/` and COMPLETE_SYSTEM_OVERVIEW.)
