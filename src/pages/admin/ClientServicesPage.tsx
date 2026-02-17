@@ -13078,6 +13078,7 @@ function SystemsAuditClientModal({
   const [generating, setGenerating] = useState(false);
   const [saReportPollingAfterError, setSaReportPollingAfterError] = useState(false);
   const saReportPollingCancelledRef = useRef(false);
+  const saPass2TriggeredByClientRef = useRef(false);
   const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
   const [findings, setFindings] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
@@ -13341,6 +13342,7 @@ function SystemsAuditClientModal({
     if (!engagement) return;
 
     saReportPollingCancelledRef.current = false;
+    saPass2TriggeredByClientRef.current = false;
     setGenerating(true);
 
     const engagementId = engagement.id;
@@ -13484,7 +13486,16 @@ function SystemsAuditClientModal({
           setGenerating(false);
           return;
         } else if (report.status === 'pass1_complete') {
-          // Pass 1 complete, waiting for Pass 2
+          // Pass 1 complete: trigger Pass 2 from client if not yet done (fallback if server-side trigger failed)
+          if (!saPass2TriggeredByClientRef.current) {
+            saPass2TriggeredByClientRef.current = true;
+            supabase.functions.invoke('generate-sa-report-pass2', {
+              body: { engagementId, reportId: report.id }
+            }).then(({ error }) => {
+              if (error) console.warn('[SA Report] Client-triggered Pass 2 error:', error);
+              else console.log('[SA Report] Pass 2 triggered from client (fallback).');
+            });
+          }
           console.log(`[SA Report] Pass 1 complete, waiting for Pass 2... (attempt ${attempts + 1}/${maxAttempts})`);
           if (!saReportPollingCancelledRef.current) {
             setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
