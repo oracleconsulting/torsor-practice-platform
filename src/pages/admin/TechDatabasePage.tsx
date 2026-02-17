@@ -3,7 +3,7 @@ import { Navigation } from '../../components/Navigation';
 import { supabase } from '../../lib/supabase';
 import type { Page } from '../../types/navigation';
 import type { TechProduct, TechIntegration } from '../../types/tech-stack';
-import { Search, Filter, ChevronDown, ChevronRight, AlertTriangle, Database } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, AlertTriangle, Database } from 'lucide-react';
 
 interface TechDatabasePageProps {
   currentPage: Page;
