@@ -41,6 +41,7 @@ interface SystemInventory {
   manual_process_description?: string;
   data_quality_score?: number;
   data_entry_method?: 'single_point' | 'duplicated' | 'dont_know';
+  data_entry_context?: string;
   user_satisfaction?: number;
   fit_for_purpose?: number;
   would_recommend?: 'yes' | 'maybe' | 'no';
@@ -265,6 +266,7 @@ export default function SystemInventoryPage() {
         manual_process_description: formData.manual_process_description || null,
         data_quality_score: formData.data_quality_score || null,
         data_entry_method: formData.data_entry_method || 'single_point',
+        data_entry_context: formData.data_entry_context || null,
         user_satisfaction: formData.user_satisfaction || null,
         fit_for_purpose: formData.fit_for_purpose || null,
         would_recommend: formData.would_recommend || 'yes',
@@ -353,7 +355,7 @@ export default function SystemInventoryPage() {
   };
 
   const selectedCategory = categories.find(c => c.category_code === formData.category_code);
-  const primaryUserOptions = ['Owner', 'Finance', 'Operations', 'Sales', 'HR', 'Admin', 'Everyone'];
+  const primaryUserOptions = ['Admin', 'Everyone', 'Finance', 'HR', 'Operations', 'Owner', 'Sales'];
 
   if (loading) {
     return (
@@ -473,11 +475,13 @@ export default function SystemInventoryPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
                   <option value="">Select a category</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.category_code}>
-                      {cat.category_name}
-                    </option>
-                  ))}
+                  {[...categories]
+                    .sort((a, b) => a.category_name.localeCompare(b.category_name))
+                    .map(cat => (
+                      <option key={cat.id} value={cat.category_code}>
+                        {cat.category_name}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -504,9 +508,9 @@ export default function SystemInventoryPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
                   <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
                   <option value="monthly">Monthly</option>
                   <option value="rarely">Rarely</option>
+                  <option value="weekly">Weekly</option>
                 </select>
               </div>
 
@@ -573,11 +577,11 @@ export default function SystemInventoryPage() {
                   onChange={(e) => setFormData({ ...formData, pricing_model: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="monthly">Monthly</option>
                   <option value="annual">Annual</option>
-                  <option value="per_user">Per User</option>
-                  <option value="one_time">One-time</option>
                   <option value="free">Free</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="one_time">One-time</option>
+                  <option value="per_user">Per User</option>
                 </select>
               </div>
 
@@ -617,10 +621,10 @@ export default function SystemInventoryPage() {
                   onChange={(e) => setFormData({ ...formData, cost_trend: e.target.value as any })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
-                  <option value="increasing">Increasing</option>
-                  <option value="stable">Stable</option>
                   <option value="decreasing">Decreasing</option>
                   <option value="dont_know">Don't Know</option>
+                  <option value="increasing">Increasing</option>
+                  <option value="stable">Stable</option>
                 </select>
               </div>
 
@@ -651,11 +655,11 @@ export default function SystemInventoryPage() {
                     onChange={(e) => setFormData({ ...formData, integration_method: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="native">Native Integration</option>
-                    <option value="zapier_make">Zapier/Make</option>
                     <option value="custom_api">Custom API</option>
                     <option value="manual">Manual</option>
+                    <option value="native">Native Integration</option>
                     <option value="none">None</option>
+                    <option value="zapier_make">Zapier/Make</option>
                   </select>
                 </div>
 
@@ -742,11 +746,28 @@ export default function SystemInventoryPage() {
                     onChange={(e) => setFormData({ ...formData, data_entry_method: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="single_point">Single Point</option>
-                    <option value="duplicated">Duplicated</option>
                     <option value="dont_know">Don't Know</option>
+                    <option value="duplicated">Duplicated</option>
+                    <option value="single_point">Single Point</option>
                   </select>
                 </div>
+
+                {/* Data entry context (e.g. what's duplicated) - shown when Duplicated selected */}
+                {formData.data_entry_method === 'duplicated' && (
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      What&apos;s being duplicated?
+                    </label>
+                    <textarea
+                      value={formData.data_entry_context || ''}
+                      onChange={(e) => setFormData({ ...formData, data_entry_context: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      rows={2}
+                      placeholder="e.g., Maria enters things in both Xero and the Master Tracker"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">This helps us understand where duplication happens for ongoing analysis.</p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -790,9 +811,9 @@ export default function SystemInventoryPage() {
                     onChange={(e) => setFormData({ ...formData, would_recommend: e.target.value as any })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="yes">Yes</option>
                     <option value="maybe">Maybe</option>
                     <option value="no">No</option>
+                    <option value="yes">Yes</option>
                   </select>
                 </div>
               </div>
@@ -856,8 +877,8 @@ export default function SystemInventoryPage() {
                   >
                     <option value="keep">Keep</option>
                     <option value="replace">Replace</option>
-                    <option value="upgrade">Upgrade</option>
                     <option value="unsure">Unsure</option>
+                    <option value="upgrade">Upgrade</option>
                   </select>
                 </div>
 
