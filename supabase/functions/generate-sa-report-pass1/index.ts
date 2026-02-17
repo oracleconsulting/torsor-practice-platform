@@ -404,7 +404,13 @@ serve(async (req) => {
     );
     
     console.log('[SA Pass 1] Starting extraction for:', engagementId);
-    
+
+    // Write "generating" row so client sees progress; if this function times out, client can retry
+    await supabaseClient.from('sa_audit_reports').upsert(
+      { engagement_id: engagementId, status: 'generating', executive_summary: 'Report generation in progress…' },
+      { onConflict: 'engagement_id' }
+    );
+
     // Fetch all data
     const [
       { data: engagement, error: engagementError },
@@ -569,7 +575,6 @@ serve(async (req) => {
     }
     
     // Validate number consistency (use same hourlyRate and 1.3 factor as prompt)
-    const hourlyRate = engagement?.hourly_rate != null ? Number(engagement.hourly_rate) : 45;
     const validateNumbers = (data: any) => {
       const f = data.facts;
       const expectedAnnual = Math.round(f.hoursWastedWeekly * hourlyRate * 52);

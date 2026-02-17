@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Page } from '../../types/navigation';
 import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
@@ -13077,6 +13077,7 @@ function SystemsAuditClientModal({
   const [report, setReport] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
   const [saReportPollingAfterError, setSaReportPollingAfterError] = useState(false);
+  const saReportPollingCancelledRef = useRef(false);
   const [viewMode, setViewMode] = useState<'admin' | 'client'>('admin');
   const [findings, setFindings] = useState<any[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
@@ -13339,6 +13340,7 @@ function SystemsAuditClientModal({
   const handleGenerateReport = async () => {
     if (!engagement) return;
 
+    saReportPollingCancelledRef.current = false;
     setGenerating(true);
 
     const engagementId = engagement.id;
@@ -13445,16 +13447,18 @@ function SystemsAuditClientModal({
 
   // Poll for report completion (checks for 'generated' or 'pass2_failed' status)
   const pollForReport = async (engagementId: string, attempts: number) => {
+    if (saReportPollingCancelledRef.current) return;
+
     const maxAttempts = 30; // Poll for up to 7.5 minutes (15s * 30 = 7.5 min) to allow for both passes
     const pollInterval = 15000; // 15 seconds
-    
+
     if (attempts >= maxAttempts) {
       setSaReportPollingAfterError(false);
-      alert('Report generation is taking longer than expected. Please refresh the page in a few minutes to check if it completed.');
       setGenerating(false);
+      alert('Report generation didn\'t complete in time (the server may have timed out). Click "Generate Analysis" below to try again.');
       return;
     }
-    
+
     try {
       // Check report status
       const { data: report } = await supabase
@@ -13482,19 +13486,22 @@ function SystemsAuditClientModal({
         } else if (report.status === 'pass1_complete') {
           // Pass 1 complete, waiting for Pass 2
           console.log(`[SA Report] Pass 1 complete, waiting for Pass 2... (attempt ${attempts + 1}/${maxAttempts})`);
-          // Continue polling
-          setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+          if (!saReportPollingCancelledRef.current) {
+            setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+          }
           return;
         }
       }
-      
+
       // Report not ready yet - poll again
+      if (saReportPollingCancelledRef.current) return;
       console.log(`[SA Report] Polling attempt ${attempts + 1}/${maxAttempts}...`);
       setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
     } catch (error: any) {
       console.error('[SA Report] Error polling for report:', error);
-      // Continue polling despite errors
-      setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+      if (!saReportPollingCancelledRef.current) {
+        setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+      }
     }
   };
 
@@ -14441,11 +14448,23 @@ function SystemsAuditClientModal({
                         {generating ? 'Generating Analysis...' : 'Generate Analysis'}
                       </button>
                       {saReportPollingAfterError && (
-                        <div className="mt-4 max-w-md mx-auto p-3 bg-amber-50 border border-amber-200 rounded-lg text-left">
+                        <div className="mt-4 max-w-md mx-auto p-3 bg-amber-50 border border-amber-200 rounded-lg text-left space-y-3">
                           <p className="text-sm text-amber-800">
                             The connection to the report service was interrupted. We&apos;re checking every 15 seconds for your report.
-                            If it doesn&apos;t appear in a few minutes, ensure the Edge Function <code className="text-xs bg-amber-100 px-1 rounded">generate-sa-report-pass1</code> is deployed for this project and refresh the page.
+                            If the function timed out, no report will appear and you can retry below.
                           </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              saReportPollingCancelledRef.current = true;
+                              setSaReportPollingAfterError(false);
+                              handleGenerateReport();
+                            }}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg"
+                          >
+                            <RefreshCw className="w-4 h-4" />
+                            Retry generation
+                          </button>
                         </div>
                       )}
                       {!canGenerateOrRegenerate && !saReportPollingAfterError && (
