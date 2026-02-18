@@ -66,7 +66,8 @@ import { MAAdminReportView, MAClientReportView } from '../../components/manageme
 // Test Client Panel for testing workflows
 import { TestClientPanel } from '../../components/admin/TestClientPanel';
 import { SystemMatchBadge } from '../../components/admin/SystemMatchBadge';
-import { useDiscoverProduct } from '../../hooks/useDiscoverProduct';
+import { useTechLookupBatch } from '../../hooks/useTechLookupBatch';
+import type { TechLookupBatchResult } from '../../types/tech-stack';
 
 // Accounts Upload for Benchmarking
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
@@ -13184,11 +13185,9 @@ function SystemsAuditClientModal({
   });
   const [savingContext, setSavingContext] = useState(false);
 
-  // Tech product matching and auto-discovery
-  const [techProducts, setTechProducts] = useState<{ product_slug: string; product_name: string }[]>([]);
-  const [researchingSystem, setResearchingSystem] = useState<string | null>(null);
-  const [researchResultBySystem, setResearchResultBySystem] = useState<Record<string, { status: 'added' | 'research_failed'; productName?: string }>>({});
-  const { discover } = useDiscoverProduct();
+  // Tech stack lookup (batch) for Stage 2 inventory badges
+  const [batchResults, setBatchResults] = useState<Record<string, TechLookupBatchResult>>({});
+  const { lookupBatch } = useTechLookupBatch();
 
   useEffect(() => {
     if (currentMember?.practice_id) {
@@ -13305,12 +13304,12 @@ function SystemsAuditClientModal({
           setStage2Inventory(stage2Data || []);
         }
 
-        // Fetch tech products for match badges (Stage 2 system inventory)
-        const { data: techProductsData } = await supabase
-          .from('sa_tech_products')
-          .select('product_slug, product_name')
-          .eq('is_active', true);
-        setTechProducts(techProductsData || []);
+        // Batch lookup tech products for Stage 2 inventory badges
+        if (stage2Data?.length) {
+          const names = stage2Data.map((s: { system_name?: string }) => s.system_name).filter(Boolean);
+          const results = await lookupBatch(names);
+          setBatchResults(results);
+        }
 
         // Fetch Stage 3 deep dives
         const { data: stage3Data, error: stage3Error } = await supabase
@@ -14086,30 +14085,7 @@ function SystemsAuditClientModal({
                       {stage2Inventory.length > 0 ? (
                         <div className="space-y-6">
                           {stage2Inventory.map((system) => {
-                            const slugFromName = (name: string) => (name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '_');
-                            const matchedProduct = techProducts.find(
-                              (p) =>
-                                p.product_slug === slugFromName(system.system_name) ||
-                                p.product_name?.toLowerCase() === (system.system_name ?? '').toLowerCase()
-                            );
-                            const researchResult = researchResultBySystem[system.system_name];
-                            const matchStatus =
-                              researchingSystem === system.system_name
-                                ? ('researching' as const)
-                                : researchResult?.status === 'added'
-                                  ? ('added' as const)
-                                  : researchResult?.status === 'research_failed'
-                                    ? ('research_failed' as const)
-                                    : matchedProduct
-                                      ? ('in_database' as const)
-                                      : ('unknown' as const);
-                            const displayProductName =
-                              matchStatus === 'in_database'
-                                ? matchedProduct?.product_name
-                                : matchStatus === 'added'
-                                  ? researchResult?.productName
-                                  : undefined;
-
+                            const matchResult = batchResults[system.system_name];
                             return (
                             <div key={system.id} className="border border-gray-200 rounded-lg p-6 bg-white">
                               <div className="flex items-start justify-between mb-4">
@@ -14117,49 +14093,10 @@ function SystemsAuditClientModal({
                                   <div className="flex items-center gap-3 flex-wrap">
                                     <h4 className="text-lg font-semibold text-gray-900">{system.system_name}</h4>
                                     <SystemMatchBadge
-                                      status={matchStatus}
-                                      productName={displayProductName}
-                                      onResearch={
-                                        matchStatus === 'unknown'
-                                          ? async () => {
-                                              setResearchingSystem(system.system_name);
-                                              const result = await discover({
-                                                product_name_raw: system.system_name,
-                                                category_code: system.category_code,
-                                                engagement_id: engagement?.id,
-                                                mode: 'full_research',
-                                              });
-                                              if (result.status === 'discovered') {
-                                                setResearchResultBySystem((prev) => ({
-                                                  ...prev,
-                                                  [system.system_name]: { status: 'added', productName: result.product_name },
-                                                }));
-                                                const { data: refreshed } = await supabase
-                                                  .from('sa_tech_products')
-                                                  .select('product_slug, product_name')
-                                                  .eq('is_active', true);
-                                                setTechProducts(refreshed || []);
-                                              } else if (result.status === 'matched') {
-                                                setResearchResultBySystem((prev) => ({
-                                                  ...prev,
-                                                  [system.system_name]: { status: 'added', productName: result.product_name },
-                                                }));
-                                                const { data: refreshed } = await supabase
-                                                  .from('sa_tech_products')
-                                                  .select('product_slug, product_name')
-                                                  .eq('is_active', true);
-                                                setTechProducts(refreshed || []);
-                                              } else if (result.status === 'error' || result.status === 'not_found') {
-                                                setResearchResultBySystem((prev) => ({
-                                                  ...prev,
-                                                  [system.system_name]: { status: 'research_failed' },
-                                                }));
-                                              }
-                                              setResearchingSystem(null);
-                                            }
-                                          : undefined
-                                      }
-                                      disabled={researchingSystem !== null}
+                                      found={matchResult?.found ?? false}
+                                      integrationCount={matchResult?.integration_count ?? 0}
+                                      showResearchButton
+                                      researchDisabled
                                     />
                                   </div>
                                   <p className="text-sm text-gray-600">{system.category_code} {system.sub_category && `• ${system.sub_category}`}</p>

@@ -1,3 +1,38 @@
+/** Live schema (Supabase): slug, category, uk_strong, score_ease, score_features, etc. */
+export interface LiveTechProduct {
+  id?: string;
+  slug: string;
+  product_name: string;
+  vendor: string;
+  category: string;
+  market_position: string;
+  uk_strong: boolean;
+  pricing_model: string;
+  price_entry_gbp: number | null;
+  price_mid_gbp: number | null;
+  price_top_gbp: number | null;
+  is_per_user: boolean;
+  score_ease: number | null;
+  score_features: number | null;
+  score_integrations: number | null;
+  score_reporting: number | null;
+  score_scalability: number | null;
+  score_support: number | null;
+  score_value: number | null;
+  key_strengths: string[] | null;
+  key_weaknesses: string[] | null;
+  best_for: string | null;
+  not_ideal_for: string | null;
+  sweet_min_employees: number | null;
+  sweet_max_employees: number | null;
+  has_zapier: boolean;
+  has_make: boolean;
+  has_api: boolean;
+  additional_categories?: string[] | null;
+  can_replace?: string[] | null;
+  [key: string]: unknown;
+}
+
 export interface TechProduct {
   id: string;
   product_name: string;
@@ -116,4 +151,41 @@ export interface DiscoverProductResponse {
   confidence: 'high' | 'medium' | 'low';
   is_new: boolean;
   message?: string;
+}
+
+/** Response from discover-sa-tech-product action: lookup */
+export interface TechLookupResponse {
+  found: boolean;
+  product: {
+    slug: string;
+    product_name: string;
+    vendor: string;
+    category: string;
+    market_position: string;
+    uk_strong: boolean;
+    pricing: { model: string; entry_gbp: number | null; mid_gbp: number | null; top_gbp: number | null; is_per_user: boolean };
+    scores: { ease: number; features: number; integrations: number; reporting: number; scalability: number; support: number; value: number };
+    integration_count: number;
+    middleware_count: number;
+    key_strengths: string[];
+    key_weaknesses: string[];
+    best_for: string;
+    sweet_spot: { min_employees: number; max_employees: number };
+    integrations: { product_b_slug: string; product_b_name: string; integration_type: string; quality: string; data_flows: string }[];
+  } | null;
+  integrations: { product_b_slug: string; product_b_name: string; integration_type: string; quality: string; data_flows: string }[] | null;
+  message?: string;
+}
+
+/** Response from discover-sa-tech-product action: lookup_batch */
+export interface TechLookupBatchResult {
+  found: boolean;
+  slug: string | null;
+  product_name: string | null;
+  category: string | null;
+  integration_count: number;
+}
+
+export interface TechLookupBatchResponse {
+  results: Record<string, TechLookupBatchResult>;
 }
