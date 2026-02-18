@@ -641,7 +641,104 @@ async function runPhase3Diagnose(
   return { success: true, phase: 3 };
 }
 
-// ---------- Phase 4: RECOMMEND (recommendations with ROI and freedom mapping) ----------
+// ---------- Tech stack intelligence context (Stage 2) ----------
+function buildTechContext(
+  matchedProducts: { systemName: string; categoryCode: string; slug: string | null; techProduct: any }[],
+  relevantIntegrations: any[],
+  alternativeProducts: any[],
+  relevantMiddleware: any[],
+  discovery: any
+): string {
+  const currentStackContext = matchedProducts
+    .filter((mp) => mp.techProduct)
+    .map((mp) => {
+      const tp = mp.techProduct;
+      return `
+**${tp.product_name}** (${tp.category}) — Client uses this
+- Market position: ${tp.market_position}
+- Sweet spot: ${tp.sweet_min_employees}-${tp.sweet_max_employees} employees
+- Pricing: £${tp.price_entry_gbp}/mo (entry) to £${tp.price_top_gbp ?? '?'}/mo (top). Model: ${tp.pricing_model}
+- Scores: Ease=${tp.score_ease}/5, Features=${tp.score_features}/5, Integrations=${tp.score_integrations}/5, Reporting=${tp.score_reporting}/5, Scalability=${tp.score_scalability}/5
+- Strengths: ${(tp.key_strengths || []).join(', ')}
+- Weaknesses: ${(tp.key_weaknesses || []).join(', ')}
+- Best for: ${tp.best_for || 'N/A'}
+- Not ideal for: ${tp.not_ideal_for || 'N/A'}`;
+    })
+    .join('\n');
+
+  const integrationContext = relevantIntegrations
+    .map(
+      (ti: any) =>
+        `${ti.product_a_slug} ↔ ${ti.product_b_slug}: type=${ti.integration_type}, quality=${ti.quality}, bidirectional=${ti.bidirectional}, data_flows=[${ti.data_flows || 'N/A'}], setup=${ti.setup_complexity}, cost=£${ti.monthly_cost_gbp || 0}/mo, limitations=[${ti.known_limitations || 'none'}]`
+    )
+    .join('\n');
+
+  const alternativesContext = alternativeProducts
+    .filter((ap: any) => !matchedProducts.find((mp) => mp.slug === ap.slug))
+    .slice(0, 50)
+    .map(
+      (ap: any) => {
+        const categories = [ap.category, ...(ap.additional_categories || [])].join(', ');
+        return `**${ap.product_name}** (${categories}) — ${ap.market_position}
+  Sweet spot: ${ap.sweet_min_employees}-${ap.sweet_max_employees} employees
+  Pricing: £${ap.price_entry_gbp}/mo entry, £${ap.price_mid_gbp}/mo mid. ${ap.is_per_user ? 'Per user' : 'Flat'}
+  Scores: Ease=${ap.score_ease}/5, Features=${ap.score_features}/5, Integrations=${ap.score_integrations}/5
+  Strengths: ${(ap.key_strengths || []).slice(0, 3).join(', ')}
+  Can replace: ${(ap.can_replace || []).join(', ')}
+  Migration complexity: ${ap.migration_complexity || 'unknown'}`;
+      }
+    )
+    .join('\n');
+
+  const middlewareContext: Record<string, { slug: string; platform: string; triggers: string[]; actions: string[]; searches: string[] }> = {};
+  for (const mc of relevantMiddleware) {
+    const key = `${mc.product_slug}_${mc.platform}`;
+    if (!middlewareContext[key]) {
+      middlewareContext[key] = { slug: mc.product_slug, platform: mc.platform, triggers: [], actions: [], searches: [] };
+    }
+    if (mc.capability_type === 'trigger') middlewareContext[key].triggers.push(mc.capability_name);
+    if (mc.capability_type === 'action') middlewareContext[key].actions.push(mc.capability_name);
+    if (mc.capability_type === 'search') middlewareContext[key].searches.push(mc.capability_name);
+  }
+  const middlewareStr = Object.values(middlewareContext)
+    .map(
+      (mc: any) =>
+        `${mc.slug} on ${mc.platform}: ${mc.triggers.length} triggers, ${mc.actions.length} actions. Key triggers: [${mc.triggers.slice(0, 5).join(', ')}]. Key actions: [${mc.actions.slice(0, 5).join(', ')}]`
+    )
+    .join('\n');
+
+  const d = discovery || {};
+  const strategyStr = `
+Team size: ${d.team_size || '?'} → ${d.expected_team_size_12mo || '?'} (12 months)
+Revenue: ${d.revenue_band || '?'}
+Growth trajectory: ${d.growth_trajectory || 'not specified'}
+Owner role intent: ${d.owner_role_intent || 'not specified'}
+Budget appetite: ${d.systems_budget_appetite || 'not specified'}
+Growth constraint: ${d.biggest_growth_constraint || 'not specified'}`;
+
+  return `
+═══════════════════════════════════════════════════════════
+TECH STACK INTELLIGENCE DATABASE
+═══════════════════════════════════════════════════════════
+
+THEIR CURRENT TOOLS (from our database):
+${currentStackContext || 'No products matched in tech database'}
+
+KNOWN INTEGRATIONS BETWEEN THEIR TOOLS:
+${integrationContext || 'No integration data found'}
+
+ALTERNATIVE PRODUCTS AVAILABLE:
+${alternativesContext || 'No alternatives found'}
+
+MIDDLEWARE CAPABILITIES (Zapier/Make):
+${middlewareStr || 'No middleware data found'}
+
+CLIENT'S STRATEGIC DIRECTION:
+${strategyStr}
+`;
+}
+
+// ---------- Phase 4: RECOMMEND (recommendations only — systems maps in separate phase) ----------
 function buildPhase4Prompt(phase1: any, phase2: any, phase3: any, clientName: string): string {
   const findingSummaries = (phase3.findings || []).map((f: any) => ({
     title: f.title, severity: f.severity, affectedSystems: f.affectedSystems,
@@ -700,6 +797,73 @@ ${SPECIFICITY_RULES}
 `;
 }
 
+// ---------- Phase 4b: SYSTEMS MAPS (separate call after recommendations) ----------
+function buildPhase4SystemsMapsPrompt(phase1: any, phase2: any, phase3: any, phase4: any, techContextStr: string, clientName: string): string {
+  const summary = JSON.stringify(
+    {
+      companyName: phase1.facts?.companyName,
+      systems: phase1.facts?.systems?.map((s: any) => ({ name: s.name, category: s.category, monthlyCost: s.monthlyCost, integrationMethod: s.integrationMethod, manualHours: s.manualHours })),
+      totalSystemCost: phase1.facts?.totalSystemCost,
+      hoursWastedWeekly: phase2.hoursWastedWeekly,
+      annualCostOfChaos: phase2.annualCostOfChaos,
+      findings: (phase3.findings || []).slice(0, 8).map((f: any) => ({ title: f.title, severity: f.severity, affectedSystems: f.affectedSystems })),
+      recommendations: (phase4.recommendations || []).slice(0, 6).map((r: any) => ({ title: r.title, systemsInvolved: r.systemsInvolved, hoursSavedWeekly: r.hoursSavedWeekly })),
+    },
+    null,
+    2
+  ).substring(0, 28000);
+
+  return `
+You have the extracted analysis for ${clientName}. Using it AND the tech stack intelligence below, generate ONLY systems maps, tech stack summary, and hours breakdown.
+
+PASS 1 ANALYSIS (summary):
+${summary}
+
+${techContextStr}
+
+═══════════════════════════════════════════════════════════
+YOUR TASK — Return ONLY this JSON (no other text)
+═══════════════════════════════════════════════════════════
+
+{
+  "systemsMaps": [
+    {
+      "level": 1,
+      "title": "Where You Are Today",
+      "description": "One sentence description",
+      "nodes": [ { "id": "slug", "name": "Product name", "category": "category_code", "monthlyCost": number, "status": "keep", "verdict": "string", "satisfactionScore": 1-5 } ],
+      "edges": [ { "from": "slug", "to": "slug", "status": "active|broken|off|manual|middleware|native_new|none", "colour": "green|amber|red|blue|grey", "dataFlows": [], "manualHoursMonthly": number, "middlewareTool": null, "middlewareCostMonthly": 0, "changeFromPrevious": null } ],
+      "metrics": { "monthlySoftwareCost": number, "manualHoursWeekly": number, "annualWastedCost": number, "annualSavingsVsMap1": 0, "oneOffInvestment": 0, "activeIntegrations": "2/9" },
+      "changes": [],
+      "narrative": "2-3 paragraph explanation",
+      "recommendedLevel": false,
+      "recommendationReason": null
+    }
+  ],
+  "techStackSummary": {
+    "currentMonthlySpend": number,
+    "recommendedMonthlySpend": number,
+    "netMonthlyDelta": number,
+    "toolsToKeep": [],
+    "toolsToReconfigure": [],
+    "toolsToReplace": [ { "current": "string", "replacement": "string", "reason": "string" } ],
+    "toolsToAdd": [ { "product": "string", "reason": "string" } ],
+    "toolsToRemove": []
+  },
+  "hoursBreakdown": {
+    "quickWins": number,
+    "foundation": number,
+    "strategic": number,
+    "optimisation": number,
+    "total": number
+  }
+}
+
+FOUR-LEVEL SYSTEMS MAPS: Generate exactly 4 entries. MAP 1 = Where You Are Today (every inventory system as node; edges from assessment: red=manual/none, amber=issues, green=working). MAP 2 = What Your Current Tools Can Already Do (same nodes; upgrade RED/AMBER to green where NATIVE integration exists in TECH INTEGRATIONS DATA; £0 investment). MAP 3 = Connected With Middleware (add Zapier/Make bridges, blue edges; include middleware cost). MAP 4 = The Optimal Stack (use ALTERNATIVE PRODUCTS; recommend replacements; sweet spot fit). Set recommendedLevel: true on ONE map. Node IDs = slug format. Map 1 metrics.annualWastedCost = annualCostOfChaos. Manual hours decrease Map 1 > 2 > 3 > 4. hoursBreakdown.total = sum of quickWins+foundation+strategic+optimisation.
+Return ONLY valid JSON.
+`;
+}
+
 async function runPhase4(
   supabaseClient: any,
   engagementId: string,
@@ -715,15 +879,16 @@ async function runPhase4(
   const phase2 = report.pass1_data.phase2;
   const phase3 = report.pass1_data.phase3;
   const clientName = phase1.facts.companyName || 'the business';
+
+  // ---------- Phase 4a: Recommendations only ----------
   const prompt = buildPhase4Prompt(phase1, phase2, phase3, clientName);
   const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 4, openRouterKey);
 
-  console.log('[SA Pass 1] Phase 4: Writing to DB...');
+  console.log('[SA Pass 1] Phase 4: Writing recommendations to DB...');
   await supabaseClient.from('sa_audit_reports').update({
     pass1_data: { ...report.pass1_data, phase4: data },
     executive_summary: 'Phase 4/5: Building recommendations with ROI analysis...',
   }).eq('engagement_id', engagementId);
-  console.log('[SA Pass 1] Phase 4: DB write complete');
 
   await supabaseClient.from('sa_recommendations').delete().eq('engagement_id', engagementId);
   const recs = data.recommendations || [];
@@ -743,8 +908,117 @@ async function runPhase4(
     }));
     await supabaseClient.from('sa_recommendations').insert(recRows);
   }
+  console.log('[SA Pass 1] Phase 4: Recommendations complete');
+
+  // ---------- Phase 4b: Systems maps (separate call, graceful degradation) ----------
+  await supabaseClient
+    .from('sa_audit_reports')
+    .update({ executive_summary: 'Phase 4/5: Generating systems maps...' })
+    .eq('engagement_id', engagementId);
+
+  try {
+    const mapsResult = await runPhase4SystemsMaps(supabaseClient, engagementId, openRouterKey);
+    const { data: reportAfter } = await supabaseClient
+      .from('sa_audit_reports')
+      .select('pass1_data')
+      .eq('engagement_id', engagementId)
+      .single();
+    const pass1Data = { ...(reportAfter?.pass1_data || report.pass1_data), ...mapsResult };
+    await supabaseClient
+      .from('sa_audit_reports')
+      .update({ pass1_data: pass1Data })
+      .eq('engagement_id', engagementId);
+    console.log(`[SA Pass 1] Systems maps: ${mapsResult.systemsMaps?.length || 0} levels; techStackSummary: ${mapsResult.techStackSummary ? 'present' : 'missing'}`);
+  } catch (mapsErr) {
+    console.warn('[SA Pass 1] Systems maps generation failed (continuing without maps):', (mapsErr as Error).message);
+    const { data: reportAfter } = await supabaseClient
+      .from('sa_audit_reports')
+      .select('pass1_data')
+      .eq('engagement_id', engagementId)
+      .single();
+    const pass1Data = { ...(reportAfter?.pass1_data || report.pass1_data), systemsMaps: null, techStackSummary: null, hoursBreakdown: null };
+    await supabaseClient
+      .from('sa_audit_reports')
+      .update({ pass1_data: pass1Data })
+      .eq('engagement_id', engagementId);
+  }
 
   return { success: true, phase: 4 };
+}
+
+async function runPhase4SystemsMaps(
+  supabaseClient: any,
+  engagementId: string,
+  openRouterKey: string
+): Promise<{ systemsMaps: any; techStackSummary: any; hoursBreakdown: any }> {
+  const { data: report } = await supabaseClient
+    .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase4) {
+    throw new Error('Phase 1 or 4 data not found');
+  }
+  const phase1 = report.pass1_data.phase1;
+  const phase2 = report.pass1_data.phase2;
+  const phase3 = report.pass1_data.phase3;
+  const phase4 = report.pass1_data.phase4;
+  const clientName = phase1.facts?.companyName || 'the business';
+
+  console.log('[SA Pass 1] Querying tech stack for systems maps...');
+  const { data: techProducts, error: techError } = await supabaseClient
+    .from('sa_tech_products')
+    .select('*')
+    .eq('uk_strong', true);
+  if (techError) console.warn('[SA Pass 1] Tech products query failed:', techError.message);
+  const { data: techIntegrations } = await supabaseClient.from('sa_tech_integrations').select('*');
+  const { data: middlewareCapabilities } = await supabaseClient.from('sa_middleware_capabilities').select('*');
+
+  const systems = phase1.facts?.systems || [];
+  const matchedProducts = systems.map((s: any) => {
+    const name = (s.name || '').trim();
+    const normalised = name.toLowerCase();
+    const slugified = normalised.replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    const match = (techProducts || []).find(
+      (tp: any) =>
+        tp.slug === slugified ||
+        (tp.product_name || '').toLowerCase() === normalised ||
+        normalised.includes((tp.product_name || '').toLowerCase()) ||
+        (tp.product_name || '').toLowerCase().includes(normalised) ||
+        (tp.slug && tp.slug.startsWith(slugified)) ||
+        (tp.slug && slugified.startsWith(tp.slug))
+    );
+    return { systemName: name, categoryCode: s.category || '', slug: match?.slug || null, techProduct: match || null };
+  });
+  const matchedSlugs = matchedProducts.filter((m: any) => m.techProduct).map((m: any) => m.slug);
+  const relevantIntegrations = (techIntegrations || []).filter(
+    (ti: any) => matchedSlugs.includes(ti.product_a_slug) || matchedSlugs.includes(ti.product_b_slug)
+  );
+  const clientCategories = [...new Set(systems.map((s: any) => s.category).filter(Boolean))];
+  const alternativeProducts = (techProducts || []).filter(
+    (tp: any) =>
+      clientCategories.includes(tp.category) ||
+      (tp.additional_categories && tp.additional_categories.some((ac: string) => clientCategories.includes(ac)))
+  );
+  const relevantMiddleware = (middlewareCapabilities || []).filter((mc: any) => matchedSlugs.includes(mc.product_slug));
+
+  const { data: discoveryRes } = await supabaseClient
+    .from('sa_discovery_responses')
+    .select('*')
+    .eq('engagement_id', engagementId)
+    .single();
+  const techContextStr = buildTechContext(matchedProducts, relevantIntegrations, alternativeProducts, relevantMiddleware, discoveryRes);
+  const mapsPrompt = buildPhase4SystemsMapsPrompt(phase1, phase2, phase3, phase4, techContextStr, clientName);
+
+  const { data: mapsData, tokensUsed, cost, generationTime } = await callSonnet(mapsPrompt, 32000, 4.5, openRouterKey);
+
+  const wasTruncated = typeof mapsData?.systemsMaps === 'undefined' || (Array.isArray(mapsData.systemsMaps) && mapsData.systemsMaps.length < 4);
+  if (wasTruncated) {
+    console.warn('[SA Pass 1] Systems maps response may be truncated');
+  }
+
+  return {
+    systemsMaps: mapsData?.systemsMaps ?? null,
+    techStackSummary: mapsData?.techStackSummary ?? null,
+    hoursBreakdown: mapsData?.hoursBreakdown ?? null,
+  };
 }
 
 // ---------- Phase 5: GUIDE & PRESENT (admin guidance + client presentation + final assembly) ----------
@@ -888,6 +1162,7 @@ async function runPhase5(
     ...(phase2.additionalClientQuotes || []),
   ];
 
+  const pass1Data = reportRow.pass1_data as any;
   const finalPass1Data = {
     uniquenessBrief: phase2.uniquenessBrief,
     facts: {
@@ -903,6 +1178,9 @@ async function runPhase5(
     findings: phase3.findings,
     quickWins: phase3.quickWins,
     recommendations: phase4.recommendations,
+    systemsMaps: pass1Data.systemsMaps ?? phase4.systemsMaps ?? null,
+    techStackSummary: pass1Data.techStackSummary ?? phase4.techStackSummary ?? null,
+    hoursBreakdown: pass1Data.hoursBreakdown ?? phase4.hoursBreakdown ?? null,
     adminGuidance: phase5.adminGuidance,
     clientPresentation: phase5.clientPresentation,
   };

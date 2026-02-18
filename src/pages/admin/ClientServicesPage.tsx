@@ -13486,13 +13486,13 @@ function SystemsAuditClientModal({
       }, 'Phase 3');
       console.log('[SA Report] Phase 3 complete');
 
-      // ── Phase 4: Build recommendations ──
-      console.log('[SA Report] Starting Phase 4/5: Building recommendations...');
+      // ── Phase 4: Build recommendations, then systems maps (two steps in one invoke) ──
+      console.log('[SA Report] Starting Phase 4/5: Building recommendations, then systems maps...');
       firePhase(4);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
         return !!data?.pass1_data?.phase4;
-      }, 'Phase 4');
+      }, 'Phase 4 (recommendations + systems maps)');
       console.log('[SA Report] Phase 4 complete');
 
       // ── Phase 5: Admin guidance and client presentation ──
