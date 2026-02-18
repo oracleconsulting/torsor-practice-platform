@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Page } from '../../types/navigation';
 import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
@@ -7230,6 +7230,44 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [savingTask, setSavingTask] = useState(false);
   const [showSprintEditor, setShowSprintEditor] = useState(false);
   const [sprintStageRaw, setSprintStageRaw] = useState<any>(null);
+  const [publishingSprint, setPublishingSprint] = useState(false);
+
+  const handlePublishSprintForClient = useCallback(async () => {
+    if (!sprintStageRaw?.id || !clientId) return;
+    setPublishingSprint(true);
+    try {
+      const content = sprintStageRaw.approved_content || sprintStageRaw.generated_content;
+      const { error } = await supabase
+        .from('roadmap_stages')
+        .update({
+          status: 'published',
+          published_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', sprintStageRaw.id);
+      if (error) throw error;
+      try {
+        const theme = content?.sprintTheme || content?.weeks?.[0]?.theme || '';
+        await supabase.functions.invoke('notify-sprint-lifecycle', {
+          body: {
+            clientId,
+            type: 'sprint_published',
+            sprintNumber: sprintStageRaw.sprint_number ?? 1,
+            sprintTheme: theme || undefined,
+          },
+        });
+      } catch (emailErr) {
+        console.warn('Sprint published email failed:', emailErr);
+      }
+      await fetchClientDetail();
+      alert('Sprint is now visible to the client.');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to publish sprint. Please try again.');
+    } finally {
+      setPublishingSprint(false);
+    }
+  }, [clientId, sprintStageRaw, fetchClientDetail]);
 
   // Goal Alignment tier (365_method only)
   const [clientTier, setClientTier] = useState<string | null>(null);
@@ -10569,14 +10607,31 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             <div className="flex items-center justify-between mb-3">
                               <h3 className="font-semibold text-gray-900">12-Week Sprint Overview</h3>
                               {sprintStage && (
-                                <button
-                                  type="button"
-                                  onClick={() => setShowSprintEditor(true)}
-                                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
-                                >
-                                  <Settings className="w-4 h-4" />
-                                  {sprintStage.status === 'generated' ? 'Review & Edit' : 'Edit Sprint'}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  {sprintStage.status !== 'published' && (
+                                    <button
+                                      type="button"
+                                      onClick={handlePublishSprintForClient}
+                                      disabled={publishingSprint}
+                                      className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-400 text-sm font-medium"
+                                    >
+                                      {publishingSprint ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Share2 className="w-4 h-4" />
+                                      )}
+                                      Publish for client
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowSprintEditor(true)}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                  >
+                                    <Settings className="w-4 h-4" />
+                                    {sprintStage.status === 'generated' ? 'Review & Edit' : 'Edit Sprint'}
+                                  </button>
+                                </div>
                               )}
                             </div>
                             <div className="grid grid-cols-4 gap-3">
@@ -11300,14 +11355,31 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             </p>
                           </div>
                           {sprintStageFromStages ? (
-                            <button
-                              type="button"
-                              onClick={() => setShowSprintEditor(true)}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
-                            >
-                              <Settings className="w-4 h-4" />
-                              Open Sprint Editor
-                            </button>
+                            <div className="flex items-center gap-2">
+                              {sprintStageFromStages.status !== 'published' && (
+                                <button
+                                  type="button"
+                                  onClick={handlePublishSprintForClient}
+                                  disabled={publishingSprint}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-400 text-sm font-medium"
+                                >
+                                  {publishingSprint ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <Share2 className="w-4 h-4" />
+                                  )}
+                                  Publish for client
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setShowSprintEditor(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                              >
+                                <Settings className="w-4 h-4" />
+                                Open Sprint Editor
+                              </button>
+                            </div>
                           ) : (
                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
                               <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />

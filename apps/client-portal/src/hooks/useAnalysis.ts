@@ -231,6 +231,8 @@ export interface RoadmapData {
   };
   createdAt: string;
   isActive: boolean;
+  /** True when client is Partner tier and a sprint exists but is not yet published (advisor must publish from Sprint Editor). */
+  hasUnpublishedSprint?: boolean;
 }
 
 export interface Part3Question {
@@ -860,12 +862,17 @@ export function useRoadmap() {
           roadmapData.sprintSummary = stagesMap['sprint_summary'];
         }
 
+        const hasUnpublishedSprint = isPartner && stagesData.some(
+          (s: any) => ['sprint_plan_part2', 'sprint_plan', 'sprint_plan_part1'].includes(s.stage_type) && s.status !== 'published'
+        );
+
         setRoadmap({
           id: stagesData[0].id,
           roadmapData,
           valueAnalysis,
           createdAt: stagesData[0].created_at,
-          isActive: true
+          isActive: true,
+          hasUnpublishedSprint: hasUnpublishedSprint || undefined,
         });
         return { roadmapData, valueAnalysis };
       }

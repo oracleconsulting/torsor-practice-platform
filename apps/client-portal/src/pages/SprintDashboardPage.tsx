@@ -1399,13 +1399,18 @@ export default function SprintDashboardPage() {
   }
 
   if (!sprint || !weeks.length) {
+    const hasUnpublishedSprint = roadmap?.hasUnpublishedSprint === true;
     return (
       <Layout title="Your Sprint" subtitle="Sprint Command Centre">
         <div className="text-center py-16">
           <Flag className="w-12 h-12 text-indigo-300 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Your Sprint is Being Prepared</h2>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">
+            {hasUnpublishedSprint ? 'Your sprint is with your advisor' : 'Your Sprint is Being Prepared'}
+          </h2>
           <p className="text-slate-600 mb-6">
-            Once your roadmap is finalised, your 12-week sprint plan will appear here.
+            {hasUnpublishedSprint
+              ? 'Your 12-week sprint has been created and is ready for your advisor to review and publish. It will appear here once they’ve approved it.'
+              : 'Once your roadmap is finalised, your 12-week sprint plan will appear here.'}
           </p>
           <Link to="/roadmap" className="text-indigo-600 hover:text-indigo-700 font-medium">
             View your roadmap →
