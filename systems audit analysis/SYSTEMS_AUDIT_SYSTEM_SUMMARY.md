@@ -3,7 +3,7 @@
 **Purpose:** Comprehensive reference for the Systems Audit (Systems & Process Audit) service line in torsor-practice-platform: data model, migrations, edge functions, front-end (admin, platform, client portal), and integration with Discovery/scoring.  
 **This folder and summary are read-only in normal work; update the summary only when explicitly requested.**
 
-**Last updated:** February 2026 (post Systems Audit 50/50 implementation).
+**Last updated:** February 2026 (post tech stack intelligence + Pass 1 phase split).
 
 ---
 
@@ -16,6 +16,8 @@
 - **Tiers:** Tier 1 (Systems map and priority list, £2,000 one-off); Tier 2 (Full audit with implementation roadmap, £4,500 one-off).
 
 **50/50 implementation (Feb 2026):** Status transition validation, `is_shared_with_client` and `hourly_rate` on engagements; comprehensive RLS review; 19-question 6-section Stage 1 assessment (including Context); Pass 1/Pass 2 pipeline (orchestrator deprecated); client-facing SA report page at `/service/systems_audit/report` when report is shared.
+
+**Tech stack intelligence (Feb 2026):** Tech product database (`sa_tech_products`, `sa_tech_integrations`, `sa_middleware_capabilities`, `sa_auto_discovery_log`); **discover-sa-tech-product** edge function (lookup / lookup_batch / discover stub); Pass 1 Phase 4 injects tech context and generates **systems maps** (four-level), **techStackSummary**, **hoursBreakdown** in a separate AI call (Phase 4b) with graceful degradation; admin **Tech Database** page at `/tech-database`; **inventory badges** (In Database / Not in Database) and batch lookup on Stage 2 system inventory.
 
 ---
 
@@ -57,6 +59,15 @@
 | **sa_documents** | Documents attached to the engagement. Team only (no client access). |
 | **sa_context_notes** | Admin context notes. Team only (no client access). |
 
+### 2.6 Tech stack intelligence (live schema)
+
+| Table | Purpose |
+|------|--------|
+| **sa_tech_products** | Master product DB: `slug` (unique), `product_name`, `vendor`, `category`, `market_position`, `uk_strong`, pricing (`price_entry_gbp`, `price_mid_gbp`, `price_top_gbp`, `is_per_user`), scores (`score_ease`, `score_features`, `score_integrations`, etc.), `key_strengths`, `key_weaknesses`, `best_for`, `not_ideal_for`, `sweet_min_employees`, `sweet_max_employees`, `has_zapier`, `has_make`, `has_api`. No `is_active`. |
+| **sa_tech_integrations** | Pairwise integrations: `product_a_slug`, `product_b_slug`, `integration_type`, `quality`, `bidirectional`, `data_flows` (TEXT), `setup_complexity`, `setup_hours`, `monthly_cost_gbp`, `known_limitations`. UNIQUE(product_a_slug, product_b_slug). |
+| **sa_middleware_capabilities** | Per-product middleware: `product_slug`, `platform` (zapier/make), `capability_type` (trigger/action/search), `capability_name`, `capability_description`. |
+| **sa_auto_discovery_log** | Log of unknown products found during audits (for future auto-discovery). |
+
 ---
 
 ## 3. Migrations (Chronological)
@@ -71,6 +82,9 @@ All SA-related migrations are copied into this folder with the prefix `migration
 - **20260204_add_systems_audit_service** – Inserts SYSTEMS_AUDIT into `services` table.
 - **20260216_sa_status_validation_and_sharing** – **Status trigger:** `validate_sa_status_transition()` on `sa_engagements` (BEFORE UPDATE OF status); allowed transitions only; skip if status unchanged; service_role bypass. **Columns:** `is_shared_with_client` (BOOLEAN DEFAULT FALSE), `hourly_rate` (NUMERIC(10,2) DEFAULT 45.00). **Index:** `idx_sa_engagements_shared` on `(client_id) WHERE is_shared_with_client = TRUE`.
 - **20260216_sa_rls_systematic_review** – **Helper functions:** `is_practice_team()`, `user_practice_ids()`, `user_client_ids()`. **Replaces all RLS** on the 8 SA tables: team policies via practice_id/engagement→practice; client policies via client_id or engagement→client; client can see reports/findings/recommendations only when `is_shared_with_client = TRUE` (and report status in generated/approved/published/delivered for reports). Uses dynamic DROP of existing policies from `pg_policies` then CREATE of new policies.
+- **20260217_sa_*** – Engagements client insert, inventory data-entry context, text char limit 800, aspiration columns.
+- **20260218000000_sa_pass1_phase_statuses** – Pass 1 phase status handling.
+- **20260219000000_sa_tech_product_tables** – `sa_tech_products`, `sa_tech_integrations`, `sa_middleware_capabilities`, `sa_auto_discovery_log` (indexes, RLS).
 
 ---
 
@@ -79,8 +93,9 @@ All SA-related migrations are copied into this folder with the prefix `migration
 | Function | Role |
 |----------|------|
 | **generate-sa-report** | **Deprecated orchestrator.** Thin redirect: parses `engagementId`, logs deprecation, calls `generate-sa-report-pass1` via fetch, returns Pass 1 response with `_note: 'Routed through deprecated orchestrator → Pass 1 pipeline'`. No longer contains inline Pass 1/Pass 2 logic. |
-| **generate-sa-report-pass1** | Reads Stage 1 (`sa_discovery_responses`), Stage 2 (`sa_system_inventory`), Stage 3 (`sa_process_deep_dives`). Uses **configurable `hourly_rate`** from `sa_engagements` (default 45) for cost calculations and prompt. Extracts structured facts, system/process analysis, metrics; **batch inserts** findings and recommendations. Writes `pass1_data` to `sa_audit_reports`, then **verifies write** (re-read report); if `pass1_data` is null, sets status to `pass1_failed` and returns 500. If verified, **invokes Pass 2 directly** via fetch (no setTimeout). |
+| **generate-sa-report-pass1** | **Phase 1:** Extract core facts and system inventory (12k tokens). **Phase 2:** Analyse processes, scores, uniquenessBrief, aspirationGap (12k). **Phase 3:** Diagnose — findings + quick wins (12k). **Phase 4a:** Recommend — recommendations only (12k tokens). **Phase 4b (separate call):** Queries tech stack DB (products with `uk_strong`, integrations, middleware), builds **tech context** via `buildTechContext()`, then one AI call (32k tokens) to generate **systemsMaps** (four levels), **techStackSummary**, **hoursBreakdown**; wrapped in try/catch — on failure sets null and continues. Final `pass1_data` includes `systemsMaps`, `techStackSummary`, `hoursBreakdown` (from Phase 4b merge). Writes findings/recommendations to `sa_findings` / `sa_recommendations`. Invokes Pass 2 via fetch when complete. |
 | **generate-sa-report-pass2** | Reads `pass1_data` from `sa_audit_reports`. Writes narrative using **client’s actual system names** from inventory (no hardcoded Harvest/Asana/Xero); uses **`breakingPoint`** for framing; dynamic Path and time-freedom examples from `f.systems`. Updates report with headline, executive_summary, cost_of_chaos_narrative, time_freedom_narrative, scores; status → `generated`. |
+| **discover-sa-tech-product** | **Lookup:** `action: 'lookup'`, `productName` → returns `found`, `product` (full payload with pricing, scores, integration_count, middleware_count, integrations list), `integrations`. **Lookup batch:** `action: 'lookup_batch'`, `productNames[]` → returns `results: Record<name, { found, slug, product_name, category, integration_count }>`. **Discover:** `action: 'discover'` → stub (returns "Auto-discovery coming soon"). Uses live schema (`slug`, `category`, `uk_strong`, `score_ease`, etc.). Fuzzy match: slug, name, contains, slug partial. |
 
 Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.ts** (Discovery scoring for `systems_audit`).
 
@@ -91,7 +106,7 @@ Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.t
 ### 5.1 Admin (src/ and apps/platform)
 
 - **ClientServicesPage.tsx** – Service line list includes “Systems Audit”; Systems Audit modal shows Stage 1–3, Report, Findings, Recommendations, Documents, Context notes.
-- **apps/platform** – **ClientDetailPage.tsx**, **SystemsAuditView.tsx**; **systems-audit-discovery.ts** (19q config); **types/systems-audit.ts**.
+- **apps/platform** – **ClientDetailPage.tsx**, **SystemsAuditView.tsx**; **systems-audit-discovery.ts** (19q config); **types/systems-audit.ts**. Stage 2 inventory uses **discover-sa-tech-product** (`lookup_batch`) and **SystemMatchBadge** (In Database / Not in Database). **TechDatabasePage** at /tech-database; **useTechLookupBatch**, **types/tech-stack.ts**.
 
 ### 5.2 Client portal (apps/client-portal)
 
@@ -127,10 +142,10 @@ Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.t
 
 All files are in a **single folder** (no subfolders). Naming convention:
 
-- **Edge functions:** `generate-sa-report-copy.ts`, `generate-sa-report-pass1-copy.ts`, `generate-sa-report-pass2-copy.ts`
+- **Edge functions:** `generate-sa-report-copy.ts`, `generate-sa-report-pass1-copy.ts`, `generate-sa-report-pass2-copy.ts`, **`discover-sa-tech-product-copy.ts`**
 - **Shared:** `shared-service-registry-copy.ts`, `shared-service-scorer-v2-copy.ts`, `shared-service-scorer-copy.ts`
-- **Migrations:** `migrations-20251219_systems_audit_complete.sql`, … **`migrations-20260216_sa_status_validation_and_sharing.sql`**, **`migrations-20260216_sa_rls_systematic_review.sql`**
-- **Frontend admin:** `frontend-admin-ClientServicesPage.tsx`, etc.
+- **Migrations:** `migrations-20251219_systems_audit_complete.sql`, … `migrations-20260216_sa_rls_systematic_review.sql`, **`migrations-20260217_sa_*.sql`**, **`migrations-20260218000000_sa_pass1_phase_statuses.sql`**, **`migrations-20260219000000_sa_tech_product_tables.sql`**
+- **Frontend admin:** `frontend-admin-ClientServicesPage.tsx`, **`frontend-admin-TechDatabasePage.tsx`**, **`frontend-admin-SystemMatchBadge.tsx`**, **`frontend-admin-useTechLookupBatch.ts`**, **`frontend-admin-types-tech-stack.ts`**, etc.
 - **Frontend platform:** `frontend-platform-SystemsAuditView.tsx`, etc.
 - **Frontend client:** `frontend-client-ServiceAssessmentPage.tsx`, `frontend-client-SystemInventoryPage.tsx`, `frontend-client-ProcessDeepDivesPage.tsx`, **`frontend-client-SAReportPage.tsx`**, `frontend-client-UnifiedDashboardPage.tsx`, `frontend-client-App.tsx`, `frontend-client-serviceLineAssessments.ts`, etc.
 - **Docs:** `docs-SYSTEMS_AUDIT_ASSESSMENT_STATUS.md`, `docs-SYSTEMS_AUDIT_ASSESSMENT_QUESTIONS.md`, `docs-SERVICE_LINES_ARCHITECTURE_DISCOVERY.md`
@@ -152,4 +167,4 @@ This overwrites all **copied** files from the live codebase (including the two 2
 ---
 
 **Document generated:** February 2026  
-**Scope:** torsor-practice-platform — Systems Audit service line (including 50/50 implementation).
+**Scope:** torsor-practice-platform — Systems Audit service line (50/50 implementation, tech stack intelligence, Pass 1 phase split, systems maps).

@@ -10,23 +10,28 @@ mkdir -p "$DEST"
 
 echo "Syncing live files -> systems audit analysis (flat copies)..."
 
-# --- Edge functions: Systems Audit report pipeline ---
+# --- Edge functions: Systems Audit report pipeline + tech stack discovery ---
 cp "$ROOT/supabase/functions/generate-sa-report/index.ts" "$DEST/generate-sa-report-copy.ts" 2>/dev/null && echo "  generate-sa-report-copy.ts" || true
 cp "$ROOT/supabase/functions/generate-sa-report-pass1/index.ts" "$DEST/generate-sa-report-pass1-copy.ts" 2>/dev/null && echo "  generate-sa-report-pass1-copy.ts" || true
 cp "$ROOT/supabase/functions/generate-sa-report-pass2/index.ts" "$DEST/generate-sa-report-pass2-copy.ts" 2>/dev/null && echo "  generate-sa-report-pass2-copy.ts" || true
+cp "$ROOT/supabase/functions/discover-sa-tech-product/index.ts" "$DEST/discover-sa-tech-product-copy.ts" 2>/dev/null && echo "  discover-sa-tech-product-copy.ts" || true
 
 # --- Shared (registry, scorer - systems_audit entries) ---
 [ -f "$ROOT/supabase/functions/_shared/service-registry.ts" ] && cp "$ROOT/supabase/functions/_shared/service-registry.ts" "$DEST/shared-service-registry-copy.ts" && echo "  shared-service-registry-copy.ts"
 [ -f "$ROOT/supabase/functions/_shared/service-scorer-v2.ts" ] && cp "$ROOT/supabase/functions/_shared/service-scorer-v2.ts" "$DEST/shared-service-scorer-v2-copy.ts" && echo "  shared-service-scorer-v2-copy.ts"
 [ -f "$ROOT/supabase/functions/_shared/service-scorer.ts" ] && cp "$ROOT/supabase/functions/_shared/service-scorer.ts" "$DEST/shared-service-scorer-copy.ts" && echo "  shared-service-scorer-copy.ts"
 
-# --- Migrations (SA-specific: sa_engagements, sa_discovery_responses, sa_audit_reports, sa_findings, sa_recommendations, sa_system_*, sa_process_*, service_lines systems_audit) ---
-for m in 20251219_systems_audit_complete 20251220_fix_sa_deep_dives_client_rls 20251220_fix_sa_engagements_client_rls 20251221_add_admin_guidance_columns 20251221_update_sa_reports_status_constraint 20251221_add_pass1_data_column 20251221_fix_sa_engagements_admin_rls 20251222_fix_sa_reports_update_rls 20251222_fix_sa_reports_client_rls 20260114_sa_documents_and_context 20260114_fix_sa_reports_rls_member_role 20260204_add_systems_audit_service 20260216_sa_status_validation_and_sharing 20260216_sa_rls_systematic_review; do
+# --- Migrations (SA-specific: sa_engagements, sa_discovery_responses, sa_audit_reports, sa_findings, sa_recommendations, sa_system_*, sa_process_*, sa_tech_*, service_lines systems_audit) ---
+for m in 20251219_systems_audit_complete 20251220_fix_sa_deep_dives_client_rls 20251220_fix_sa_engagements_client_rls 20251221_add_admin_guidance_columns 20251221_update_sa_reports_status_constraint 20251221_add_pass1_data_column 20251221_fix_sa_engagements_admin_rls 20251222_fix_sa_reports_update_rls 20251222_fix_sa_reports_client_rls 20260114_sa_documents_and_context 20260114_fix_sa_reports_rls_member_role 20260204_add_systems_audit_service 20260216_sa_status_validation_and_sharing 20260216_sa_rls_systematic_review 20260217_sa_engagements_client_insert 20260217_sa_inventory_data_entry_context 20260217_sa_text_char_limit_800 20260217_sa_aspiration_columns 20260218000000_sa_pass1_phase_statuses 20260219000000_sa_tech_product_tables; do
   [ -f "$ROOT/supabase/migrations/${m}.sql" ] && cp "$ROOT/supabase/migrations/${m}.sql" "$DEST/migrations-${m}.sql" && echo "  migrations-${m}.sql"
 done
 
-# --- Frontend: Admin (src/) - ClientServicesPage contains Systems Audit modal ---
+# --- Frontend: Admin (src/) - ClientServicesPage contains Systems Audit modal; Tech Database + inventory badges ---
 cp "$ROOT/src/pages/admin/ClientServicesPage.tsx" "$DEST/frontend-admin-ClientServicesPage.tsx" 2>/dev/null && echo "  frontend-admin-ClientServicesPage.tsx" || true
+cp "$ROOT/src/pages/admin/TechDatabasePage.tsx" "$DEST/frontend-admin-TechDatabasePage.tsx" 2>/dev/null && echo "  frontend-admin-TechDatabasePage.tsx" || true
+cp "$ROOT/src/components/admin/SystemMatchBadge.tsx" "$DEST/frontend-admin-SystemMatchBadge.tsx" 2>/dev/null && echo "  frontend-admin-SystemMatchBadge.tsx" || true
+cp "$ROOT/src/hooks/useTechLookupBatch.ts" "$DEST/frontend-admin-useTechLookupBatch.ts" 2>/dev/null && echo "  frontend-admin-useTechLookupBatch.ts" || true
+cp "$ROOT/src/types/tech-stack.ts" "$DEST/frontend-admin-types-tech-stack.ts" 2>/dev/null && echo "  frontend-admin-types-tech-stack.ts" || true
 cp "$ROOT/src/lib/issue-service-mapping.ts" "$DEST/frontend-admin-issue-service-mapping.ts" 2>/dev/null && echo "  frontend-admin-issue-service-mapping.ts" || true
 cp "$ROOT/src/lib/advisory-services-full.ts" "$DEST/frontend-admin-advisory-services-full.ts" 2>/dev/null && echo "  frontend-admin-advisory-services-full.ts" || true
 cp "$ROOT/src/config/serviceLineAssessments.ts" "$DEST/frontend-admin-serviceLineAssessments.ts" 2>/dev/null && echo "  frontend-admin-serviceLineAssessments.ts" || true

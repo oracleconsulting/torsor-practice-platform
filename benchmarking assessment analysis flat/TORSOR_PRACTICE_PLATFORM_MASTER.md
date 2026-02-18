@@ -192,7 +192,7 @@ From **`SERVICE_LINE_SKILLS_MAPPING.md`** (repo root). Each service line lists *
 - **Context & docs:** client_context.
 - **Goal Alignment:** roadmap_stages, client_roadmaps, generation_queue.
 - **Benchmarking:** bm_engagements, bm_reports, bm_assessment_responses, bm_metric_comparisons, assessment_questions (benchmarking).
-- **Systems Audit:** sa_engagements, sa_discovery_responses, sa_system_inventory, sa_process_chains, sa_process_deep_dives, sa_audit_reports, sa_findings, sa_recommendations, sa_system_categories, sa_documents, sa_context_notes.
+- **Systems Audit:** sa_engagements, sa_discovery_responses, sa_system_inventory, sa_process_chains, sa_process_deep_dives, sa_audit_reports, sa_findings, sa_recommendations, sa_system_categories, sa_documents, sa_context_notes; **tech stack intelligence:** sa_tech_products, sa_tech_integrations, sa_middleware_capabilities, sa_auto_discovery_log.
 - **BI / MA:** service_line_assessments, kpi_*, client_financial_data, ma_* (as per migrations).
 
 ---
@@ -202,7 +202,7 @@ From **`SERVICE_LINE_SKILLS_MAPPING.md`** (repo root). Each service line lists *
 - **Discovery:** generate-discovery-report, generate-discovery-report-pass1, generate-discovery-report-pass2, generate-discovery-analysis, generate-discovery-opportunities, generate-discovery-pdf, prepare-discovery-data, start-discovery-report, generate-service-recommendations, process-client-context, detect-assessment-patterns, generate-value-proposition.
 - **Goal Alignment / Roadmap:** generate-roadmap, generate-five-year-vision, generate-six-month-shift, generate-sprint-plan, generate-sprint-plan-part1/2, roadmap-orchestrator, generate-fit-profile, generate-value-analysis, notify-roadmap-ready, notify-sprint-lifecycle, generate-life-design-refresh, generate-vision-update, generate-shift-update, generate-sprint-summary.
 - **Benchmarking:** generate-bm-report-pass1, generate-bm-report-pass2, generate-benchmarking-pdf, generate-bm-opportunities, generate-value-analysis (shared).
-- **Systems Audit:** generate-sa-report (deprecated: thin redirect to Pass 1), generate-sa-report-pass1 (extraction + write verify + triggers Pass 2), generate-sa-report-pass2 (narrative from pass1_data).
+- **Systems Audit:** generate-sa-report (deprecated: thin redirect to Pass 1), generate-sa-report-pass1 (5 phases: extract, analyse, diagnose, recommend, then systems maps in separate call; tech context from sa_tech_*; triggers Pass 2), generate-sa-report-pass2 (narrative from pass1_data), discover-sa-tech-product (lookup / lookup_batch / discover stub for tech DB).
 - **Shared / utility:** _shared/service-registry.ts, _shared/service-scorer-v2.ts, _shared/service-scorer.ts, build-service-line, process-documents, send-client-invitation, accept-invitation, client-signup, send-assessment-review.
 
 (Exact list may vary with migrations; see `supabase/functions/` and COMPLETE_SYSTEM_OVERVIEW.)

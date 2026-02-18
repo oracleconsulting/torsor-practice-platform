@@ -21,7 +21,7 @@ import {
   ArrowLeft, AlertTriangle, CheckCircle2, TrendingUp,
   Zap, BarChart3, Target, ChevronDown, ChevronUp,
   Loader2, Quote, DollarSign, Settings, ArrowRight,
-  Sparkles, Brain, Phone
+  Sparkles, Brain, Phone, Building2, Activity, GitBranch, Map, Route
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -168,13 +168,24 @@ export default function SAReportPage() {
   const [recommendations, setRecommendations] = useState<SARecommendation[]>([]);
   const [expandedFinding, setExpandedFinding] = useState<string | null>(null);
   const [expandedRec, setExpandedRec] = useState<string | null>(null);
+  const [expandedProcess, setExpandedProcess] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState('overview');
+  const [systemInventory, setSystemInventory] = useState<any[]>([]);
+  const [discovery, setDiscovery] = useState<any>(null);
+  const [deepDives, setDeepDives] = useState<any[]>([]);
 
   const overviewRef = useRef<HTMLDivElement>(null);
+  const businessRef = useRef<HTMLDivElement>(null);
+  const systemsRef = useRef<HTMLDivElement>(null);
+  const healthRef = useRef<HTMLDivElement>(null);
   const costRef = useRef<HTMLDivElement>(null);
+  const processesRef = useRef<HTMLDivElement>(null);
   const findingsRef = useRef<HTMLDivElement>(null);
-  const planRef = useRef<HTMLDivElement>(null);
-  const freedomRef = useRef<HTMLDivElement>(null);
+  const mapsRef = useRef<HTMLDivElement>(null);
+  const quickwinsRef = useRef<HTMLDivElement>(null);
+  const roadmapRef = useRef<HTMLDivElement>(null);
+  const roiRef = useRef<HTMLDivElement>(null);
+  const mondayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!clientSession?.clientId) return;
@@ -229,6 +240,28 @@ export default function SAReportPage() {
         .order('priority_rank', { ascending: true });
 
       setRecommendations(recsData || []);
+
+      // System inventory for Section 3
+      const { data: systemsData } = await supabase
+        .from('sa_system_inventory')
+        .select('*')
+        .eq('engagement_id', engagement.id);
+      setSystemInventory(systemsData || []);
+
+      // Discovery responses for Section 2
+      const { data: discoveryData } = await supabase
+        .from('sa_discovery_responses')
+        .select('team_size, expected_team_size_12mo, revenue_band, industry_sector, magic_process_fix, desired_outcomes, monday_morning_vision, time_freedom_priority')
+        .eq('engagement_id', engagement.id)
+        .maybeSingle();
+      setDiscovery(discoveryData);
+
+      // Deep dives for Section 6
+      const { data: deepDivesData } = await supabase
+        .from('sa_process_deep_dives')
+        .select('chain_code, key_pain_points, responses')
+        .eq('engagement_id', engagement.id);
+      setDeepDives(deepDivesData || []);
     } catch (err) {
       console.error('Error loading SA report:', err);
     } finally {
@@ -276,10 +309,17 @@ export default function SAReportPage() {
 
   const navItems = [
     { id: 'overview', label: 'Overview', ref: overviewRef, icon: BarChart3 },
-    { id: 'cost', label: 'Cost of Chaos', ref: costRef, icon: DollarSign },
+    { id: 'business', label: 'Your Business', ref: businessRef, icon: Building2 },
+    { id: 'systems', label: 'Systems', ref: systemsRef, icon: Settings },
+    { id: 'health', label: 'Scores', ref: healthRef, icon: Activity },
+    { id: 'cost', label: 'Cost', ref: costRef, icon: DollarSign },
+    { id: 'processes', label: 'Processes', ref: processesRef, icon: GitBranch },
     { id: 'findings', label: 'Findings', ref: findingsRef, icon: AlertTriangle },
-    { id: 'plan', label: 'The Plan', ref: planRef, icon: Target },
-    { id: 'freedom', label: 'Your Future', ref: freedomRef, icon: Sparkles },
+    { id: 'maps', label: 'Tech Recs', ref: mapsRef, icon: Map },
+    { id: 'quickwins', label: 'Quick Wins', ref: quickwinsRef, icon: Zap },
+    { id: 'roadmap', label: 'Roadmap', ref: roadmapRef, icon: Route },
+    { id: 'roi', label: 'ROI', ref: roiRef, icon: TrendingUp },
+    { id: 'monday', label: 'Future', ref: mondayRef, icon: Sparkles },
   ];
 
   return (
@@ -341,9 +381,58 @@ export default function SAReportPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm mb-8">
+          {/* SECTION 2: Your Business */}
+          {discovery && (
+            <div ref={businessRef} className="scroll-mt-20">
+              <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm mb-8">
+                <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                  <Building2 className="w-5 h-5 text-purple-600" />
+                  Your Business
+                </h2>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 mb-1">Team Size</p>
+                    <p className="text-xl font-bold text-gray-900">{discovery.team_size ?? '—'}</p>
+                    {discovery.expected_team_size_12mo && (
+                      <p className="text-xs text-purple-600 mt-1">→ {discovery.expected_team_size_12mo} in 12mo</p>
+                    )}
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 mb-1">Revenue</p>
+                    <p className="text-xl font-bold text-gray-900">{(discovery.revenue_band || '').replace(/_/g, ' ') || '—'}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 mb-1">Industry</p>
+                    <p className="text-xl font-bold text-gray-900">{discovery.industry_sector || '—'}</p>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <p className="text-xs text-gray-500 mb-1">Time freedom</p>
+                    <p className="text-xl font-bold text-gray-900">{(discovery.time_freedom_priority || '').replace(/_/g, ' ') || '—'}</p>
+                  </div>
+                </div>
+
+                {pass1?.phase2?.aspirationGap && (
+                  <div className="bg-purple-50 rounded-xl p-5 mb-6">
+                    <p className="text-xs font-medium text-purple-700 uppercase tracking-wide mb-2">Where You Want To Be</p>
+                    <p className="text-sm text-purple-900 leading-relaxed">{pass1.phase2.aspirationGap}</p>
+                  </div>
+                )}
+
+                {discovery.magic_process_fix && (
+                  <div className="border-l-4 border-purple-300 pl-4">
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      <span className="font-medium">Magic process fix:</span> {discovery.magic_process_fix}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div ref={healthRef} className="scroll-mt-20 bg-white rounded-2xl border border-gray-200 p-6 shadow-sm mb-8">
             <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-purple-600" />
+              <Activity className="w-5 h-5 text-purple-600" />
               Operations Health Scores
             </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 justify-items-center">
@@ -367,7 +456,80 @@ export default function SAReportPage() {
           </div>
         </div>
 
-        {/* SECTION 2: Cost of Chaos */}
+        {/* SECTION 3: Your Systems Today */}
+        {systemInventory.length > 0 && (
+          <div ref={systemsRef} className="scroll-mt-20 space-y-6">
+            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <Settings className="w-5 h-5 text-purple-600" />
+                Your Systems Today
+              </h2>
+              <p className="text-sm text-gray-500 mb-6">
+                {systemInventory.length} systems audited — {fmtFull(systemInventory.reduce((s, sys) => s + (Number(sys.monthly_cost) || 0), 0))}/month total software spend
+              </p>
+
+              {(() => {
+                const connected = systemInventory.filter(s => s.integration_method === 'native' && !s.manual_transfer_required).length;
+                const partial = systemInventory.filter(s => s.integration_method === 'native' && s.manual_transfer_required).length;
+                const disconnected = systemInventory.filter(s => !s.integration_method || s.integration_method === 'none' || s.integration_method === 'manual').length;
+                const total = systemInventory.length;
+                return (
+                  <div className="mb-6">
+                    <div className="flex gap-1 h-3 rounded-full overflow-hidden bg-gray-100 mb-2">
+                      {connected > 0 && <div className="bg-emerald-500 transition-all" style={{ width: `${(connected/total)*100}%` }} />}
+                      {partial > 0 && <div className="bg-amber-400 transition-all" style={{ width: `${(partial/total)*100}%` }} />}
+                      {disconnected > 0 && <div className="bg-red-400 transition-all" style={{ width: `${(disconnected/total)*100}%` }} />}
+                    </div>
+                    <div className="flex gap-4 text-xs text-gray-500">
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> {connected} connected</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400" /> {partial} partial</span>
+                      <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400" /> {disconnected} disconnected</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {systemInventory.map((sys) => {
+                  const isDisconnected = !sys.integration_method || sys.integration_method === 'none' || sys.integration_method === 'manual';
+                  const isManual = sys.manual_transfer_required;
+                  const statusBg = isDisconnected ? 'border-red-200 bg-red-50/30' : isManual ? 'border-amber-200 bg-amber-50/30' : 'border-gray-200 bg-white';
+                  const statusDot = isDisconnected ? 'bg-red-500' : isManual ? 'bg-amber-500' : 'bg-emerald-500';
+
+                  return (
+                    <div key={sys.id} className={`rounded-xl border p-4 ${statusBg}`}>
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{sys.system_name}</p>
+                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{(sys.category_code || '').replace(/_/g, ' ')}</span>
+                        </div>
+                        <span className={`w-2.5 h-2.5 rounded-full mt-1 ${statusDot}`} />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
+                        <div>
+                          <p className="text-gray-500">Cost</p>
+                          <p className="font-medium text-gray-900">£{sys.monthly_cost ?? 0}/mo</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Satisfaction</p>
+                          <p className="font-medium text-gray-900">{'★'.repeat(sys.user_satisfaction || 0)}{'☆'.repeat(5 - (sys.user_satisfaction || 0))}</p>
+                        </div>
+                        {isManual && sys.manual_hours_monthly > 0 && (
+                          <div className="col-span-2">
+                            <p className="text-red-700 font-medium">{sys.manual_hours_monthly}h/mo manual transfer</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION: Cost of Chaos */}
         <div ref={costRef} className="scroll-mt-20">
           <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl border border-red-200 p-8 shadow-sm">
             <h2 className="text-lg font-semibold text-red-900 mb-2 flex items-center gap-2">
@@ -416,7 +578,93 @@ export default function SAReportPage() {
           </div>
         </div>
 
-        {/* SECTION 3: Findings */}
+        {/* SECTION 6: Process Analysis */}
+        {deepDives.length > 0 && (
+          <div ref={processesRef} className="scroll-mt-20">
+            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <GitBranch className="w-5 h-5 text-purple-600" />
+                Process Analysis
+              </h2>
+              <p className="text-sm text-gray-500 mb-6">
+                {deepDives.length} business processes analysed
+              </p>
+
+              <div className="space-y-4">
+                {deepDives.map((dd) => {
+                  const chainName = (dd.chain_code || '').replace(/_/g, ' ');
+                  const pains = dd.key_pain_points || [];
+                  const processData = (facts.processes || []).find((p: any) => p.chainCode === dd.chain_code);
+                  const hoursWasted = processData?.hoursWasted ?? 0;
+                  const isExpanded = expandedProcess === dd.chain_code;
+
+                  return (
+                    <div key={dd.chain_code} className="border border-gray-200 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setExpandedProcess(isExpanded ? null : dd.chain_code)}
+                        className="w-full px-6 py-4 flex items-center gap-4 text-left hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 text-sm capitalize">{chainName}</p>
+                          {processData?.criticalGaps?.[0] && (
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{processData.criticalGaps[0]}</p>
+                          )}
+                        </div>
+                        {hoursWasted > 0 && (
+                          <span className="text-xs font-bold text-red-700 bg-red-100 px-2.5 py-1 rounded-full whitespace-nowrap">
+                            {hoursWasted}h/mo wasted
+                          </span>
+                        )}
+                        {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                      </button>
+
+                      {isExpanded && (
+                        <div className="px-6 pb-5 pt-2 border-t border-gray-100 space-y-4">
+                          {pains.length > 0 && (
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Key Pain Points</p>
+                              <div className="space-y-2">
+                                {pains.slice(0, 5).map((pain: string, i: number) => (
+                                  <div key={i} className="flex gap-3 bg-red-50/50 rounded-lg p-3">
+                                    <Quote className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
+                                    <p className="text-sm text-red-800 italic">&quot;{pain}&quot;</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {processData && (
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                              {processData.score !== undefined && (
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                  <p className="text-xs text-gray-500">Process Health</p>
+                                  <p className="font-semibold text-gray-900">{processData.score}/100</p>
+                                </div>
+                              )}
+                              <div className="bg-red-50 rounded-lg p-3">
+                                <p className="text-xs text-red-600">Hours Wasted</p>
+                                <p className="font-semibold text-red-700">{hoursWasted}h/month</p>
+                              </div>
+                              {processData.criticalGaps?.length > 0 && (
+                                <div className="bg-amber-50 rounded-lg p-3">
+                                  <p className="text-xs text-amber-600">Integration Gaps</p>
+                                  <p className="font-semibold text-amber-700">{processData.criticalGaps.length}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SECTION: Findings */}
         <div ref={findingsRef} className="scroll-mt-20 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -490,20 +738,32 @@ export default function SAReportPage() {
           ))}
         </div>
 
-        {/* SECTION 4: The Plan */}
-        <div ref={planRef} className="scroll-mt-20 space-y-6">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
-              <Target className="w-5 h-5 text-purple-600" />
-              The Plan
-            </h2>
-            <p className="text-sm text-gray-500 mb-6">
-              {recommendations.length} recommendations prioritised by impact and speed.
-              Combined annual benefit: <span className="font-semibold text-emerald-700">{fmtFull(totalAnnualBenefit)}</span>,
-              saving <span className="font-semibold text-emerald-700">{totalHoursSaved}h/week</span>.
-            </p>
+        {/* SECTION 8: Technology Recommendations */}
+        <div ref={mapsRef} className="scroll-mt-20 space-y-6">
+          {pass1?.systemsMaps && Array.isArray(pass1.systemsMaps) && pass1.systemsMaps.length === 4 ? (
+            <div className="bg-gradient-to-br from-gray-900 via-slate-800 to-gray-900 rounded-2xl p-8 text-white shadow-xl">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Map className="w-5 h-5 text-blue-400" />
+                Technology Recommendations
+              </h2>
+              <p className="text-gray-300 text-sm mb-6">
+                Four levels of integration maturity — from where you are today to your optimal stack.
+              </p>
+              <p className="text-gray-400 text-xs text-center py-8">Systems map visualisation loading…</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <Map className="w-5 h-5 text-purple-600" />
+                Technology Recommendations
+              </h2>
+              <p className="text-sm text-gray-500 mb-6">
+                {recommendations.length} recommendations prioritised by impact and speed.
+                Combined annual benefit: <span className="font-semibold text-emerald-700">{fmtFull(totalAnnualBenefit)}</span>,
+                saving <span className="font-semibold text-emerald-700">{totalHoursSaved}h/week</span>.
+              </p>
 
-            <div className="space-y-4">
+              <div className="space-y-4">
               {recommendations.map((rec, idx) => {
                 const paybackMonths = rec.annual_cost_savings > 0 && rec.estimated_cost > 0
                   ? Math.round(rec.estimated_cost / (rec.annual_cost_savings / 12))
@@ -574,9 +834,13 @@ export default function SAReportPage() {
                 );
               })}
             </div>
-          </div>
+            </div>
+          )}
+        </div>
 
-          {quickWins.length > 0 && (
+        {/* SECTION 10: Quick Wins */}
+        {quickWins.length > 0 && (
+          <div ref={quickwinsRef} className="scroll-mt-20">
             <div className="bg-emerald-50 rounded-2xl border border-emerald-200 p-6">
               <h3 className="text-base font-semibold text-emerald-900 mb-4 flex items-center gap-2">
                 <Zap className="w-5 h-5 text-emerald-600" />
@@ -598,24 +862,180 @@ export default function SAReportPage() {
                 ))}
               </div>
             </div>
-          )}
+          </div>
+        )}
+
+        {/* SECTION: Implementation Roadmap */}
+        {recommendations.length > 0 && (
+          <div ref={roadmapRef} className="scroll-mt-20">
+            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                <Route className="w-5 h-5 text-purple-600" />
+                Implementation Roadmap
+              </h2>
+
+              {(() => {
+                const phases = [
+                  { key: 'immediate', label: 'Week 1-2', title: 'Quick Wins', bgColor: 'bg-emerald-50 border-emerald-200', colorClasses: 'bg-emerald-100 text-emerald-700', dotClasses: 'text-emerald-500' },
+                  { key: 'short_term', label: 'Month 1-2', title: 'Foundation', bgColor: 'bg-blue-50 border-blue-200', colorClasses: 'bg-blue-100 text-blue-700', dotClasses: 'text-blue-500' },
+                  { key: 'medium_term', label: 'Month 2-4', title: 'Strategic Changes', bgColor: 'bg-purple-50 border-purple-200', colorClasses: 'bg-purple-100 text-purple-700', dotClasses: 'text-purple-500' },
+                  { key: 'long_term', label: 'Month 4-6', title: 'Optimisation', bgColor: 'bg-gray-50 border-gray-200', colorClasses: 'bg-gray-100 text-gray-700', dotClasses: 'text-gray-500' },
+                ];
+
+                let cumulativeHours = 0;
+                let cumulativeBenefit = 0;
+
+                return (
+                  <div className="space-y-6">
+                    {phases.map((phase, phaseIdx) => {
+                      const phaseRecs = recommendations.filter(r => r.implementation_phase === phase.key);
+                      if (phaseRecs.length === 0) return null;
+
+                      const phaseHours = phaseRecs.reduce((s, r) => s + (r.hours_saved_weekly || 0), 0);
+                      const phaseBenefit = phaseRecs.reduce((s, r) => s + (r.annual_cost_savings || 0), 0);
+                      cumulativeHours += phaseHours;
+                      cumulativeBenefit += phaseBenefit;
+
+                      return (
+                        <div key={phase.key} className="relative">
+                          {phaseIdx > 0 && (
+                            <div className="absolute -top-3 left-6 w-0.5 h-6 bg-gray-200" />
+                          )}
+
+                          <div className={`rounded-xl border p-5 ${phase.bgColor}`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm ${phase.colorClasses}`}>
+                                  {phaseIdx + 1}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-gray-900">{phase.title}</p>
+                                  <p className="text-xs text-gray-500">{phase.label} · {phaseRecs.length} action{phaseRecs.length !== 1 ? 's' : ''}</p>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-semibold text-emerald-700">+{phaseHours}h/wk saved</p>
+                                <p className="text-xs text-gray-500">Cumulative: {cumulativeHours}h/wk, {fmtFull(cumulativeBenefit)}/yr</p>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 ml-14">
+                              {phaseRecs.map((rec) => (
+                                <div key={rec.id} className="flex items-center gap-2 text-sm">
+                                  <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${phase.dotClasses}`} />
+                                  <span className="text-gray-700">{rec.title}</span>
+                                  {(rec.hours_saved_weekly || 0) > 0 && (
+                                    <span className="text-xs text-emerald-600 ml-auto whitespace-nowrap">+{rec.hours_saved_weekly}h/wk</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* SECTION 11: Investment & ROI */}
+        <div ref={roiRef} className="scroll-mt-20">
+          <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-purple-600" />
+              Investment & Return
+            </h2>
+
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-gray-50 rounded-xl p-4 text-center">
+                <p className="text-xs text-gray-500 mb-1">Total Investment</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {fmtFull(recommendations.reduce((s, r) => s + (r.estimated_cost || 0), 0))}
+                </p>
+              </div>
+              <div className="bg-emerald-50 rounded-xl p-4 text-center">
+                <p className="text-xs text-emerald-600 mb-1">Annual Return</p>
+                <p className="text-2xl font-bold text-emerald-700">{fmtFull(totalAnnualBenefit)}</p>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-4 text-center">
+                <p className="text-xs text-blue-600 mb-1">Payback Period</p>
+                <p className="text-2xl font-bold text-blue-700">
+                  {(() => {
+                    const totalInv = recommendations.reduce((s, r) => s + (r.estimated_cost || 0), 0);
+                    const monthlyBenefit = totalAnnualBenefit / 12;
+                    if (totalInv === 0 || monthlyBenefit === 0) return 'Immediate';
+                    const months = totalInv / monthlyBenefit;
+                    if (months < 1) return '< 1 month';
+                    return `${Math.ceil(months)} months`;
+                  })()}
+                </p>
+              </div>
+            </div>
+
+            {(() => {
+              const totalInv = recommendations.reduce((s, r) => s + (r.estimated_cost || 0), 0);
+              const ratio = totalInv > 0 ? (totalAnnualBenefit / totalInv).toFixed(0) : '∞';
+              return (
+                <div className="bg-emerald-900 rounded-xl p-5 text-white mb-6">
+                  <p className="text-lg font-bold">For every £1 invested → £{ratio} return in the first year</p>
+                  <p className="text-emerald-200 text-sm mt-1">
+                    {totalHoursSaved} hours per week back to your team.
+                    That&apos;s {Math.round(totalHoursSaved * 52)} hours per year of productive capacity restored.
+                  </p>
+                </div>
+              );
+            })()}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left">
+                    <th className="py-2 pr-4 font-medium text-gray-500 text-xs">Recommendation</th>
+                    <th className="py-2 px-3 font-medium text-gray-500 text-xs text-right">Cost</th>
+                    <th className="py-2 px-3 font-medium text-gray-500 text-xs text-right">Annual Return</th>
+                    <th className="py-2 px-3 font-medium text-gray-500 text-xs text-right">Hours/wk</th>
+                    <th className="py-2 pl-3 font-medium text-gray-500 text-xs text-right">Payback</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recommendations.map((rec) => {
+                    const pb = (rec.annual_cost_savings || 0) > 0 && (rec.estimated_cost || 0) > 0
+                      ? Math.ceil((rec.estimated_cost || 0) / ((rec.annual_cost_savings || 0) / 12))
+                      : 0;
+                    return (
+                      <tr key={rec.id} className="border-b border-gray-100">
+                        <td className="py-3 pr-4 text-gray-900">{rec.title}</td>
+                        <td className="py-3 px-3 text-right text-gray-700">{(rec.estimated_cost || 0) > 0 ? fmtFull(rec.estimated_cost!) : '£0'}</td>
+                        <td className="py-3 px-3 text-right text-emerald-700 font-medium">{fmtFull(rec.annual_cost_savings || 0)}</td>
+                        <td className="py-3 px-3 text-right text-gray-700">{rec.hours_saved_weekly}h</td>
+                        <td className="py-3 pl-3 text-right text-gray-500">{pb < 1 ? 'Immediate' : `${pb}mo`}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
-        {/* SECTION 5: Your Future */}
-        <div ref={freedomRef} className="scroll-mt-20">
+        {/* SECTION 12: Monday Morning — Your Future */}
+        <div ref={mondayRef} className="scroll-mt-20">
           <div className="bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 rounded-2xl p-8 text-white shadow-xl">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-emerald-300" />
-              Your Future
+              Your Monday Morning
             </h2>
 
-            {facts.magicFix && (
+            {(discovery?.monday_morning_vision || facts.mondayMorningVision || facts.magicFix) && (
               <div className="bg-white/10 rounded-xl p-5 mb-6 backdrop-blur-sm">
                 <div className="flex gap-3">
                   <Quote className="w-5 h-5 text-emerald-300 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="text-emerald-100 text-sm italic leading-relaxed">
-                      &quot;{facts.magicFix}&quot;
+                      &quot;{discovery?.monday_morning_vision || facts.mondayMorningVision || facts.magicFix}&quot;
                     </p>
                     <p className="text-emerald-400 text-xs mt-2">— You said this. Here&apos;s how we make it real.</p>
                   </div>
@@ -623,13 +1043,43 @@ export default function SAReportPage() {
               </div>
             )}
 
-            <div className="prose prose-invert max-w-none">
-              {(report.time_freedom_narrative || '').split('\n\n').map((para, i) => (
-                <p key={i} className="text-emerald-50 leading-relaxed mb-4 last:mb-0">{para}</p>
-              ))}
-            </div>
+            {report.time_freedom_narrative && (
+              <div className="prose prose-invert max-w-none mb-6">
+                {report.time_freedom_narrative.split('\n\n').map((para: string, i: number) => (
+                  <p key={i} className="text-emerald-50 leading-relaxed mb-4 last:mb-0">{para}</p>
+                ))}
+              </div>
+            )}
 
-            <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-emerald-700/50">
+            {discovery?.desired_outcomes && Array.isArray(discovery.desired_outcomes) && discovery.desired_outcomes.length > 0 && (
+              <div className="space-y-3 mb-6">
+                <p className="text-emerald-300 text-xs font-medium uppercase tracking-wide">Your Goals → Our Recommendations</p>
+                {discovery.desired_outcomes.slice(0, 5).map((outcome: string, i: number) => {
+                  const matchingRecs = recommendations.filter(r =>
+                    (r.freedom_unlocked || '').toLowerCase().includes(outcome.toLowerCase().slice(0, 20)) ||
+                    (r.title || '').toLowerCase().includes((outcome.toLowerCase().split(' ')[0] || ''))
+                  );
+                  return (
+                    <div key={i} className="bg-white/5 rounded-lg p-4">
+                      <p className="text-emerald-100 text-sm font-medium mb-1">{outcome}</p>
+                      {matchingRecs.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {matchingRecs.slice(0, 3).map((rec, j) => (
+                            <span key={j} className="text-xs bg-emerald-700/50 text-emerald-200 px-2 py-0.5 rounded-full">
+                              {rec.title}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-emerald-400/60 text-xs italic">Delivered through the integrated implementation plan</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-4 pt-6 border-t border-emerald-700/50">
               <div className="text-center">
                 <p className="text-2xl font-bold">{totalHoursSaved}h</p>
                 <p className="text-emerald-300 text-xs">Saved per Week</p>
@@ -640,16 +1090,16 @@ export default function SAReportPage() {
               </div>
               <div className="text-center">
                 <p className="text-2xl font-bold">
-                  {recommendations.length > 0
-                    ? `${Math.round(recommendations.reduce((s, r) => {
-                        const pm = r.annual_cost_savings > 0 && r.estimated_cost > 0
-                          ? Math.round(r.estimated_cost / (r.annual_cost_savings / 12))
-                          : 0;
-                        return s + pm;
-                      }, 0) / recommendations.length)}mo`
-                    : '—'}
+                  {(() => {
+                    const totalInv = recommendations.reduce((s, r) => s + (r.estimated_cost || 0), 0);
+                    const monthlyBenefit = totalAnnualBenefit / 12;
+                    if (totalInv === 0 || monthlyBenefit === 0) return 'Now';
+                    const months = totalInv / monthlyBenefit;
+                    if (months < 1) return '< 1mo';
+                    return `${Math.ceil(months)}mo`;
+                  })()}
                 </p>
-                <p className="text-emerald-300 text-xs">Avg Payback</p>
+                <p className="text-emerald-300 text-xs">Payback</p>
               </div>
             </div>
           </div>

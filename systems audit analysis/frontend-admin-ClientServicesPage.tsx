@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Page } from '../../types/navigation';
 import { Navigation } from '../../components/Navigation';
 import { useAuth } from '../../hooks/useAuth';
@@ -65,6 +65,9 @@ import { MAAdminReportView, MAClientReportView } from '../../components/manageme
 
 // Test Client Panel for testing workflows
 import { TestClientPanel } from '../../components/admin/TestClientPanel';
+import { SystemMatchBadge } from '../../components/admin/SystemMatchBadge';
+import { useTechLookupBatch } from '../../hooks/useTechLookupBatch';
+import type { TechLookupBatchResult } from '../../types/tech-stack';
 
 // Accounts Upload for Benchmarking
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
@@ -7228,6 +7231,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [savingTask, setSavingTask] = useState(false);
   const [showSprintEditor, setShowSprintEditor] = useState(false);
   const [sprintStageRaw, setSprintStageRaw] = useState<any>(null);
+  const [publishingSprint, setPublishingSprint] = useState(false);
 
   // Goal Alignment tier (365_method only)
   const [clientTier, setClientTier] = useState<string | null>(null);
@@ -7627,6 +7631,43 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
       setLoading(false);
     }
   };
+
+  const handlePublishSprintForClient = useCallback(async () => {
+    if (!sprintStageRaw?.id || !clientId) return;
+    setPublishingSprint(true);
+    try {
+      const content = sprintStageRaw.approved_content || sprintStageRaw.generated_content;
+      const { error } = await supabase
+        .from('roadmap_stages')
+        .update({
+          status: 'published',
+          published_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', sprintStageRaw.id);
+      if (error) throw error;
+      try {
+        const theme = content?.sprintTheme || content?.weeks?.[0]?.theme || '';
+        await supabase.functions.invoke('notify-sprint-lifecycle', {
+          body: {
+            clientId,
+            type: 'sprint_published',
+            sprintNumber: sprintStageRaw.sprint_number ?? 1,
+            sprintTheme: theme || undefined,
+          },
+        });
+      } catch (emailErr) {
+        console.warn('Sprint published email failed:', emailErr);
+      }
+      await fetchClientDetail();
+      alert('Sprint is now visible to the client.');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to publish sprint. Please try again.');
+    } finally {
+      setPublishingSprint(false);
+    }
+  }, [clientId, sprintStageRaw, fetchClientDetail]);
 
   // ================================================================
   // MULTI-FILE UPLOAD & DOCUMENT PROCESSING
@@ -10567,14 +10608,31 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             <div className="flex items-center justify-between mb-3">
                               <h3 className="font-semibold text-gray-900">12-Week Sprint Overview</h3>
                               {sprintStage && (
-                                <button
-                                  type="button"
-                                  onClick={() => setShowSprintEditor(true)}
-                                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
-                                >
-                                  <Settings className="w-4 h-4" />
-                                  {sprintStage.status === 'generated' ? 'Review & Edit' : 'Edit Sprint'}
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  {sprintStage.status !== 'published' && (
+                                    <button
+                                      type="button"
+                                      onClick={handlePublishSprintForClient}
+                                      disabled={publishingSprint}
+                                      className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-400 text-sm font-medium"
+                                    >
+                                      {publishingSprint ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Share2 className="w-4 h-4" />
+                                      )}
+                                      Publish for client
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowSprintEditor(true)}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                  >
+                                    <Settings className="w-4 h-4" />
+                                    {sprintStage.status === 'generated' ? 'Review & Edit' : 'Edit Sprint'}
+                                  </button>
+                                </div>
                               )}
                             </div>
                             <div className="grid grid-cols-4 gap-3">
@@ -11298,14 +11356,31 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             </p>
                           </div>
                           {sprintStageFromStages ? (
-                            <button
-                              type="button"
-                              onClick={() => setShowSprintEditor(true)}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
-                            >
-                              <Settings className="w-4 h-4" />
-                              Open Sprint Editor
-                            </button>
+                            <div className="flex items-center gap-2">
+                              {sprintStageFromStages.status !== 'published' && (
+                                <button
+                                  type="button"
+                                  onClick={handlePublishSprintForClient}
+                                  disabled={publishingSprint}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-emerald-400 text-sm font-medium"
+                                >
+                                  {publishingSprint ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                  ) : (
+                                    <Share2 className="w-4 h-4" />
+                                  )}
+                                  Publish for client
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setShowSprintEditor(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                              >
+                                <Settings className="w-4 h-4" />
+                                Open Sprint Editor
+                              </button>
+                            </div>
                           ) : (
                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
                               <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
@@ -13110,6 +13185,10 @@ function SystemsAuditClientModal({
   });
   const [savingContext, setSavingContext] = useState(false);
 
+  // Tech stack lookup (batch) for Stage 2 inventory badges
+  const [batchResults, setBatchResults] = useState<Record<string, TechLookupBatchResult>>({});
+  const { lookupBatch } = useTechLookupBatch();
+
   useEffect(() => {
     if (currentMember?.practice_id) {
       fetchData();
@@ -13223,6 +13302,13 @@ function SystemsAuditClientModal({
           console.error('[Systems Audit Modal] Error fetching Stage 2:', stage2Error);
         } else {
           setStage2Inventory(stage2Data || []);
+        }
+
+        // Batch lookup tech products for Stage 2 inventory badges
+        if (stage2Data?.length) {
+          const names = stage2Data.map((s: { system_name?: string }) => s.system_name).filter((n): n is string => typeof n === 'string' && n.length > 0);
+          const results = await lookupBatch(names);
+          setBatchResults(results);
         }
 
         // Fetch Stage 3 deep dives
@@ -13400,13 +13486,13 @@ function SystemsAuditClientModal({
       }, 'Phase 3');
       console.log('[SA Report] Phase 3 complete');
 
-      // ── Phase 4: Build recommendations ──
-      console.log('[SA Report] Starting Phase 4/5: Building recommendations...');
+      // ── Phase 4: Build recommendations, then systems maps (two steps in one invoke) ──
+      console.log('[SA Report] Starting Phase 4/5: Building recommendations, then systems maps...');
       firePhase(4);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
         return !!data?.pass1_data?.phase4;
-      }, 'Phase 4');
+      }, 'Phase 4 (recommendations + systems maps)');
       console.log('[SA Report] Phase 4 complete');
 
       // ── Phase 5: Admin guidance and client presentation ──
@@ -13998,11 +14084,21 @@ function SystemsAuditClientModal({
                     <div className="p-6">
                       {stage2Inventory.length > 0 ? (
                         <div className="space-y-6">
-                          {stage2Inventory.map((system) => (
+                          {stage2Inventory.map((system) => {
+                            const matchResult = batchResults[system.system_name];
+                            return (
                             <div key={system.id} className="border border-gray-200 rounded-lg p-6 bg-white">
                               <div className="flex items-start justify-between mb-4">
                                 <div>
-                                  <h4 className="text-lg font-semibold text-gray-900">{system.system_name}</h4>
+                                  <div className="flex items-center gap-3 flex-wrap">
+                                    <h4 className="text-lg font-semibold text-gray-900">{system.system_name}</h4>
+                                    <SystemMatchBadge
+                                      found={matchResult?.found ?? false}
+                                      integrationCount={matchResult?.integration_count ?? 0}
+                                      showResearchButton
+                                      researchDisabled
+                                    />
+                                  </div>
                                   <p className="text-sm text-gray-600">{system.category_code} {system.sub_category && `• ${system.sub_category}`}</p>
                                   {system.vendor && <p className="text-xs text-gray-500 mt-1">Vendor: {system.vendor}</p>}
                                 </div>
@@ -14130,7 +14226,8 @@ function SystemsAuditClientModal({
                                 </div>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
                         <p className="text-gray-500">No systems added yet</p>
