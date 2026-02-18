@@ -7232,43 +7232,6 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [sprintStageRaw, setSprintStageRaw] = useState<any>(null);
   const [publishingSprint, setPublishingSprint] = useState(false);
 
-  const handlePublishSprintForClient = useCallback(async () => {
-    if (!sprintStageRaw?.id || !clientId) return;
-    setPublishingSprint(true);
-    try {
-      const content = sprintStageRaw.approved_content || sprintStageRaw.generated_content;
-      const { error } = await supabase
-        .from('roadmap_stages')
-        .update({
-          status: 'published',
-          published_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', sprintStageRaw.id);
-      if (error) throw error;
-      try {
-        const theme = content?.sprintTheme || content?.weeks?.[0]?.theme || '';
-        await supabase.functions.invoke('notify-sprint-lifecycle', {
-          body: {
-            clientId,
-            type: 'sprint_published',
-            sprintNumber: sprintStageRaw.sprint_number ?? 1,
-            sprintTheme: theme || undefined,
-          },
-        });
-      } catch (emailErr) {
-        console.warn('Sprint published email failed:', emailErr);
-      }
-      await fetchClientDetail();
-      alert('Sprint is now visible to the client.');
-    } catch (e) {
-      console.error(e);
-      alert('Failed to publish sprint. Please try again.');
-    } finally {
-      setPublishingSprint(false);
-    }
-  }, [clientId, sprintStageRaw, fetchClientDetail]);
-
   // Goal Alignment tier (365_method only)
   const [clientTier, setClientTier] = useState<string | null>(null);
   const [savingTier, setSavingTier] = useState(false);
@@ -7667,6 +7630,43 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
       setLoading(false);
     }
   };
+
+  const handlePublishSprintForClient = useCallback(async () => {
+    if (!sprintStageRaw?.id || !clientId) return;
+    setPublishingSprint(true);
+    try {
+      const content = sprintStageRaw.approved_content || sprintStageRaw.generated_content;
+      const { error } = await supabase
+        .from('roadmap_stages')
+        .update({
+          status: 'published',
+          published_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', sprintStageRaw.id);
+      if (error) throw error;
+      try {
+        const theme = content?.sprintTheme || content?.weeks?.[0]?.theme || '';
+        await supabase.functions.invoke('notify-sprint-lifecycle', {
+          body: {
+            clientId,
+            type: 'sprint_published',
+            sprintNumber: sprintStageRaw.sprint_number ?? 1,
+            sprintTheme: theme || undefined,
+          },
+        });
+      } catch (emailErr) {
+        console.warn('Sprint published email failed:', emailErr);
+      }
+      await fetchClientDetail();
+      alert('Sprint is now visible to the client.');
+    } catch (e) {
+      console.error(e);
+      alert('Failed to publish sprint. Please try again.');
+    } finally {
+      setPublishingSprint(false);
+    }
+  }, [clientId, sprintStageRaw, fetchClientDetail]);
 
   // ================================================================
   // MULTI-FILE UPLOAD & DOCUMENT PROCESSING
