@@ -13306,7 +13306,7 @@ function SystemsAuditClientModal({
 
         // Batch lookup tech products for Stage 2 inventory badges
         if (stage2Data?.length) {
-          const names = stage2Data.map((s: { system_name?: string }) => s.system_name).filter(Boolean);
+          const names = stage2Data.map((s: { system_name?: string }) => s.system_name).filter((n): n is string => typeof n === 'string' && n.length > 0);
           const results = await lookupBatch(names);
           setBatchResults(results);
         }
