@@ -513,7 +513,8 @@ function buildPhase1Prompt(
   discovery: any,
   systems: any[],
   clientName: string,
-  hourlyRate: number
+  hourlyRate: number,
+  additionalContext?: { area: string; tag?: string; gap: string; resolution: string; context: string }[]
 ): string {
   const MAX_SYSTEMS = 20;
   const MAX_TEXT = 600;
@@ -627,6 +628,16 @@ YOUR TASK — Return ONLY this JSON
     "allClientQuotes": ["every significant verbatim quote from discovery and deep dives"]
   }
 }
+${additionalContext && additionalContext.length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+ADDITIONAL CONTEXT FROM FOLLOW-UP CALL
+═══════════════════════════════════════════════════════════════════════════════
+The practice team identified gaps in the initial assessment and gathered additional
+information through a follow-up call with the client. Incorporate this context
+into your analysis:
+
+${additionalContext.map((c: { area: string; tag?: string; context: string }) => `[${c.area}${c.tag ? ' — ' + c.tag : ''}]: ${c.context}`).join('\n')}
+` : ''}
 
 Return ONLY valid JSON.
 `;
@@ -745,9 +756,10 @@ async function runPhase1(
   systems: any[],
   clientName: string,
   hourlyRate: number,
-  openRouterKey: string
+  openRouterKey: string,
+  additionalContext?: { area: string; tag?: string; gap: string; resolution: string; context: string }[]
 ): Promise<{ success: boolean; phase: number }> {
-  const prompt = buildPhase1Prompt(discovery, systems || [], clientName, hourlyRate);
+  const prompt = buildPhase1Prompt(discovery, systems || [], clientName, hourlyRate, additionalContext);
   const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 1, openRouterKey);
 
   console.log('[SA Pass 1] Phase 1: Writing to DB...');
@@ -1747,6 +1759,7 @@ serve(async (req) => {
         if (discoveryRes.error || !discoveryRes.data) {
           throw new Error(`Discovery not found: ${discoveryRes.error?.message}`);
         }
+        const additionalContext = Array.isArray(body.additionalContext) ? body.additionalContext : undefined;
         result = await runPhase1(
           supabaseClient,
           engagementId,
@@ -1755,7 +1768,8 @@ serve(async (req) => {
           systemsRes.data || [],
           clientName,
           hourlyRate,
-          openRouterKey
+          openRouterKey,
+          additionalContext
         );
         break;
       }

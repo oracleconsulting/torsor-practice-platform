@@ -175,14 +175,13 @@ export default function StaffInterviewPage() {
             <h1 className="text-2xl font-bold text-gray-900">Your Systems Experience</h1>
           </div>
           <p className="text-gray-700 mb-4">
-            Your practice is conducting a systems review to help improve how the business operates. We&apos;d love to
-            hear about your daily experience — what works, what doesn&apos;t, and what you&apos;d change.
+            Your business is about to make some changes to how your systems work together. Before anything changes, we want to understand your daily experience — what works, what doesn&apos;t, and what you&apos;d change.
           </p>
-          <p className="text-gray-600 mb-4">This takes about 8 minutes. Your honest answers make a real difference.</p>
+          <p className="text-gray-600 mb-4">This takes about 8 minutes. Your honest answers directly shape which tools and processes get prioritised.</p>
           {anonymous ? (
             <p className="text-gray-600 mb-6">Your responses are anonymous — your name will not be attached to your answers.</p>
           ) : (
-            <p className="text-gray-600 mb-6">Your name will be attached to your responses so the review team can follow up if needed.</p>
+            <p className="text-gray-600 mb-6">Your name will be attached to your responses so the team can follow up if needed.</p>
           )}
           <button
             onClick={createInterviewRow}
@@ -204,13 +203,13 @@ export default function StaffInterviewPage() {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">About you</h2>
           {!anonymous && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Your name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">{STAFF_IDENTITY_FIELDS.staff_name.label}</label>
               <input
                 type="text"
                 value={identity.staff_name ?? ''}
                 onChange={(e) => setIdentity((i) => ({ ...i, staff_name: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                placeholder="e.g. Jane Smith"
+                placeholder={STAFF_IDENTITY_FIELDS.staff_name.placeholder}
               />
             </div>
           )}
@@ -264,8 +263,7 @@ export default function StaffInterviewPage() {
           <CheckCircle className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Thank you</h1>
           <p className="text-gray-700">
-            Your input has been recorded and will be included in the systems review. This helps us understand the
-            real day-to-day experience, not just the view from the top.
+            Your input has been recorded. It will directly inform which systems and processes get improved — and how. The goal is to make your working day better, not just the view from the top.
           </p>
         </div>
       </div>

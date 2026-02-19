@@ -128,9 +128,9 @@ export const STAFF_INTERVIEW_QUESTIONS: StaffInterviewQuestion[] = [
   {
     id: 'staff_information_gaps',
     section: 'Communication & Decisions',
-    question: 'What information do you regularly need but struggle to get? Where do you go looking for it?',
+    question: "What information do you regularly need but find hard to get? The thing that makes you ask someone, dig through emails, or check multiple places.",
     type: 'text',
-    placeholder: "e.g., I need to know if a client is profitable before scoping new work, but I have to ask Maria and wait half a day. I need to know project status but have to check Monday AND the Google Sheet...",
+    placeholder: "e.g., I can never find out which projects are actually profitable until the end. I have to ask Sophie for client contact details because they're not in one place...",
     charLimit: 800,
     emotionalAnchor: 'staff_information_gaps',
     required: true,
@@ -138,18 +138,18 @@ export const STAFF_INTERVIEW_QUESTIONS: StaffInterviewQuestion[] = [
   {
     id: 'staff_communication_chaos',
     section: 'Communication & Decisions',
-    question: 'Where do important decisions or updates get lost? Slack? Email? Meetings with no notes?',
+    question: 'Where do decisions and updates get lost? Is there a place where information goes to die?',
     type: 'text',
-    placeholder: "e.g., Client feedback gets agreed in Slack DMs but never makes it into Monday. We decide things in meetings but nobody updates the project board...",
+    placeholder: "e.g., Important decisions happen in Slack threads and nobody updates Monday. Client feedback lives in email and the design team never sees it...",
     charLimit: 800,
     required: false,
   },
   {
     id: 'staff_bottlenecks',
     section: 'Communication & Decisions',
-    question: 'Who or what do you regularly wait on? The approval, the information, the access that holds you up.',
+    question: 'Who or what do you regularly wait on before you can do your work?',
     type: 'text',
-    placeholder: "e.g., I wait for Sophie to approve proposals — sometimes 5+ days. I wait for Maria to give me budget numbers. I wait for Jake to review my code...",
+    placeholder: "e.g., I wait for Sophie to approve briefs. I wait for Jake to export the timesheet data. I wait for the accountant to tell me the budget is approved...",
     charLimit: 800,
     emotionalAnchor: 'staff_bottlenecks',
     required: true,
@@ -162,9 +162,9 @@ export const STAFF_INTERVIEW_QUESTIONS: StaffInterviewQuestion[] = [
   {
     id: 'staff_magic_fix',
     section: 'If You Could Change One Thing',
-    question: 'If you could fix ONE thing about how the business operates — systems, processes, tools, anything — what would it be?',
+    question: "If you could fix one thing about how systems work at this company, what would it be?",
     type: 'text',
-    placeholder: 'The thing that would make the biggest difference to your working day...',
+    placeholder: "Don't hold back — what's the one thing that would make the biggest difference to your day?",
     charLimit: 800,
     emotionalAnchor: 'staff_magic_fix',
     required: true,
@@ -172,9 +172,9 @@ export const STAFF_INTERVIEW_QUESTIONS: StaffInterviewQuestion[] = [
   {
     id: 'staff_unheard',
     section: 'If You Could Change One Thing',
-    question: "Is there anything about how you work that you think the leadership team doesn't fully understand or appreciate?",
+    question: "What do you think leadership doesn't fully understand about how things actually work day-to-day?",
     type: 'text',
-    placeholder: "This is your chance to say the thing that doesn't come up in team meetings...",
+    placeholder: "This is the gap between how they think it works and how it actually works...",
     charLimit: 800,
     emotionalAnchor: 'staff_unheard',
     required: false,
@@ -190,9 +190,14 @@ export interface StaffInterviewIdentity {
 }
 
 export const STAFF_IDENTITY_FIELDS = {
+  staff_name: {
+    label: 'Your name',
+    placeholder: 'First name is fine',
+    required: false,
+  },
   role_title: {
-    label: 'Your role/job title',
-    placeholder: 'e.g., Senior Developer, Office Manager, Account Director',
+    label: 'Your role / job title',
+    placeholder: 'e.g., Senior Developer, Office Manager, Account Executive',
     required: true,
   },
   department: {

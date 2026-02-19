@@ -68,6 +68,7 @@ import { TestClientPanel } from '../../components/admin/TestClientPanel';
 import { SystemMatchBadge } from '../../components/admin/SystemMatchBadge';
 import { useTechLookupBatch } from '../../hooks/useTechLookupBatch';
 import type { TechLookupBatchResult } from '../../types/tech-stack';
+import type { SAEngagementGap } from '../../types/systems-audit';
 
 // Accounts Upload for Benchmarking
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
@@ -13328,7 +13329,7 @@ function SystemsAuditClientModal({
 }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
-  const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'analysis'>('assessments');
+  const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'review' | 'analysis'>('assessments');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
   const [stage1Responses, setStage1Responses] = useState<any[]>([]);
@@ -13355,6 +13356,13 @@ function SystemsAuditClientModal({
   const [makingAvailable, setMakingAvailable] = useState(false);
   const [staffInterviewCompleteCount, setStaffInterviewCompleteCount] = useState(0);
   const [staffInterviewTotalCount, setStaffInterviewTotalCount] = useState(0);
+  const [gaps, setGaps] = useState<SAEngagementGap[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [newGapForm, setNewGapForm] = useState({ gap_area: 'cross_cutting' as SAEngagementGap['gap_area'], gap_tag: '', description: '', source_question: '' });
+  const [savingGap, setSavingGap] = useState(false);
+  const [resolvingGapId, setResolvingGapId] = useState<string | null>(null);
+  const [resolveForm, setResolveForm] = useState({ resolution: '', additional_context: '' });
+  const [gapTrends, setGapTrends] = useState<{ tag: string; count: number }[]>([]);
   
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
@@ -13601,6 +13609,34 @@ function SystemsAuditClientModal({
         setStaffInterviewCompleteCount(staffComplete ?? 0);
         setStaffInterviewTotalCount(staffTotal ?? 0);
 
+        // Gaps (pre-generation review)
+        const { data: gapsData, error: gapsError } = await supabase
+          .from('sa_engagement_gaps')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('created_at', { ascending: true });
+        if (!gapsError) setGaps((gapsData || []) as SAEngagementGap[]);
+        const { data: tagData } = await supabase
+          .from('sa_engagement_gaps')
+          .select('gap_tag')
+          .not('gap_tag', 'is', null);
+        const uniqueTags = [...new Set((tagData || []).map((r: { gap_tag: string }) => r.gap_tag).filter(Boolean))] as string[];
+        setTagSuggestions(uniqueTags);
+        const { data: resolvedTagData } = await supabase
+          .from('sa_engagement_gaps')
+          .select('gap_tag')
+          .eq('status', 'resolved')
+          .not('gap_tag', 'is', null);
+        const tagCounts: Record<string, number> = {};
+        (resolvedTagData || []).forEach((g: { gap_tag: string }) => {
+          if (g.gap_tag) tagCounts[g.gap_tag] = (tagCounts[g.gap_tag] || 0) + 1;
+        });
+        const sortedTrends = Object.entries(tagCounts)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 10)
+          .map(([tag, count]) => ({ tag, count }));
+        setGapTrends(sortedTrends);
+
         // Fetch client name
         if (engagementData.client_id) {
           const { data: clientData } = await supabase
@@ -13630,6 +13666,20 @@ function SystemsAuditClientModal({
     setGenerating(true);
 
     try {
+      const { data: resolvedGaps } = await supabase
+        .from('sa_engagement_gaps')
+        .select('gap_area, gap_tag, description, resolution, additional_context')
+        .eq('engagement_id', engagement.id)
+        .eq('status', 'resolved')
+        .not('additional_context', 'is', null);
+      const additionalContext = (resolvedGaps || []).map((g: { gap_area: string; gap_tag: string | null; description: string; resolution: string | null; additional_context: string | null }) => ({
+        area: g.gap_area,
+        tag: g.gap_tag ?? undefined,
+        gap: g.description,
+        resolution: g.resolution ?? '',
+        context: g.additional_context ?? '',
+      }));
+
       const pollDB = async (
         checkFn: () => Promise<boolean>,
         label: string,
@@ -13649,8 +13699,11 @@ function SystemsAuditClientModal({
       };
 
       const firePhase = (phaseNum: number) => {
+        const body = phaseNum === 1 && additionalContext.length > 0
+          ? { engagementId: engagement.id, phase: phaseNum, additionalContext }
+          : { engagementId: engagement.id, phase: phaseNum };
         supabase.functions.invoke('generate-sa-report-pass1', {
-          body: { engagementId: engagement.id, phase: phaseNum }
+          body
         }).then(({ data, error }) => {
           if (error) console.warn(`[SA Report] Phase ${phaseNum} invoke returned error (may still complete):`, error.message);
           else console.log(`[SA Report] Phase ${phaseNum} invoke returned:`, data);
@@ -14115,7 +14168,109 @@ function SystemsAuditClientModal({
                             engagement?.status === 'analysis_complete' || 
                             engagement?.status === 'report_delivered' ||
                             engagement?.status === 'completed';
-  const canGenerateOrRegenerate = allStagesComplete || !!report;
+  const identifiedGapsCount = gaps.filter((g) => g.status === 'identified').length;
+  const canGenerateOrRegenerate = (allStagesComplete || !!report) && (identifiedGapsCount === 0 || engagement?.review_status === 'complete');
+
+  const handleAddGap = async () => {
+    if (!engagement || !newGapForm.description.trim()) return;
+    setSavingGap(true);
+    try {
+      const { data, error } = await supabase.from('sa_engagement_gaps').insert({
+        engagement_id: engagement.id,
+        gap_area: newGapForm.gap_area,
+        gap_tag: newGapForm.gap_tag.trim() || null,
+        description: newGapForm.description.trim(),
+        source_question: newGapForm.source_question.trim() || null,
+        status: 'identified',
+        created_by: user?.id ?? null,
+      }).select().single();
+      if (error) throw error;
+      setGaps((prev) => [...prev, data as SAEngagementGap]);
+      setNewGapForm({ gap_area: 'cross_cutting', gap_tag: '', description: '', source_question: '' });
+    } catch (e: any) {
+      alert(e?.message || 'Failed to add gap');
+    } finally {
+      setSavingGap(false);
+    }
+  };
+
+  const handleUpdateGapStatus = async (gapId: string, status: 'not_applicable' | 'deferred') => {
+    try {
+      const { error } = await supabase.from('sa_engagement_gaps').update({ status, updated_at: new Date().toISOString() }).eq('id', gapId);
+      if (error) throw error;
+      setGaps((prev) => prev.map((g) => (g.id === gapId ? { ...g, status } : g)));
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update gap');
+    }
+  };
+
+  const handleDeleteGap = async (gapId: string) => {
+    if (!confirm('Delete this gap?')) return;
+    try {
+      const { error } = await supabase.from('sa_engagement_gaps').delete().eq('id', gapId);
+      if (error) throw error;
+      setGaps((prev) => prev.filter((g) => g.id !== gapId));
+    } catch (e: any) {
+      alert(e?.message || 'Failed to delete gap');
+    }
+  };
+
+  const handleSaveResolve = async () => {
+    if (!resolvingGapId || !resolveForm.resolution.trim()) return;
+    setSavingGap(true);
+    try {
+      const { error } = await supabase
+        .from('sa_engagement_gaps')
+        .update({
+          status: 'resolved',
+          resolution: resolveForm.resolution.trim(),
+          additional_context: resolveForm.additional_context.trim() || null,
+          resolved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', resolvingGapId);
+      if (error) throw error;
+      setGaps((prev) =>
+        prev.map((g) =>
+          g.id === resolvingGapId
+            ? { ...g, status: 'resolved' as const, resolution: resolveForm.resolution.trim(), additional_context: resolveForm.additional_context.trim() || null, resolved_at: new Date().toISOString() }
+            : g
+        )
+      );
+      setResolvingGapId(null);
+      setResolveForm({ resolution: '', additional_context: '' });
+    } catch (e: any) {
+      alert(e?.message || 'Failed to save resolution');
+    } finally {
+      setSavingGap(false);
+    }
+  };
+
+  const handleMarkReviewComplete = async () => {
+    if (!engagement || identifiedGapsCount > 0) return;
+    try {
+      const { error } = await supabase
+        .from('sa_engagements')
+        .update({
+          review_status: 'complete',
+          review_completed_at: new Date().toISOString(),
+          review_completed_by: user?.id ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', engagement.id);
+      if (error) throw error;
+      setEngagement((prev: any) => (prev ? { ...prev, review_status: 'complete', review_completed_at: new Date().toISOString(), review_completed_by: user?.id } : prev));
+    } catch (e: any) {
+      alert(e?.message || 'Failed to mark review complete');
+    }
+  };
+
+  const gapAreaLabels: Record<SAEngagementGap['gap_area'], string> = {
+    stage_1_discovery: "Stage 1: Discovery",
+    stage_2_inventory: "Stage 2: Inventory",
+    stage_3_process: "Stage 3: Process",
+    cross_cutting: "Cross-cutting",
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -14136,6 +14291,7 @@ function SystemsAuditClientModal({
           {[
             { id: 'assessments', label: 'Assessments', icon: FileText },
             { id: 'documents', label: 'Documents / Context', icon: Upload },
+            { id: 'review', label: 'Review', icon: Eye },
             { id: 'analysis', label: 'Analysis', icon: Sparkles }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -14785,6 +14941,155 @@ function SystemsAuditClientModal({
                 </div>
               )}
 
+              {/* REVIEW TAB */}
+              {activeTab === 'review' && (
+                <div className="space-y-6">
+                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <h4 className="font-semibold text-gray-900">Pre-Generation Review</h4>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Review client responses and identify gaps before generating the report. Use the follow-up call to fill in missing context.
+                    </p>
+                    <div className="mt-4 flex flex-wrap items-center gap-4">
+                      <span className="text-sm text-gray-600">
+                        Status: <strong>{engagement?.review_status === 'complete' ? 'Complete' : engagement?.review_status === 'in_progress' ? 'In Progress' : 'Not Started'}</strong>
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        Gaps: {gaps.filter((g) => g.status === 'identified').length} identified, {gaps.filter((g) => g.status === 'resolved').length} resolved, {gaps.filter((g) => g.status === 'not_applicable').length} N/A, {gaps.filter((g) => g.status === 'deferred').length} deferred
+                      </span>
+                    </div>
+                  </div>
+
+                  {!allStagesComplete ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 text-sm">
+                      Complete all 3 stages before reviewing.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h4 className="font-medium text-gray-900 mb-3">Response completeness</h4>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>
+                            Stage 1: {stage1Responses[0]?.raw_responses ? Object.entries(stage1Responses[0].raw_responses as Record<string, unknown>).filter(([, v]) => v != null && v !== '').length : 0} of 32 questions answered
+                          </li>
+                          <li>Stage 2: {stage2Inventory.length} systems logged</li>
+                          <li>Stage 3: {stage3DeepDives.length} of 7 chains completed</li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h4 className="font-medium text-gray-900 mb-3">Gaps</h4>
+                        <div className="space-y-4">
+                          {gaps.map((gap) => (
+                            <div key={gap.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50/50">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span>
+                                  {gap.status === 'identified' && '🟡'}
+                                  {gap.status === 'resolved' && '🟢'}
+                                  {gap.status === 'not_applicable' && '⚪'}
+                                  {gap.status === 'deferred' && '🔵'}
+                                </span>
+                                <span className="text-xs font-medium text-gray-500">[{gapAreaLabels[gap.gap_area]}]</span>
+                                {gap.gap_tag && <span className="text-xs text-gray-600">Tag: {gap.gap_tag}</span>}
+                              </div>
+                              <p className="text-sm text-gray-800 mb-2">{gap.description}</p>
+                              {gap.resolution && <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Resolution:</span> {gap.resolution}</p>}
+                              {gap.additional_context && <p className="text-sm text-gray-600 mb-2"><span className="font-medium">Additional context for AI:</span> {gap.additional_context}</p>}
+                              {resolvingGapId === gap.id ? (
+                                <div className="mt-3 space-y-2 border-t pt-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">What did you learn on the call?</label>
+                                    <textarea value={resolveForm.resolution} onChange={(e) => setResolveForm((f) => ({ ...f, resolution: e.target.value }))} maxLength={800} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="Resolution..." />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Additional context for the report AI (optional)</label>
+                                    <textarea value={resolveForm.additional_context} onChange={(e) => setResolveForm((f) => ({ ...f, additional_context: e.target.value }))} maxLength={800} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="Factual input for the AI..." />
+                                    <p className="text-xs text-gray-500 mt-0.5">This will be passed to the AI as supplementary context when generating the report.</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button onClick={handleSaveResolve} disabled={savingGap || !resolveForm.resolution.trim()} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50">Save</button>
+                                    <button onClick={() => { setResolvingGapId(null); setResolveForm({ resolution: '', additional_context: '' }); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">Cancel</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {gap.status === 'identified' && (
+                                    <button onClick={() => { setResolvingGapId(gap.id); setResolveForm({ resolution: gap.resolution || '', additional_context: gap.additional_context || '' }); }} className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">Resolve</button>
+                                  )}
+                                  {gap.status === 'identified' && (
+                                    <>
+                                      <button onClick={() => handleUpdateGapStatus(gap.id, 'not_applicable')} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100">Not Applicable</button>
+                                      <button onClick={() => handleUpdateGapStatus(gap.id, 'deferred')} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100">Defer</button>
+                                    </>
+                                  )}
+                                  <button onClick={() => handleDeleteGap(gap.id)} className="px-2 py-1 text-red-600 border border-red-200 rounded text-xs hover:bg-red-50">Delete</button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
+                          <h5 className="font-medium text-gray-800">Add gap</h5>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Area</label>
+                              <select value={newGapForm.gap_area} onChange={(e) => setNewGapForm((f) => ({ ...f, gap_area: e.target.value as SAEngagementGap['gap_area'] }))} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                                <option value="stage_1_discovery">Stage 1: Discovery</option>
+                                <option value="stage_2_inventory">Stage 2: Inventory</option>
+                                <option value="stage_3_process">Stage 3: Process</option>
+                                <option value="cross_cutting">Cross-cutting</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Tag (autocomplete)</label>
+                              <input list="gap-tag-list" value={newGapForm.gap_tag} onChange={(e) => setNewGapForm((f) => ({ ...f, gap_tag: e.target.value }))} placeholder="e.g. pricing_model_detail" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                              <datalist id="gap-tag-list">{tagSuggestions.map((t) => <option key={t} value={t} />)}</datalist>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Description * (max 400)</label>
+                            <textarea value={newGapForm.description} onChange={(e) => setNewGapForm((f) => ({ ...f, description: e.target.value }))} maxLength={400} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="What's missing or unclear..." />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Source question (optional)</label>
+                            <input value={newGapForm.source_question} onChange={(e) => setNewGapForm((f) => ({ ...f, source_question: e.target.value }))} placeholder="e.g. sa_business_model" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                          </div>
+                          <button onClick={handleAddGap} disabled={savingGap || !newGapForm.description.trim()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50">
+                            {savingGap ? 'Adding...' : 'Add gap'}
+                          </button>
+                        </div>
+
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                          <button
+                            onClick={handleMarkReviewComplete}
+                            disabled={identifiedGapsCount > 0 || engagement?.review_status === 'complete'}
+                            className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50"
+                          >
+                            Mark Review Complete
+                          </button>
+                          {identifiedGapsCount > 0 && <p className="text-xs text-amber-700 mt-1">Resolve, mark N/A, or defer all gaps first.</p>}
+                        </div>
+                      </div>
+
+                      <details className="bg-white border border-gray-200 rounded-xl">
+                        <summary className="p-4 cursor-pointer font-medium text-gray-900">Gap trends across all engagements</summary>
+                        <div className="px-4 pb-4 text-sm text-gray-600">
+                          {gapTrends.length === 0 ? (
+                            <p>No recurring gap tags yet.</p>
+                          ) : (
+                            <ol className="list-decimal list-inside space-y-1">
+                              {gapTrends.map((t) => (
+                                <li key={t.tag}>{t.tag} — {t.count} occurrences</li>
+                              ))}
+                            </ol>
+                          )}
+                        </div>
+                      </details>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* ANALYSIS TAB */}
               {activeTab === 'analysis' && (
                 <div className="space-y-6">
@@ -14792,18 +15097,24 @@ function SystemsAuditClientModal({
                     <div className="text-center py-12">
                       <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500 mb-4">No report generated yet</p>
-                      <button
-                        onClick={handleGenerateReport}
-                        disabled={generating || !canGenerateOrRegenerate}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg transition-colors text-sm font-medium"
-                      >
-                        {generating ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
-                        {generating ? 'Generating Analysis...' : 'Generate Analysis'}
-                      </button>
+                      {identifiedGapsCount > 0 ? (
+                        <div className="max-w-md mx-auto p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                          You have {identifiedGapsCount} unresolved gap{identifiedGapsCount !== 1 ? 's' : ''}. Complete the review before generating.
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleGenerateReport}
+                          disabled={generating || !canGenerateOrRegenerate}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg transition-colors text-sm font-medium"
+                        >
+                          {generating ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                          {generating ? 'Generating Analysis...' : 'Generate Analysis'}
+                        </button>
+                      )}
                       {saReportPollingAfterError && (
                         <div className="mt-4 max-w-md mx-auto p-3 bg-amber-50 border border-amber-200 rounded-lg text-left space-y-3">
                           <p className="text-sm text-amber-800">
@@ -14967,48 +15278,50 @@ function SystemsAuditClientModal({
                         </div>
                       )}
 
-                      {/* Staff Interviews */}
+                      {/* Implementation Tools */}
                       {engagement && (
                         <div className="bg-white border border-gray-200 rounded-xl p-4">
-                          <h3 className="text-sm font-semibold text-gray-900 mb-3">Staff Interviews</h3>
-                          <p className="text-xs text-gray-600 mb-3">
-                            Allow staff members to complete a short questionnaire about their daily systems experience. Generates a shareable link.
-                          </p>
-                          <div className="flex items-center gap-4 mb-3">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={!!engagement.staff_interviews_enabled}
-                                onChange={async (e) => {
-                                  const v = e.target.checked;
-                                  const { error } = await supabase.from('sa_engagements').update({ staff_interviews_enabled: v }).eq('id', engagement.id);
-                                  if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_enabled: v }));
-                                }}
-                                className="rounded border-gray-300 text-indigo-600"
-                              />
-                              <span className="text-sm font-medium text-gray-700">Staff Interviews enabled</span>
-                            </label>
-                          </div>
-                          {engagement.staff_interviews_enabled && (
-                            <>
-                              <div className="flex items-center gap-4 mb-3">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={!!engagement.staff_interviews_anonymous}
-                                    onChange={async (e) => {
-                                      const v = e.target.checked;
-                                      const { error } = await supabase.from('sa_engagements').update({ staff_interviews_anonymous: v }).eq('id', engagement.id);
-                                      if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_anonymous: v }));
-                                    }}
-                                    className="rounded border-gray-300 text-indigo-600"
-                                  />
-                                  <span className="text-sm font-medium text-gray-700">Anonymous mode</span>
-                                </label>
-                              </div>
-                              <p className="text-xs text-gray-600 mb-2">
-                                Hide staff names from responses. Recommended for smaller teams where honest feedback might be sensitive.
-                              </p>
+                          <h3 className="text-sm font-semibold text-gray-900 mb-1">Implementation Tools</h3>
+                          <div className="border-t border-gray-200 pt-4 mt-4">
+                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Staff Interviews</h4>
+                            <p className="text-xs text-gray-600 mb-3">
+                              Enable staff-level questionnaires for the implementation phase. Generates a shareable link the client distributes to their team. Use this after the SA report is delivered and the client has committed to build-out.
+                            </p>
+                            <div className="flex items-center gap-4 mb-3">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!!engagement.staff_interviews_enabled}
+                                  onChange={async (e) => {
+                                    const v = e.target.checked;
+                                    const { error } = await supabase.from('sa_engagements').update({ staff_interviews_enabled: v }).eq('id', engagement.id);
+                                    if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_enabled: v }));
+                                  }}
+                                  className="rounded border-gray-300 text-indigo-600"
+                                />
+                                <span className="text-sm font-medium text-gray-700">Staff Interviews enabled</span>
+                              </label>
+                            </div>
+                            {engagement.staff_interviews_enabled && (
+                              <>
+                                <div className="flex items-center gap-4 mb-2">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!engagement.staff_interviews_anonymous}
+                                      onChange={async (e) => {
+                                        const v = e.target.checked;
+                                        const { error } = await supabase.from('sa_engagements').update({ staff_interviews_anonymous: v }).eq('id', engagement.id);
+                                        if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_anonymous: v }));
+                                      }}
+                                      className="rounded border-gray-300 text-indigo-600"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Anonymous Mode</span>
+                                  </label>
+                                </div>
+                                <p className="text-xs text-gray-600 mb-2">
+                                  Hide staff names from responses. Recommended for smaller teams where honest feedback might be sensitive.
+                                </p>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-sm text-gray-600">Link:</span>
                                 <code className="text-xs bg-gray-100 px-2 py-1 rounded truncate max-w-md">
@@ -15030,6 +15343,7 @@ function SystemsAuditClientModal({
                               </p>
                             </>
                           )}
+                          </div>
                         </div>
                       )}
 
