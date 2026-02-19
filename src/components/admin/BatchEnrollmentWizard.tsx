@@ -60,7 +60,6 @@ export function BatchEnrollmentWizard({ isOpen, onClose, onComplete }: BatchEnro
   const [serviceLines, setServiceLines] = useState<{ id: string; code: string; name: string }[]>([]);
   const [templates, setTemplates] = useState<{ id: string; name: string; category: string }[]>([]);
   const [sending, setSending] = useState(false);
-  const [sendProgress, setSendProgress] = useState({ current: 0, total: 0 });
   const [sendResult, setSendResult] = useState<{ succeeded: number; failed: number; failures: { email: string; reason: string }[] } | null>(null);
 
   const hasEntries = clients.some((c) => c.name.trim() || c.email.trim());
@@ -152,7 +151,6 @@ export function BatchEnrollmentWizard({ isOpen, onClose, onComplete }: BatchEnro
   const handleSend = useCallback(async () => {
     if (!practiceId || !createdById || validClients.length === 0 || selectedServices.length === 0) return;
     setSending(true);
-    setSendProgress({ current: 0, total: validClients.length });
     try {
       const batchRes = await supabase
         .from('enrollment_batches')

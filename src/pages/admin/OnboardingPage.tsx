@@ -13,7 +13,7 @@ import type { Page } from '../../types/navigation';
 
 type TabId = 'batches' | 'pipeline' | 'templates';
 
-export function OnboardingPage({ onNavigate, currentPage }: { onNavigate: (page: Page) => void; currentPage: Page }) {
+export function OnboardingPage({ onNavigate, currentPage: _currentPage }: { onNavigate: (page: Page) => void; currentPage: Page }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const practiceId = currentMember?.practice_id;
@@ -178,9 +178,8 @@ export function OnboardingPage({ onNavigate, currentPage }: { onNavigate: (page:
           <OnboardingPipeline
             batchId={pipelineBatchId}
             onNavigate={onNavigate}
-            onViewClient={(clientId, serviceLineCode) => {
+            onViewClient={() => {
               onNavigate('clients');
-              // ClientServicesPage would need to open client detail; we just navigate
             }}
           />
         )}

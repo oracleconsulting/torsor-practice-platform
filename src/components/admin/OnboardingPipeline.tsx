@@ -7,7 +7,6 @@ import {
   MoreVertical,
   Send,
   Eye,
-  Play,
   AlertCircle,
   RotateCcw,
   Loader2,
@@ -37,7 +36,7 @@ export interface OnboardingPipelineProps {
   onViewClient?: (clientId: string, serviceLineCode: string) => void;
 }
 
-export function OnboardingPipeline({ batchId, advisorId, onNavigate, onViewClient }: OnboardingPipelineProps) {
+export function OnboardingPipeline({ batchId, advisorId, onViewClient }: OnboardingPipelineProps) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const practiceId = currentMember?.practice_id;
