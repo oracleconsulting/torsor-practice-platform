@@ -263,12 +263,14 @@ export default function SAReportPage() {
     nextsteps: useRef<HTMLDivElement>(null),
   };
 
+  const loadReportRef = useRef(0);
   useEffect(() => {
     if (!clientSession?.clientId) return;
+    loadReportRef.current = 0;
     loadReport();
   }, [clientSession?.clientId]);
 
-  const loadReport = async () => {
+  const loadReport = async (isRetry = false) => {
     if (!clientSession?.clientId) return;
     try {
       const { data: engagement } = await supabase
@@ -294,6 +296,11 @@ export default function SAReportPage() {
       if (!reportData || !['generated', 'approved', 'published', 'delivered'].includes(reportData.status)) {
         setReport(null);
         setLoading(false);
+        // One retry after 2s in case DB/RLS was slow or share was just applied
+        if (!isRetry && loadReportRef.current === 0) {
+          loadReportRef.current = 1;
+          setTimeout(() => loadReport(true), 2000);
+        }
         return;
       }
 

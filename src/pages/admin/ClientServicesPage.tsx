@@ -14920,7 +14920,7 @@ function SystemsAuditClientModal({
                             >
                               {isEditing ? 'Cancel Edit' : 'Edit Client View'}
                             </button>
-                            {!isEditing && (report.status === 'pass1_complete' || report.status === 'generated' || report.status === 'approved') && (
+                            {!isEditing && (report.status === 'pass1_complete' || report.status === 'pass2_failed' || report.status === 'generated' || report.status === 'approved') && (
                               <button
                                 onClick={handleMakeAvailableToClient}
                                 disabled={makingAvailable}

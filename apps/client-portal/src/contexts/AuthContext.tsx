@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
       
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout after 10s')), 10000)
+        setTimeout(() => reject(new Error('Query timeout after 25s')), 25000)
       );
       
       const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
@@ -163,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error) {
       console.error('Error loading client session:', error);
-      // On timeout, DON'T clear existing session - keep what we have
+      // On timeout/error, DON'T clear existing session - keep what we have
       if (!clientSession) {
         console.log('No existing session to preserve');
       } else {
