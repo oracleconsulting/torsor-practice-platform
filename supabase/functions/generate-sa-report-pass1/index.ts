@@ -1262,11 +1262,12 @@ async function runPhase4(
   } catch (e: any) {
     console.warn('[SA Pass 1] Phase 4b: Optimal stack generation failed (non-blocking):', e?.message ?? e);
   }
-  const existingPass1Phase4b = report.pass1_data as any;
+  // Preserve phase4 (written earlier in this handler); do not overwrite pass1_data with stale report.pass1_data
+  const pass1WithPhase4And4b = { ...report.pass1_data, phase4: data, phase4b: phase4bResult } as any;
   await supabaseClient
     .from('sa_audit_reports')
     .update({
-      pass1_data: { ...existingPass1Phase4b, phase4b: phase4bResult },
+      pass1_data: pass1WithPhase4And4b,
       executive_summary: 'Phase 4b/5: Building technology roadmap...',
     })
     .eq('engagement_id', engagementId);

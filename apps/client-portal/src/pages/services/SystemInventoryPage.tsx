@@ -56,6 +56,11 @@ interface SystemInventory {
   future_plan_context?: string;
   replacement_candidate?: string;
   contract_end_date?: string;
+  key_users_by_name?: string;
+  actual_usage_description?: string;
+  training_status?: 'formal_training' | 'self_taught' | 'one_person_knows' | 'nobody_really_knows';
+  setup_owner?: string;
+  contract_commitment?: 'month_to_month' | 'annual_locked' | 'multi_year' | 'free' | 'dont_know';
   created_at: string;
 }
 
@@ -68,6 +73,8 @@ export default function SystemInventoryPage() {
   const [engagementId, setEngagementId] = useState<string | null>(null);
   const [systems, setSystems] = useState<SystemInventory[]>([]);
   const [categories, setCategories] = useState<SystemCategory[]>([]);
+  const [shadowSystemsDescription, setShadowSystemsDescription] = useState<string>('');
+  const [shadowSystemsSaving, setShadowSystemsSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<SystemInventory>>({
@@ -101,7 +108,7 @@ export default function SystemInventoryPage() {
       // Fetch engagement - try to find existing one
       let { data: engagement, error: engError } = await supabase
         .from('sa_engagements')
-        .select('id, status, stage_1_completed_at')
+        .select('id, status, stage_1_completed_at, shadow_systems_description')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
 
@@ -150,6 +157,7 @@ export default function SystemInventoryPage() {
       }
 
       setEngagementId(engagement.id);
+      setShadowSystemsDescription((engagement as any)?.shadow_systems_description ?? '');
       console.log('✅ Engagement ID set:', engagement.id);
 
       // Fetch existing systems
@@ -240,7 +248,12 @@ export default function SystemInventoryPage() {
       future_plan: system.future_plan,
       future_plan_context: system.future_plan_context,
       replacement_candidate: system.replacement_candidate,
-      contract_end_date: system.contract_end_date
+      contract_end_date: system.contract_end_date,
+      key_users_by_name: system.key_users_by_name,
+      actual_usage_description: system.actual_usage_description,
+      training_status: system.training_status,
+      setup_owner: system.setup_owner,
+      contract_commitment: system.contract_commitment
     });
     setEditingId(system.id);
     setShowAddForm(true);
@@ -291,7 +304,12 @@ export default function SystemInventoryPage() {
         future_plan: formData.future_plan || 'keep',
         future_plan_context: formData.future_plan_context || null,
         replacement_candidate: formData.replacement_candidate || null,
-        contract_end_date: formData.contract_end_date || null
+        contract_end_date: formData.contract_end_date || null,
+        key_users_by_name: formData.key_users_by_name || null,
+        actual_usage_description: formData.actual_usage_description || null,
+        training_status: formData.training_status || null,
+        setup_owner: formData.setup_owner || null,
+        contract_commitment: formData.contract_commitment || null
       };
 
       if (editingId) {
@@ -337,6 +355,23 @@ export default function SystemInventoryPage() {
     } catch (err: any) {
       console.error('Error deleting system:', err);
       alert(`Error deleting system: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleSaveShadowSystems = async () => {
+    if (!engagementId) return;
+    setShadowSystemsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('sa_engagements')
+        .update({ shadow_systems_description: shadowSystemsDescription || null })
+        .eq('id', engagementId);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Error saving shadow systems:', err);
+      alert(`Error saving: ${(err as Error)?.message || 'Unknown error'}`);
+    } finally {
+      setShadowSystemsSaving(false);
     }
   };
 
@@ -917,6 +952,57 @@ export default function SystemInventoryPage() {
               </div>
             </div>
 
+            {/* Usage & Knowledge Section */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Usage & Knowledge</h3>
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Who are the key people using this system?</label>
+                  <textarea
+                    value={formData.key_users_by_name || ''}
+                    onChange={(e) => setFormData({ ...formData, key_users_by_name: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    rows={2}
+                    placeholder="e.g., Maria uses it daily for invoicing, Sophie checks dashboards weekly, Jake's team logs time here"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">What do you actually use it for? (vs what it can do)</label>
+                  <textarea
+                    value={formData.actual_usage_description || ''}
+                    onChange={(e) => setFormData({ ...formData, actual_usage_description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    rows={2}
+                    placeholder="e.g., We only use basic boards in Monday. Nobody uses automations, dashboards, or portfolio view."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">How did the team learn this system?</label>
+                  <select
+                    value={formData.training_status || ''}
+                    onChange={(e) => setFormData({ ...formData, training_status: e.target.value as any || undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="">— Select —</option>
+                    <option value="formal_training">Proper training provided</option>
+                    <option value="self_taught">Self-taught / figured it out</option>
+                    <option value="one_person_knows">One person knows it — they taught others</option>
+                    <option value="nobody_really_knows">Nobody really knows it properly</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Who originally set this up? Are they still at the company?</label>
+                  <input
+                    type="text"
+                    value={formData.setup_owner || ''}
+                    onChange={(e) => setFormData({ ...formData, setup_owner: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="e.g., Previous office manager set it up in 2019, she left last year. Nobody understands the config."
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Future Planning Section */}
             <div className="mt-6 pt-6 border-t border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Future Planning</h3>
@@ -968,6 +1054,23 @@ export default function SystemInventoryPage() {
                     onChange={(e) => setFormData({ ...formData, contract_end_date: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
+                </div>
+
+                {/* Contract Commitment */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Contract lock-in?</label>
+                  <select
+                    value={formData.contract_commitment || ''}
+                    onChange={(e) => setFormData({ ...formData, contract_commitment: e.target.value as any || undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="">— Select —</option>
+                    <option value="month_to_month">Month-to-month — can cancel anytime</option>
+                    <option value="annual_locked">Annual contract — locked in</option>
+                    <option value="multi_year">Multi-year deal</option>
+                    <option value="free">Free tier — no commitment</option>
+                    <option value="dont_know">Don't know</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -1088,6 +1191,37 @@ export default function SystemInventoryPage() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Shadow Systems */}
+        {engagementId && (
+          <div className="mt-8 bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-1">Shadow Systems</h2>
+            <p className="text-sm text-gray-600 mb-3">The unofficial tools your team actually relies on</p>
+            <p className="text-sm text-gray-700 mb-2">
+              What tools or spreadsheets does your team use that aren&apos;t &quot;official&quot; systems? The personal spreadsheets, the WhatsApp groups, the sticky note systems...
+            </p>
+            <textarea
+              value={shadowSystemsDescription}
+              onChange={(e) => setShadowSystemsDescription(e.target.value.slice(0, 800))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              rows={4}
+              placeholder="e.g., Maria has a personal spreadsheet mapping Harvest codes to Xero contacts. Priya tracks leads in a Google Sheet nobody else can see. The designers share files via AirDrop..."
+              maxLength={800}
+            />
+            <div className="mt-2 flex justify-between text-xs text-gray-500">
+              <span>{shadowSystemsDescription.length}/800 characters</span>
+              {shadowSystemsSaving && <span>Saving...</span>}
+              <button
+                type="button"
+                onClick={handleSaveShadowSystems}
+                disabled={shadowSystemsSaving}
+                className="text-indigo-600 hover:underline disabled:opacity-50"
+              >
+                Save
+              </button>
+            </div>
           </div>
         )}
       </div>

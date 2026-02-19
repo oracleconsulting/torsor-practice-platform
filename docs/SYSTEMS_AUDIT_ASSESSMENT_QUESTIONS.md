@@ -4,7 +4,7 @@ Complete list of all assessment questions across all three stages of the Systems
 
 ---
 
-## Stage 1: Discovery Assessment (19 Questions)
+## Stage 1: Discovery Assessment (32 Questions)
 
 ### Section 1: Current Pain
 
@@ -142,16 +142,130 @@ Complete list of all assessment questions across all three stages of the Systems
 
 #### Q4.2: If you could fix ONE process by magic, which would have the biggest impact?
 - **Type:** Text
-- **Character Limit:** 300
+- **Character Limit:** 800
 - **Placeholder:** Describe the process and why fixing it would matter...
 - **AI Anchor:** Yes (`magic_process_fix`)
 - **Required:** Yes
 
 ---
 
-### Section 5: Readiness
+### Section 5: What Good Looks Like
 
-#### Q5.1: What's your appetite for change right now?
+#### Q5.1: What specific outcomes do you most want from fixing your systems?
+- **Type:** Multi-Select (Max 3)
+- **Options:** (Know profitability, Cash position, Close month-end, Quotes in 48h, Pipeline confidence, Free key people, Management info, Onboard without fallout, Scale without admin, Proper controls)
+- **Required:** Yes
+
+#### Q5.2: When your systems are working properly, what does your Monday morning look like?
+- **Type:** Text
+- **Character Limit:** 800
+- **AI Anchor:** Yes (`monday_morning_vision`)
+- **Required:** Yes
+
+#### Q5.3: If you got 10+ hours a week back, what would you actually spend that time on?
+- **Type:** Single Select
+- **Options:** Clients, Business development, Strategy, Managing team, Life outside work, Building something new
+- **AI Anchor:** Yes (`time_freedom_priority`)
+- **Required:** Yes
+
+---
+
+### Section 6: Where You're Going
+
+#### Q6.1: When you picture the business in 12–18 months, what's actually different?
+- **Type:** Text
+- **Character Limit:** 800
+- **Placeholder:** e.g., We've hired a senior PM so I'm not managing every project...
+- **AI Anchor:** Yes (`growth_vision`)
+- **Required:** Yes
+
+#### Q6.2: What are the next 2–3 roles you'll hire for — and what's stopping you hiring them now?
+- **Type:** Text
+- **Character Limit:** 800
+- **Placeholder:** e.g., Senior developer (can't because project scoping is too messy)...
+- **AI Anchor:** Yes (`hiring_blockers`)
+- **Required:** Yes
+
+#### Q6.3: Which best describes what growth looks like for you?
+- **Type:** Single Select
+- **Options:**
+  - More of the same — same services, more clients, bigger team
+  - Higher value — same-ish team, better clients, higher prices
+  - New offerings — launching services or products we don't do yet
+  - Geographic — new locations, markets, or remote expansion
+  - Acquisition — buying or merging with another business
+  - Honestly not sure — we're just trying to stabilise first
+- **Required:** Yes
+
+#### Q6.4: What's the first thing that would break if you won 3 new clients next month?
+- **Type:** Text
+- **Character Limit:** 800
+- **Placeholder:** Be specific — who gets overwhelmed, which process buckles...
+- **AI Anchor:** Yes (`capacity_ceiling`)
+- **Required:** Yes
+
+#### Q6.5: What systems or tools have you tried and abandoned in the last 2 years — and why did they fail?
+- **Type:** Text
+- **Character Limit:** 800
+- **Placeholder:** e.g., We tried Monday.com as a CRM but nobody used it...
+- **AI Anchor:** Yes (`failed_tools`)
+- **Required:** Yes
+
+#### Q6.6: What must NOT change? Which tools, processes, or ways of working does your team love?
+- **Type:** Text
+- **Character Limit:** 800
+- **Placeholder:** e.g., The team loves Slack — any solution needs to work with it...
+- **AI Anchor:** Yes (`non_negotiables`)
+- **Required:** Yes
+
+---
+
+### Section 7: Your Business
+
+#### Q7.1: How many people work in your business currently?
+- **Type:** Text
+- **Placeholder:** Enter number
+- **Required:** Yes
+
+#### Q7.2: How many people do you expect in 12 months?
+- **Type:** Text
+- **Placeholder:** Enter number
+- **Required:** Yes
+
+#### Q7.3: What industry are you in?
+- **Type:** Text
+- **Character Limit:** 100
+- **Placeholder:** e.g., Professional services, Manufacturing, Retail, Tech...
+- **Required:** Yes
+
+#### Q7.4: How does your business make money? (Select the closest match)
+- **Type:** Single Select
+- **Options:** Project-based, Retainer/recurring, Mixed, Product sales, Subscription, Hourly/day rate, Commission-based
+- **Required:** Yes
+
+#### Q7.5: Roughly, how is your team structured?
+- **Type:** Text
+- **Character Limit:** 800
+- **Placeholder:** e.g., Sophie (founder) + Priya (ops) + Jake leads 6 devs...
+- **Required:** Yes
+
+#### Q7.6: Where does your team work?
+- **Type:** Single Select
+- **Options:** Single office, Hybrid, Fully remote, Multiple offices/sites, Field-based
+- **Required:** Yes
+
+#### Q7.7: If one person went on holiday for 2 weeks with no phone, what would break?
+- **Type:** Text
+- **Character Limit:** 800
+- **Placeholder:** e.g., If Maria's off, nobody can do invoicing...
+- **AI Anchor:** Yes (`key_person_dependency`)
+- **Required:** Yes
+
+---
+
+### Section 8: Readiness
+
+#### Q8.1: What's your appetite for change right now?
 - **Type:** Single Select
 - **Options:**
   - Urgent – we need to fix this yesterday
@@ -160,7 +274,7 @@ Complete list of all assessment questions across all three stages of the Systems
   - Exploring – just want to understand options
 - **Required:** Yes
 
-#### Q5.2: What's your biggest fear about tackling systems?
+#### Q8.2: What's your biggest fear about tackling systems?
 - **Type:** Multi-Select
 - **Options:**
   - Cost will spiral out of control
@@ -173,7 +287,7 @@ Complete list of all assessment questions across all three stages of the Systems
 - **AI Anchor:** Yes (`systems_fears`)
 - **Required:** Yes
 
-#### Q5.3: Who internally would champion this project?
+#### Q8.3: Who internally would champion this project?
 - **Type:** Single Select
 - **Options:**
   - Me – the founder/owner
@@ -182,38 +296,6 @@ Complete list of all assessment questions across all three stages of the Systems
   - Office manager
   - IT lead
   - Other
-- **Required:** Yes
-
----
-
-### Section 6: Context
-
-#### Q6.1: How many people work in your business currently?
-- **Type:** Text
-- **Placeholder:** Enter number
-- **Required:** Yes
-
-#### Q6.2: How many people do you expect in 12 months?
-- **Type:** Text
-- **Placeholder:** Enter number
-- **Required:** Yes
-
-#### Q6.3: What's your annual revenue band?
-- **Type:** Single Select
-- **Options:**
-  - Under £250k
-  - £250k - £500k
-  - £500k - £1m
-  - £1m - £2m
-  - £2m - £5m
-  - £5m - £10m
-  - £10m+
-- **Required:** Yes
-
-#### Q6.4: What industry are you in?
-- **Type:** Text
-- **Character Limit:** 100
-- **Placeholder:** e.g., Professional services, Manufacturing, Retail, Tech...
 - **Required:** Yes
 
 ---
@@ -262,10 +344,20 @@ Stage 2 is not a traditional question-based assessment. Instead, clients fill ou
 - Workarounds in use
 - Change one thing
 
+### Usage & Knowledge
+- Key users by name
+- Actual usage description (vs capability)
+- Training status (formal_training, self_taught, one_person_knows, nobody_really_knows)
+- Setup owner
+
 ### Future Plans
 - Future plan (Keep, Replace, Upgrade, Unsure)
 - Replacement candidate
 - Contract end date
+- Contract commitment (month_to_month, annual_locked, multi_year, free, dont_know)
+
+### Shadow Systems (engagement-level)
+- Free-text capture of unofficial tools, personal spreadsheets, WhatsApp groups, etc. (800 chars, stored on `sa_engagements.shadow_systems_description`)
 
 ---
 
@@ -938,9 +1030,22 @@ Stage 3 consists of consultant-led deep dives into 6 key process chains. Each ch
 
 ## Summary
 
-- **Stage 1:** 19 questions across 6 sections (Discovery Assessment)
-- **Stage 2:** System inventory cards with ~25 fields per system
-- **Stage 3:** 6 process chains with ~100+ total questions across all chains
+- **Stage 1:** 32 questions across 8 sections (Discovery Assessment)
+  - Current Pain (3), Impact Quantification (5), Tech Stack (3), Focus Areas (2),
+    What Good Looks Like (3), Where You're Going (6), Your Business (7), Readiness (3)
+- **Stage 2:** System inventory cards with ~30 fields per system + shadow systems capture
+- **Stage 3:** 7 process chains with ~120+ total questions across all chains
+- **Stage 3b:** Staff interviews — 15 questions per staff member (optional)
 
-Questions marked with **AI Anchor** are used as emotional anchors in the AI-generated audit report to provide context and personalization.
+Questions marked with **AI Anchor** / `emotionalAnchor` are used as emotional anchors in the AI-generated audit report to provide context and personalization.
+
+### New AI Anchors (added in this revision)
+| Anchor | Question | Report Use |
+|--------|----------|-------------|
+| `growth_vision` | 12–18 month picture | Executive Summary — contextualises recommendations |
+| `hiring_blockers` | Next hires and blockers | Findings — system-caused hiring constraints |
+| `capacity_ceiling` | What breaks with 3 new clients | Scaling section — specific predictions |
+| `failed_tools` | Tried and abandoned tools | Recommendations — avoid rejected tools |
+| `non_negotiables` | What must not change | Recommendations — respect team preferences |
+| `key_person_dependency` | Holiday risk scenario | Key Person Risk scoring |
 

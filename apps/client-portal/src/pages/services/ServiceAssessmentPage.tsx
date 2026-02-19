@@ -617,19 +617,21 @@ export default function ServiceAssessmentPage() {
           const parsed = parseInt(responses['sa_expected_team_size'], 10);
           if (!isNaN(parsed)) discoveryData.expected_team_size_12mo = parsed;
         }
-        if (responses['sa_revenue_band']) {
-          const val = responses['sa_revenue_band'];
-          if (val.includes('Under')) discoveryData.revenue_band = 'under_250k';
-          else if (val.includes('250k')) discoveryData.revenue_band = '250k_500k';
-          else if (val.includes('500k')) discoveryData.revenue_band = '500k_1m';
-          else if (val.includes('£1m') && val.includes('£2m')) discoveryData.revenue_band = '1m_2m';
-          else if (val.includes('£2m') && val.includes('£5m')) discoveryData.revenue_band = '2m_5m';
-          else if (val.includes('£5m') && val.includes('£10m')) discoveryData.revenue_band = '5m_10m';
-          else if (val.includes('10m')) discoveryData.revenue_band = 'over_10m';
-        }
         if (responses['sa_industry']) {
           discoveryData.industry_sector = responses['sa_industry'];
         }
+        // Where You're Going
+        if (responses['sa_growth_shape']) discoveryData.growth_vision = responses['sa_growth_shape'];
+        if (responses['sa_next_hires']) discoveryData.hiring_blockers = responses['sa_next_hires'];
+        if (responses['sa_growth_type']) discoveryData.growth_type = responses['sa_growth_type'];
+        if (responses['sa_capacity_ceiling']) discoveryData.capacity_ceiling = responses['sa_capacity_ceiling'];
+        if (responses['sa_tried_and_failed']) discoveryData.failed_tools = responses['sa_tried_and_failed'];
+        if (responses['sa_non_negotiables']) discoveryData.non_negotiables = responses['sa_non_negotiables'];
+        // Your Business (additional)
+        if (responses['sa_business_model']) discoveryData.business_model = responses['sa_business_model'];
+        if (responses['sa_team_structure']) discoveryData.team_structure = responses['sa_team_structure'];
+        if (responses['sa_locations']) discoveryData.work_location = responses['sa_locations'];
+        if (responses['sa_key_people_dependencies']) discoveryData.key_person_dependency = responses['sa_key_people_dependencies'];
 
         // Upsert discovery responses
         console.log('💾 Saving discovery responses...');

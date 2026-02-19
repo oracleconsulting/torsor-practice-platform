@@ -14203,20 +14203,29 @@ function SystemsAuditClientModal({
                               // Section 4: Focus Areas
                               { key: 'broken_areas', rawKey: 'sa_priority_areas', label: 'Which areas of your business feel most broken?', section: 'Focus Areas' },
                               { key: 'magic_process_fix', rawKey: 'sa_magic_fix', label: 'If you could fix one process by magic, what would it be?', section: 'Focus Areas' },
-                              // Section 5: Your Vision
-                              { key: 'desired_outcomes', rawKey: 'sa_desired_outcomes', label: 'What specific outcomes do you want from fixing systems?', section: 'Your Vision' },
-                              { key: 'monday_morning_vision', rawKey: 'sa_monday_morning', label: 'What does Monday morning look like when systems work?', section: 'Your Vision' },
-                              { key: 'time_freedom_priority', rawKey: 'sa_time_freedom', label: 'What would you do with 10+ hours/week back?', section: 'Your Vision' },
-                              // Section 6: Readiness
+                              // Section 5: What Good Looks Like
+                              { key: 'desired_outcomes', rawKey: 'sa_desired_outcomes', label: 'What specific outcomes do you want from fixing systems?', section: 'What Good Looks Like' },
+                              { key: 'monday_morning_vision', rawKey: 'sa_monday_morning', label: 'What does Monday morning look like when systems work?', section: 'What Good Looks Like' },
+                              { key: 'time_freedom_priority', rawKey: 'sa_time_freedom', label: 'What would you do with 10+ hours/week back?', section: 'What Good Looks Like' },
+                              // Section 6: Where You're Going
+                              { key: 'growth_vision', rawKey: 'sa_growth_shape', label: 'When you picture the business in 12–18 months, what\'s actually different?', section: "Where You're Going" },
+                              { key: 'hiring_blockers', rawKey: 'sa_next_hires', label: 'Next 2–3 roles you\'ll hire for — and what\'s stopping you', section: "Where You're Going" },
+                              { key: 'growth_type', rawKey: 'sa_growth_type', label: 'Which best describes what growth looks like for you?', section: "Where You're Going" },
+                              { key: 'capacity_ceiling', rawKey: 'sa_capacity_ceiling', label: 'What would break if you won 3 new clients next month?', section: "Where You're Going" },
+                              { key: 'failed_tools', rawKey: 'sa_tried_and_failed', label: 'Systems or tools tried and abandoned in the last 2 years', section: "Where You're Going" },
+                              { key: 'non_negotiables', rawKey: 'sa_non_negotiables', label: 'What must NOT change?', section: "Where You're Going" },
+                              // Section 7: Your Business
+                              { key: 'team_size', rawKey: 'sa_team_size', label: 'Current team size', section: 'Your Business' },
+                              { key: 'expected_team_size_12mo', rawKey: 'sa_expected_team_size', label: 'Expected team size in 12 months', section: 'Your Business' },
+                              { key: 'industry_sector', rawKey: 'sa_industry', label: 'Industry sector', section: 'Your Business' },
+                              { key: 'business_model', rawKey: 'sa_business_model', label: 'How does your business make money?', section: 'Your Business' },
+                              { key: 'team_structure', rawKey: 'sa_team_structure', label: 'How is your team structured?', section: 'Your Business' },
+                              { key: 'work_location', rawKey: 'sa_locations', label: 'Where does your team work?', section: 'Your Business' },
+                              { key: 'key_person_dependency', rawKey: 'sa_key_people_dependencies', label: 'If one person went away for 2 weeks, what would break?', section: 'Your Business' },
+                              // Section 8: Readiness
                               { key: 'change_appetite', rawKey: 'sa_change_appetite', label: 'What\'s your appetite for change right now?', section: 'Readiness' },
                               { key: 'systems_fears', rawKey: 'sa_fears', label: 'What are your biggest fears about changing systems?', section: 'Readiness' },
                               { key: 'internal_champion', rawKey: 'sa_champion', label: 'Who would champion systems improvements internally?', section: 'Readiness' },
-                              
-                              // Section 6: Context
-                              { key: 'team_size', rawKey: 'sa_team_size', label: 'Current team size', section: 'Context' },
-                              { key: 'expected_team_size_12mo', rawKey: 'sa_expected_team_size', label: 'Expected team size in 12 months', section: 'Context' },
-                              { key: 'revenue_band', rawKey: 'sa_revenue_band', label: 'Annual revenue band', section: 'Context' },
-                              { key: 'industry_sector', rawKey: 'sa_industry_sector', label: 'Industry sector', section: 'Context' },
                             ];
                             
                             // Group by section
