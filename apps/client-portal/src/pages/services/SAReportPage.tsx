@@ -282,14 +282,18 @@ export default function SAReportPage() {
         return;
       }
 
-      const { data: reportData } = await supabase
+      const { data: reportData, error: reportErr } = await supabase
         .from('sa_audit_reports')
         .select('*')
         .eq('engagement_id', engagement.id)
-        .single();
+        .maybeSingle();
 
+      if (reportErr) {
+        console.error('SA report fetch error:', reportErr.message, reportErr.code);
+      }
       if (!reportData || !['generated', 'approved', 'published', 'delivered'].includes(reportData.status)) {
-        navigate('/dashboard');
+        setReport(null);
+        setLoading(false);
         return;
       }
 

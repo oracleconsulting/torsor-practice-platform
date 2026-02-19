@@ -1281,8 +1281,13 @@ export default function ProcessDeepDivesPage() {
             return;
           }
         } else {
-          console.log('⚠️ No report found for engagement');
+          console.log('⚠️ No report found for engagement', reportError ? { error: reportError.message, code: reportError.code } : '(no error – RLS may block client select)');
           setReportStatus(null);
+          // If report is shared but we got no report (e.g. RLS or timing), still send client to report page so they see the proper UI and any error there
+          if (engagement.is_shared_with_client) {
+            navigate('/service/systems_audit/report', { replace: true });
+            return;
+          }
         }
       }
 
