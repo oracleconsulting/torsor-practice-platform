@@ -795,7 +795,6 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       ],
       technicalField: 'internal_champion',
       required: true
-    },
     }
   ]
 };

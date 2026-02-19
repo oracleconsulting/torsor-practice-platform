@@ -134,7 +134,7 @@ export default function SystemInventoryPage() {
             status: 'stage_1_complete',
             stage_1_completed_at: new Date().toISOString()
           })
-          .select('id, status, stage_1_completed_at')
+          .select('id, status, stage_1_completed_at, shadow_systems_description')
           .single();
 
         console.log('📊 Create engagement result:', { newEngagement, createError });
