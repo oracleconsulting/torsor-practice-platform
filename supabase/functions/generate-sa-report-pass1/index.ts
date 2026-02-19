@@ -514,7 +514,8 @@ function buildPhase1Prompt(
   systems: any[],
   clientName: string,
   hourlyRate: number,
-  additionalContext?: { area: string; tag?: string; gap: string; resolution: string; context: string }[]
+  additionalContext?: { area: string; tag?: string; gap: string; resolution: string; context: string }[],
+  preliminaryAnalysis?: { confidenceScores?: { area: string; confidence: string; reason: string }[] }
 ): string {
   const MAX_SYSTEMS = 20;
   const MAX_TEXT = 600;
@@ -628,13 +629,21 @@ YOUR TASK — Return ONLY this JSON
     "allClientQuotes": ["every significant verbatim quote from discovery and deep dives"]
   }
 }
+${preliminaryAnalysis?.confidenceScores && preliminaryAnalysis.confidenceScores.length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+PRELIMINARY ANALYSIS CONTEXT
+═══════════════════════════════════════════════════════════════════════════════
+The preliminary analysis identified these confidence levels. Use this to strengthen your analysis in low-confidence areas:
+
+${preliminaryAnalysis.confidenceScores.map((c: { area: string; confidence: string; reason: string }) => `- ${c.area}: ${c.confidence} (${c.reason})`).join('\n')}
+` : ''}
 ${additionalContext && additionalContext.length > 0 ? `
 ═══════════════════════════════════════════════════════════════════════════════
 ADDITIONAL CONTEXT FROM FOLLOW-UP CALL
 ═══════════════════════════════════════════════════════════════════════════════
 The practice team identified gaps in the initial assessment and gathered additional
 information through a follow-up call with the client. Incorporate this context
-into your analysis:
+into your analysis. Treat this as primary source evidence alongside the assessment:
 
 ${additionalContext.map((c: { area: string; tag?: string; context: string }) => `[${c.area}${c.tag ? ' — ' + c.tag : ''}]: ${c.context}`).join('\n')}
 ` : ''}
@@ -757,9 +766,10 @@ async function runPhase1(
   clientName: string,
   hourlyRate: number,
   openRouterKey: string,
-  additionalContext?: { area: string; tag?: string; gap: string; resolution: string; context: string }[]
+  additionalContext?: { area: string; tag?: string; gap: string; resolution: string; context: string }[],
+  preliminaryAnalysis?: { confidenceScores?: { area: string; confidence: string; reason: string }[] }
 ): Promise<{ success: boolean; phase: number }> {
-  const prompt = buildPhase1Prompt(discovery, systems || [], clientName, hourlyRate, additionalContext);
+  const prompt = buildPhase1Prompt(discovery, systems || [], clientName, hourlyRate, additionalContext, preliminaryAnalysis);
   const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 1, openRouterKey);
 
   console.log('[SA Pass 1] Phase 1: Writing to DB...');
@@ -1760,6 +1770,7 @@ serve(async (req) => {
           throw new Error(`Discovery not found: ${discoveryRes.error?.message}`);
         }
         const additionalContext = Array.isArray(body.additionalContext) ? body.additionalContext : undefined;
+        const preliminaryAnalysis = body.preliminaryAnalysis && typeof body.preliminaryAnalysis === 'object' ? body.preliminaryAnalysis : undefined;
         result = await runPhase1(
           supabaseClient,
           engagementId,
@@ -1769,7 +1780,8 @@ serve(async (req) => {
           clientName,
           hourlyRate,
           openRouterKey,
-          additionalContext
+          additionalContext,
+          preliminaryAnalysis
         );
         break;
       }

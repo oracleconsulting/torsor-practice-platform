@@ -68,7 +68,7 @@ import { TestClientPanel } from '../../components/admin/TestClientPanel';
 import { SystemMatchBadge } from '../../components/admin/SystemMatchBadge';
 import { useTechLookupBatch } from '../../hooks/useTechLookupBatch';
 import type { TechLookupBatchResult } from '../../types/tech-stack';
-import type { SAEngagementGap } from '../../types/systems-audit';
+import type { SAEngagementGap, PreliminaryAnalysis } from '../../types/systems-audit';
 
 // Accounts Upload for Benchmarking
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
@@ -13363,6 +13363,8 @@ function SystemsAuditClientModal({
   const [resolvingGapId, setResolvingGapId] = useState<string | null>(null);
   const [resolveForm, setResolveForm] = useState({ resolution: '', additional_context: '' });
   const [gapTrends, setGapTrends] = useState<{ tag: string; count: number }[]>([]);
+  const [runningPreliminary, setRunningPreliminary] = useState(false);
+  const [dismissedSuggestedGapIds, setDismissedSuggestedGapIds] = useState<Set<number>>(new Set());
   
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
@@ -13699,9 +13701,14 @@ function SystemsAuditClientModal({
       };
 
       const firePhase = (phaseNum: number) => {
-        const body = phaseNum === 1 && additionalContext.length > 0
-          ? { engagementId: engagement.id, phase: phaseNum, additionalContext }
-          : { engagementId: engagement.id, phase: phaseNum };
+        const body: { engagementId: string; phase: number; additionalContext?: typeof additionalContext; preliminaryAnalysis?: typeof engagement.preliminary_analysis } = {
+          engagementId: engagement.id,
+          phase: phaseNum,
+        };
+        if (phaseNum === 1) {
+          if (additionalContext.length > 0) body.additionalContext = additionalContext;
+          if (engagement.preliminary_analysis) body.preliminaryAnalysis = engagement.preliminary_analysis;
+        }
         supabase.functions.invoke('generate-sa-report-pass1', {
           body
         }).then(({ data, error }) => {
@@ -14270,6 +14277,54 @@ function SystemsAuditClientModal({
     stage_2_inventory: "Stage 2: Inventory",
     stage_3_process: "Stage 3: Process",
     cross_cutting: "Cross-cutting",
+  };
+
+  const hasPreliminary = !!engagement?.preliminary_analysis;
+  const preliminary = engagement?.preliminary_analysis as PreliminaryAnalysis | undefined;
+
+  const handleRunPreliminary = async () => {
+    if (!engagement) return;
+    setRunningPreliminary(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-sa-preliminary', {
+        body: { engagementId: engagement.id },
+      });
+      if (error) throw error;
+      if (data?.analysis) {
+        setEngagement((prev: any) => (prev ? { ...prev, preliminary_analysis: data.analysis, preliminary_analysis_at: new Date().toISOString() } : prev));
+      }
+      if (!data?.success) throw new Error(data?.error || 'Preliminary analysis failed');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to run preliminary analysis');
+    } finally {
+      setRunningPreliminary(false);
+    }
+  };
+
+  const handleAcceptSuggestedGap = async (suggested: { gap_area: string; gap_tag: string; description: string; source_question: string | null }) => {
+    if (!engagement) return;
+    setSavingGap(true);
+    try {
+      const { data, error } = await supabase.from('sa_engagement_gaps').insert({
+        engagement_id: engagement.id,
+        gap_area: suggested.gap_area,
+        gap_tag: suggested.gap_tag || null,
+        description: suggested.description,
+        source_question: suggested.source_question,
+        status: 'identified',
+        created_by: user?.id ?? null,
+      }).select().single();
+      if (error) throw error;
+      setGaps((prev) => [...prev, data as SAEngagementGap]);
+    } catch (e: any) {
+      alert(e?.message || 'Failed to add gap');
+    } finally {
+      setSavingGap(false);
+    }
+  };
+
+  const handleDismissSuggestedGap = (index: number) => {
+    setDismissedSuggestedGapIds((prev) => new Set(prev).add(index));
   };
 
   return (
@@ -14965,6 +15020,89 @@ function SystemsAuditClientModal({
                     </div>
                   ) : (
                     <>
+                      {preliminary && (
+                        <>
+                          <div className="bg-white border border-gray-200 rounded-xl p-6">
+                            <h4 className="font-medium text-gray-900 mb-3">Business snapshot</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <p><span className="text-gray-500">Type:</span> {preliminary.businessSnapshot?.companyType || '—'}</p>
+                              <p><span className="text-gray-500">Revenue model:</span> {preliminary.businessSnapshot?.revenue_model || '—'}</p>
+                              <p><span className="text-gray-500">Growth stage:</span> {preliminary.businessSnapshot?.growth_stage || '—'}</p>
+                              <p><span className="text-gray-500">Systems:</span> {preliminary.businessSnapshot?.systems_count ?? '—'}</p>
+                              <p className="sm:col-span-2"><span className="text-gray-500">Headline pain:</span> {preliminary.businessSnapshot?.headline_pain || '—'}</p>
+                            </div>
+                          </div>
+                          {preliminary.confidenceScores && preliminary.confidenceScores.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">Confidence by area</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {preliminary.confidenceScores.map((c: { area: string; confidence: string; reason: string }, i: number) => (
+                                  <span
+                                    key={i}
+                                    className={`px-3 py-1.5 rounded-lg text-sm ${
+                                      c.confidence === 'high' ? 'bg-emerald-100 text-emerald-800' :
+                                      c.confidence === 'medium' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                                    }`}
+                                    title={c.reason}
+                                  >
+                                    {c.area}: {c.confidence}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {preliminary.suggestedGaps && preliminary.suggestedGaps.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">AI-suggested gaps</h4>
+                              <p className="text-xs text-gray-500 mb-3">Accept to add to your gaps list, or dismiss.</p>
+                              <ul className="space-y-3">
+                                {preliminary.suggestedGaps.map((sg: { gap_area: string; gap_tag: string; description: string; source_question: string | null; severity: string }, idx: number) => (
+                                  dismissedSuggestedGapIds.has(idx) ? null : (
+                                    <li key={idx} className="border border-gray-200 rounded-lg p-3 bg-gray-50/50 flex flex-wrap items-start justify-between gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${sg.severity === 'blocking' ? 'bg-red-100 text-red-800' : sg.severity === 'important' ? 'bg-amber-100 text-amber-800' : 'bg-gray-200 text-gray-700'}`}>
+                                          {sg.severity}
+                                        </span>
+                                        <span className="text-xs text-gray-500 ml-2">[{sg.gap_area}]</span>
+                                        {sg.gap_tag && <span className="text-xs text-gray-500 ml-1">Tag: {sg.gap_tag}</span>}
+                                        <p className="text-sm text-gray-800 mt-1">{sg.description}</p>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button onClick={() => handleAcceptSuggestedGap(sg)} disabled={savingGap} className="px-2 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 disabled:opacity-50">Accept</button>
+                                        <button onClick={() => handleDismissSuggestedGap(idx)} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100">Dismiss</button>
+                                      </div>
+                                    </li>
+                                  )
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {preliminary.contradictions && preliminary.contradictions.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">Contradictions</h4>
+                              <ul className="space-y-3">
+                                {preliminary.contradictions.map((c: { claim_a: string; claim_b: string; source_a: string; source_b: string; suggested_resolution: string }, i: number) => (
+                                  <li key={i} className="border border-amber-200 rounded-lg p-3 bg-amber-50/50">
+                                    <p className="text-sm"><span className="text-amber-800 font-medium">A:</span> {c.claim_a} <span className="text-gray-500 text-xs">({c.source_a})</span></p>
+                                    <p className="text-sm mt-1"><span className="text-amber-800 font-medium">B:</span> {c.claim_b} <span className="text-gray-500 text-xs">({c.source_b})</span></p>
+                                    <p className="text-xs text-gray-600 mt-2">Resolve: {c.suggested_resolution}</p>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {preliminary.topInsights && preliminary.topInsights.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">Key insights preview</h4>
+                              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                                {preliminary.topInsights.map((insight: string, i: number) => (
+                                  <li key={i}>{insight}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
+                      )}
                       <div className="bg-white border border-gray-200 rounded-xl p-6">
                         <h4 className="font-medium text-gray-900 mb-3">Response completeness</h4>
                         <ul className="text-sm text-gray-600 space-y-1">
@@ -15097,23 +15235,63 @@ function SystemsAuditClientModal({
                     <div className="text-center py-12">
                       <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500 mb-4">No report generated yet</p>
-                      {identifiedGapsCount > 0 ? (
-                        <div className="max-w-md mx-auto p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
-                          You have {identifiedGapsCount} unresolved gap{identifiedGapsCount !== 1 ? 's' : ''}. Complete the review before generating.
-                        </div>
+                      {!hasPreliminary ? (
+                        <>
+                          <button
+                            onClick={handleRunPreliminary}
+                            disabled={runningPreliminary || !allStagesComplete}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                          >
+                            {runningPreliminary ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-4 h-4" />
+                            )}
+                            {runningPreliminary ? 'Running Preliminary Analysis...' : 'Run Preliminary Analysis'}
+                          </button>
+                          {!allStagesComplete && <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>}
+                        </>
                       ) : (
-                        <button
-                          onClick={handleGenerateReport}
-                          disabled={generating || !canGenerateOrRegenerate}
-                          className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg transition-colors text-sm font-medium"
-                        >
-                          {generating ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                        <>
+                          {identifiedGapsCount > 0 ? (
+                            <div className="max-w-md mx-auto space-y-3">
+                              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                                You have {identifiedGapsCount} unresolved gap{identifiedGapsCount !== 1 ? 's' : ''}. Complete the review before generating.
+                              </div>
+                              <button
+                                onClick={handleGenerateReport}
+                                disabled
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm font-medium"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                                Generate Full Report
+                              </button>
+                            </div>
                           ) : (
-                            <Sparkles className="w-4 h-4" />
+                            <button
+                              onClick={handleGenerateReport}
+                              disabled={generating || !canGenerateOrRegenerate}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                            >
+                              {generating ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-4 h-4" />
+                              )}
+                              {generating ? 'Generating Full Report...' : 'Generate Full Report'}
+                            </button>
                           )}
-                          {generating ? 'Generating Analysis...' : 'Generate Analysis'}
-                        </button>
+                          <p className="mt-3">
+                            <button
+                              type="button"
+                              onClick={handleRunPreliminary}
+                              disabled={runningPreliminary}
+                              className="text-sm text-indigo-600 hover:underline disabled:opacity-50"
+                            >
+                              Re-run Preliminary Analysis
+                            </button>
+                          </p>
+                        </>
                       )}
                       {saReportPollingAfterError && (
                         <div className="mt-4 max-w-md mx-auto p-3 bg-amber-50 border border-amber-200 rounded-lg text-left space-y-3">
@@ -15135,7 +15313,7 @@ function SystemsAuditClientModal({
                           </button>
                         </div>
                       )}
-                      {!canGenerateOrRegenerate && !saReportPollingAfterError && (
+                      {!allStagesComplete && !hasPreliminary && !saReportPollingAfterError && (
                         <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>
                       )}
                     </div>
