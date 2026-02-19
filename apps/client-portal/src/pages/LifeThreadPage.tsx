@@ -83,21 +83,25 @@ export default function LifeThreadPage() {
   useEffect(() => {
     if (!clientId) return;
     setLoadingCommitments(true);
-    supabase
-      .from('roadmap_stages')
-      .select('generated_content, approved_content')
-      .eq('client_id', clientId)
-      .eq('stage_type', 'life_design_profile')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => {
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('roadmap_stages')
+          .select('generated_content, approved_content')
+          .eq('client_id', clientId)
+          .eq('stage_type', 'life_design_profile')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
         const content = data?.approved_content ?? data?.generated_content ?? null;
         const commitments = (content?.lifeCommitments ?? content?.lifeDesignProfile?.lifeCommitments) ?? [];
         setLifeCommitments(Array.isArray(commitments) ? commitments : []);
-      })
-      .catch(() => setLifeCommitments([]))
-      .finally(() => setLoadingCommitments(false));
+      } catch {
+        setLifeCommitments([]);
+      } finally {
+        setLoadingCommitments(false);
+      }
+    })();
   }, [clientId]);
 
   const scoreNum = currentScore != null ? Math.round(currentScore) : null;

@@ -1,0 +1,17 @@
+---
+description: After making code changes, commit and push to git without being asked
+alwaysApply: true
+---
+
+# Always push changes to git
+
+After you make any code or config changes in this repo:
+
+1. **Stage** all changes, excluding backup/scratch files (e.g. `*.bak`, `*.disk_copy`, `*.orig`).
+2. **Commit** with a short, descriptive message that summarizes what changed.
+3. **Push** to `origin main` (or the current branch).
+
+Do this in the same turn as your edits when possible. Do not wait for the user to ask you to push.
+
+- Run git commands from the **torsor-practice-platform** directory (this repo’s root).
+- If the user only asked for a small fix (e.g. one file), the commit message can be one line; for larger work, use a few lines or a bullet list.
