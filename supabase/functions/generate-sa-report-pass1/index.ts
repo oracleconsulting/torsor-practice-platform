@@ -180,6 +180,334 @@ async function callSonnet(
   return { data, tokensUsed, cost, generationTime: elapsed };
 }
 
+// ---------- Phase 4b: Systems map deterministic builder + optional Map 4 AI ----------
+interface SystemNode {
+  name: string;
+  category: string;
+  cost: number;
+  x: number;
+  y: number;
+  status?: 'new' | 'reconfigure';
+  replaces?: string[];
+}
+interface MapEdge {
+  from: string;
+  to: string;
+  status: 'red' | 'amber' | 'green' | 'blue';
+  label?: string;
+  changed?: boolean;
+  middleware?: boolean;
+  person?: string;
+}
+interface SystemsMap {
+  title: string;
+  subtitle: string;
+  recommended: boolean;
+  nodes: Record<string, SystemNode>;
+  edges: MapEdge[];
+  middlewareHub: { name: string; x: number; y: number; cost: number } | null;
+  metrics: {
+    monthlySoftware: number;
+    manualHours: number;
+    annualWaste: number;
+    annualSavings: number;
+    investment: number;
+    payback: string;
+    integrations: string;
+    risk: string;
+  };
+}
+
+function layoutSystems(systems: any[]): Record<string, SystemNode> {
+  const nodes: Record<string, SystemNode> = {};
+  const count = systems.length;
+  const positions: [number, number][] = [];
+  if (count <= 4) {
+    positions.push([400, 120], [200, 300], [600, 300], [400, 480]);
+  } else if (count <= 6) {
+    positions.push([200, 150], [400, 150], [600, 150], [200, 400], [400, 400], [600, 400]);
+  } else if (count <= 9) {
+    positions.push([200, 120], [400, 120], [600, 120], [160, 280], [400, 280], [640, 280], [200, 440], [400, 440], [600, 440]);
+  } else if (count <= 12) {
+    positions.push([200, 100], [400, 100], [600, 100], [130, 240], [310, 240], [490, 240], [670, 240], [200, 380], [400, 380], [600, 380], [300, 510], [500, 510]);
+  } else {
+    const cx = 400, cy = 290, r = 200;
+    for (let i = 0; i < count; i++) {
+      const angle = (2 * Math.PI * i) / count - Math.PI / 2;
+      positions.push([Math.round(cx + r * Math.cos(angle)), Math.round(cy + r * Math.sin(angle))]);
+    }
+  }
+  const catOrder: Record<string, number> = {
+    accounting_software: 0, accounting: 0, time_tracking: 1, project_management: 2,
+    expense_management: 3, payment_collection: 4, crm: 5, email: 6, chat_messaging: 7,
+    design: 8, email_marketing: 9, spreadsheet: 10,
+  };
+  const sorted = [...systems].sort((a, b) => (catOrder[a.category] ?? 99) - (catOrder[b.category] ?? 99));
+  sorted.forEach((sys, i) => {
+    const [x, y] = positions[i] || [400, 300];
+    const id = sys.name.toLowerCase().replace(/[\s.]+/g, '_');
+    nodes[id] = { name: sys.name, category: sys.category, cost: sys.monthlyCost || 0, x, y };
+  });
+  return nodes;
+}
+
+function extractGapLabel(gaps: string[], partner: string): string {
+  const relevant = (gaps || []).find((g) => g.toLowerCase().includes(partner.toLowerCase()));
+  if (!relevant) return 'Issues';
+  return relevant.length > 25 ? relevant.slice(0, 22) + '...' : relevant;
+}
+
+function buildEdgesMap1(
+  nodes: Record<string, SystemNode>,
+  systems: any[],
+  findings: any[],
+): MapEdge[] {
+  const edges: MapEdge[] = [];
+  const added = new Set<string>();
+  systems.forEach((sys: any) => {
+    const fromId = sys.name.toLowerCase().replace(/[\s.]+/g, '_');
+    if (!nodes[fromId]) return;
+    (sys.integratesWith || []).forEach((partner: string) => {
+      const toId = partner.toLowerCase().replace(/[\s.]+/g, '_');
+      if (!nodes[toId]) return;
+      const key = [fromId, toId].sort().join('|');
+      if (added.has(key)) return;
+      added.add(key);
+      const hasGap = (sys.gaps || []).some((g: string) => g.toLowerCase().includes(partner.toLowerCase()));
+      edges.push({
+        from: fromId, to: toId,
+        status: hasGap ? 'amber' : 'green',
+        label: hasGap ? extractGapLabel(sys.gaps, partner) : 'Connected',
+      });
+    });
+  });
+  findings.forEach((f: any) => {
+    const affected = f.affectedSystems || f.affected_systems || [];
+    if (affected.length >= 2) {
+      const fromId = affected[0].toLowerCase().replace(/[\s.]+/g, '_');
+      const toId = affected[1].toLowerCase().replace(/[\s.]+/g, '_');
+      if (!nodes[fromId] || !nodes[toId]) return;
+      const key = [fromId, toId].sort().join('|');
+      if (added.has(key)) return;
+      added.add(key);
+      let person: string | undefined;
+      const desc = f.description || '';
+      const personMatch = desc.match(/\b(Maria|Sophie|Lily|Jake|Priya)\b/);
+      if (personMatch && f.category === 'manual_process') person = personMatch[1];
+      const hoursLabel = (f.hoursWastedWeekly ?? f.hours_wasted_weekly)
+        ? `${f.hoursWastedWeekly ?? f.hours_wasted_weekly}h/wk`
+        : undefined;
+      edges.push({
+        from: fromId, to: toId, status: 'red',
+        label: hoursLabel ? `${person ? person + ': ' : ''}${hoursLabel}` : 'No connection',
+        person,
+      });
+    }
+  });
+  return edges;
+}
+
+function buildEdgesMap2(map1Edges: MapEdge[], recommendations: any[]): MapEdge[] {
+  const nativeFixes = new Set<string>();
+  recommendations.forEach((rec: any) => {
+    const cost = rec.estimatedCost || 0;
+    const phase = rec.implementationPhase || '';
+    if (cost === 0 && (phase === 'immediate' || phase === 'quick_win' || phase === 'short_term')) {
+      const title = (rec.title || '').toLowerCase();
+      if (title.includes('auto-publish') || title.includes('dext')) nativeFixes.add('dext');
+      if (title.includes('stripe') || title.includes('duplicate')) nativeFixes.add('stripe');
+      if (title.includes('slack') || title.includes('notification')) nativeFixes.add('slack');
+      if (title.includes('timesheet') || title.includes('deadline')) nativeFixes.add('harvest');
+    }
+  });
+  return map1Edges.map((edge) => {
+    if (edge.status === 'amber' && (nativeFixes.has(edge.from) || nativeFixes.has(edge.to))) {
+      return { ...edge, status: 'green' as const, label: edge.label?.replace('OFF', 'ON') || 'Fixed', changed: true };
+    }
+    return { ...edge };
+  });
+}
+
+function buildEdgesMap3(map2Edges: MapEdge[], recommendations: any[]): {
+  edges: MapEdge[];
+  hub: { name: string; x: number; y: number; cost: number } | null;
+} {
+  const hasMiddleware = recommendations.some((r: any) => {
+    const title = (r.title || '').toLowerCase();
+    const desc = (r.description || '').toLowerCase();
+    return title.includes('zapier') || title.includes('make') || desc.includes('zapier') || desc.includes('make') || desc.includes('middleware');
+  });
+  if (!hasMiddleware) return { edges: map2Edges, hub: null };
+  const edges = map2Edges.map((edge) => {
+    if (edge.status === 'red') {
+      return { ...edge, status: 'blue' as const, label: `Zapier: ${edge.label || 'connected'}`, changed: true, middleware: true, person: undefined };
+    }
+    return { ...edge };
+  });
+  return { edges, hub: { name: 'Zapier', x: 400, y: 340, cost: 50 } };
+}
+
+function calculateMetrics(
+  nodes: Record<string, SystemNode>,
+  edges: MapEdge[],
+  map1Metrics: any,
+  recommendations: any[],
+  mapLevel: number,
+): any {
+  const totalSoftware = Object.values(nodes).reduce((s, n) => s + n.cost, 0);
+  const greenEdges = edges.filter((e) => e.status === 'green' || e.status === 'blue').length;
+  const totalNodes = Object.keys(nodes).length;
+  const recs = recommendations || [];
+  let hoursSaved = 0;
+  let investment = 0;
+  if (mapLevel >= 2) {
+    recs.filter((r: any) => (r.estimatedCost || 0) === 0).forEach((r: any) => {
+      hoursSaved += parseFloat(r.hoursSavedWeekly) || 0;
+    });
+  }
+  if (mapLevel >= 3) {
+    recs.forEach((r: any) => {
+      if ((r.estimatedCost || 0) > 0) {
+        hoursSaved += parseFloat(r.hoursSavedWeekly) || 0;
+        investment += r.estimatedCost || 0;
+      }
+    });
+    investment += 50 * 12;
+  }
+  if (mapLevel >= 4) investment += 4000;
+  const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved);
+  const annualWaste = Math.round(manualHours * 45 * 52);
+  const annualSavings = map1Metrics.annualWaste - annualWaste;
+  let payback = '—';
+  if (investment > 0 && annualSavings > 0) {
+    const months = investment / (annualSavings / 12);
+    if (months < 0.1) payback = 'Instant';
+    else if (months < 1) payback = `${Math.round(months * 30)} days`;
+    else if (months < 2) payback = `${Math.round(months * 4)} weeks`;
+    else payback = `${Math.round(months)} months`;
+  } else if (investment === 0 && mapLevel > 1) payback = 'Instant';
+  const risk = manualHours > 40 ? 'Critical' : manualHours > 20 ? 'High' : manualHours > 10 ? 'Low' : 'Minimal';
+  return {
+    monthlySoftware: totalSoftware,
+    manualHours: Math.round(manualHours),
+    annualWaste,
+    annualSavings,
+    investment: Math.round(investment),
+    payback,
+    integrations: `${greenEdges} / ${totalNodes}`,
+    risk,
+  };
+}
+
+function buildSystemsMaps(
+  facts: any,
+  findings: any[],
+  recommendations: any[],
+  aiMap4?: any,
+): SystemsMap[] {
+  const systems = facts?.systems || [];
+  if (systems.length === 0) return [];
+  const nodes = layoutSystems(systems);
+  const map1Edges = buildEdgesMap1(nodes, systems, findings);
+  const map1Metrics = { manualHours: facts.hoursWastedWeekly || 0, annualWaste: facts.annualCostOfChaos || 0 };
+  const map1: SystemsMap = {
+    title: 'Where You Are Today',
+    subtitle: 'The reality',
+    recommended: false,
+    nodes,
+    edges: map1Edges,
+    middlewareHub: null,
+    metrics: calculateMetrics(nodes, map1Edges, map1Metrics, recommendations, 1),
+  };
+  const map2Edges = buildEdgesMap2(map1Edges, recommendations);
+  const map2: SystemsMap = {
+    title: 'Native Fixes',
+    subtitle: 'Zero cost quick wins',
+    recommended: false,
+    nodes: { ...nodes },
+    edges: map2Edges,
+    middlewareHub: null,
+    metrics: calculateMetrics(nodes, map2Edges, map1Metrics, recommendations, 2),
+  };
+  const { edges: map3Edges, hub } = buildEdgesMap3(map2Edges, recommendations);
+  const map3: SystemsMap = {
+    title: 'Fully Connected',
+    subtitle: hub ? `+£${hub.cost}/mo middleware` : 'All systems linked',
+    recommended: true,
+    nodes: { ...nodes },
+    edges: map3Edges,
+    middlewareHub: hub,
+    metrics: calculateMetrics(nodes, map3Edges, map1Metrics, recommendations, 3),
+  };
+  const maps: SystemsMap[] = [map1, map2, map3];
+  if (aiMap4?.nodes && aiMap4.edges) {
+    const map4: SystemsMap = {
+      title: 'Optimal Stack',
+      subtitle: 'Best-in-class replacements',
+      recommended: false,
+      nodes: aiMap4.nodes,
+      edges: aiMap4.edges,
+      middlewareHub: null,
+      metrics: calculateMetrics(aiMap4.nodes, aiMap4.edges, map1Metrics, recommendations, 4),
+    };
+    maps.push(map4);
+  }
+  return maps;
+}
+
+function buildPhase4bPrompt(facts: any, recommendations: any[]): string {
+  const systems = facts?.systems || [];
+  const sysStr = systems.map((s: any) =>
+    `${s.name} (${s.category}, £${s.monthlyCost || 0}/mo, satisfaction: ${s.userSatisfaction ?? s.user_satisfaction ?? '?'}/5)`
+  ).join('\n');
+  return `You are designing the "Optimal Stack" for a UK SMB. Given their current systems, suggest replacements that would give native integrations across the entire stack.
+
+CURRENT SYSTEMS:
+${sysStr}
+
+CURRENT ISSUES (from findings):
+${(recommendations || []).slice(0, 5).map((r: any) => `- ${r.title}`).join('\n')}
+
+RULES:
+- Keep systems the team loves (satisfaction 4+): ${systems.filter((s: any) => (s.userSatisfaction ?? s.user_satisfaction ?? 0) >= 4).map((s: any) => s.name).join(', ') || 'none'}
+- Replace underperformers (satisfaction ≤2) with best-in-class alternatives
+- Prefer UK-market products with native Xero integration
+- Every system must have native integration with at least 2 others
+- Maximise native connections, eliminate need for middleware
+- Include pricing in GBP monthly
+
+Return ONLY a JSON object:
+{
+  "nodes": {
+    "system_id": {
+      "name": "Product Name",
+      "category": "category_slug",
+      "cost": 99,
+      "x": 400,
+      "y": 120,
+      "status": "new",
+      "replaces": ["Old System 1", "Old System 2"]
+    }
+  },
+  "edges": [
+    { "from": "system_a", "to": "system_b", "status": "green", "label": "Native deep", "changed": true }
+  ]
+}
+
+POSITION GUIDE (800x580 viewBox):
+- Row 1 (y=120): accounting, expense, payments — top of map
+- Row 2 (y=260): time/project/PSA tools — middle
+- Row 3 (y=420): email, chat, collaboration — lower
+- Row 4 (y=530): design/specialist — bottom
+- x range: 130-670, center at 400
+
+Systems with status "new" get a green + badge. Status "reconfigure" gets amber ⟳.
+Include "replaces" array only on new systems that replace existing ones.
+All edges should be "green" with "Native" or "Native deep" labels.
+
+JSON only, no markdown.`;
+}
+
 // ---------- Phase 1: EXTRACT CORE (company info, system inventory, metrics, quotes) ----------
 function buildPhase1Prompt(
   discovery: any,
@@ -903,7 +1231,47 @@ async function runPhase4(
   }
   console.log('[SA Pass 1] Phase 4: Recommendations complete');
 
-  // ---------- Phase 4b: Systems maps (separate call, graceful degradation) ----------
+  // ---------- Phase 4b: Optional Map 4 (Optimal Stack) AI call — non-blocking ----------
+  let phase4bResult: any = null;
+  try {
+    console.log('[SA Pass 1] Phase 4b: Generating optimal stack...');
+    const phase4bPrompt = buildPhase4bPrompt(phase1.facts, data.recommendations || []);
+    const phase4bResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openRouterKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor SA Pass 1 Phase 4b',
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-sonnet-4',
+        messages: [{ role: 'user', content: phase4bPrompt }],
+        temperature: 0.2,
+        max_tokens: 2000,
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (phase4bResponse.ok) {
+      const phase4bJson = await phase4bResponse.json();
+      let content = (phase4bJson.choices?.[0]?.message?.content ?? '').trim();
+      content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
+      phase4bResult = JSON.parse(content);
+      console.log('[SA Pass 1] Phase 4b: Optimal stack generated:', Object.keys(phase4bResult?.nodes || {}).length, 'systems,', (phase4bResult?.edges || []).length, 'edges');
+    }
+  } catch (e: any) {
+    console.warn('[SA Pass 1] Phase 4b: Optimal stack generation failed (non-blocking):', e?.message ?? e);
+  }
+  const existingPass1Phase4b = report.pass1_data as any;
+  await supabaseClient
+    .from('sa_audit_reports')
+    .update({
+      pass1_data: { ...existingPass1Phase4b, phase4b: phase4bResult },
+      executive_summary: 'Phase 4b/5: Building technology roadmap...',
+    })
+    .eq('engagement_id', engagementId);
+
+  // ---------- Phase 4b (legacy): Systems maps AI call — graceful degradation ----------
   await supabaseClient
     .from('sa_audit_reports')
     .update({ executive_summary: 'Phase 4/5: Generating systems maps...' })
@@ -1171,12 +1539,30 @@ async function runPhase5(
     findings: phase3.findings,
     quickWins: phase3.quickWins,
     recommendations: phase4.recommendations,
-    systemsMaps: pass1Data.systemsMaps ?? phase4.systemsMaps ?? null,
+    systemsMaps: null as any,
     techStackSummary: pass1Data.techStackSummary ?? phase4.techStackSummary ?? null,
     hoursBreakdown: pass1Data.hoursBreakdown ?? phase4.hoursBreakdown ?? null,
     adminGuidance: phase5.adminGuidance,
     clientPresentation: phase5.clientPresentation,
   };
+
+  // ─── Build Systems Maps (deterministic Maps 1–3 + optional Map 4 from Phase 4b) ─────
+  const phase4b = pass1Data.phase4b ?? null;
+  const systemsMaps = buildSystemsMaps(
+    finalPass1Data.facts,
+    finalPass1Data.findings || [],
+    finalPass1Data.recommendations || [],
+    phase4b,
+  );
+  if (systemsMaps.length > 0) {
+    finalPass1Data.systemsMaps = systemsMaps;
+    console.log(`[SA Pass 1] Phase 5: Built ${systemsMaps.length} systems maps${systemsMaps.length === 4 ? ' (including AI optimal stack)' : ''}`);
+  } else {
+    finalPass1Data.systemsMaps = pass1Data.systemsMaps ?? phase4.systemsMaps ?? null;
+    if (!finalPass1Data.systemsMaps) {
+      console.warn('[SA Pass 1] Phase 5: No systems to map — systemsMaps will be null');
+    }
+  }
 
   // ─── McKinsey Number Reconciliation Layer ──────────────────────────
   // Every number must trace to ONE calculation chain. pass1_data is the single source of truth.

@@ -318,6 +318,55 @@ export default function SystemsMapSection({ systemsMaps, facts }: { systemsMaps:
           </div>
         ))}
       </div>
+
+      {/* Stack Explanation */}
+      {current.changes && current.changes.length > 0 && (
+        <div style={{ marginTop: '20px', background: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid #1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '14px' }}>{activeMap === 0 ? '🔍' : activeMap === 1 ? '🔧' : activeMap === 2 ? '🔗' : '🚀'}</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: MAP_COLORS[activeMap] || '#e2e8f0', fontFamily: "'DM Sans', sans-serif" }}>
+              {activeMap === 0 ? "What's broken and why" : activeMap === 1 ? "What we fix for free" : activeMap === 2 ? "What middleware bridges" : "Why these replacements"}
+            </span>
+            <span style={{ fontSize: '11px', color: '#64748b', marginLeft: 'auto', fontFamily: "'JetBrains Mono', monospace" }}>
+              {current.changes.length} {current.changes.length === 1 ? 'change' : 'changes'}
+            </span>
+          </div>
+          {current.changes.map((change: any, i: number) => {
+            const actionColors: Record<string, string> = { broken: '#ef4444', fixed: '#22c55e', connected: '#3b82f6', added: '#22c55e', reconfigured: '#f59e0b', kept: '#64748b' };
+            const actionLabels: Record<string, string> = { broken: 'Issue', fixed: 'Fixed', connected: 'Connected', added: 'New', reconfigured: 'Reconfigured', kept: 'Unchanged' };
+            const color = actionColors[change.action] || '#64748b';
+            const label = actionLabels[change.action] || change.action;
+            return (
+              <div key={i} style={{ padding: '14px 20px', borderBottom: i < current.changes.length - 1 ? '1px solid #1e293b' : 'none' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '9px', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.5px', padding: '2px 8px', borderRadius: '4px', background: `${color}15`, border: `1px solid ${color}30`, fontFamily: "'JetBrains Mono', monospace" }}>{label}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', fontFamily: "'DM Sans', sans-serif" }}>{change.system}</span>
+                </div>
+                <p style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6', margin: '0 0 8px 0', fontFamily: "'DM Sans', sans-serif" }}>{change.description}</p>
+                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                  {change.impact && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '10px', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>IMPACT</span>
+                      <span style={{ fontSize: '11px', color: '#cbd5e1', fontFamily: "'DM Sans', sans-serif" }}>{change.impact}</span>
+                    </div>
+                  )}
+                  {change.cost && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '10px', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>COST</span>
+                      <span style={{ fontSize: '11px', color: '#cbd5e1', fontFamily: "'DM Sans', sans-serif" }}>{change.cost}</span>
+                    </div>
+                  )}
+                </div>
+                {change.why && (
+                  <div style={{ marginTop: '8px', padding: '8px 12px', background: '#22c55e08', borderLeft: '2px solid #22c55e40', borderRadius: '0 6px 6px 0' }}>
+                    <span style={{ fontSize: '11px', color: '#86efac', fontStyle: 'italic', fontFamily: "'DM Sans', sans-serif", lineHeight: '1.5' }}>{change.why}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
