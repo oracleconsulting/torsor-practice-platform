@@ -54,7 +54,7 @@ export default function ReportsPage() {
 
           supabase
             .from('sa_engagements')
-            .select('id, status, updated_at')
+            .select('id, status, updated_at, is_shared_with_client')
             .eq('client_id', clientId)
             .order('updated_at', { ascending: false })
             .limit(1)
@@ -122,16 +122,17 @@ export default function ReportsPage() {
         }
 
         if (saRes.data) {
-          const saComplete = ['stage3_complete', 'report_generated', 'completed'].includes(saRes.data.status);
+          const saComplete = ['stage_3_complete', 'stage3_complete', 'analysis_complete', 'report_generated', 'completed'].includes(saRes.data.status);
+          const saReportShared = !!(saRes.data as { is_shared_with_client?: boolean }).is_shared_with_client;
           if (saComplete) {
             items.push({
               id: 'systems_audit',
               title: 'Systems Audit Report',
               description: 'System inventory, integration analysis, and process deep-dives',
               icon: Briefcase,
-              link: '/service/systems_audit/process-deep-dives',
+              link: saReportShared ? '/service/systems_audit/report' : '/service/systems_audit/process-deep-dives',
               status: 'available',
-              statusLabel: 'Complete',
+              statusLabel: saReportShared ? 'View Report' : 'Complete',
               date: saRes.data.updated_at,
               color: 'teal',
             });

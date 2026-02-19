@@ -1230,10 +1230,10 @@ export default function ProcessDeepDivesPage() {
     }
 
     try {
-      // Fetch engagement
+      // Fetch engagement (include is_shared_with_client for redirect when report is shared)
       const { data: engagement, error: engError } = await supabase
         .from('sa_engagements')
-        .select('id, status')
+        .select('id, status, is_shared_with_client')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
 
@@ -1273,6 +1273,13 @@ export default function ProcessDeepDivesPage() {
           setReportStatus(reportData.status);
           console.log('✅ Report loaded. Status:', reportData.status, 'Approved?', 
             reportData.status === 'approved' || reportData.status === 'published' || reportData.status === 'delivered');
+
+          // If report is shared with client, redirect to the dedicated report page (not Stage 3)
+          const reportAvailable = ['approved', 'published', 'delivered'].includes(reportData.status);
+          if (engagement.is_shared_with_client && reportAvailable) {
+            navigate('/service/systems_audit/report', { replace: true });
+            return;
+          }
         } else {
           console.log('⚠️ No report found for engagement');
           setReportStatus(null);
