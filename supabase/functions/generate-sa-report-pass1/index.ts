@@ -493,21 +493,14 @@ async function runPhase2Analyse(
 
   const existingPass1 = report.pass1_data as any;
 
-  console.log('[SA Pass 1] Phase 2: Writing to DB...');
+  // Phase 2: write to pass1_data ONLY. Columns updated in Phase 5 assembly.
+  console.log('[SA Pass 1] Phase 2: Writing to DB (pass1_data only, columns deferred to Phase 5)...');
   await supabaseClient
     .from('sa_audit_reports')
     .update({
       pass1_data: { ...existingPass1, phase2: data },
       executive_summary: 'Phase 2/5: Analysing processes and calculating scores...',
       executive_summary_sentiment: sentiment,
-      total_hours_wasted_weekly: Math.round(data.hoursWastedWeekly),
-      total_annual_cost_of_chaos: Math.round(data.annualCostOfChaos / 10) * 10,
-      growth_multiplier: phase1Facts.growthMultiplier,
-      projected_cost_at_scale: Math.round(data.projectedCostAtScale / 10) * 10,
-      integration_score: scores.integration.score,
-      automation_score: scores.automation.score,
-      data_accessibility_score: scores.dataAccessibility.score,
-      scalability_score: scores.scalability.score,
     })
     .eq('engagement_id', engagementId);
   console.log('[SA Pass 1] Phase 2: DB write complete');
@@ -1185,45 +1178,109 @@ async function runPhase5(
     clientPresentation: phase5.clientPresentation,
   };
 
+  // ─── McKinsey Number Reconciliation Layer ──────────────────────────
+  // Every number must trace to ONE calculation chain. pass1_data is the single source of truth.
+  const { data: engRow } = await supabaseClient.from('sa_engagements').select('hourly_rate').eq('id', engagementId).single();
+  const hourlyRate = engRow?.hourly_rate != null ? Number(engRow.hourly_rate) : 45;
+
   const f = finalPass1Data.facts;
-  const recs = phase4.recommendations || [];
-  const totalInv = recs.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0);
+  const recs = finalPass1Data.recommendations || [];
+  const qwins = finalPass1Data.quickWins || [];
+  const assembledScores = finalPass1Data.scores || {};
+
+  const totalInvestment = recs.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0);
   const totalBenefit = recs.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0);
-  const hoursReclaimable = recs.reduce((sum: number, r: any) => sum + (parseFloat(r.hoursSavedWeekly) || 0), 0) ||
-    (phase3.quickWins || []).reduce((sum: number, q: any) => sum + (parseFloat(q.hoursSavedWeekly) || 0), 0);
+  const hoursReclaimable = recs.reduce((sum: number, r: any) => sum + (parseFloat(r.hoursSavedWeekly) || 0), 0);
+
+  const paybackMonths = totalBenefit > 0 && totalInvestment > 0
+    ? Math.max(1, Math.round(totalInvestment / (totalBenefit / 12)))
+    : 0;
+  const roiRatio = totalInvestment > 0 ? `${Math.round(totalBenefit / totalInvestment)}:1` : 'Infinite';
+
+  const expectedAnnualCost = Math.round((f.hoursWastedWeekly || 0) * hourlyRate * 52);
+  if (f.annualCostOfChaos && Math.abs(f.annualCostOfChaos - expectedAnnualCost) > expectedAnnualCost * 0.05) {
+    console.warn(`[SA McKinsey] annualCostOfChaos mismatch: pass1=${f.annualCostOfChaos}, expected=${expectedAnnualCost}. Overriding.`);
+    f.annualCostOfChaos = expectedAnnualCost;
+    finalPass1Data.facts.annualCostOfChaos = expectedAnnualCost;
+  }
+
+  const expectedProjected = Math.round((f.annualCostOfChaos || expectedAnnualCost) * (f.growthMultiplier || 1.3) * 1.3);
+  if (f.projectedCostAtScale && Math.abs(f.projectedCostAtScale - expectedProjected) > expectedProjected * 0.20) {
+    console.warn(`[SA McKinsey] projectedCostAtScale divergence: pass1=${f.projectedCostAtScale}, linear=${expectedProjected}. Keeping pass1 value (non-linear scaling is intentional).`);
+  }
+
+  if (finalPass1Data.clientPresentation?.roiSummary) {
+    const roi = finalPass1Data.clientPresentation.roiSummary;
+    roi.currentAnnualCost = f.annualCostOfChaos || expectedAnnualCost;
+    roi.projectedSavings = totalBenefit;
+    roi.implementationCost = totalInvestment;
+    roi.paybackPeriod = paybackMonths <= 0 ? 'Immediate' : `${paybackMonths} months`;
+    roi.threeYearROI = totalInvestment > 0 ? `${Math.round(totalBenefit * 3 / totalInvestment)}:1` : 'Infinite';
+    roi.timeReclaimed = `${Math.round(hoursReclaimable)} hours/week`;
+  }
+
+  const findingCounts = {
+    critical: (finalPass1Data.findings || []).filter((x: any) => x.severity === 'critical').length,
+    high: (finalPass1Data.findings || []).filter((x: any) => x.severity === 'high').length,
+    medium: (finalPass1Data.findings || []).filter((x: any) => x.severity === 'medium').length,
+    low: (finalPass1Data.findings || []).filter((x: any) => x.severity === 'low').length,
+  };
+
+  console.log(`[SA McKinsey] Reconciliation complete:
+    annualCostOfChaos: £${f.annualCostOfChaos} (${f.hoursWastedWeekly}h × £${hourlyRate} × 52)
+    projectedCostAtScale: £${f.projectedCostAtScale} (${f.growthMultiplier}x growth)
+    totalBenefit: £${totalBenefit} (${recs.length} recs)
+    totalInvestment: £${totalInvestment}
+    hoursReclaimable: ${hoursReclaimable}h/wk
+    payback: ${paybackMonths} months | ROI: ${roiRatio}
+    findings: ${findingCounts.critical}C/${findingCounts.high}H/${findingCounts.medium}M/${findingCounts.low}L
+    quickWins: ${qwins.length}`);
 
   console.log('[SA Pass 1] Phase 5: Writing final report to DB...');
   const updatePayload: any = {
     pass1_data: finalPass1Data,
     status: 'pass1_complete',
     executive_summary: '[Pass 2 will generate narrative]',
-    headline: `[PENDING PASS 2] ${f.hoursWastedWeekly} hours/week wasted`,
-    quick_wins: phase3.quickWins,
-    critical_findings_count: (phase3.findings || []).filter((x: any) => x.severity === 'critical').length,
-    high_findings_count: (phase3.findings || []).filter((x: any) => x.severity === 'high').length,
-    medium_findings_count: (phase3.findings || []).filter((x: any) => x.severity === 'medium').length,
-    low_findings_count: (phase3.findings || []).filter((x: any) => x.severity === 'low').length,
-    total_recommended_investment: Math.round(totalInv / 10) * 10,
-    total_annual_benefit: Math.round(totalBenefit / 10) * 10,
-    overall_payback_months: totalBenefit > 0 ? Math.round(totalInv / (totalBenefit / 12)) : 0,
-    roi_ratio: totalInv > 0 ? `${(totalBenefit / totalInv).toFixed(1)}:1` : '0:1',
+    headline: `[PENDING PASS 2] ${f.hoursWastedWeekly || 0} hours/week wasted`,
+
+    total_hours_wasted_weekly: Math.round(f.hoursWastedWeekly || 0),
+    total_annual_cost_of_chaos: Math.round(f.annualCostOfChaos || expectedAnnualCost),
+    growth_multiplier: f.growthMultiplier || 1.3,
+    projected_cost_at_scale: Math.round(f.projectedCostAtScale || expectedProjected),
+
+    integration_score: assembledScores.integration?.score ?? 0,
+    automation_score: assembledScores.automation?.score ?? 0,
+    data_accessibility_score: assembledScores.dataAccessibility?.score ?? 0,
+    scalability_score: assembledScores.scalability?.score ?? 0,
+
+    critical_findings_count: findingCounts.critical,
+    high_findings_count: findingCounts.high,
+    medium_findings_count: findingCounts.medium,
+    low_findings_count: findingCounts.low,
+
+    total_recommended_investment: Math.round(totalInvestment),
+    total_annual_benefit: Math.round(totalBenefit),
+    overall_payback_months: paybackMonths,
+    roi_ratio: roiRatio,
     hours_reclaimable_weekly: Math.round(hoursReclaimable),
+
+    quick_wins: finalPass1Data.quickWins || [],
     cost_of_chaos_narrative: '[Pass 2 will generate narrative]',
     time_freedom_narrative: '[Pass 2 will generate narrative]',
     what_this_enables: [f.magicFix?.substring(0, 200) || ''],
     client_quotes_used: allQuotes.slice(0, 10),
     generated_at: new Date().toISOString(),
   };
-  if (phase5.adminGuidance) {
-    updatePayload.admin_talking_points = phase5.adminGuidance.talkingPoints || [];
-    updatePayload.admin_questions_to_ask = phase5.adminGuidance.questionsToAsk || [];
-    updatePayload.admin_next_steps = phase5.adminGuidance.nextSteps || [];
-    updatePayload.admin_tasks = phase5.adminGuidance.tasks || [];
-    updatePayload.admin_risk_flags = phase5.adminGuidance.riskFlags || [];
+  if (finalPass1Data.adminGuidance) {
+    updatePayload.admin_talking_points = finalPass1Data.adminGuidance.talkingPoints || [];
+    updatePayload.admin_questions_to_ask = finalPass1Data.adminGuidance.questionsToAsk || [];
+    updatePayload.admin_next_steps = finalPass1Data.adminGuidance.nextSteps || [];
+    updatePayload.admin_tasks = finalPass1Data.adminGuidance.tasks || [];
+    updatePayload.admin_risk_flags = finalPass1Data.adminGuidance.riskFlags || [];
   }
-  if (phase5.clientPresentation) {
-    updatePayload.client_executive_brief = phase5.clientPresentation.executiveBrief || null;
-    updatePayload.client_roi_summary = phase5.clientPresentation.roiSummary || null;
+  if (finalPass1Data.clientPresentation) {
+    updatePayload.client_executive_brief = finalPass1Data.clientPresentation.executiveBrief || null;
+    updatePayload.client_roi_summary = finalPass1Data.clientPresentation.roiSummary || null;
   }
 
   const { error: updateError } = await supabaseClient
