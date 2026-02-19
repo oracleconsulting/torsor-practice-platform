@@ -54,6 +54,7 @@ cp "$ROOT/src/lib/issue-service-mapping.ts" "$DEST/frontend-admin-issue-service-
 cp "$ROOT/src/lib/advisory-services-full.ts" "$DEST/frontend-admin-advisory-services-full.ts" && echo "  frontend-admin-advisory-services-full.ts"
 cp "$ROOT/src/lib/services/service-catalog.ts" "$DEST/frontend-admin-service-catalog.ts" 2>/dev/null && echo "  frontend-admin-service-catalog.ts" || true
 [ -f "$ROOT/src/pages/admin/ServiceConfigPage.tsx" ] && cp "$ROOT/src/pages/admin/ServiceConfigPage.tsx" "$DEST/frontend-admin-ServiceConfigPage.tsx" && echo "  frontend-admin-ServiceConfigPage.tsx"
+[ -f "$ROOT/src/components/admin/SprintSummaryAdminPreview.tsx" ] && cp "$ROOT/src/components/admin/SprintSummaryAdminPreview.tsx" "$DEST/frontend-admin-SprintSummaryAdminPreview.tsx" && echo "  frontend-admin-SprintSummaryAdminPreview.tsx"
 
 # --- Frontend: Client portal ---
 cp "$ROOT/apps/client-portal/src/pages/roadmap/RoadmapPage.tsx" "$DEST/frontend-client-RoadmapPage.tsx" && echo "  frontend-client-RoadmapPage.tsx"
@@ -66,6 +67,9 @@ cp "$ROOT/apps/client-portal/src/lib/service-registry.ts" "$DEST/frontend-client
 cp "$ROOT/apps/client-portal/src/hooks/useAnalysis.ts" "$DEST/frontend-client-useAnalysis.ts" && echo "  frontend-client-useAnalysis.ts"
 cp "$ROOT/apps/client-portal/src/hooks/useAssessmentProgress.ts" "$DEST/frontend-client-useAssessmentProgress.ts" && echo "  frontend-client-useAssessmentProgress.ts"
 cp "$ROOT/apps/client-portal/src/config/serviceLineAssessments.ts" "$DEST/frontend-client-serviceLineAssessments.ts" && echo "  frontend-client-serviceLineAssessments.ts"
+[ -f "$ROOT/apps/client-portal/src/pages/SprintDashboardPage.tsx" ] && cp "$ROOT/apps/client-portal/src/pages/SprintDashboardPage.tsx" "$DEST/frontend-client-SprintDashboardPage.tsx" && echo "  frontend-client-SprintDashboardPage.tsx"
+[ -f "$ROOT/apps/client-portal/src/components/sprint/SprintSummaryView.tsx" ] && cp "$ROOT/apps/client-portal/src/components/sprint/SprintSummaryView.tsx" "$DEST/frontend-client-SprintSummaryView.tsx" && echo "  frontend-client-SprintSummaryView.tsx"
+[ -f "$ROOT/apps/client-portal/src/components/SprintSummaryClientView.tsx" ] && cp "$ROOT/apps/client-portal/src/components/SprintSummaryClientView.tsx" "$DEST/frontend-client-SprintSummaryClientView.tsx" && echo "  frontend-client-SprintSummaryClientView.tsx"
 
 # --- Frontend: Platform app (admin roadmap review) ---
 cp "$ROOT/apps/platform/src/pages/clients/RoadmapReviewPage.tsx" "$DEST/frontend-platform-RoadmapReviewPage.tsx" 2>/dev/null && echo "  frontend-platform-RoadmapReviewPage.tsx" || true

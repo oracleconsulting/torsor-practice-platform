@@ -27,6 +27,7 @@ import ProcessDeepDivesPage from './pages/services/ProcessDeepDivesPage';
 import SAReportPage from './pages/services/SAReportPage';
 import BenchmarkingReportPage from './pages/services/BenchmarkingReportPage';
 import ReportsPage from './pages/ReportsPage';
+import LifeThreadPage from './pages/LifeThreadPage';
 import DestinationDiscoveryPage from './pages/discovery/DestinationDiscoveryPage';
 import DiscoveryReportPage from './pages/discovery/DiscoveryReportPage';
 import DiscoveryFollowUpPage from './pages/discovery/DiscoveryFollowUpPage';
@@ -67,6 +68,7 @@ function App() {
             {/* Roadmap & Sprint Command Centre (at /tasks) */}
             <Route path="/roadmap" element={<RoadmapPage />} />
             <Route path="/tasks" element={<SprintDashboardPage />} />
+            <Route path="/life" element={<LifeThreadPage />} />
             
             {/* Chat */}
             <Route path="/chat" element={<ChatPage />} />

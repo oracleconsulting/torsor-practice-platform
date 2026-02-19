@@ -40,9 +40,6 @@ import { QuarterlyLifeCheck } from '@/components/sprint/QuarterlyLifeCheck';
 import { QuarterlyLifeCheckForm } from '@/components/QuarterlyLifeCheckForm';
 import { SprintSummaryClientView } from '@/components/SprintSummaryClientView';
 import { TuesdayCheckInCard } from '@/components/sprint/TuesdayCheckInCard';
-import { LifePulseCard } from '@/components/sprint/LifePulseCard';
-import { LifeAlignmentCard } from '@/components/sprint/LifeAlignmentCard';
-import { useLifeAlignment } from '@/hooks/useLifeAlignment';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
 import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
@@ -1072,7 +1069,7 @@ export default function SprintDashboardPage() {
   } = useWeeklyCheckIn();
 
   const [scrollToWeek, setScrollToWeek] = useState<number | null>(null);
-  const [completingTask, setCompletingTask] = useState<{ id: string; title: string; week_number: number; category?: string } | null>(null);
+  const [completingTask, setCompletingTask] = useState<{ id: string; title: string; week_number: number } | null>(null);
   const [skippingTask, setSkippingTask] = useState<{
     dbTaskId: string | null;
     generatedTask: any;
@@ -1103,17 +1100,6 @@ export default function SprintDashboardPage() {
   const showSprintSummary = !!sprintSummaryFromRoadmap && allWeeksResolved;
 
   const gating = computeWeekGating(weeks, tasks);
-  const {
-    scores: lifeScores,
-    currentScore: lifeScore,
-    trend: lifeTrend,
-    categoryScores,
-    submitPulse,
-    hasPulseThisWeek,
-    recalculateScore,
-    loading: lifeLoading,
-  } = useLifeAlignment(currentSprintNumber, gating.activeWeek);
-
   const calendarWeek = getCalendarWeek(sprintStartDate);
   const catchUpState = useCatchUpDetection(
     sprintStartDate,
@@ -1357,12 +1343,7 @@ export default function SprintDashboardPage() {
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed', task?: any) => {
       if (newStatus === 'completed' && task) {
-        setCompletingTask({
-          id: taskId,
-          title: task.title,
-          week_number: task.week_number || 1,
-          category: task?.category,
-        });
+        setCompletingTask({ id: taskId, title: task.title, week_number: task.week_number || 1 });
       } else {
         await updateTaskStatus(taskId, newStatus);
       }
@@ -1372,14 +1353,10 @@ export default function SprintDashboardPage() {
 
   const handleTaskComplete = useCallback(
     async (taskId: string, feedback: { whatWentWell: string; whatDidntWork: string; additionalNotes: string }) => {
-      const wasLifeTask = completingTask?.category?.startsWith?.('life_');
       await updateTaskStatus(taskId, 'completed', feedback);
       setCompletingTask(null);
-      if (wasLifeTask && recalculateScore) {
-        recalculateScore();
-      }
     },
-    [updateTaskStatus, completingTask?.category, recalculateScore]
+    [updateTaskStatus]
   );
 
   const lifeAlignment = getLifeAlignmentSummary();
@@ -1566,28 +1543,6 @@ export default function SprintDashboardPage() {
                 ].filter(Boolean).join(', ')}
               </span>
             </div>
-          )}
-          {/* Life Alignment — before Tuesday Check-In */}
-          {!isBehind && !completionState.isSprintComplete && (
-            <>
-              <LifeAlignmentCard
-                scores={lifeScores}
-                currentScore={lifeScore}
-                trend={lifeTrend}
-                categoryScores={categoryScores}
-              />
-              {!hasPulseThisWeek && (
-                <LifePulseCard
-                  sprintNumber={currentSprintNumber}
-                  weekNumber={gating.activeWeek}
-                  isCatchUp={isBehind}
-                  isSprintComplete={completionState.isSprintComplete}
-                  onSubmit={submitPulse}
-                  currentScore={lifeScore}
-                  loading={lifeLoading}
-                />
-              )}
-            </>
           )}
           {displayWeekData?.tuesdayCheckIn && !showSprintSummary && (
             <TuesdayCheckInCard

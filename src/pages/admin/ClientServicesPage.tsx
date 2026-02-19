@@ -13734,6 +13734,17 @@ function SystemsAuditClientModal({
         approvedAt: updatedReport.approved_at,
         approvedBy: updatedReport.approved_by
       });
+
+      // RLS requires sa_engagements.is_shared_with_client = TRUE for clients to see the report
+      const { error: engagementError } = await supabase
+        .from('sa_engagements')
+        .update({ is_shared_with_client: true })
+        .eq('id', engagement.id);
+
+      if (engagementError) {
+        console.error('[SA Report] Error setting engagement is_shared_with_client:', engagementError);
+        alert('Report status was updated but sharing flag may not have been set. Client might not see the report until you try again.');
+      }
       
       alert('Report is now available to the client!');
       await fetchData(); // Refresh to show updated status

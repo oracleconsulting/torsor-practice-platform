@@ -77,6 +77,7 @@ All live under `supabase/migrations/`. Copied as `migrations-<name>.sql`, e.g.:
 | frontend-admin-advisory-services-full.ts | src/lib/advisory-services-full.ts |
 | frontend-admin-service-catalog.ts | src/lib/services/service-catalog.ts |
 | frontend-admin-ServiceConfigPage.tsx | src/pages/admin/ServiceConfigPage.tsx |
+| frontend-admin-SprintSummaryAdminPreview.tsx | src/components/admin/SprintSummaryAdminPreview.tsx |
 
 ## Frontend — Client portal (apps/client-portal/src/)
 
@@ -92,6 +93,9 @@ All live under `supabase/migrations/`. Copied as `migrations-<name>.sql`, e.g.:
 | frontend-client-useAnalysis.ts | apps/client-portal/src/hooks/useAnalysis.ts |
 | frontend-client-useAssessmentProgress.ts | apps/client-portal/src/hooks/useAssessmentProgress.ts |
 | frontend-client-serviceLineAssessments.ts | apps/client-portal/src/config/serviceLineAssessments.ts |
+| frontend-client-SprintDashboardPage.tsx | apps/client-portal/src/pages/SprintDashboardPage.tsx |
+| frontend-client-SprintSummaryView.tsx | apps/client-portal/src/components/sprint/SprintSummaryView.tsx |
+| frontend-client-SprintSummaryClientView.tsx | apps/client-portal/src/components/SprintSummaryClientView.tsx |
 
 ## Frontend — Platform (apps/platform/src/)
 

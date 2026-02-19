@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Map,
   Flag,
+  Heart,
   MessageCircle,
   Calendar,
   LogOut,
@@ -31,6 +32,7 @@ const allNavigation = [
   { name: 'Reports', href: '/reports', icon: FileText, requiredServices: ['benchmarking', 'hidden_value_audit', 'discovery'] }, // For report-based services
   { name: 'Roadmap', href: '/roadmap', icon: Map, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Sprint', href: '/tasks', icon: Flag, requiredServices: ['365_method', '365_alignment'] },
+  { name: 'Life', href: '/life', icon: Heart, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Chat', href: '/chat', icon: MessageCircle, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Appointments', href: '/appointments', icon: Calendar, requiredServices: ['365_method', '365_alignment'] },
 ];
