@@ -273,7 +273,12 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
 
     const { data: assessmentMeta } = await supabase.from('client_assessments').select('metadata').eq('client_id', clientId).eq('assessment_type', 'part2').maybeSingle();
     if (assessmentMeta?.metadata?.adaptive) {
-      console.log('[generate-sprint-plan-part1] Adaptive assessment — skipped sections:', assessmentMeta.metadata.skippedSections?.map((s: any) => s.sectionId).join(', '));
+      const skipped = assessmentMeta.metadata.skippedSections || [];
+      console.log('[generate-sprint-plan-part1] Adaptive assessment — skipped sections:', skipped.map((s: any) => s.sectionId).join(', '));
+      const skippedNames = skipped.map((s: any) => s.sectionId).join(', ');
+      if (skippedNames) {
+        advisorNotesBlock += `\n\nNote: Client used adaptive assessment and skipped Part 2 sections: ${skippedNames}. For these areas, rely on the cross-service enrichment data provided above (BM/SA/financial data) rather than Part 2 responses.`;
+      }
     }
 
     console.log(`Generating weeks 1-6 for ${context.userName}...`);

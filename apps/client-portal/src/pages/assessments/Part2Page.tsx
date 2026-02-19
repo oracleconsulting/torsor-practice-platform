@@ -21,6 +21,7 @@ import {
 import { part2SectionsWithLifeBridge as sharedPart2Sections, type Part2Section, type Part2Question } from '@torsor/shared';
 import { useAdaptiveAssessment, buildAssessmentMetadata, normalizeSectionId } from '@/hooks/useAdaptiveAssessment';
 import { AdaptiveAssessmentBanner } from '@/components/assessment/AdaptiveAssessmentBanner';
+import { AdaptiveSkipBanner } from '@/components/assessment/AdaptiveSkipBanner';
 
 export default function Part2Page() {
   const navigate = useNavigate();
@@ -273,7 +274,7 @@ export default function Part2Page() {
     } finally {
       setIsSaving(false);
     }
-  }, [clientSession?.clientId, clientSession?.practiceId, currentSectionIndex, assessmentId, part2Sections]);
+  }, [clientSession?.clientId, clientSession?.practiceId, currentSectionIndex, assessmentId, part2Sections, adaptive]);
 
   // Handle changes with auto-save
   const handleChange = useCallback((fieldName: string, value: any) => {
@@ -492,7 +493,28 @@ export default function Part2Page() {
               <p className="text-indigo-100 mt-2">{currentSection.description}</p>
             </div>
 
-            {/* Questions */}
+            {/* 4B: Per-section skip banner (skippable sections only) */}
+            {(() => {
+              const sectionId = normalizeSectionId(currentSection.title) || normalizeSectionId(currentSection.shortTitle);
+              const isSkippable = adaptive.skippableSections.includes(sectionId);
+              const isSkipped = adaptive.skippedSections.includes(sectionId);
+              const sectionMeta = adaptive.part2Sections.find(p => p.sectionId === sectionId);
+              if (!isSkippable) return null;
+              return (
+                <AdaptiveSkipBanner
+                  sectionId={sectionId}
+                  sectionLabel={currentSection.title}
+                  dataSourceLabel={sectionMeta?.dataSourceLabel ?? 'your other services'}
+                  dataAge={sectionMeta?.dataAge}
+                  isSkipped={isSkipped}
+                  onSkip={() => adaptive.skipSection(sectionId)}
+                  onAnswer={() => adaptive.unskipSection(sectionId)}
+                />
+              );
+            })()}
+
+            {/* Questions (hidden when section skipped) */}
+            {!adaptive.skippedSections.includes(normalizeSectionId(currentSection.title) || normalizeSectionId(currentSection.shortTitle)) && (
             <div className="space-y-6">
               {currentSection.questions.map((question: Part2Question, qIdx: number) => (
                 <QuestionCard
@@ -506,6 +528,7 @@ export default function Part2Page() {
                 />
               ))}
             </div>
+            )}
 
             {/* Navigation */}
             <div className="flex justify-between items-center pt-6 border-t border-slate-200">
