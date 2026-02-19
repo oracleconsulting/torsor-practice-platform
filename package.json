@@ -42,5 +42,8 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "unpdf": "^1.4.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.53.3"
   }
 }
