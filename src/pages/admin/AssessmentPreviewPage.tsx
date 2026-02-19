@@ -655,7 +655,7 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Stage 3: Process Deep Dives (6 chains)
+                Stage 3: Process Deep Dives (7 chains)
               </button>
             </div>
           </div>
@@ -801,13 +801,13 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
               <h3 className="font-medium text-purple-900 mb-2">Process Deep Dive Structure</h3>
               <p className="text-sm text-purple-700 mb-2">
-                Each process chain has detailed questions organized into sections. Questions are configured in:
+                Each process chain has detailed questions organized into sections. Questions are defined in the client portal:
               </p>
               <code className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded block mt-2">
-                apps/platform/src/config/assessments/process-deep-dives.ts
+                apps/client-portal/src/pages/services/ProcessDeepDivesPage.tsx
               </code>
               <p className="text-sm text-purple-700 mt-3">
-                The 6 process chains are:
+                The 7 process chains are:
               </p>
               <ul className="text-sm text-purple-700 list-disc list-inside mt-2 space-y-1">
                 <li><strong>Quote-to-Cash:</strong> From lead to cash collected</li>
@@ -816,6 +816,7 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
                 <li><strong>Record-to-Report:</strong> From transaction to insight</li>
                 <li><strong>Lead-to-Client:</strong> From stranger to customer</li>
                 <li><strong>Comply-to-Confirm:</strong> From requirement to filed</li>
+                <li><strong>Project-to-Delivery:</strong> From signed deal to completed work</li>
               </ul>
             </div>
           </div>
