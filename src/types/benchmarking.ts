@@ -78,6 +78,13 @@ export interface ValueSuppressor {
   remediationTimeMonths?: number;
   talkingPoint?: string;      // For adviser
   questionToAsk?: string;     // Discovery question
+  /** Evidence basis for the discount range */
+  methodology?: {
+    sources: string[];
+    calibrationNote: string;
+    confidenceLevel: 'strong' | 'moderate' | 'limited';
+    limitationsNote: string;
+  };
 }
 
 /**

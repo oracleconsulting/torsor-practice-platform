@@ -121,6 +121,13 @@ export interface EnhancedValueSuppressor {
   // Flags
   fixable: boolean;
   category: 'concentration' | 'founder' | 'succession' | 'revenue_model' | 'documentation' | 'governance' | 'other';
+  /** Evidence basis for the discount range */
+  methodology?: {
+    sources: string[];
+    calibrationNote: string;
+    confidenceLevel: 'strong' | 'moderate' | 'limited';
+    limitationsNote: string;
+  };
 }
 
 // =============================================================================

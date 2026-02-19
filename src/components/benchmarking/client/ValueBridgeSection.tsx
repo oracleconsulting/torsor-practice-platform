@@ -225,6 +225,13 @@ export function ValueBridgeSection({ valueAnalysis, enhancedSuppressors, clientN
               {formatCurrency(currentMarketValue.mid)}
             </span>
           </div>
+
+          {/* Aggregate methodology note */}
+          {valueAnalysis.aggregateDiscount?.methodology && (
+            <p className="text-xs text-gray-500 mt-3 italic">
+              {valueAnalysis.aggregateDiscount.methodology}
+            </p>
+          )}
         </div>
       </div>
 

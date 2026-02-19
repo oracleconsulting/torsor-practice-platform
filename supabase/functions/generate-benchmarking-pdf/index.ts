@@ -695,6 +695,12 @@ function renderValueWaterfall(data: any, config: any): string {
         </div>
         <div class="wf-amount">${formatCurrency(currentValue)}</div>
       </div>
+      ${(val.aggregateDiscount?.methodology) ? `
+      <div class="valuation-methodology-note">
+        <strong>Valuation methodology:</strong> ${val.aggregateDiscount.methodology}
+      </div>
+      <p class="valuation-disclaimer">This is indicative analysis, not a formal valuation opinion. Discount ranges are grounded in practitioner frameworks (e.g. Pratt, Damodaran, BDO PCPI) and industry calibration; individual outcomes vary by buyer and deal structure.</p>
+      ` : ''}
     </div>
   `;
 }
@@ -789,6 +795,14 @@ function renderSuppressors(data: any, config: any): string {
                 </div>
               ` : ''}
               ${n.dependencies ? `<div class="supp-dependencies"><strong>Dependencies:</strong> ${n.dependencies}</div>` : ''}
+              ${(s.methodology && (s.methodology.sources?.length || s.methodology.calibrationNote)) ? `
+                <div class="supp-methodology">
+                  <strong>Methodology &amp; sources:</strong>
+                  ${s.methodology.calibrationNote ? `<p class="supp-methodology-note">${s.methodology.calibrationNote}</p>` : ''}
+                  ${s.methodology.sources?.length ? `<ul class="supp-sources">${s.methodology.sources.map((src: string) => `<li>${src}</li>`).join('')}</ul>` : ''}
+                  ${s.methodology.limitationsNote ? `<p class="supp-limitations italic">${s.methodology.limitationsNote}</p>` : ''}
+                </div>
+              ` : ''}
             </div>
           `;
         }).join('')}
@@ -2255,6 +2269,12 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .supp-fix-steps ol { margin: 3px 0 0 16px; padding: 0; }
     .supp-investment { display: flex; gap: 12px; font-size: 0.82em; margin-top: 6px; }
     .supp-dependencies { font-size: 0.82em; margin-top: 6px; color: #64748b; }
+    .supp-methodology { font-size: 0.78em; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e2e8f0; color: #64748b; }
+    .supp-methodology-note { margin: 4px 0; }
+    .supp-sources { margin: 4px 0 0 0.8em; padding-left: 0.4em; }
+    .supp-limitations { margin-top: 6px; font-style: italic; color: #94a3b8; }
+    .valuation-methodology-note { font-size: 0.8em; margin-top: 12px; padding: 8px 0; color: #64748b; }
+    .valuation-disclaimer { font-size: 0.75em; color: #94a3b8; margin-top: 8px; font-style: italic; }
     
     /* =========================== COMPACT SUPPRESSOR TABLE (TIER 1) =========================== */
     .suppressor-table-compact {
@@ -3108,6 +3128,7 @@ serve(async (req) => {
           strengths: exitReadinessFromVal.strengths || [],
         },
         pathToValue: valueAnalysis.pathToValue || { timeframeMonths: 24, recoverableValue: { low: 0, mid: 0, high: 0 }, keyActions: [] },
+        aggregateDiscount: valueAnalysis.aggregateDiscount || { percentRange: { low: 0, mid: 0, high: 0 }, methodology: '' },
       },
       suppressors: allSuppressors.map((s: any) => ({
         code: s.code || s.id || '',
@@ -3127,6 +3148,7 @@ serve(async (req) => {
         industryContext: s.industryContext || '',
         pathToFix: s.pathToFix || { summary: '', steps: [], investment: 0, dependencies: [] },
         waterfallAmount: s.waterfallAmount ?? s.current?.waterfallAmount,
+        methodology: s.methodology || null,
       })),
       exitReadiness: {
         totalScore: exitBreakdown.totalScore || 0,
