@@ -269,7 +269,7 @@ export default function SystemsMapSection({ systemsMaps, facts }: { systemsMaps:
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, #1e293b40 1px, transparent 0)', backgroundSize: '32px 32px' }} />
         <svg viewBox="0 0 800 580" style={{ width: '100%', height: 'auto', opacity: isTransitioning ? 0.3 : 1, transition: 'opacity 0.2s ease' }}>
           {hub && <MiddlewareHub name={hub.name || 'Zapier'} x={hub.x || 400} y={hub.y || 340} cost={hub.cost || 50} />}
-          {edges.map((edge: any, i: number) => {
+          {edges.map((edge: any) => {
             const from = nodesObj[edge.from];
             const to = nodesObj[edge.to];
             if (!from || !to) return null;
