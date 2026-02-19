@@ -17,35 +17,50 @@ import {
   BarChart3, Shield, Mail, Send
 } from 'lucide-react';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
+import { processChainConfigs } from '@torsor/shared';
 
-// Systems Audit Stage 1 Discovery questions (inline to avoid cross-app import issues)
+// Systems Audit Stage 1 Discovery questions (32 questions, 8 sections) — aligned with client-portal SYSTEMS_AUDIT_ASSESSMENT
 const SYSTEMS_AUDIT_STAGE1_QUESTIONS = [
-  // Section 1: Current Pain
+  // Section 1: Current Pain (3)
   { id: 'q1_1', section: 'Current Pain', question_text: 'What broke – or is about to break – that made you think about systems?', question_type: 'text' as const, placeholder: 'Be specific – the incident, the near-miss, the frustration that tipped you over...', char_limit: 400, emotional_anchor: 'systems_breaking_point', is_required: true },
-  { id: 'q1_2', section: 'Current Pain', question_text: 'How would you describe your current operations?', question_type: 'single' as const, options: ['Controlled chaos – it works but I can\'t explain how', 'Manual heroics – we survive on people\'s goodwill', 'Death by spreadsheet – everything\'s tracked but nothing connects', 'Tech Frankenstein – we\'ve bolted tools together over years', 'Actually pretty good – we just need optimisation'], is_required: true },
+  { id: 'q1_2', section: 'Current Pain', question_text: 'How would you describe your current operations?', question_type: 'single' as const, options: ['Controlled chaos – it works but I can\'t explain how', 'Manual heroics – we survive on people\'s goodwill', 'Death by spreadsheet – everything\'s tracked but nothing connects', 'Tech Frankenstein – we\'ve bolted tools together over years', 'Actually pretty good – we just need optimisation'], emotional_anchor: 'operations_self_diagnosis', is_required: true },
   { id: 'q1_3', section: 'Current Pain', question_text: 'If I followed you through a typical month-end, what would embarrass you most?', question_type: 'text' as const, placeholder: 'The workaround you\'re ashamed of, the process you\'d never show an investor...', char_limit: 800, emotional_anchor: 'month_end_shame', is_required: true },
-  // Section 2: Impact Quantification
+  // Section 2: Impact Quantification (5)
   { id: 'q2_1', section: 'Impact Quantification', question_text: 'How many hours per month do you estimate your team spends on manual data entry, reconciliation, or "making things match"?', question_type: 'single' as const, options: ['Under 10 hours', '10-20 hours', '20-40 hours', '40-80 hours', 'More than 80 hours'], is_required: true },
   { id: 'q2_2', section: 'Impact Quantification', question_text: 'How long does your month-end close currently take?', question_type: 'single' as const, options: ['1-2 days', '3-5 days', '1-2 weeks', '2-4 weeks', 'We don\'t really "close" – it\'s ongoing'], is_required: true },
   { id: 'q2_3', section: 'Impact Quantification', question_text: 'In the last year, how many times have you discovered data errors that affected a business decision?', question_type: 'single' as const, options: ['Never – our data is solid', 'Once or twice – minor issues', 'Several times – some costly', 'Regularly – I don\'t fully trust our numbers', 'I don\'t know – which is the scary part'], is_required: true },
   { id: 'q2_4', section: 'Impact Quantification', question_text: 'What\'s the most expensive mistake caused by a systems/process gap in the last 2 years?', question_type: 'text' as const, placeholder: 'Lost client, tax penalty, missed opportunity, overpayment...', char_limit: 800, emotional_anchor: 'expensive_systems_mistake', is_required: true },
   { id: 'q2_5', section: 'Impact Quantification', question_text: 'How many times last month did someone ask for information and you couldn\'t get it within 5 minutes?', question_type: 'single' as const, options: ['Never', '1-2 times', 'Weekly', 'Daily', 'Constantly'], is_required: true },
-  // Section 3: Tech Stack
+  // Section 3: Tech Stack (3)
   { id: 'q3_1', section: 'Tech Stack', question_text: 'Which software tools does your business use? (Select all that apply)', question_type: 'multi' as const, options: ['Xero / QuickBooks / Sage (Accounting)', 'HubSpot / Salesforce / Pipedrive (CRM)', 'Asana / Trello / Monday (Projects)', 'Slack / Teams (Communication)', 'Stripe / GoCardless (Payments)', 'Google Workspace (Email, Docs)', 'Microsoft 365', 'BreatheHR / CharlieHR (HR)', 'Dext / Receipt Bank (Expenses)', 'Other (we\'ll capture in Stage 2)'], is_required: true },
   { id: 'q3_2', section: 'Tech Stack', question_text: 'How would you rate the integration between these systems?', question_type: 'single' as const, options: ['Seamless – data flows automatically', 'Partial – some connected, some manual', 'Minimal – mostly manual transfers', 'Non-existent – each system is an island'], is_required: true },
   { id: 'q3_3', section: 'Tech Stack', question_text: 'How many spreadsheets are "critical" to running your business? (Be honest)', question_type: 'single' as const, options: ['None – everything\'s in proper systems', '1-3 key spreadsheets', '4-10 spreadsheets', '10-20 spreadsheets', 'I\'ve lost count'], is_required: true },
-  // Section 4: Focus Areas
+  // Section 4: Focus Areas (2)
   { id: 'q4_1', section: 'Focus Areas', question_text: 'Which areas feel most broken right now? (Select top 3)', question_type: 'multi' as const, max_selections: 3, options: ['Financial reporting / management accounts', 'Accounts payable (paying suppliers)', 'Accounts receivable (getting paid)', 'Inventory / stock management', 'Payroll and HR processes', 'Sales / CRM / pipeline tracking', 'Project management and delivery', 'Client onboarding', 'Compliance and documentation', 'IT infrastructure / security'], is_required: true },
   { id: 'q4_2', section: 'Focus Areas', question_text: 'If you could fix ONE process by magic, which would have the biggest impact?', question_type: 'text' as const, placeholder: 'Describe the process and why fixing it would matter...', char_limit: 800, emotional_anchor: 'magic_process_fix', is_required: true },
-  // Section 5: Readiness
-  { id: 'q5_1', section: 'Readiness', question_text: 'What\'s your appetite for change right now?', question_type: 'single' as const, options: ['Urgent – we need to fix this yesterday', 'Ready – we\'ve budgeted time and money for this', 'Cautious – we want to improve but can\'t afford disruption', 'Exploring – just want to understand options'], is_required: true },
-  { id: 'q5_2', section: 'Readiness', question_text: 'What\'s your biggest fear about tackling systems?', question_type: 'multi' as const, options: ['Cost will spiral out of control', 'Implementation will disrupt operations', 'We\'ll invest and it won\'t work', 'Team won\'t adopt new processes', 'We\'ll become dependent on consultants', 'It\'s too complex to know where to start', 'No major fears – just want to get on with it'], emotional_anchor: 'systems_fears', is_required: true },
-  { id: 'q5_3', section: 'Readiness', question_text: 'Who internally would champion this project?', question_type: 'single' as const, options: ['Me – the founder/owner', 'Finance manager/FD', 'Operations manager', 'Office manager', 'IT lead', 'Other'], is_required: true },
-  // Section 6: Context
-  { id: 'q6_1', section: 'Context', question_text: 'How many people work in your business currently?', question_type: 'text' as const, placeholder: 'Enter number', is_required: true },
-  { id: 'q6_2', section: 'Context', question_text: 'How many people do you expect in 12 months?', question_type: 'text' as const, placeholder: 'Enter number', is_required: true },
-  { id: 'q6_3', section: 'Context', question_text: 'What\'s your annual revenue band?', question_type: 'single' as const, options: ['Under £250k', '£250k - £500k', '£500k - £1m', '£1m - £2m', '£2m - £5m', '£5m - £10m', '£10m+'], is_required: true },
-  { id: 'q6_4', section: 'Context', question_text: 'What industry are you in?', question_type: 'text' as const, placeholder: 'e.g., Professional services, Manufacturing, Retail, Tech...', char_limit: 100, is_required: true },
+  // Section 5: What Good Looks Like (3)
+  { id: 'q5_1', section: 'What Good Looks Like', question_text: 'What specific outcomes do you most want from fixing your systems?', question_type: 'multi' as const, max_selections: 3, options: ['Know which clients or jobs are actually profitable', 'See our cash position and forecast without asking anyone', 'Close month-end in under a week', 'Get quotes and proposals out within 48 hours', 'Track pipeline and forecast revenue with confidence', 'Free key people from manual admin and data entry', 'Get management information I actually use for decisions', 'Onboard new team members without things falling apart', 'Scale the team without scaling the admin', 'Have proper controls so mistakes don\'t slip through'], is_required: true },
+  { id: 'q5_2', section: 'What Good Looks Like', question_text: 'When your systems are working properly, what does your Monday morning look like?', question_type: 'text' as const, placeholder: 'What do you see when you open your laptop? What questions can you answer instantly? What meetings do you no longer need?', char_limit: 800, emotional_anchor: 'monday_morning_vision', is_required: true },
+  { id: 'q5_3', section: 'What Good Looks Like', question_text: 'If you got 10+ hours a week back, what would you actually spend that time on?', question_type: 'single' as const, options: ['Clients – the work I\'m actually good at', 'Business development – growing revenue', 'Strategy and planning – thinking about the future', 'Managing my team properly – not firefighting', 'My life outside work – family, health, headspace', 'Building something new – products, services, ideas'], emotional_anchor: 'time_freedom_priority', is_required: true },
+  // Section 6: Where You're Going (6)
+  { id: 'q6_1', section: "Where You're Going", question_text: "When you picture the business in 12–18 months, what's actually different? Not revenue targets – what does the team look like, what are you doing that you're not doing today?", question_type: 'text' as const, placeholder: "e.g., We've hired a senior PM so I'm not managing every project. We've launched a retainer product. We've opened a second office...", char_limit: 800, emotional_anchor: 'growth_vision', is_required: true },
+  { id: 'q6_2', section: "Where You're Going", question_text: "What are the next 2–3 roles you'll hire for – and what's stopping you hiring them now?", question_type: 'text' as const, placeholder: "e.g., Senior developer (can't because project scoping is too messy), Office manager (because Maria is doing 3 jobs)...", char_limit: 800, emotional_anchor: 'hiring_blockers', is_required: true },
+  { id: 'q6_3', section: "Where You're Going", question_text: 'Which best describes what growth looks like for you?', question_type: 'single' as const, options: ['More of the same – same services, more clients, bigger team', 'Higher value – same-ish team, better clients, higher prices', "New offerings – launching services or products we don't do yet", 'Geographic – new locations, markets, or remote expansion', 'Acquisition – buying or merging with another business', "Honestly not sure – we're just trying to stabilise first"], is_required: true },
+  { id: 'q6_4', section: "Where You're Going", question_text: "What's the first thing that would break if you won 3 new clients next month?", question_type: 'text' as const, placeholder: 'Be specific – who gets overwhelmed, which process buckles, what falls through the cracks...', char_limit: 800, emotional_anchor: 'capacity_ceiling', is_required: true },
+  { id: 'q6_5', section: "Where You're Going", question_text: "What systems or tools have you tried and abandoned in the last 2 years – and why did they fail?", question_type: 'text' as const, placeholder: "e.g., We tried Monday.com as a CRM but nobody used it. We bought HubSpot but it was overkill...", char_limit: 800, emotional_anchor: 'failed_tools', is_required: true },
+  { id: 'q6_6', section: "Where You're Going", question_text: "What must NOT change? Which tools, processes, or ways of working does your team love?", question_type: 'text' as const, placeholder: "e.g., The team loves Slack – any solution needs to work with it. Maria's month-end checklist is sacred. The dev team will revolt if we change their IDE...", char_limit: 800, emotional_anchor: 'non_negotiables', is_required: true },
+  // Section 7: Your Business (7)
+  { id: 'q7_1', section: 'Your Business', question_text: 'How many people work in your business currently?', question_type: 'text' as const, placeholder: 'Enter number', is_required: true },
+  { id: 'q7_2', section: 'Your Business', question_text: 'How many people do you expect in 12 months?', question_type: 'text' as const, placeholder: 'Enter number', is_required: true },
+  { id: 'q7_3', section: 'Your Business', question_text: 'What industry are you in?', question_type: 'text' as const, placeholder: 'e.g., Professional services, Manufacturing, Retail, Tech...', char_limit: 100, is_required: true },
+  { id: 'q7_4', section: 'Your Business', question_text: 'How does your business make money? (Select the closest match)', question_type: 'single' as const, options: ['Project-based – quoted work with defined scope', 'Retainer/recurring – monthly fees for ongoing services', 'Mixed – some project, some retainer', 'Product sales – physical or digital goods', 'Subscription – SaaS or membership model', 'Hourly/day rate – time-based billing', 'Commission-based – earn on transactions or referrals'], is_required: true },
+  { id: 'q7_5', section: 'Your Business', question_text: 'Roughly, how is your team structured?', question_type: 'text' as const, placeholder: 'e.g., Sophie (founder) + Priya (ops) + Jake leads 6 devs + 4 designers + Maria (finance) + 3 account managers', char_limit: 800, is_required: true },
+  { id: 'q7_6', section: 'Your Business', question_text: 'Where does your team work?', question_type: 'single' as const, options: ["Single office – everyone's in the same place", 'Hybrid – mix of office and remote', 'Fully remote – no shared office', 'Multiple offices/sites', 'Field-based – team is out at client sites or on the road'], is_required: true },
+  { id: 'q7_7', section: 'Your Business', question_text: "If one person went on holiday for 2 weeks with no phone, what would break? Who is that person and what would break?", question_type: 'text' as const, placeholder: "e.g., If Maria's off, nobody can do invoicing, payroll, or month-end. If Sophie's off, no proposals go out...", char_limit: 800, emotional_anchor: 'key_person_dependency', is_required: true },
+  // Section 8: Readiness (3)
+  { id: 'q8_1', section: 'Readiness', question_text: 'What\'s your appetite for change right now?', question_type: 'single' as const, options: ['Urgent – we need to fix this yesterday', 'Ready – we\'ve budgeted time and money for this', 'Cautious – we want to improve but can\'t afford disruption', 'Exploring – just want to understand options'], is_required: true },
+  { id: 'q8_2', section: 'Readiness', question_text: 'What\'s your biggest fear about tackling systems?', question_type: 'multi' as const, options: ['Cost will spiral out of control', 'Implementation will disrupt operations', 'We\'ll invest and it won\'t work', 'Team won\'t adopt new processes', 'We\'ll become dependent on consultants', "We'll discover how bad things really are", 'No major fears – just want to get on with it'], emotional_anchor: 'systems_fears', is_required: true },
+  { id: 'q8_3', section: 'Readiness', question_text: 'Who internally would champion this project?', question_type: 'single' as const, options: ['Me – the founder/owner', 'Finance manager/FD', 'Operations manager', 'Office manager', 'IT lead', 'Other'], is_required: true },
 ];
 
 
@@ -88,7 +103,7 @@ const ASSESSMENT_GROUPS = [
     subtitle: 'Detailed assessments for each service',
     assessments: [
       { code: 'management_accounts', name: 'Business Intelligence', title: 'Financial Visibility Diagnostic', icon: LineChart, color: 'emerald' },
-      { code: 'systems_audit', name: 'Systems Audit', title: 'Operations Health Check - Stage 1: Discovery (19 questions)', icon: Settings, color: 'cyan', questionCount: 19 },
+      { code: 'systems_audit', name: 'Systems Audit', title: 'Operations Health Check - Stage 1: Discovery (32 questions)', icon: Settings, color: 'cyan', questionCount: 32 },
       { code: 'fractional_cfo', name: 'Fractional CFO', title: 'Financial Leadership Diagnostic', icon: TrendingUp, color: 'blue' },
       { code: 'fractional_coo', name: 'Fractional COO', title: 'Operational Leadership Diagnostic', icon: Briefcase, color: 'violet' },
       { code: 'combined_advisory', name: 'Combined CFO/COO', title: 'Executive Capacity Diagnostic', icon: Users, color: 'purple' },
@@ -635,7 +650,7 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
                     : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}
               >
-                Stage 1: Discovery (19 questions)
+                Stage 1: Discovery (32 questions)
               </button>
               <button
                 onClick={() => setSystemsAuditStage('stage2')}
@@ -747,51 +762,76 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
             <div className="bg-white rounded-xl border border-gray-200 p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-4">Process Chains</h2>
               <p className="text-sm text-gray-600 mb-4">
-                Consultant-led deep dives into 6 key process chains. Each chain has detailed questions organized by sections.
+                Consultant-led deep dives into 7 key process chains. Each chain has detailed questions organized by sections. Questions below are from the shared config used by the client portal.
               </p>
               {loadingStage3 ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 text-indigo-600 animate-spin" />
                 </div>
               ) : processChains.length > 0 ? (
-                <div className="space-y-4">
-                  {processChains.map((chain) => (
-                    <div key={chain.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h3 className="font-medium text-gray-900">{chain.chain_name}</h3>
-                          <p className="text-sm text-gray-600 mt-1">{chain.description}</p>
+                <div className="space-y-6">
+                  {processChains.map((chain) => {
+                    const chainConfig = processChainConfigs[chain.chain_code];
+                    return (
+                      <div key={chain.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <h3 className="font-medium text-gray-900">{chain.chain_name}</h3>
+                            <p className="text-sm text-gray-600 mt-1">{chain.description}</p>
+                          </div>
+                          <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">
+                            ~{chain.estimated_duration_mins} mins
+                          </span>
                         </div>
-                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">
-                          ~{chain.estimated_duration_mins} mins
-                        </span>
+                        {chain.process_steps && chain.process_steps.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs text-gray-600 font-medium mb-2">Process Steps:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {chain.process_steps.map((step: string, idx: number) => (
+                                <span key={idx} className="text-xs bg-gray-100 px-2 py-0.5 rounded">
+                                  {step}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {chain.trigger_areas && chain.trigger_areas.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs text-gray-600 font-medium mb-1">Triggered by:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {chain.trigger_areas.map((area: string, idx: number) => (
+                                <span key={idx} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
+                                  {area.replace(/_/g, ' ')}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {chainConfig && chainConfig.sections && chainConfig.sections.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-gray-200">
+                            <p className="text-xs font-semibold text-gray-700 mb-2">Questions ({chainConfig.sections.reduce((n, s) => n + s.questions.length, 0)} total)</p>
+                            <div className="space-y-3">
+                              {chainConfig.sections.map((sec, sIdx) => (
+                                <div key={sIdx}>
+                                  <p className="text-xs font-medium text-indigo-700 mb-1">{sec.name}</p>
+                                  <ul className="list-none space-y-1">
+                                    {sec.questions.map((q) => (
+                                      <li key={q.id} className="text-xs text-gray-600 pl-2 border-l-2 border-gray-200">
+                                        <span className="text-gray-500 font-mono">{q.id}</span>
+                                        {q.aiAnchor && <span className="ml-1 text-amber-600">AI</span>}
+                                        {' — '}{q.question}
+                                        {q.options && <span className="text-gray-400"> ({q.options.length} options)</span>}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      {chain.process_steps && chain.process_steps.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs text-gray-600 font-medium mb-2">Process Steps:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {chain.process_steps.map((step: string, idx: number) => (
-                              <span key={idx} className="text-xs bg-gray-100 px-2 py-0.5 rounded">
-                                {step}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {chain.trigger_areas && chain.trigger_areas.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-xs text-gray-600 font-medium mb-1">Triggered by:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {chain.trigger_areas.map((area: string, idx: number) => (
-                              <span key={idx} className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded">
-                                {area.replace(/_/g, ' ')}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-gray-500 text-sm">No process chains found. Run the Systems Audit migration.</p>
@@ -801,23 +841,8 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
               <h3 className="font-medium text-purple-900 mb-2">Process Deep Dive Structure</h3>
               <p className="text-sm text-purple-700 mb-2">
-                Each process chain has detailed questions organized into sections. Questions are defined in the client portal:
+                Questions are loaded from the shared config <code className="bg-purple-100 px-1 rounded">@torsor/shared</code> (packages/shared/src/data/saProcessDeepDiveChains.ts). The same config is used by the client portal Process Deep Dives page. Edit that file to change questions; they will appear here and in the client flow.
               </p>
-              <code className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded block mt-2">
-                apps/client-portal/src/pages/services/ProcessDeepDivesPage.tsx
-              </code>
-              <p className="text-sm text-purple-700 mt-3">
-                The 7 process chains are:
-              </p>
-              <ul className="text-sm text-purple-700 list-disc list-inside mt-2 space-y-1">
-                <li><strong>Quote-to-Cash:</strong> From lead to cash collected</li>
-                <li><strong>Procure-to-Pay:</strong> From need to payment</li>
-                <li><strong>Hire-to-Retire:</strong> Full employee lifecycle</li>
-                <li><strong>Record-to-Report:</strong> From transaction to insight</li>
-                <li><strong>Lead-to-Client:</strong> From stranger to customer</li>
-                <li><strong>Comply-to-Confirm:</strong> From requirement to filed</li>
-                <li><strong>Project-to-Delivery:</strong> From signed deal to completed work</li>
-              </ul>
             </div>
           </div>
         )}

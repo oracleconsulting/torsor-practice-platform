@@ -346,9 +346,9 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
 };
 
 // ============================================================================
-// SYSTEMS AUDIT - Operations Health Check (19 questions, 6 sections)
+// SYSTEMS AUDIT - Operations Health Check (32 questions, 8 sections)
 // ============================================================================
-// Aligned with sa_discovery_responses DB columns and 19q admin config.
+// Aligned with sa_discovery_responses DB columns and admin AssessmentPreviewPage.
 // ============================================================================
 
 export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {

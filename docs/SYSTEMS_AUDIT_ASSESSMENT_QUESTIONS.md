@@ -282,7 +282,7 @@ Complete list of all assessment questions across all three stages of the Systems
   - We'll invest and it won't work
   - Team won't adopt new processes
   - We'll become dependent on consultants
-  - It's too complex to know where to start
+  - We'll discover how bad things really are
   - No major fears – just want to get on with it
 - **AI Anchor:** Yes (`systems_fears`)
 - **Required:** Yes
@@ -361,9 +361,9 @@ Stage 2 is not a traditional question-based assessment. Instead, clients fill ou
 
 ---
 
-## Stage 3: Process Deep Dives (6 Process Chains)
+## Stage 3: Process Deep Dives (7 Process Chains)
 
-Stage 3 consists of consultant-led deep dives into 6 key process chains. Each chain has detailed questions organized into sections.
+Stage 3 consists of consultant-led deep dives into 7 key process chains. Each chain has detailed questions organized into sections.
 
 ---
 

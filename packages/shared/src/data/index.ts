@@ -3,6 +3,9 @@ export * from './part1-questions';
 export * from './part2-questions';
 export * from './part3-questions';
 
+// SA Process Deep Dives (Stage 3)
+export * from './saProcessDeepDiveChains';
+
 // Summary stats
 import { PART1_TOTAL_QUESTIONS } from './part1-questions';
 import { PART2_TOTAL_QUESTIONS, PART2_TOTAL_SECTIONS } from './part2-questions';
