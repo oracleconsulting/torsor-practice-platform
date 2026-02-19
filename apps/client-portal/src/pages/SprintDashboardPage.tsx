@@ -43,6 +43,7 @@ import { TuesdayCheckInCard } from '@/components/sprint/TuesdayCheckInCard';
 import { LifePulseCard } from '@/components/sprint/LifePulseCard';
 import { LifeAlignmentCard } from '@/components/sprint/LifeAlignmentCard';
 import { useLifeAlignment } from '@/hooks/useLifeAlignment';
+import { useProgress } from '@/hooks/useProgress';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
 import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
@@ -1062,6 +1063,7 @@ export default function SprintDashboardPage() {
   const { clientSession } = useAuth();
   const { roadmap, fetchRoadmap, loading: roadmapLoading } = useRoadmap();
   const { tasks, fetchTasks, updateTaskStatus } = useTasks();
+  const { recalculate: recalculateProgress } = useProgress();
   const {
     submit: submitCheckIn,
     fetchCheckIn,
@@ -1372,14 +1374,40 @@ export default function SprintDashboardPage() {
 
   const handleTaskComplete = useCallback(
     async (taskId: string, feedback: { whatWentWell: string; whatDidntWork: string; additionalNotes: string }) => {
-      const wasLifeTask = completingTask?.category?.startsWith?.('life_');
+      const task = completingTask;
+      const wasLifeTask = task?.category?.startsWith?.('life_');
       await updateTaskStatus(taskId, 'completed', feedback);
       setCompletingTask(null);
       if (wasLifeTask && recalculateScore) {
         recalculateScore();
       }
+      try {
+        await recalculateProgress();
+      } catch (e) {
+        console.warn('Progress snapshot recalculate failed', e);
+      }
+      if (task && (clientSession?.clientId && clientSession?.practiceId)) {
+        const isMilestone =
+          task.title?.toLowerCase().includes('milestone') ||
+          (task as { deliverable?: boolean }).deliverable === true;
+        if (isMilestone) {
+          try {
+            await supabase.from('client_wins').insert({
+              client_id: clientSession.clientId,
+              practice_id: clientSession.practiceId,
+              sprint_number: currentSprintNumber,
+              week_number: task.week_number ?? undefined,
+              title: `Completed: ${task.title}`,
+              category: task.category?.startsWith('life_') ? 'life' : 'general',
+              source: 'auto',
+            });
+          } catch (err) {
+            console.warn('Auto-add client win failed', err);
+          }
+        }
+      }
     },
-    [updateTaskStatus, completingTask?.category, recalculateScore]
+    [updateTaskStatus, completingTask, recalculateScore, recalculateProgress, clientSession?.clientId, clientSession?.practiceId, currentSprintNumber]
   );
 
   const lifeAlignment = getLifeAlignmentSummary();

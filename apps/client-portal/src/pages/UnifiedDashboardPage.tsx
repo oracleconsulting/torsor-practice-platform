@@ -1230,11 +1230,14 @@ export default function UnifiedDashboardPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-4 text-xs text-gray-500">
-                            <span>{gaSprintData.completedTasks} of {gaSprintData.totalTasks} tasks done</span>
+                            <span>Tasks: {gaSprintData.completedTasks}/{gaSprintData.totalTasks} complete</span>
                             {gaSprintData.sprintTheme && (
                               <span className="truncate">• {gaSprintData.sprintTheme}</span>
                             )}
                           </div>
+                          <Link to="/progress" className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mt-1 inline-block">
+                            View full progress →
+                          </Link>
                           {gaSprintData.hasCatchUpNeeded && (
                             <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
                               <Clock className="w-3.5 h-3.5 flex-shrink-0" />
@@ -1352,6 +1355,7 @@ export default function UnifiedDashboardPage() {
             {gaSprintData?.hasSprint ? (
               <>
                 <QuickLink to="/tasks" icon={Target} label="Sprint" />
+                <QuickLink to="/progress" icon={BarChart3} label="Progress" />
                 <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
                 <QuickLink to="/chat" icon="💬" label="Chat" />
                 <QuickLink to="/appointments" icon="📅" label="Book Call" />

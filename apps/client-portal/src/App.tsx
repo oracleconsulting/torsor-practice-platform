@@ -28,6 +28,7 @@ import SAReportPage from './pages/services/SAReportPage';
 import BenchmarkingReportPage from './pages/services/BenchmarkingReportPage';
 import ReportsPage from './pages/ReportsPage';
 import LifeThreadPage from './pages/LifeThreadPage';
+import ProgressPage from './pages/ProgressPage';
 import DestinationDiscoveryPage from './pages/discovery/DestinationDiscoveryPage';
 import DiscoveryReportPage from './pages/discovery/DiscoveryReportPage';
 import DiscoveryFollowUpPage from './pages/discovery/DiscoveryFollowUpPage';
@@ -69,6 +70,7 @@ function App() {
             <Route path="/roadmap" element={<RoadmapPage />} />
             <Route path="/tasks" element={<SprintDashboardPage />} />
             <Route path="/life" element={<LifeThreadPage />} />
+            <Route path="/progress" element={<ProgressPage />} />
             
             {/* Chat */}
             <Route path="/chat" element={<ChatPage />} />

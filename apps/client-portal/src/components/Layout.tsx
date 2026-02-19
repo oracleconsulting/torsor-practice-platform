@@ -8,6 +8,7 @@ import {
   Map,
   Flag,
   Heart,
+  TrendingUp,
   MessageCircle,
   Calendar,
   LogOut,
@@ -33,6 +34,7 @@ const allNavigation = [
   { name: 'Roadmap', href: '/roadmap', icon: Map, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Sprint', href: '/tasks', icon: Flag, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Life', href: '/life', icon: Heart, requiredServices: ['365_method', '365_alignment'] },
+  { name: 'Progress', href: '/progress', icon: TrendingUp, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Chat', href: '/chat', icon: MessageCircle, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Appointments', href: '/appointments', icon: Calendar, requiredServices: ['365_method', '365_alignment'] },
 ];
