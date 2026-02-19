@@ -32,6 +32,7 @@ import ProgressPage from './pages/ProgressPage';
 import DestinationDiscoveryPage from './pages/discovery/DestinationDiscoveryPage';
 import DiscoveryReportPage from './pages/discovery/DiscoveryReportPage';
 import DiscoveryFollowUpPage from './pages/discovery/DiscoveryFollowUpPage';
+import StaffInterviewPage from './pages/services/StaffInterviewPage';
 
 function App() {
   return (
@@ -43,6 +44,7 @@ function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/signup/:practiceCode" element={<SignupPage />} />
           <Route path="/invitation/:token" element={<InvitationPage />} />
+          <Route path="/staff-interview/:engagementId" element={<StaffInterviewPage />} />
           
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>

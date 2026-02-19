@@ -13353,6 +13353,8 @@ function SystemsAuditClientModal({
   });
   const [savingEdits, setSavingEdits] = useState(false);
   const [makingAvailable, setMakingAvailable] = useState(false);
+  const [staffInterviewCompleteCount, setStaffInterviewCompleteCount] = useState(0);
+  const [staffInterviewTotalCount, setStaffInterviewTotalCount] = useState(0);
   
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
@@ -13585,6 +13587,19 @@ function SystemsAuditClientModal({
         } else {
           setContextNotes(contextData || []);
         }
+
+        // Staff interviews: total and completed count
+        const { count: staffTotal } = await supabase
+          .from('sa_staff_interviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('engagement_id', engagementData.id);
+        const { count: staffComplete } = await supabase
+          .from('sa_staff_interviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('engagement_id', engagementData.id)
+          .eq('status', 'complete');
+        setStaffInterviewCompleteCount(staffComplete ?? 0);
+        setStaffInterviewTotalCount(staffTotal ?? 0);
 
         // Fetch client name
         if (engagementData.client_id) {
@@ -14949,6 +14964,72 @@ function SystemsAuditClientModal({
                               </button>
                             )}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Staff Interviews */}
+                      {engagement && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-4">
+                          <h3 className="text-sm font-semibold text-gray-900 mb-3">Staff Interviews</h3>
+                          <p className="text-xs text-gray-600 mb-3">
+                            Allow staff members to complete a short questionnaire about their daily systems experience. Generates a shareable link.
+                          </p>
+                          <div className="flex items-center gap-4 mb-3">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={!!engagement.staff_interviews_enabled}
+                                onChange={async (e) => {
+                                  const v = e.target.checked;
+                                  const { error } = await supabase.from('sa_engagements').update({ staff_interviews_enabled: v }).eq('id', engagement.id);
+                                  if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_enabled: v }));
+                                }}
+                                className="rounded border-gray-300 text-indigo-600"
+                              />
+                              <span className="text-sm font-medium text-gray-700">Staff Interviews enabled</span>
+                            </label>
+                          </div>
+                          {engagement.staff_interviews_enabled && (
+                            <>
+                              <div className="flex items-center gap-4 mb-3">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!engagement.staff_interviews_anonymous}
+                                    onChange={async (e) => {
+                                      const v = e.target.checked;
+                                      const { error } = await supabase.from('sa_engagements').update({ staff_interviews_anonymous: v }).eq('id', engagement.id);
+                                      if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_anonymous: v }));
+                                    }}
+                                    className="rounded border-gray-300 text-indigo-600"
+                                  />
+                                  <span className="text-sm font-medium text-gray-700">Anonymous mode</span>
+                                </label>
+                              </div>
+                              <p className="text-xs text-gray-600 mb-2">
+                                Hide staff names from responses. Recommended for smaller teams where honest feedback might be sensitive.
+                              </p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm text-gray-600">Link:</span>
+                                <code className="text-xs bg-gray-100 px-2 py-1 rounded truncate max-w-md">
+                                  {`${(typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CLIENT_PORTAL_URL) || window.location.origin}/staff-interview/${engagement.id}`}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const url = `${(typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CLIENT_PORTAL_URL) || window.location.origin}/staff-interview/${engagement.id}`;
+                                    navigator.clipboard.writeText(url);
+                                  }}
+                                  className="text-sm px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-2">
+                                {staffInterviewCompleteCount} of {staffInterviewTotalCount} staff interviews completed
+                              </p>
+                            </>
+                          )}
                         </div>
                       )}
 
