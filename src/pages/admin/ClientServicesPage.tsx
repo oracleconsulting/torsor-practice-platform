@@ -7184,7 +7184,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   
   // Service-line specific tabs
   const isManagementAccounts = serviceLineCode === 'management_accounts' || serviceLineCode === 'business_intelligence';
-  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis'>(
+  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis' | 'progress'>(
     isManagementAccounts ? 'assessments' : 'overview'
   );
   
@@ -7233,6 +7233,15 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [sprintStageRaw, setSprintStageRaw] = useState<any>(null);
   const [publishingSprint, setPublishingSprint] = useState(false);
 
+  // Progress tab (365_method): snapshots + wins for value tracker
+  const [progressSnapshots, setProgressSnapshots] = useState<any[]>([]);
+  const [progressWins, setProgressWins] = useState<any[]>([]);
+  const [progressLoading, setProgressLoading] = useState(false);
+  const [addingWin, setAddingWin] = useState(false);
+  const [newWinTitle, setNewWinTitle] = useState('');
+  const [newWinDescription, setNewWinDescription] = useState('');
+  const [newWinCategory, setNewWinCategory] = useState<string>('general');
+
   // Goal Alignment tier (365_method only)
   const [clientTier, setClientTier] = useState<string | null>(null);
   const [savingTier, setSavingTier] = useState(false);
@@ -7243,6 +7252,27 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   useEffect(() => {
     fetchClientDetail();
   }, [clientId]);
+
+  const fetchProgressData = useCallback(async () => {
+    if (!clientId) return;
+    setProgressLoading(true);
+    try {
+      const [snapRes, winsRes] = await Promise.all([
+        supabase.from('client_progress_snapshots').select('*').eq('client_id', clientId).order('sprint_number').order('week_number'),
+        supabase.from('client_wins').select('*').eq('client_id', clientId).order('is_highlighted', { ascending: false }).order('created_at', { ascending: false }).limit(50),
+      ]);
+      if (snapRes.data) setProgressSnapshots(snapRes.data);
+      if (winsRes.data) setProgressWins(winsRes.data);
+    } catch (e) {
+      console.warn('Fetch progress failed', e);
+    } finally {
+      setProgressLoading(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => {
+    if (activeTab === 'progress' && clientId) fetchProgressData();
+  }, [activeTab, clientId, fetchProgressData]);
 
   const fetchClientDetail = async () => {
     setLoading(true);
@@ -8303,7 +8333,9 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
         <div className="flex border-b border-gray-200">
           {(isManagementAccounts 
             ? ['assessments', 'documents', 'analysis'] 
-            : ['overview', 'roadmap', 'assessments', 'context', 'sprint']
+            : (serviceLineCode === '365_method'
+                ? ['overview', 'roadmap', 'assessments', 'context', 'sprint', 'progress']
+                : ['overview', 'roadmap', 'assessments', 'context', 'sprint'])
           ).map((tab) => (
             <button
               key={tab}
@@ -11554,6 +11586,159 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                 </div>
               )}
 
+              {/* PROGRESS TAB (365_method) — value tracker: snapshots + wins */}
+              {activeTab === 'progress' && serviceLineCode === '365_method' && (
+                <div className="space-y-6">
+                  {progressLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                    </div>
+                  ) : (
+                    <>
+                      {/* Summary stats from latest snapshot */}
+                      {progressSnapshots.length > 0 && (() => {
+                        const latest = progressSnapshots[progressSnapshots.length - 1];
+                        const totalCompleted = progressSnapshots.reduce((s, n) => s + (n.completed_tasks || 0), 0);
+                        return (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Hours reclaimed</p>
+                              <p className="text-2xl font-bold text-emerald-600 mt-1">{latest.hours_reclaimed ?? '—'}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tasks completed</p>
+                              <p className="text-2xl font-bold text-indigo-600 mt-1">{totalCompleted}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Life alignment</p>
+                              <p className="text-2xl font-bold text-rose-600 mt-1">{latest.life_alignment_score ?? '—'}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Completion rate</p>
+                              <p className="text-2xl font-bold text-slate-900 mt-1">{latest.completion_rate ?? 0}%</p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {progressSnapshots.length === 0 && (
+                        <div className="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-6 text-center text-gray-500 text-sm">
+                          No progress snapshots yet. Client progress will appear after they complete tasks.
+                        </div>
+                      )}
+
+                      {/* Wins: list + toggle highlight + Add Win */}
+                      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+                          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <Award className="w-5 h-5 text-amber-500" />
+                            Client Wins
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setAddingWin(true)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                          >
+                            Add Win
+                          </button>
+                        </div>
+                        <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+                          {progressWins.length === 0 && !addingWin && (
+                            <p className="text-sm text-gray-500 text-center py-6">No wins recorded yet.</p>
+                          )}
+                          {addingWin && (
+                            <div className="border border-indigo-200 rounded-lg p-4 bg-indigo-50/50 space-y-3">
+                              <input
+                                type="text"
+                                placeholder="Title"
+                                value={newWinTitle}
+                                onChange={(e) => setNewWinTitle(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              />
+                              <textarea
+                                placeholder="Description (optional)"
+                                value={newWinDescription}
+                                onChange={(e) => setNewWinDescription(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm min-h-[60px]"
+                              />
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600">Category:</label>
+                                <select
+                                  value={newWinCategory}
+                                  onChange={(e) => setNewWinCategory(e.target.value)}
+                                  className="border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                                >
+                                  {['general', 'team', 'financial', 'systems', 'life', 'personal'].map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!newWinTitle.trim() || !client?.practice_id) return;
+                                    try {
+                                      await supabase.from('client_wins').insert({
+                                        client_id: clientId,
+                                        practice_id: client.practice_id,
+                                        sprint_number: client?.gaEnrollment?.current_sprint_number ?? 1,
+                                        title: newWinTitle.trim(),
+                                        description: newWinDescription.trim() || null,
+                                        category: newWinCategory,
+                                        source: 'advisor',
+                                      });
+                                      setNewWinTitle('');
+                                      setNewWinDescription('');
+                                      setNewWinCategory('general');
+                                      setAddingWin(false);
+                                      fetchProgressData();
+                                    } catch (e) {
+                                      console.warn('Add win failed', e);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700"
+                                >
+                                  Save
+                                </button>
+                                <button type="button" onClick={() => { setAddingWin(false); setNewWinTitle(''); setNewWinDescription(''); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {progressWins.map((win: any) => (
+                            <div
+                              key={win.id}
+                              className={`flex items-start justify-between gap-3 p-3 rounded-lg border ${win.is_highlighted ? 'bg-amber-50 border-amber-200' : 'border-gray-200'}`}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900">{win.title}</p>
+                                {win.description && <p className="text-sm text-gray-600 mt-0.5">{win.description}</p>}
+                                <p className="text-xs text-gray-400 mt-1">Sprint {win.sprint_number}{win.week_number ? ` • Week ${win.week_number}` : ''} • {win.category} • {win.source}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await supabase.from('client_wins').update({ is_highlighted: !win.is_highlighted }).eq('id', win.id);
+                                    fetchProgressData();
+                                  } catch (e) {
+                                    console.warn('Toggle highlight failed', e);
+                                  }
+                                }}
+                                className={`flex-shrink-0 px-2 py-1 rounded text-xs font-medium ${win.is_highlighted ? 'bg-amber-200 text-amber-900' : 'bg-gray-100 text-gray-600'}`}
+                              >
+                                {win.is_highlighted ? '★ Highlighted' : 'Highlight'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Sprint Editor Modal — outside tab content so it opens from any tab */}
               {showSprintEditor && sprintStageRaw && (
                 <SprintEditorModal
@@ -14735,7 +14920,7 @@ function SystemsAuditClientModal({
                             >
                               {isEditing ? 'Cancel Edit' : 'Edit Client View'}
                             </button>
-                            {!isEditing && (report.status === 'generated' || report.status === 'approved') && (
+                            {!isEditing && (report.status === 'pass1_complete' || report.status === 'generated' || report.status === 'approved') && (
                               <button
                                 onClick={handleMakeAvailableToClient}
                                 disabled={makingAvailable}
