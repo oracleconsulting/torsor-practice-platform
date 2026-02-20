@@ -84,6 +84,21 @@ verify_jwt = true
 [functions."advisory-deep-dive"]
 verify_jwt = true
 
+# Systems Audit edge functions
+[functions."analyze-sa-preliminary"]
+verify_jwt = true
+
+[functions."generate-sa-call-script"]
+verify_jwt = true
+
+[functions."process-sa-transcript"]
+verify_jwt = true
+
+[functions."generate-sa-report"]
+verify_jwt = true
+
+[functions."discover-sa-tech-product"]
+verify_jwt = true
+
 [analytics]
 enabled = false
-
