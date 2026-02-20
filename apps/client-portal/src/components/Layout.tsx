@@ -29,8 +29,8 @@ interface LayoutProps {
 // Note: hidden_value_audit and benchmarking assessments are accessed via dashboard cards, not sidebar
 const allNavigation = [
   { name: 'Dashboard', href: '/dashboard', icon: Home, requiredServices: null }, // Always show
-  { name: 'Assessments', href: '/assessments', icon: ClipboardList, requiredServices: ['365_method', '365_alignment'] }, // Only for 365 Method
-  { name: 'Reports', href: '/reports', icon: FileText, requiredServices: ['benchmarking', 'hidden_value_audit', 'discovery'] }, // For report-based services
+  { name: 'Assessments', href: '/assessments', icon: ClipboardList, requiredServices: null }, // Completed assessments across all service lines
+  { name: 'Reports', href: '/reports', icon: FileText, requiredServices: null }, // Only analysis shared with client
   { name: 'Roadmap', href: '/roadmap', icon: Map, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Sprint', href: '/tasks', icon: Flag, requiredServices: ['365_method', '365_alignment'] },
   { name: 'Life', href: '/life', icon: Heart, requiredServices: ['365_method', '365_alignment'] },

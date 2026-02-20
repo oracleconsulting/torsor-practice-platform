@@ -36,19 +36,25 @@ export default function ReportsPage() {
 
     (async () => {
       try {
-        const [discoveryRes, bmEngagementRes, saRes, sprintSummariesRes, valueAnalysisRes] = await Promise.all([
+        // Only include reports that have been explicitly shared with the client
+        const [
+          discoveryReportSharedRes,
+          bmEngagementRes,
+          saRes,
+          maSharedRes,
+        ] = await Promise.all([
           supabase
-            .from('discovery_engagements')
-            .select('id, status, updated_at')
+            .from('discovery_reports')
+            .select('id, updated_at')
             .eq('client_id', clientId)
-            .in('status', ['report_generated', 'report_delivered'])
+            .eq('is_shared_with_client', true)
             .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle(),
 
           supabase
             .from('bm_engagements')
-            .select('id')
+            .select('id, report_shared_with_client, updated_at')
             .eq('client_id', clientId)
             .maybeSingle(),
 
@@ -61,39 +67,35 @@ export default function ReportsPage() {
             .maybeSingle(),
 
           supabase
-            .from('roadmap_stages')
-            .select('id, sprint_number, status, created_at')
+            .from('ma_assessment_reports')
+            .select('id, updated_at')
             .eq('client_id', clientId)
-            .eq('stage_type', 'sprint_summary')
-            .in('status', ['approved', 'published'])
-            .order('sprint_number', { ascending: false }),
-
-          supabase
-            .from('roadmap_stages')
-            .select('id, stage_type, status, created_at')
-            .eq('client_id', clientId)
-            .eq('stage_type', 'value_analysis')
-            .in('status', ['generated', 'approved', 'published'])
+            .eq('shared_with_client', true)
+            .order('updated_at', { ascending: false })
             .limit(1)
             .maybeSingle(),
         ]);
 
-        let bmReport: { id: string; status: string; updated_at: string } | null = null;
-        if (bmEngagementRes.data?.id) {
-          const { data: bmReportRow } = await supabase
-            .from('bm_reports')
-            .select('id, status, updated_at')
-            .eq('engagement_id', bmEngagementRes.data.id)
-            .in('status', ['generated', 'approved', 'published', 'delivered'])
-            .order('updated_at', { ascending: false })
+        // Fallback: legacy client_reports for discovery if no discovery_reports row
+        let discoveryShared = !!discoveryReportSharedRes.data;
+        let discoveryDate = discoveryReportSharedRes.data?.updated_at;
+        if (!discoveryShared) {
+          const { data: legacyDiscovery } = await supabase
+            .from('client_reports')
+            .select('id, created_at')
+            .eq('client_id', clientId)
+            .eq('report_type', 'discovery_analysis')
+            .eq('is_shared_with_client', true)
+            .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
-          bmReport = bmReportRow;
+          discoveryShared = !!legacyDiscovery;
+          discoveryDate = legacyDiscovery?.created_at;
         }
 
         const items: ReportItem[] = [];
 
-        if (discoveryRes.data) {
+        if (discoveryShared) {
           items.push({
             id: 'discovery',
             title: 'Discovery Report',
@@ -101,83 +103,61 @@ export default function ReportsPage() {
             icon: Compass,
             link: '/discovery/report',
             status: 'available',
-            statusLabel: discoveryRes.data.status === 'report_delivered' ? 'Delivered' : 'Generated',
-            date: discoveryRes.data.updated_at,
+            statusLabel: 'View Report',
+            date: discoveryDate,
             color: 'purple',
           });
         }
 
-        if (bmReport) {
+        if (bmEngagementRes.data?.report_shared_with_client) {
+          const { data: bmReport } = await supabase
+            .from('bm_reports')
+            .select('id, status, updated_at')
+            .eq('engagement_id', bmEngagementRes.data.id)
+            .order('updated_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (bmReport) {
+            items.push({
+              id: 'benchmarking',
+              title: 'Benchmarking Report',
+              description: 'Industry comparison, percentile rankings, and growth opportunities',
+              icon: BarChart3,
+              link: '/service/benchmarking/report',
+              status: 'available',
+              statusLabel: bmReport.status === 'delivered' ? 'Delivered' : 'View Report',
+              date: bmReport.updated_at,
+              color: 'blue',
+            });
+          }
+        }
+
+        const saReportShared = !!(saRes.data as { is_shared_with_client?: boolean })?.is_shared_with_client;
+        if (saReportShared && saRes.data) {
           items.push({
-            id: 'benchmarking',
-            title: 'Benchmarking Report',
-            description: 'Industry comparison, percentile rankings, and growth opportunities',
-            icon: BarChart3,
-            link: '/service/benchmarking/report',
+            id: 'systems_audit',
+            title: 'Systems Audit Report',
+            description: 'System inventory, integration analysis, and process deep-dives',
+            icon: Briefcase,
+            link: '/service/systems_audit/report',
             status: 'available',
-            statusLabel: bmReport.status === 'delivered' ? 'Delivered' : 'Ready',
-            date: bmReport.updated_at,
-            color: 'blue',
+            statusLabel: 'View Report',
+            date: saRes.data.updated_at,
+            color: 'teal',
           });
         }
 
-        if (saRes.data) {
-          const saComplete = ['stage_3_complete', 'stage3_complete', 'analysis_complete', 'report_generated', 'completed'].includes(saRes.data.status);
-          const saReportShared = !!(saRes.data as { is_shared_with_client?: boolean }).is_shared_with_client;
-          if (saComplete) {
-            items.push({
-              id: 'systems_audit',
-              title: 'Systems Audit Report',
-              description: 'System inventory, integration analysis, and process deep-dives',
-              icon: Briefcase,
-              link: saReportShared ? '/service/systems_audit/report' : '/service/systems_audit/process-deep-dives',
-              status: 'available',
-              statusLabel: saReportShared ? 'View Report' : 'Complete',
-              date: saRes.data.updated_at,
-              color: 'teal',
-            });
-          } else {
-            items.push({
-              id: 'systems_audit',
-              title: 'Systems Audit',
-              description: 'System inventory, integration analysis, and process deep-dives',
-              icon: Briefcase,
-              link: '/service/systems_audit/inventory',
-              status: 'in_progress',
-              statusLabel: 'In Progress',
-              date: saRes.data.updated_at,
-              color: 'teal',
-            });
-          }
-        }
-
-        if (sprintSummariesRes.data && sprintSummariesRes.data.length > 0) {
-          for (const summary of sprintSummariesRes.data) {
-            items.push({
-              id: `sprint_summary_${summary.sprint_number}`,
-              title: `Sprint ${summary.sprint_number ?? 1} Summary`,
-              description: 'Achievements, progress, and what shifted during this sprint',
-              icon: Target,
-              link: '/tasks',
-              status: 'available',
-              statusLabel: 'Ready',
-              date: summary.created_at,
-              color: 'emerald',
-            });
-          }
-        }
-
-        if (valueAnalysisRes.data) {
+        if (maSharedRes.data) {
           items.push({
-            id: 'value_analysis',
-            title: 'Value Analysis',
-            description: 'ROI projections and business impact of your transformation programme',
+            id: 'management_accounts',
+            title: 'Management Accounts Report',
+            description: 'Your financial insight and analysis',
             icon: TrendingUp,
-            link: '/roadmap',
+            link: '/service/management_accounts/report',
             status: 'available',
-            statusLabel: 'Available',
-            date: valueAnalysisRes.data.created_at,
-            color: 'amber',
+            statusLabel: 'View Report',
+            date: maSharedRes.data.updated_at,
+            color: 'indigo',
           });
         }
 
@@ -200,12 +180,12 @@ export default function ReportsPage() {
   };
 
   return (
-    <Layout title="Reports" subtitle="All your reports and analysis in one place">
+    <Layout title="Reports" subtitle="Analysis that has been shared with you">
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Your Reports</h1>
           <p className="text-gray-500 mt-1">
-            All your reports and analysis in one place
+            Only reports and analysis that have been shared with you by your practice appear here.
           </p>
         </div>
 
@@ -214,9 +194,9 @@ export default function ReportsPage() {
         ) : reports.length === 0 ? (
           <div className="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
             <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <h3 className="text-gray-600 font-medium mb-1">No reports yet</h3>
+            <h3 className="text-gray-600 font-medium mb-1">No reports shared yet</h3>
             <p className="text-gray-400 text-sm">
-              Reports will appear here as you complete assessments and sprints
+            When your practice shares a report or analysis with you, it will appear here.
             </p>
           </div>
         ) : (
