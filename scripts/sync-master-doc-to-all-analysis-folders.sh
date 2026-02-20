@@ -15,7 +15,7 @@ fi
 
 echo "Copying TORSOR_PRACTICE_PLATFORM_MASTER.md into all analysis folders..."
 
-for dir in "goal alignment analysis" "discovery assessment analysis" "systems audit analysis" "benchmarking assessment analysis" "benchmarking assessment analysis flat"; do
+for dir in "goal alignment analysis" "discovery assessment analysis" "systems audit analysis" "benchmarking assessment analysis" "benchmarking assessment analysis flat" "ui ux analysis" "team cpd skills analysis"; do
   DEST="$ROOT/$dir"
   if [ -d "$DEST" ]; then
     cp "$MASTER" "$DEST/TORSOR_PRACTICE_PLATFORM_MASTER.md" && echo "  $dir/TORSOR_PRACTICE_PLATFORM_MASTER.md"

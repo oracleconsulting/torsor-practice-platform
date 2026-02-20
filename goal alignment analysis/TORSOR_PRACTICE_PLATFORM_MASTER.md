@@ -14,7 +14,7 @@
 - **Find definitions** — Service codes, assessment sources, skills per service, and client routes are in one place.
 - **Deep dives** — Each section points to detailed docs (goal alignment analysis, discovery assessment analysis, systems audit analysis, COMPLETE_SYSTEM_OVERVIEW, etc.).
 
-**Copies in analysis folders:** This document is copied into every analysis folder (goal alignment analysis, discovery assessment analysis, systems audit analysis, benchmarking assessment analysis, benchmarking assessment analysis flat) so each project has the same reference. **Source of truth:** `docs/TORSOR_PRACTICE_PLATFORM_MASTER.md` — edit only there. To refresh copies: run `./torsor-practice-platform/scripts/sync-master-doc-to-all-analysis-folders.sh` from repo root, or run any service-specific sync script (each copies the master into its folder).
+**Copies in analysis folders:** This document is copied into every analysis folder (goal alignment analysis, discovery assessment analysis, systems audit analysis, benchmarking assessment analysis, benchmarking assessment analysis flat, ui ux analysis, team cpd skills analysis) so each project has the same reference. **Source of truth:** `docs/TORSOR_PRACTICE_PLATFORM_MASTER.md` — edit only there. To refresh copies: run `./torsor-practice-platform/scripts/sync-master-doc-to-all-analysis-folders.sh` from repo root, or run any service-specific sync script (each copies the master into its folder).
 
 ---
 
@@ -222,6 +222,8 @@ From **`SERVICE_LINE_SKILLS_MAPPING.md`** (repo root). Each service line lists *
 | Discovery (read-only copy) | `discovery assessment analysis/` + `scripts/sync-discovery-assessment-copies.sh` |
 | Systems Audit (read-only copy) | `systems audit analysis/` + `scripts/sync-systems-audit-assessment-copies.sh` + `SYSTEMS_AUDIT_SYSTEM_SUMMARY.md` |
 | Benchmarking | `benchmarking assessment analysis/`, `benchmarking assessment analysis flat/`, `docs/BENCHMARKING_*.md` |
+| UI/UX (admin + client portal, display-only) | `ui ux analysis/` + `scripts/sync-ui-ux-assessment-copies.sh` + `UI_UX_SYSTEM_SUMMARY.md` |
+| Team / CPD / Skills / Interests / Mentoring | `team cpd skills analysis/` + `scripts/sync-team-cpd-skills-assessment-copies.sh` + `TEAM_CPD_SKILLS_SYSTEM_SUMMARY.md` |
 | Staged roadmap, trigger chain | `docs/STAGED_ROADMAP_ARCHITECTURE.md` |
 | 365 alignment system | `docs/365_ALIGNMENT_SYSTEM_OVERVIEW.md`, `docs/365-ALIGNMENT-SYSTEM-OVERVIEW.md` |
 
