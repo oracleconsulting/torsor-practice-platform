@@ -203,6 +203,7 @@ interface Client {
   client_owner_id?: string | null;
   owner?: { id: string; name: string } | null;
   is_test_client?: boolean;
+  hide_discovery_in_portal?: boolean;
 }
 
 interface StaffMember {
@@ -224,7 +225,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [pendingGAClientId, setPendingGAClientId] = useState<string | null>(null);
   const [assigningOwner, setAssigningOwner] = useState<string | null>(null);
-  
+  const [updatingDiscoveryHide, setUpdatingDiscoveryHide] = useState<string | null>(null);
+
   // Invitation modal state
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
@@ -491,6 +493,25 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     }
   };
 
+  const handleToggleHideDiscovery = async (clientId: string, hide: boolean) => {
+    setUpdatingDiscoveryHide(clientId);
+    try {
+      const { error } = await supabase
+        .from('practice_members')
+        .update({ hide_discovery_in_portal: hide })
+        .eq('id', clientId);
+      if (error) throw error;
+      setClients(prev => prev.map(c =>
+        c.id === clientId ? { ...c, hide_discovery_in_portal: hide } : c
+      ));
+    } catch (e) {
+      console.error('Failed to update hide Discovery:', e);
+      alert('Failed to update setting');
+    } finally {
+      setUpdatingDiscoveryHide(null);
+    }
+  };
+
   // Send client invitation
   const handleSendInvite = async () => {
     // For discovery invites, services are optional. For direct invites, at least one is required.
@@ -710,6 +731,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             last_portal_login,
             created_at,
             client_owner_id,
+            hide_discovery_in_portal,
             owner:practice_members!client_owner_id(id, name)
           `)
           .eq('practice_id', practiceId)
@@ -755,7 +777,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             lastActivity: client.last_portal_login,
             hasRoadmap: isComplete,
             client_owner_id: client.client_owner_id,
-            owner: client.owner
+            owner: client.owner,
+            hide_discovery_in_portal: client.hide_discovery_in_portal ?? false
           };
         });
         
@@ -791,7 +814,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         if (serviceLineCode === '365_method') {
           const { data: clientsData } = await supabase
             .from('practice_members')
-            .select('id, name, email, client_company, program_status, last_portal_login')
+            .select('id, name, email, client_company, program_status, last_portal_login, hide_discovery_in_portal')
             .eq('practice_id', practiceId)
             .eq('member_type', 'client')
             .order('name');
@@ -808,7 +831,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             .select('client_id, status')
             .in('client_id', clientIds);
 
-          const enrichedClients: Client[] = (clientsData || []).map(client => {
+          const enrichedClients: Client[] = (clientsData || []).map((client: any) => {
             const clientAssessments = assessments?.filter(a => a.client_id === client.id) || [];
             const completedCount = clientAssessments.filter(a => a.status === 'completed').length;
             const hasRoadmap = roadmaps?.some(r => r.client_id === client.id) || false;
@@ -821,7 +844,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
               status: client.program_status || 'active',
               progress: completedCount * 33,
               lastActivity: client.last_portal_login,
-              hasRoadmap
+              hasRoadmap,
+              hide_discovery_in_portal: client.hide_discovery_in_portal ?? false
             };
           });
           setClients(enrichedClients);
@@ -845,7 +869,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             email,
             client_company,
             program_status,
-            last_portal_login
+            last_portal_login,
+            hide_discovery_in_portal
           )
         `)
         .eq('practice_id', practiceId)
@@ -932,7 +957,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             status: enrollment.status || client.program_status || 'active',
             progress,
             lastActivity: client.last_portal_login,
-            hasRoadmap: serviceLineCode === '365_method' ? hasRoadmap : !!enrollment.onboarding_completed_at
+            hasRoadmap: serviceLineCode === '365_method' ? hasRoadmap : !!enrollment.onboarding_completed_at,
+            hide_discovery_in_portal: client.hide_discovery_in_portal ?? false
           };
         });
 
@@ -1422,6 +1448,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Owner</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Progress</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Status</th>
+                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Discovery in portal</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Last Activity</th>
                       <th className="px-6 py-4"></th>
                     </tr>
@@ -1484,6 +1511,18 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                               </span>
                             )}
                           </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <label className="flex items-center gap-2 cursor-pointer" title="When checked, Discovery assessment is hidden on this client's dashboard (e.g. for auto-onboarded service-line clients)">
+                            <input
+                              type="checkbox"
+                              checked={!!client.hide_discovery_in_portal}
+                              onChange={(e) => handleToggleHideDiscovery(client.id, e.target.checked)}
+                              disabled={updatingDiscoveryHide === client.id}
+                              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-sm text-gray-600">Hide Discovery</span>
+                          </label>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm text-gray-500">
@@ -14305,12 +14344,18 @@ function SystemsAuditClientModal({
   const hasPreliminary = !!engagement?.preliminary_analysis;
   const preliminary = engagement?.preliminary_analysis as PreliminaryAnalysis | undefined;
 
+  // SA Edge Functions (LLM) can run 1–3+ minutes; use long timeout to avoid "Failed to send a request to the Edge Function".
+  const SA_EDGE_FN_TIMEOUT_MS = 300000; // 5 minutes
+
   const handleRunPreliminary = async () => {
     if (!engagement) return;
     setRunningPreliminary(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SA_EDGE_FN_TIMEOUT_MS);
     try {
       const { data, error } = await supabase.functions.invoke('analyze-sa-preliminary', {
         body: { engagementId: engagement.id },
+        signal: controller.signal as AbortSignal,
       });
       if (error) throw error;
       if (data?.analysis) {
@@ -14318,8 +14363,14 @@ function SystemsAuditClientModal({
       }
       if (!data?.success) throw new Error(data?.error || 'Preliminary analysis failed');
     } catch (e: any) {
-      alert(e?.message || 'Failed to run preliminary analysis');
+      const msg = e?.message || 'Failed to run preliminary analysis';
+      if (msg.includes('Failed to send') || msg.includes('aborted') || msg.includes('Edge Function')) {
+        alert('The request is taking longer than expected. The analysis may still be running — refresh the page in a minute to check for new gaps.');
+      } else {
+        alert(msg);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setRunningPreliminary(false);
     }
   };
@@ -14353,9 +14404,12 @@ function SystemsAuditClientModal({
   const handleGenerateScript = async () => {
     if (!engagement?.id) return;
     setGeneratingScript(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SA_EDGE_FN_TIMEOUT_MS);
     try {
       const { data, error } = await supabase.functions.invoke('generate-sa-call-script', {
         body: { engagementId: engagement.id },
+        signal: controller.signal as AbortSignal,
       });
       if (error) throw error;
       if (data?.script) {
@@ -14365,8 +14419,14 @@ function SystemsAuditClientModal({
         alert(data.message);
       }
     } catch (e: any) {
-      alert(e?.message || 'Script generation failed');
+      const msg = e?.message || 'Script generation failed';
+      if (msg.includes('Failed to send') || msg.includes('aborted') || msg.includes('Edge Function')) {
+        alert('The request is taking longer than expected. The script may still be generating — refresh the page in a minute to check.');
+      } else {
+        alert(msg);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setGeneratingScript(false);
     }
   };
@@ -14375,9 +14435,12 @@ function SystemsAuditClientModal({
     if (!engagement?.id || !transcriptText.trim()) return;
     if (!window.confirm(`Process this transcript (${transcriptText.length} characters)? The AI will extract answers and auto-resolve matching gaps.`)) return;
     setProcessingTranscript(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SA_EDGE_FN_TIMEOUT_MS);
     try {
       const { data, error } = await supabase.functions.invoke('process-sa-transcript', {
         body: { engagementId: engagement.id, transcript: transcriptText },
+        signal: controller.signal as AbortSignal,
       });
       if (error) throw error;
       setTranscriptText('');
@@ -14386,8 +14449,14 @@ function SystemsAuditClientModal({
       const stats = data?.stats || {};
       alert(`Transcript processed! ${stats.resolved ?? 0} of ${stats.totalGaps ?? 0} gaps resolved.${(stats.additionalInsights ?? 0) > 0 ? ` ${stats.additionalInsights} additional insights captured.` : ''}`);
     } catch (e: any) {
-      alert(e?.message || 'Processing failed');
+      const msg = e?.message || 'Processing failed';
+      if (msg.includes('Failed to send') || msg.includes('aborted') || msg.includes('Edge Function') || msg.includes('connection closed')) {
+        alert('The request took a long time and the connection may have closed. Transcript processing often completes anyway — refresh the page in a minute to see if gaps were resolved.');
+      } else {
+        alert(msg);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setProcessingTranscript(false);
     }
   };

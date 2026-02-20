@@ -1274,14 +1274,14 @@ export default function SystemInventoryPage() {
             </p>
             <textarea
               value={shadowSystemsDescription}
-              onChange={(e) => setShadowSystemsDescription(e.target.value.slice(0, 800))}
+              onChange={(e) => setShadowSystemsDescription(e.target.value.slice(0, 1200))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               rows={4}
               placeholder="e.g., Maria has a personal spreadsheet mapping Harvest codes to Xero contacts. Priya tracks leads in a Google Sheet nobody else can see. The designers share files via AirDrop..."
-              maxLength={800}
+              maxLength={1200}
             />
             <div className="mt-2 flex justify-between text-xs text-gray-500">
-              <span>{shadowSystemsDescription.length}/800 characters</span>
+              <span>{shadowSystemsDescription.length}/1200 characters</span>
               {shadowSystemsSaving && <span>Saving...</span>}
               <button
                 type="button"

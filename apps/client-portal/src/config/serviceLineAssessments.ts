@@ -373,7 +373,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'What broke – or is about to break – that made you think about systems?',
       type: 'text',
       placeholder: 'Be specific – the incident, the near-miss, the frustration that tipped you over...',
-      charLimit: 400,
+      charLimit: 1200,
       emotionalAnchor: 'systems_breaking_point',
       required: true
     },
@@ -398,7 +398,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'If I followed you through a typical month-end, what would embarrass you most?',
       type: 'text',
       placeholder: "The workaround you're ashamed of, the process you'd never show an investor...",
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'month_end_shame',
       required: true
     },
@@ -453,7 +453,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: "What's the most expensive mistake caused by a systems/process gap in the last 2 years?",
       type: 'text',
       placeholder: 'Lost client, tax penalty, missed opportunity, overpayment...',
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'expensive_systems_mistake',
       required: true
     },
@@ -548,7 +548,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'If you could fix ONE process by magic, which would have the biggest impact?',
       type: 'text',
       placeholder: 'Describe the process and why fixing it would matter...',
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'magic_process_fix',
       required: true
     },
@@ -580,7 +580,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'When your systems are working properly, what does your Monday morning look like?',
       type: 'text',
       placeholder: 'What do you see when you open your laptop? What questions can you answer instantly? What meetings do you no longer need?',
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'monday_morning_vision',
       required: true
     },
@@ -607,7 +607,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: "When you picture the business in 12\u201318 months, what's actually different? Not revenue targets \u2014 what does the team look like, what are you doing that you're not doing today?",
       type: 'text',
       placeholder: "e.g., We've hired a senior PM so I'm not managing every project. We've launched a retainer product. We've opened a second office...",
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'growth_vision',
       required: true
     },
@@ -617,7 +617,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: "What are the next 2\u20133 roles you'll hire for \u2014 and what's stopping you hiring them now?",
       type: 'text',
       placeholder: "e.g., Senior developer (can't because project scoping is too messy), Office manager (because Maria is doing 3 jobs)...",
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'hiring_blockers',
       required: true
     },
@@ -643,7 +643,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: "What's the first thing that would break if you won 3 new clients next month?",
       type: 'text',
       placeholder: 'Be specific \u2014 who gets overwhelmed, which process buckles, what falls through the cracks...',
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'capacity_ceiling',
       required: true
     },
@@ -653,7 +653,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: "What systems or tools have you tried and abandoned in the last 2 years \u2014 and why did they fail?",
       type: 'text',
       placeholder: "e.g., We tried Monday.com as a CRM but nobody used it. We bought HubSpot but it was overkill...",
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'failed_tools',
       required: true
     },
@@ -663,7 +663,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: "What must NOT change? Which tools, processes, or ways of working does your team love?",
       type: 'text',
       placeholder: "e.g., The team loves Slack \u2014 any solution needs to work with it. Maria's month-end checklist is sacred. The dev team will revolt if we change their IDE...",
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'non_negotiables',
       required: true
     },
@@ -691,7 +691,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       section: 'Your Business',
       question: 'What industry are you in?',
       type: 'text',
-      charLimit: 100,
+      charLimit: 1200,
       placeholder: 'e.g., Professional services, Manufacturing, Retail, Tech...',
       technicalField: 'industry_sector',
       required: true
@@ -719,7 +719,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'Roughly, how is your team structured?',
       type: 'text',
       placeholder: 'e.g., Sophie (founder) + Priya (ops) + Jake leads 6 devs + 4 designers + Maria (finance) + 3 account managers',
-      charLimit: 800,
+      charLimit: 1200,
       technicalField: 'team_structure',
       required: true
     },
@@ -744,7 +744,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: "If one person went on holiday for 2 weeks with no phone, what would break? Who is that person and what would break?",
       type: 'text',
       placeholder: "e.g., If Maria's off, nobody can do invoicing, payroll, or month-end. If Sophie's off, no proposals go out...",
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'key_person_dependency',
       required: true
     },

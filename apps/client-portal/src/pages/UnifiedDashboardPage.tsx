@@ -134,6 +134,18 @@ export default function UnifiedDashboardPage() {
         name: clientSession?.name
       });
       
+      // Fetch client portal settings (e.g. hide Discovery)
+      let hideDiscoveryInPortal = false;
+      if (clientSession?.clientId) {
+        const { data: pmRow } = await supabase
+          .from('practice_members')
+          .select('hide_discovery_in_portal')
+          .eq('id', clientSession.clientId)
+          .eq('member_type', 'client')
+          .maybeSingle();
+        hideDiscoveryInPortal = !!pmRow?.hide_discovery_in_portal;
+      }
+
       // Load all enrolled services
       const { data: enrollments, error: enrollError } = await supabase
         .from('client_service_lines')
@@ -845,8 +857,8 @@ export default function UnifiedDashboardPage() {
       console.log('📝 Discovery report exists:', hasDiscoveryReport);
       console.log('📝 Current serviceList before discovery add:', serviceList);
       
-      // Show discovery service if we have discovery data OR a report
-      if (hasDiscoveryData || hasDiscoveryReport) {
+      // Show discovery service only if we have discovery data or report AND not hidden by practice
+      if ((hasDiscoveryData || hasDiscoveryReport) && !hideDiscoveryInPortal) {
         if (!hasDiscoveryService) {
           console.log('➕ Adding discovery card to service list');
           // Use report creation date if discovery record doesn't exist
@@ -869,6 +881,11 @@ export default function UnifiedDashboardPage() {
             return s;
           });
         }
+      }
+
+      // If practice chose to hide Discovery for this client, remove it from the list
+      if (hideDiscoveryInPortal) {
+        serviceList = serviceList.filter(s => s.serviceCode !== 'discovery');
       }
 
       console.log('📝 Final serviceList:', serviceList);
