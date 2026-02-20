@@ -11,6 +11,7 @@ import {
   type ServiceLineAssessment, 
   type AssessmentQuestion 
 } from '@/config/serviceLineAssessments';
+import { StaffRosterBuilder, type StaffRosterPerson } from '@/components/assessment/StaffRosterBuilder';
 import { 
   ArrowLeft, ArrowRight, Check, Loader2, CheckCircle,
   Target, LineChart, Settings, Users, BarChart3
@@ -630,6 +631,28 @@ export default function ServiceAssessmentPage() {
         // Your Business (additional)
         if (responses['sa_business_model']) discoveryData.business_model = responses['sa_business_model'];
         if (responses['sa_team_structure']) discoveryData.team_structure = responses['sa_team_structure'];
+        if (responses['sa_staff_roster']) {
+          const roster = Array.isArray(responses['sa_staff_roster']) ? responses['sa_staff_roster'] : (typeof responses['sa_staff_roster'] === 'string' ? (() => { try { return JSON.parse(responses['sa_staff_roster']); } catch { return []; } })() : []);
+          await supabase.from('sa_staff_members').delete().eq('engagement_id', engagement.id);
+          if (roster.length > 0) {
+            const staffRows = roster.map((p: StaffRosterPerson) => ({
+              engagement_id: engagement.id,
+              name: (p.name || '').trim(),
+              role_title: (p.roleTitle || '').trim() || null,
+              department: (p.department || '').trim() || null,
+              hourly_rate: Number(p.hourlyRate) || 0,
+              hours_per_week: Number(p.hoursPerWeek) || 37.5,
+              added_at_stage: 'stage_1',
+            })).filter((row: { name: string }) => row.name.length > 0);
+            if (staffRows.length > 0) {
+              await supabase.from('sa_staff_members').insert(staffRows);
+              const totalWeighted = staffRows.reduce((s: number, r: { hourly_rate: number; hours_per_week: number }) => s + r.hourly_rate * r.hours_per_week, 0);
+              const totalHours = staffRows.reduce((s: number, r: { hours_per_week: number }) => s + r.hours_per_week, 0);
+              const blendedRate = totalHours > 0 ? Math.round((totalWeighted / totalHours) * 100) / 100 : 45;
+              await supabase.from('sa_engagements').update({ hourly_rate: blendedRate, updated_at: new Date().toISOString() }).eq('id', engagement.id);
+            }
+          }
+        }
         if (responses['sa_locations']) discoveryData.work_location = responses['sa_locations'];
         if (responses['sa_key_people_dependencies']) discoveryData.key_person_dependency = responses['sa_key_people_dependencies'];
 
@@ -726,6 +749,11 @@ export default function ServiceAssessmentPage() {
     const r = responses[q.id];
     if (q.type === 'text') return r && r.trim().length > 0;
     if (q.type === 'multi') return r && r.length > 0;
+    if (q.type === 'staff_roster') {
+      const roster = Array.isArray(r) ? r : (typeof r === 'string' ? (() => { try { return JSON.parse(r); } catch { return []; } })() : []);
+      if (roster.length === 0) return false;
+      return roster.every((p: StaffRosterPerson) => (p.name || '').trim().length > 0 && (p.roleTitle || '').trim().length > 0 && Number(p.hourlyRate) > 0);
+    }
     return r !== undefined && r !== null;
   });
 
@@ -1059,6 +1087,15 @@ function QuestionCard({
           <textarea value={value || ''} onChange={e => onChange(e.target.value)} placeholder={question.placeholder} maxLength={question.charLimit} rows={4} className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none" />
           {question.charLimit && <p className="text-sm text-gray-400 text-right mt-1">{value?.length || 0} / {question.charLimit}</p>}
         </div>
+      )}
+
+      {question.type === 'staff_roster' && (
+        <StaffRosterBuilder
+          value={Array.isArray(value) ? value : (typeof value === 'string' ? (() => { try { return JSON.parse(value); } catch { return []; } })() : [])}
+          onChange={v => onChange(v)}
+          placeholder={question.placeholder}
+          required={question.required}
+        />
       )}
 
       {question.type === 'slider' && (
