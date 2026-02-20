@@ -14551,8 +14551,18 @@ function SystemsAuditClientModal({
                                 const roster = Array.isArray(value) ? value : (typeof value === 'string' ? (() => { try { return JSON.parse(value) as unknown[]; } catch { return []; } })() : []);
                                 if (roster.length === 0) return null;
                                 return roster
-                                  .map((p: { name?: string; roleTitle?: string }) => (p as { name?: string; roleTitle?: string }).name + ((p as { roleTitle?: string }).roleTitle ? ` (${(p as { roleTitle?: string }).roleTitle})` : ''))
-                                  .join(', ');
+                                  .map((p: { name?: string; roleTitle?: string; hourlyRate?: number; hoursPerWeek?: number }) => {
+                                    const name = (p as { name?: string }).name || '—';
+                                    const role = (p as { roleTitle?: string }).roleTitle;
+                                    const rate = (p as { hourlyRate?: number }).hourlyRate;
+                                    const hours = (p as { hoursPerWeek?: number }).hoursPerWeek;
+                                    let line = name;
+                                    if (role) line += ` · ${role}`;
+                                    if (rate != null && rate > 0) line += ` · £${rate}/hr`;
+                                    if (hours != null) line += ` · ${hours}h/week`;
+                                    return line;
+                                  })
+                                  .join('\n');
                               }
                               if (Array.isArray(value)) {
                                 return value.length > 0 && typeof value[0] === 'object' && value[0] !== null && 'name' in (value[0] as object)
