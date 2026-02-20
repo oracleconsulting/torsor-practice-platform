@@ -252,7 +252,7 @@ serve(async (req) => {
         model: 'anthropic/claude-sonnet-4.5',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
-        max_tokens: 4096,
+        max_tokens: 12000,
         stream: false,
       }),
     });
@@ -263,17 +263,27 @@ serve(async (req) => {
     }
 
     const json = await response.json();
-    const content = json?.choices?.[0]?.message?.content ?? '';
+    const choice = json?.choices?.[0];
+    const content = choice?.message?.content ?? '';
+    const finishReason = choice?.finish_reason ?? 'unknown';
     const elapsed = Date.now() - start;
-    console.log(`[analyze-sa-preliminary] Response in ${elapsed}ms, ${content.length} chars`);
+    console.log(`[analyze-sa-preliminary] Response in ${elapsed}ms, ${content.length} chars, finish_reason=${finishReason}`);
+
+    if (finishReason === 'length') {
+      console.error('[analyze-sa-preliminary] Model hit token limit — response was truncated. Increase max_tokens or shorten prompt.');
+    }
 
     const rawContent = parseJsonFromContent(content);
     let data: any;
     try {
       data = JSON.parse(rawContent);
     } catch (e) {
-      console.error('[analyze-sa-preliminary] JSON parse failed:', rawContent.slice(0, 500));
-      throw new Error('Preliminary analysis returned invalid JSON');
+      const preview = rawContent.slice(0, 400);
+      const tail = rawContent.slice(-300);
+      console.error('[analyze-sa-preliminary] JSON parse failed. Length:', rawContent.length);
+      console.error('[analyze-sa-preliminary] Start:', preview);
+      console.error('[analyze-sa-preliminary] End (last 300 chars):', tail);
+      throw new Error('Preliminary analysis returned invalid or truncated JSON. Check logs for details.');
     }
 
     const analysis = normalizeAnalysis(data);
