@@ -143,13 +143,24 @@ function parseJsonFromContent(content: string): string {
 }
 
 function normalizeAnalysis(data: any): any {
+  const snap = data?.businessSnapshot || {};
+  const companyProfile = snap.companyProfile ?? snap.companyType ?? '';
+  const revenueModel = snap.revenueModel ?? snap.revenue_model ?? '';
+  const growthStage = snap.growthStage ?? snap.growth_stage ?? '';
+  const headlinePain = snap.headlinePain ?? snap.headline_pain ?? '';
+  const systemsCount = typeof snap.systemsCount === 'number' ? snap.systemsCount : (snap.systems_count ?? 0);
   return {
-    businessSnapshot: data?.businessSnapshot || {
-      companyType: '',
-      revenue_model: '',
-      growth_stage: '',
-      systems_count: 0,
-      headline_pain: '',
+    businessSnapshot: {
+      companyProfile,
+      companyType: companyProfile,
+      revenueModel,
+      revenue_model: revenueModel,
+      growthStage,
+      growth_stage: growthStage,
+      headlinePain,
+      headline_pain: headlinePain,
+      systemsCount,
+      systems_count: systemsCount,
     },
     confidenceScores: Array.isArray(data?.confidenceScores) ? data.confidenceScores : [],
     suggestedGaps: Array.isArray(data?.suggestedGaps) ? data.suggestedGaps : [],
@@ -272,6 +283,7 @@ serve(async (req) => {
       .update({
         preliminary_analysis: analysis,
         preliminary_analysis_at: new Date().toISOString(),
+        review_status: 'in_progress',
         updated_at: new Date().toISOString(),
       })
       .eq('id', engagementId);
@@ -280,8 +292,51 @@ serve(async (req) => {
       throw new Error(`Failed to store analysis: ${updateErr.message}`);
     }
 
+    // Auto-create suggested gaps (re-run clears existing AI-suggested gaps first)
+    if (analysis.suggestedGaps && analysis.suggestedGaps.length > 0) {
+      await supabase
+        .from('sa_engagement_gaps')
+        .delete()
+        .eq('engagement_id', engagementId)
+        .eq('source', 'ai_preliminary');
+
+      const gapRows = analysis.suggestedGaps.map((gap: any) => ({
+        engagement_id: engagementId,
+        gap_area: gap.gap_area || 'cross_cutting',
+        gap_tag: gap.gap_tag || '',
+        description: gap.description || '',
+        source_question: gap.source_question || null,
+        status: 'identified',
+        source: 'ai_preliminary',
+        severity: gap.severity || 'important',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+
+      const { error: gapError } = await supabase
+        .from('sa_engagement_gaps')
+        .insert(gapRows);
+
+      if (gapError) {
+        console.warn('[analyze-sa-preliminary] Failed to insert gaps:', gapError.message);
+      } else {
+        console.log(`[analyze-sa-preliminary] Inserted ${gapRows.length} suggested gaps`);
+      }
+    }
+
+    const elapsedMs = Date.now() - start;
+
     return new Response(
-      JSON.stringify({ success: true, analysis }),
+      JSON.stringify({
+        success: true,
+        analysis,
+        stats: {
+          elapsedMs,
+          suggestedGaps: analysis.suggestedGaps?.length || 0,
+          contradictions: analysis.contradictions?.length || 0,
+          confidenceScores: analysis.confidenceScores?.length || 0,
+        },
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {

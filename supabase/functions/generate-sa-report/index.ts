@@ -586,12 +586,16 @@ serve(async (req) => {
   }
 
   try {
-    const { engagementId } = await req.json();
+    const body = await req.json();
+    const engagementId = body?.engagementId;
+    const additionalContext = Array.isArray(body?.additionalContext) ? body.additionalContext : undefined;
+    const preliminaryAnalysis = body?.preliminaryAnalysis && typeof body.preliminaryAnalysis === 'object' ? body.preliminaryAnalysis : undefined;
+
     if (!engagementId) {
       throw new Error('engagementId is required');
     }
-    console.log('[SA Report Orchestrator] DEPRECATED — redirecting to Pass 1 pipeline');
-    console.log('[SA Report Orchestrator] engagementId:', engagementId);
+    console.log('[SA Report Orchestrator] Redirecting to Pass 1 pipeline');
+    console.log('[SA Report Orchestrator] engagementId:', engagementId, 'additionalContext:', additionalContext?.length ?? 0, 'preliminaryAnalysis:', !!preliminaryAnalysis);
     const pass1Url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-sa-report-pass1`;
     const pass1Response = await fetch(pass1Url, {
       method: 'POST',
@@ -599,7 +603,11 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
       },
-      body: JSON.stringify({ engagementId })
+      body: JSON.stringify({
+        engagementId,
+        ...(additionalContext?.length ? { additionalContext } : {}),
+        ...(preliminaryAnalysis ? { preliminaryAnalysis } : {}),
+      })
     });
     const result = await pass1Response.json();
     return new Response(
