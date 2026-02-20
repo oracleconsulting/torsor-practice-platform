@@ -14580,6 +14580,7 @@ function SystemsAuditClientModal({
                               { key: 'industry_sector', rawKey: 'sa_industry', label: 'Industry sector', section: 'Your Business' },
                               { key: 'business_model', rawKey: 'sa_business_model', label: 'How does your business make money?', section: 'Your Business' },
                               { key: 'team_structure', rawKey: 'sa_team_structure', label: 'How is your team structured?', section: 'Your Business' },
+                              { key: 'staff_roster', rawKey: 'sa_staff_roster', label: 'Who are the key people involved in running your business operations and systems?', section: 'Your Business' },
                               { key: 'work_location', rawKey: 'sa_locations', label: 'Where does your team work?', section: 'Your Business' },
                               { key: 'key_person_dependency', rawKey: 'sa_key_people_dependencies', label: 'If one person went away for 2 weeks, what would break?', section: 'Your Business' },
                               // Section 8: Readiness
@@ -14603,7 +14604,9 @@ function SystemsAuditClientModal({
                                     return null;
                                   }
                                   if (Array.isArray(value)) {
-                                    value = value.join(', ');
+                                    value = value.length > 0 && typeof value[0] === 'object' && value[0] !== null && 'name' in value[0]
+                                      ? value.map((p: any) => p.name + (p.roleTitle ? ` (${p.roleTitle})` : '')).join(', ')
+                                      : value.join(', ');
                                   } else if (typeof value === 'string' && value.includes('_') && !value.includes(' ')) {
                                     // Format enum values: 'controlled_chaos' -> 'Controlled Chaos'
                                     value = value.split('_').map((word: string) => 
