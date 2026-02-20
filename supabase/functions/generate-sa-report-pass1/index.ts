@@ -21,6 +21,23 @@ const corsHeaders: Record<string, string> = {
 // Then Pass 2 (separate function) generates narratives.
 // =============================================================================
 
+const DESIRED_OUTCOME_LABELS: Record<string, string> = {
+  client_profitability: 'Know which clients or jobs are actually profitable',
+  cash_visibility: 'See our cash position and forecast without asking anyone',
+  fast_month_end: 'Close month-end in under a week',
+  fast_quoting: 'Get quotes and proposals out within 48 hours',
+  pipeline_confidence: 'Track pipeline and forecast revenue with confidence',
+  free_key_people: 'Free key people from manual admin and data entry',
+  useful_mi: 'Get management information I actually use for decisions',
+  smooth_onboarding: 'Onboard new team members without things falling apart',
+  scale_without_admin: 'Scale the team without scaling the admin',
+  proper_controls: 'Have proper controls so mistakes don\'t slip through',
+};
+
+function mapDesiredOutcomes(slugs: string[]): string[] {
+  return (slugs || []).map(slug => DESIRED_OUTCOME_LABELS[slug] || slug);
+}
+
 const TRUNCATE = (s: string | undefined | null, maxLen: number) =>
   (s == null ? '' : String(s)).length <= maxLen ? (s ?? '') : (s ?? '').slice(0, maxLen) + '…';
 
@@ -387,9 +404,30 @@ function calculateMetrics(
       }
     });
   }
+
+  // Map 4 bonus: tool consolidation reduces context-switching and manual reconciliation.
+  if (mapLevel === 4) {
+    const map1NodeCount = Object.keys(map1Metrics.map1Nodes || {}).length || map1Metrics.systemCount || 0;
+    const map4NodeCount = Object.keys(nodes).length;
+    const toolsConsolidated = Math.max(0, map1NodeCount - map4NodeCount);
+    const consolidationHoursSaved = toolsConsolidated * 1.5;
+    hoursSaved += consolidationHoursSaved;
+
+    const map1SoftwareCost = map1Metrics.monthlySoftwareCost || 0;
+    const map4SoftwareCost = Object.values(nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
+    const monthlySoftwareSaving = Math.max(0, map1SoftwareCost - map4SoftwareCost);
+    (map1Metrics as any)._map4SoftwareSavingAnnual = monthlySoftwareSaving * 12;
+    (map1Metrics as any)._map4ConsolidationHours = consolidationHoursSaved;
+  }
+
   const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved);
-  const annualWaste = Math.round(manualHours * rate * 52);
-  const annualSavings = map1Metrics.annualWaste - annualWaste;
+  const annualWaste = mapLevel === 1 ? map1Metrics.annualWaste : Math.round(manualHours * rate * 52);
+  let annualSavings = mapLevel === 1 ? 0 : map1Metrics.annualWaste - annualWaste;
+
+  if (mapLevel === 4 && (map1Metrics as any)._map4SoftwareSavingAnnual > 0) {
+    annualSavings += (map1Metrics as any)._map4SoftwareSavingAnnual;
+  }
+
   let payback = '—';
   if (investment > 0 && annualSavings > 0) {
     const months = investment / (annualSavings / 12);
@@ -398,20 +436,56 @@ function calculateMetrics(
     else if (months < 2) payback = `${Math.round(months * 4)} weeks`;
     else payback = `${Math.round(months)} months`;
   } else if (investment === 0 && mapLevel > 1) payback = 'Instant';
+  const spofKeywords = [
+    'backup', 'back-up', 'back up',
+    'documentation', 'document',
+    'single point', 'spof', 'bus factor',
+    'cross-train', 'cross train', 'crosstrain',
+    'knowledge transfer', 'knowledge sharing',
+    'redundancy', 'redundant',
+    'delegate', 'delegation',
+    'train second', 'second person',
+    'key person', 'key-person', 'keyperson',
+    'handover', 'hand over', 'hand-over',
+    'procedure', 'runbook', 'playbook',
+    'maria', 'sole', 'only person', 'only one who',
+  ];
   const spofFindings = (recommendations || []).filter((r: any) => {
-    const title = (r.title || '').toLowerCase();
-    return title.includes('backup') || title.includes('documentation') || title.includes('single point') || title.includes('cross-train');
+    const text = ((r.title || '') + ' ' + (r.description || '')).toLowerCase();
+    return spofKeywords.some(kw => text.includes(kw));
   });
   const hasSpofFix = spofFindings.length > 0 && mapLevel >= 3;
   const hasPartialSpofFix = spofFindings.length > 0 && mapLevel >= 2;
+
   let risk: string;
-  if (manualHours > 60) risk = 'Critical';
-  else if (manualHours > 40 && !hasPartialSpofFix) risk = 'Critical';
-  else if (manualHours > 40 && hasPartialSpofFix) risk = 'High';
-  else if (manualHours > 25 && !hasSpofFix) risk = 'High';
-  else if (manualHours > 25 && hasSpofFix) risk = 'Moderate';
-  else if (manualHours > 10) risk = 'Low';
-  else risk = 'Minimal';
+  if (mapLevel === 1) {
+    if (manualHours > 60) risk = 'Critical';
+    else if (manualHours > 40) risk = 'Critical';
+    else if (manualHours > 25) risk = 'High';
+    else if (manualHours > 10) risk = 'Moderate';
+    else risk = 'Low';
+  } else if (mapLevel === 2) {
+    if (manualHours > 60) risk = 'Critical';
+    else if (manualHours > 40 && !hasPartialSpofFix) risk = 'Critical';
+    else if (manualHours > 40 && hasPartialSpofFix) risk = 'High';
+    else if (manualHours > 25) risk = 'High';
+    else if (manualHours > 10) risk = 'Moderate';
+    else risk = 'Low';
+  } else if (mapLevel === 3) {
+    if (manualHours > 60 && !hasSpofFix) risk = 'Critical';
+    else if (manualHours > 60 && hasSpofFix) risk = 'High';
+    else if (manualHours > 40 && !hasSpofFix) risk = 'High';
+    else if (manualHours > 40 && hasSpofFix) risk = 'Moderate';
+    else if (manualHours > 25) risk = 'Moderate';
+    else if (manualHours > 10) risk = 'Low';
+    else risk = 'Minimal';
+  } else {
+    if (manualHours > 60 && !hasSpofFix) risk = 'High';
+    else if (manualHours > 60 && hasSpofFix) risk = 'Moderate';
+    else if (manualHours > 40) risk = 'Moderate';
+    else if (manualHours > 25) risk = 'Low';
+    else risk = 'Minimal';
+  }
 
   const connectedEdges = edges.filter((e) => e.status === 'green' || e.status === 'blue').length;
   const partialEdges = edges.filter((e) => e.status === 'amber' && (e as any).changed).length;
@@ -446,6 +520,9 @@ function buildSystemsMaps(
     manualHours: facts.hoursWastedWeekly || 0,
     annualWaste: facts.annualCostOfChaos || 0,
     blendedHourlyRate: blendedHourlyRate ?? facts?.blendedHourlyRate ?? 45,
+    map1Nodes: nodes,
+    systemCount: systems.length,
+    monthlySoftwareCost: Object.values(nodes).reduce((s, n) => s + n.cost, 0),
   };
   const rate = map1Metrics.blendedHourlyRate;
   const map1: SystemsMap = {
@@ -669,7 +746,7 @@ WHERE YOU'RE GOING / YOUR BUSINESS:
 - Key person dependency: "${TRUNCATE(discovery.key_person_dependency || '', MAX_TEXT)}"
 
 TARGET STATE:
-- Desired outcomes: ${(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
+- Desired outcomes: ${mapDesiredOutcomes(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
 - Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
 - Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_TEXT)}"
 - Magic fix (Focus Areas): "${TRUNCATE(discovery.magic_process_fix || 'Not specified', MAX_TEXT)}"
@@ -690,14 +767,15 @@ YOUR TASK — Return ONLY this JSON
     "teamSize": number,
     "projectedTeamSize": number,
     "growthMultiplier": number,
-    "revenueBand": "string",
+    "revenueBand": "string (the band from discovery, e.g. '1m_2m')",
+    "confirmedRevenue": "string or null — if follow-up/additional context confirmed a SPECIFIC revenue figure (e.g. '£1.65m'), put it here. If only the band is known, set to null",
     "industry": "string",
     "breakingPoint": "EXACT verbatim quote",
     "monthEndShame": "EXACT verbatim quote",
     "expensiveMistake": "EXACT verbatim quote",
     "magicFix": "EXACT verbatim quote",
     "fears": ["fear1", "fear2"],
-    "desiredOutcomes": ["exact text of outcome 1", "outcome 2", "outcome 3"],
+    "desiredOutcomes": ["human-readable outcome text — use the full labels provided above, not slugs"],
     "mondayMorningVision": "EXACT verbatim quote",
     "timeFreedomPriority": "What they said they'd do with reclaimed time",
     "systems": [
@@ -813,7 +891,7 @@ Disconnected systems: ${(phase1Facts.disconnectedSystems || []).join(', ')}
 Integration gaps: ${(phase1Facts.integrationGaps || []).join('; ')}
 
 TARGET STATE:
-- Desired outcomes: ${(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
+- Desired outcomes: ${mapDesiredOutcomes(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
 - Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
 - Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_TEXT)}"
 - Magic fix: "${TRUNCATE(discovery.magic_process_fix || 'Not specified', MAX_TEXT)}"

@@ -29,6 +29,24 @@ import {
 } from 'lucide-react';
 import SystemsMapSection from '@/components/SystemsMapSection';
 
+// Desired outcomes: map DB slugs to human-readable labels
+const DESIRED_OUTCOME_LABELS: Record<string, string> = {
+  client_profitability: 'Know which clients or jobs are actually profitable',
+  cash_visibility: 'See our cash position and forecast without asking anyone',
+  fast_month_end: 'Close month-end in under a week',
+  fast_quoting: 'Get quotes and proposals out within 48 hours',
+  pipeline_confidence: 'Track pipeline and forecast revenue with confidence',
+  free_key_people: 'Free key people from manual admin and data entry',
+  useful_mi: 'Get management information I actually use for decisions',
+  smooth_onboarding: 'Onboard new team members without things falling apart',
+  scale_without_admin: 'Scale the team without scaling the admin',
+  proper_controls: 'Have proper controls so mistakes don\'t slip through',
+};
+
+function displayOutcome(outcome: string): string {
+  return DESIRED_OUTCOME_LABELS[outcome] || outcome;
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface SAReport {
@@ -87,6 +105,22 @@ function resolveMetrics(report: SAReport) {
   const p = report.pass1_data || {};
   const facts = p.facts || {};
   const scores = p.scores || {};
+  const recs = p.recommendations || [];
+
+  const calcBenefit = recs.reduce((s: number, r: any) => s + (r.annualBenefit || 0), 0);
+  const calcInvestment = recs.reduce((s: number, r: any) => s + (r.estimatedCost || 0), 0);
+  const calcHours = recs.reduce((s: number, r: any) => s + (parseFloat(r.hoursSavedWeekly) || 0), 0);
+
+  const totalAnnualBenefit = calcBenefit || report.total_annual_benefit || 0;
+  const totalInvestment = calcInvestment || report.total_recommended_investment || 0;
+  const hoursReclaimable = calcHours || report.hours_reclaimable_weekly || 0;
+
+  const paybackMonths = totalAnnualBenefit > 0 && totalInvestment > 0
+    ? Math.max(1, Math.round(totalInvestment / (totalAnnualBenefit / 12)))
+    : (report.overall_payback_months ?? 0);
+  const roiRatio = totalInvestment > 0
+    ? `${Math.round(totalAnnualBenefit / totalInvestment)}:1`
+    : (report.roi_ratio || 'Infinite');
 
   return {
     annualCostOfChaos: facts.annualCostOfChaos ?? report.total_annual_cost_of_chaos ?? 0,
@@ -101,11 +135,11 @@ function resolveMetrics(report: SAReport) {
     automationEvidence: scores.automation?.evidence || '',
     dataAccessibilityEvidence: scores.dataAccessibility?.evidence || '',
     scalabilityEvidence: scores.scalability?.evidence || '',
-    totalAnnualBenefit: report.total_annual_benefit ?? 0,
-    totalInvestment: report.total_recommended_investment ?? 0,
-    hoursReclaimable: report.hours_reclaimable_weekly ?? 0,
-    roiRatio: report.roi_ratio || '0:1',
-    paybackMonths: report.overall_payback_months ?? 0,
+    totalAnnualBenefit,
+    totalInvestment,
+    hoursReclaimable,
+    roiRatio,
+    paybackMonths,
   };
 }
 
@@ -478,7 +512,7 @@ export default function SAReportPage() {
         {/* ═══════════════════════════════════════════════════════════════
             SECTION 2: YOUR BUSINESS (if context available)
             ═══════════════════════════════════════════════════════════════ */}
-        {(facts.teamSize || facts.revenueBand || facts.industry) && (
+        {(facts.teamSize || facts.revenueBand || facts.confirmedRevenue || facts.industry) && (
           <div ref={sectionRefs.business} className="scroll-mt-16">
             <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
@@ -495,13 +529,18 @@ export default function SAReportPage() {
                     )}
                   </div>
                 )}
-                {facts.revenueBand && (
+                {(facts.confirmedRevenue || facts.revenueBand) && (
                   <div className="bg-gray-50 rounded-xl p-4">
                     <p className="text-xs text-gray-500 mb-1">Revenue</p>
                     <p className="text-xl font-bold text-gray-900">
-                      {facts.revenueBand === '1m_2m' ? '£1-2m' :
+                      {facts.confirmedRevenue ? facts.confirmedRevenue :
+                       facts.revenueBand === '1m_2m' ? '£1-2m' :
                        facts.revenueBand === '500k_1m' ? '£500k-1m' :
-                       facts.revenueBand === '2m_5m' ? '£2-5m' : facts.revenueBand}
+                       facts.revenueBand === '2m_5m' ? '£2-5m' :
+                       facts.revenueBand === '5m_10m' ? '£5-10m' :
+                       facts.revenueBand === '250k_500k' ? '£250-500k' :
+                       facts.revenueBand === '10m_plus' ? '£10m+' :
+                       facts.revenueBand}
                     </p>
                   </div>
                 )}
@@ -528,7 +567,7 @@ export default function SAReportPage() {
                     {facts.desiredOutcomes.map((outcome: string, i: number) => (
                       <div key={i} className="flex items-start gap-2">
                         <Target className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-purple-900">{outcome}</p>
+                        <p className="text-sm text-purple-900">{displayOutcome(outcome)}</p>
                       </div>
                     ))}
                   </div>

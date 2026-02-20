@@ -13,49 +13,50 @@ const corsHeaders = {
 // Updates report with status 'generated'
 // =============================================================================
 
-function buildNumberLock(pass1Data: any): string {
-  const f = pass1Data.facts || {};
+function buildNumberLock(pass1Data: any, report: any): string {
+  // Use Phase 8 reconciled DB columns as the SINGLE SOURCE OF TRUTH.
   const recs = pass1Data.recommendations || [];
   const qwins = pass1Data.quickWins || [];
   const scores = pass1Data.scores || {};
+  const f = pass1Data.facts || {};
 
-  const totalBenefit = recs.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0);
-  const totalInvestment = recs.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0);
-  const hoursReclaimable = recs.reduce((sum: number, r: any) =>
-    sum + (parseFloat(r.hoursSavedWeekly) || 0), 0);
+  const totalBenefit = report.total_annual_benefit ?? recs.reduce((s: number, r: any) => s + (r.annualBenefit || 0), 0);
+  const totalInvestment = report.total_recommended_investment ?? recs.reduce((s: number, r: any) => s + (r.estimatedCost || 0), 0);
+  const hoursReclaimable = report.hours_reclaimable_weekly ?? recs.reduce((s: number, r: any) => s + (parseFloat(r.hoursSavedWeekly) || 0), 0);
+  const paybackMonths = report.overall_payback_months ?? 0;
+  const roiRatio = report.roi_ratio || (totalInvestment > 0 ? `${Math.round(totalBenefit / totalInvestment)}:1` : 'Infinite');
+  const annualCostOfChaos = report.total_annual_cost_of_chaos ?? f.annualCostOfChaos ?? 0;
+  const hoursWastedWeekly = report.total_hours_wasted_weekly ?? f.hoursWastedWeekly ?? 0;
+  const growthMultiplier = report.growth_multiplier ?? f.growthMultiplier ?? 1.3;
+  const projectedCostAtScale = report.projected_cost_at_scale ?? f.projectedCostAtScale ?? 0;
+
   const qwinHours = qwins.reduce((sum: number, q: any) =>
     sum + (parseFloat(q.hoursSavedWeekly) || 0), 0);
-
-  const paybackMonths = totalBenefit > 0 && totalInvestment > 0
-    ? Math.max(1, Math.round(totalInvestment / (totalBenefit / 12)))
-    : 0;
-  const roiYear1 = totalInvestment > 0 ? Math.round(totalBenefit / totalInvestment) : 0;
-  const roi3Year = totalInvestment > 0 ? Math.round(totalBenefit * 3 / totalInvestment) : 0;
 
   return `
 ╔═══════════════════════════════════════════════════════════════════════════╗
 NUMBER LOCK — USE THESE EXACT NUMBERS IN ALL NARRATIVES
+These are FINAL RECONCILED figures. DO NOT recalculate or re-derive.
+DO NOT round differently. DO NOT count recommendations yourself.
+Copy them EXACTLY into your prose.
 ╚═══════════════════════════════════════════════════════════════════════════╝
 
-These numbers are pre-calculated and reconciled. Do NOT recalculate.
-Do NOT round differently. Copy them exactly into your prose.
-
 COST OF CHAOS:
-- Hours wasted weekly: ${f.hoursWastedWeekly || 0}
-- Annual cost of chaos: £${(f.annualCostOfChaos || 0).toLocaleString()}
-- Growth multiplier: ${f.growthMultiplier || 1.3}x
-- Projected cost at scale: £${(f.projectedCostAtScale || 0).toLocaleString()}
+- Hours wasted weekly: ${hoursWastedWeekly}
+- Annual cost of chaos: £${Number(annualCostOfChaos).toLocaleString()}
+- Growth multiplier: ${growthMultiplier}x
+- Projected cost at scale: £${Number(projectedCostAtScale).toLocaleString()}
 
 BENEFIT:
-- Total annual benefit (all ${recs.length} recommendations): £${totalBenefit.toLocaleString()}
-- Hours reclaimable weekly: ${Math.round(hoursReclaimable)}
+- Total annual benefit (all ${recs.length} recommendations): £${Number(totalBenefit).toLocaleString()}
+- Hours reclaimable weekly: ${Math.round(Number(hoursReclaimable))}
 - Quick wins only: ${qwins.length} actions, ${qwinHours}h/week
 
 INVESTMENT:
-- Total investment: £${totalInvestment.toLocaleString()}${totalInvestment === 0 ? ' (process fixes only)' : ''}
+- Total investment: £${Number(totalInvestment).toLocaleString()}${totalInvestment === 0 ? ' (process fixes only)' : ''}
 - Payback: ${paybackMonths <= 0 ? 'Immediate' : `${paybackMonths} months`}
-- ROI (Year 1): ${roiYear1 > 0 ? `${roiYear1}:1` : 'Infinite'}
-- ROI (3 Year): ${roi3Year > 0 ? `${roi3Year}:1` : 'Infinite'}
+- ROI (Year 1): ${roiRatio}
+- ROI (3 Year): ${totalInvestment > 0 ? `${Math.round(Number(totalBenefit) * 3 / Number(totalInvestment))}:1` : 'Infinite'}
 
 SCORES:
 - Integration: ${scores.integration?.score || 0}/100
@@ -63,19 +64,21 @@ SCORES:
 - Data Accessibility: ${scores.dataAccessibility?.score || 0}/100
 - Scalability: ${scores.scalability?.score || 0}/100
 
-RECOMMENDATIONS: ${recs.length} total
+RECOMMENDATIONS: ${recs.length} total (USE THIS COUNT — do not count them yourself)
 ${recs.map((r: any, i: number) => `  ${i + 1}. ${r.title} — £${(r.annualBenefit || 0).toLocaleString()}/yr, ${r.hoursSavedWeekly || 0}h/wk, £${(r.estimatedCost || 0).toLocaleString()} cost`).join('\n')}
 
-WHEN WRITING NARRATIVES:
-- The headline MUST include "£${(f.annualCostOfChaos || 0).toLocaleString()}"
-- Use "${Math.round(hoursReclaimable)} hours" for time reclaimed — not any other number
-- Use "£${totalBenefit.toLocaleString()}" for total annual benefit
-- Use "${recs.length} recommendations" for the count
-- DO NOT say "35 hours" if the number is ${Math.round(hoursReclaimable)}
+═══════════════════════════════════════════════════════════════════════════
+MANDATORY PHRASING (use these exact formulations):
+- "${recs.length} recommendations" — not eight, not 8, not "several"
+- "£${Number(annualCostOfChaos).toLocaleString()}" — the annual cost headline
+- "${Math.round(Number(hoursReclaimable))} hours" — for time reclaimed
+- "£${Number(totalBenefit).toLocaleString()}" — for total annual benefit
+- "£${Number(totalInvestment).toLocaleString()}" — for total investment
+═══════════════════════════════════════════════════════════════════════════
 `;
 }
 
-function buildPass2Prompt(pass1Data: any): string {
+function buildPass2Prompt(pass1Data: any, report: any): string {
   const f = pass1Data.facts;
   
   return `
@@ -307,7 +310,7 @@ BAD: "Not only does this address operational challenges, but it also positions y
 
 GOOD: "This fixes the chaos. Then you can grow."
 
-${buildNumberLock(pass1Data)}
+${buildNumberLock(pass1Data, report)}
 
 Return ONLY the JSON object with these four fields. No markdown wrapping.
 `;
@@ -371,7 +374,7 @@ serve(async (req) => {
     console.log('[SA Pass 2] Calling Opus for narratives...');
     const startTime = Date.now();
     
-    const prompt = buildPass2Prompt(pass1Data);
+    const prompt = buildPass2Prompt(pass1Data, report);
     
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
