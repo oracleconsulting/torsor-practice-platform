@@ -4,9 +4,10 @@
 // Wraps useServiceContext to produce UI-ready state: which Part 2 sections
 // are visible, question counts, skip summaries, Part 3 visibility, and
 // buildAssessmentMetadata() for stamping saved responses.
+// 4B: User can opt-in to skip skippable sections (banner per section).
 // ============================================================================
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useServiceContext, type Part2SectionSkip, type ServiceContext } from './useServiceContext';
 
 // ============================================================================
@@ -21,6 +22,10 @@ export interface AdaptivePart2Section {
   replacedBy: string | null;
   questionCount: number;
   questions: Part2Question[];
+  /** 4B: For skippable sections, label for banner e.g. "your Benchmarking assessment" */
+  dataSourceLabel?: string;
+  /** 4B: If data is old (>3 months), e.g. "January 2026" */
+  dataAge?: string;
 }
 
 export interface Part2Question {
@@ -47,6 +52,18 @@ export interface AdaptiveAssessmentState {
   valueAnalysisSource: 'bm_report' | 'ga_part3' | 'none';
   serviceContext: ServiceContext;
   refresh: () => Promise<void>;
+  /** 4B: Section IDs that can be skipped (have BM/SA/financial data) */
+  skippableSections: string[];
+  /** 4B: Section IDs the user chose to skip */
+  skippedSections: string[];
+  /** 4B: Mark section as skipped (hide questions) */
+  skipSection: (sectionId: string) => void;
+  /** 4B: Undo skip (show questions again) */
+  unskipSection: (sectionId: string) => void;
+  /** 4B: Data flags for banner/UI */
+  hasBMData: boolean;
+  hasSAData: boolean;
+  hasFinancialData: boolean;
 }
 
 // Part 2 section definitions — sectionId must match normalizeSectionId(shared section title)
@@ -103,8 +120,23 @@ export function normalizeSectionId(sectionNameOrTitle: string): string {
 // HOOK
 // ============================================================================
 
+function dataSourceLabelFor(replacedBy: string | null): string {
+  if (!replacedBy) return '';
+  const name = SERVICE_DISPLAY_NAMES[replacedBy] || replacedBy;
+  return `your ${name}`;
+}
+
 export function useAdaptiveAssessment(): AdaptiveAssessmentState {
   const serviceContext = useServiceContext();
+  /** 4B: User-chosen skipped section IDs (opt-in skip) */
+  const [skippedSections, setSkippedSections] = useState<string[]>([]);
+
+  const skipSection = useCallback((sectionId: string) => {
+    setSkippedSections(prev => (prev.includes(sectionId) ? prev : [...prev, sectionId]));
+  }, []);
+  const unskipSection = useCallback((sectionId: string) => {
+    setSkippedSections(prev => prev.filter(id => id !== sectionId));
+  }, []);
 
   const part2Sections: AdaptivePart2Section[] = useMemo(() => {
     if (serviceContext.loading) {
@@ -136,19 +168,26 @@ export function useAdaptiveAssessment(): AdaptiveAssessmentState {
       }
       const skipInfo = skipMap.get(section.sectionId);
       const canSkip = skipInfo?.canSkip || false;
+      const userSkipped = skippedSections.includes(section.sectionId);
+      const visible = !canSkip || !userSkipped;
       return {
         sectionId: section.sectionId,
         name: section.name,
-        visible: !canSkip,
+        visible,
         hiddenReason: canSkip ? skipInfo!.skipReason : null,
         replacedBy: canSkip && skipInfo!.replacedBy ? SERVICE_DISPLAY_NAMES[skipInfo!.replacedBy] || skipInfo!.replacedBy : null,
         questionCount: section.questionCount,
-        questions: []
+        questions: [],
+        dataSourceLabel: canSkip ? dataSourceLabelFor(skipInfo!.replacedBy) : undefined,
+        dataAge: undefined
       };
     });
-  }, [serviceContext.loading, serviceContext.skippablePart2Sections]);
+  }, [serviceContext.loading, serviceContext.skippablePart2Sections, skippedSections]);
 
-  const visiblePart2Sections = useMemo(() => part2Sections.filter(s => s.visible), [part2Sections]);
+  const visiblePart2Sections = useMemo(
+    () => part2Sections.filter(s => s.visible || skippedSections.includes(s.sectionId)),
+    [part2Sections, skippedSections]
+  );
   const visibleQuestionCount = useMemo(() => visiblePart2Sections.reduce((sum, s) => sum + s.questionCount, 0), [visiblePart2Sections]);
   const skippedQuestionCount = useMemo(() => part2Sections.filter(s => !s.visible).reduce((sum, s) => sum + s.questionCount, 0), [part2Sections]);
 
@@ -177,6 +216,11 @@ export function useAdaptiveAssessment(): AdaptiveAssessmentState {
       ? 'ga_part3'
       : 'none';
 
+  const skippableSections = useMemo(
+    () => serviceContext.skippablePart2Sections.filter(s => s.canSkip).map(s => s.sectionId),
+    [serviceContext.skippablePart2Sections]
+  );
+
   return {
     loading: serviceContext.loading,
     error: serviceContext.error,
@@ -189,7 +233,14 @@ export function useAdaptiveAssessment(): AdaptiveAssessmentState {
     part3HiddenReason,
     valueAnalysisSource,
     serviceContext,
-    refresh: serviceContext.refresh
+    refresh: serviceContext.refresh,
+    skippableSections,
+    skippedSections,
+    skipSection,
+    unskipSection,
+    hasBMData: serviceContext.hasBenchmarkingReport,
+    hasSAData: serviceContext.hasSystemsAuditData,
+    hasFinancialData: serviceContext.hasFinancialData
   };
 }
 
@@ -198,17 +249,26 @@ export function getSkippedSectionIds(state: AdaptiveAssessmentState): string[] {
 }
 
 export function buildAssessmentMetadata(state: AdaptiveAssessmentState): Record<string, any> {
+  const skippedEntries = state.skippedSections.map(sectionId => {
+    const section = state.part2Sections.find(p => p.sectionId === sectionId);
+    return {
+      sectionId,
+      sectionName: section?.name,
+      dataSource: section?.replacedBy ?? 'unknown',
+      skippedAt: new Date().toISOString()
+    };
+  });
+  const hiddenSections = state.part2Sections.filter(s => !s.visible);
+  const legacySkipped = hiddenSections.length > 0 ? hiddenSections.map(s => ({
+    sectionId: s.sectionId,
+    sectionName: s.name,
+    replacedBy: s.replacedBy,
+    reason: s.hiddenReason
+  })) : [];
   return {
     adaptive: true,
     version: 1,
-    skippedSections: state.part2Sections
-      .filter(s => !s.visible)
-      .map(s => ({
-        sectionId: s.sectionId,
-        sectionName: s.name,
-        replacedBy: s.replacedBy,
-        reason: s.hiddenReason
-      })),
+    skippedSections: skippedEntries.length > 0 ? skippedEntries : legacySkipped,
     visibleQuestionCount: state.visibleQuestionCount,
     skippedQuestionCount: state.skippedQuestionCount,
     part3Skipped: !state.showPart3,

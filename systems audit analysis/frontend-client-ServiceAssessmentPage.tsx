@@ -617,19 +617,21 @@ export default function ServiceAssessmentPage() {
           const parsed = parseInt(responses['sa_expected_team_size'], 10);
           if (!isNaN(parsed)) discoveryData.expected_team_size_12mo = parsed;
         }
-        if (responses['sa_revenue_band']) {
-          const val = responses['sa_revenue_band'];
-          if (val.includes('Under')) discoveryData.revenue_band = 'under_250k';
-          else if (val.includes('250k')) discoveryData.revenue_band = '250k_500k';
-          else if (val.includes('500k')) discoveryData.revenue_band = '500k_1m';
-          else if (val.includes('£1m') && val.includes('£2m')) discoveryData.revenue_band = '1m_2m';
-          else if (val.includes('£2m') && val.includes('£5m')) discoveryData.revenue_band = '2m_5m';
-          else if (val.includes('£5m') && val.includes('£10m')) discoveryData.revenue_band = '5m_10m';
-          else if (val.includes('10m')) discoveryData.revenue_band = 'over_10m';
-        }
         if (responses['sa_industry']) {
           discoveryData.industry_sector = responses['sa_industry'];
         }
+        // Where You're Going
+        if (responses['sa_growth_shape']) discoveryData.growth_vision = responses['sa_growth_shape'];
+        if (responses['sa_next_hires']) discoveryData.hiring_blockers = responses['sa_next_hires'];
+        if (responses['sa_growth_type']) discoveryData.growth_type = responses['sa_growth_type'];
+        if (responses['sa_capacity_ceiling']) discoveryData.capacity_ceiling = responses['sa_capacity_ceiling'];
+        if (responses['sa_tried_and_failed']) discoveryData.failed_tools = responses['sa_tried_and_failed'];
+        if (responses['sa_non_negotiables']) discoveryData.non_negotiables = responses['sa_non_negotiables'];
+        // Your Business (additional)
+        if (responses['sa_business_model']) discoveryData.business_model = responses['sa_business_model'];
+        if (responses['sa_team_structure']) discoveryData.team_structure = responses['sa_team_structure'];
+        if (responses['sa_locations']) discoveryData.work_location = responses['sa_locations'];
+        if (responses['sa_key_people_dependencies']) discoveryData.key_person_dependency = responses['sa_key_people_dependencies'];
 
         // Upsert discovery responses
         console.log('💾 Saving discovery responses...');
@@ -923,7 +925,14 @@ export default function ServiceAssessmentPage() {
 
         <div className="space-y-8">
           {sectionQuestions.map(q => (
-            <QuestionCard key={q.id} question={q} value={responses[q.id]} onChange={v => setResponses({ ...responses, [q.id]: v })} />
+            <QuestionCard
+              key={q.id}
+              question={q}
+              value={responses[q.id]}
+              onChange={v => setResponses(prev => ({ ...prev, [q.id]: v }))}
+              contextValue={responses[`${q.id}_context`] || ''}
+              onContextChange={val => setResponses(prev => ({ ...prev, [`${q.id}_context`]: val }))}
+            />
           ))}
         </div>
 
@@ -954,7 +963,62 @@ export default function ServiceAssessmentPage() {
   );
 }
 
-function QuestionCard({ question, value, onChange }: { question: AssessmentQuestion; value: any; onChange: (v: any) => void }) {
+function ContextField({
+  contextValue,
+  onContextChange,
+}: {
+  contextValue: string;
+  onContextChange: (value: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(!!contextValue);
+
+  if (!expanded && !contextValue) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="mt-3 text-sm text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Anything to add?
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <textarea
+        value={contextValue || ''}
+        onChange={(e) => onContextChange(e.target.value)}
+        onBlur={() => { if (!contextValue?.trim()) setExpanded(false); }}
+        placeholder="Optional — add any context that helps explain your answer..."
+        maxLength={300}
+        rows={2}
+        autoFocus={!contextValue}
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none bg-gray-50"
+      />
+      <p className="text-xs text-gray-400 text-right mt-0.5">
+        {contextValue?.length || 0} / 300
+      </p>
+    </div>
+  );
+}
+
+function QuestionCard({
+  question,
+  value,
+  onChange,
+  contextValue = '',
+  onContextChange,
+}: {
+  question: AssessmentQuestion;
+  value: any;
+  onChange: (v: any) => void;
+  contextValue?: string;
+  onContextChange?: (v: string) => void;
+}) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <label className="block text-lg font-medium text-gray-900 mb-4">{question.question}{question.required && <span className="text-red-500 ml-1">*</span>}</label>
@@ -984,6 +1048,10 @@ function QuestionCard({ question, value, onChange }: { question: AssessmentQuest
           })}
           {question.maxSelections && <p className="text-sm text-gray-500 mt-2">Select up to {question.maxSelections} ({value?.length || 0} selected)</p>}
         </div>
+      )}
+
+      {(question.type === 'single' || question.type === 'multi') && value != null && (value !== '' && (!Array.isArray(value) || value.length > 0)) && onContextChange && (
+        <ContextField contextValue={contextValue} onContextChange={onContextChange} />
       )}
 
       {question.type === 'text' && (

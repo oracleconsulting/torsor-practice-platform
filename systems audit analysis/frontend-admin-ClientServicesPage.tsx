@@ -68,6 +68,7 @@ import { TestClientPanel } from '../../components/admin/TestClientPanel';
 import { SystemMatchBadge } from '../../components/admin/SystemMatchBadge';
 import { useTechLookupBatch } from '../../hooks/useTechLookupBatch';
 import type { TechLookupBatchResult } from '../../types/tech-stack';
+import type { SAEngagementGap, PreliminaryAnalysis } from '../../types/systems-audit';
 
 // Accounts Upload for Benchmarking
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
@@ -723,7 +724,11 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
         const enrichedClients: Client[] = (discoveryClients || []).map((client: any) => {
           const discovery = discoveryMap.get(client.id);
-          const isComplete = discovery?.completed_at || client.program_status === 'discovery_complete';
+          const responseCount = discovery?.responses ? Object.keys(discovery.responses).length : 0;
+          // Only show 100% / Roadmap Active when there are actual discovery responses AND
+          // a completion signal. Avoids showing complete when program_status is discovery_complete
+          // (e.g. from Goal Alignment) but the client never did the discovery assessment.
+          const isComplete = responseCount > 0 && (discovery?.completed_at || client.program_status === 'discovery_complete');
           
           // Calculate actual progress based on responses
           // Discovery has ~40 questions total across all sections
@@ -731,8 +736,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           let progress = 0;
           if (isComplete) {
             progress = 100;
-          } else if (discovery?.responses) {
-            const responseCount = Object.keys(discovery.responses || {}).length;
+          } else if (responseCount > 0) {
             progress = Math.min(95, Math.round((responseCount / TOTAL_DISCOVERY_QUESTIONS) * 100));
           } else if (client.last_portal_login) {
             // Logged in but no responses yet
@@ -4856,6 +4860,17 @@ function DiscoveryClientModal({
               {/* RESPONSES TAB */}
               {activeTab === 'responses' && (
                 <div className="space-y-6">
+                  {/* IDs for database lookup - always show when on Responses tab */}
+                  <div className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-2 font-mono text-xs text-slate-600">
+                    <p className="text-slate-500 font-sans font-medium mb-1.5">IDs for tables</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      <span><strong className="text-slate-500">client_id</strong> (practice_members): <code className="bg-slate-200 px-1 rounded">{clientId}</code></span>
+                      {discovery?.id && <span><strong className="text-slate-500">destination_discovery.id</strong>: <code className="bg-slate-200 px-1 rounded">{discovery.id}</code></span>}
+                      {discoveryEngagement?.id && <span><strong className="text-slate-500">discovery_engagement.id</strong>: <code className="bg-slate-200 px-1 rounded">{discoveryEngagement.id}</code></span>}
+                      {destinationReport?.id && <span><strong className="text-slate-500">discovery_report.id</strong>: <code className="bg-slate-200 px-1 rounded">{destinationReport.id}</code></span>}
+                    </div>
+                  </div>
+
                   {!discovery ? (
                     <div className="text-center py-12 bg-gray-50 rounded-xl">
                       <Compass className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -7184,7 +7199,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   
   // Service-line specific tabs
   const isManagementAccounts = serviceLineCode === 'management_accounts' || serviceLineCode === 'business_intelligence';
-  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis'>(
+  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis' | 'progress'>(
     isManagementAccounts ? 'assessments' : 'overview'
   );
   
@@ -7233,6 +7248,15 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [sprintStageRaw, setSprintStageRaw] = useState<any>(null);
   const [publishingSprint, setPublishingSprint] = useState(false);
 
+  // Progress tab (365_method): snapshots + wins for value tracker
+  const [progressSnapshots, setProgressSnapshots] = useState<any[]>([]);
+  const [progressWins, setProgressWins] = useState<any[]>([]);
+  const [progressLoading, setProgressLoading] = useState(false);
+  const [addingWin, setAddingWin] = useState(false);
+  const [newWinTitle, setNewWinTitle] = useState('');
+  const [newWinDescription, setNewWinDescription] = useState('');
+  const [newWinCategory, setNewWinCategory] = useState<string>('general');
+
   // Goal Alignment tier (365_method only)
   const [clientTier, setClientTier] = useState<string | null>(null);
   const [savingTier, setSavingTier] = useState(false);
@@ -7243,6 +7267,27 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   useEffect(() => {
     fetchClientDetail();
   }, [clientId]);
+
+  const fetchProgressData = useCallback(async () => {
+    if (!clientId) return;
+    setProgressLoading(true);
+    try {
+      const [snapRes, winsRes] = await Promise.all([
+        supabase.from('client_progress_snapshots').select('*').eq('client_id', clientId).order('sprint_number').order('week_number'),
+        supabase.from('client_wins').select('*').eq('client_id', clientId).order('is_highlighted', { ascending: false }).order('created_at', { ascending: false }).limit(50),
+      ]);
+      if (snapRes.data) setProgressSnapshots(snapRes.data);
+      if (winsRes.data) setProgressWins(winsRes.data);
+    } catch (e) {
+      console.warn('Fetch progress failed', e);
+    } finally {
+      setProgressLoading(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => {
+    if (activeTab === 'progress' && clientId) fetchProgressData();
+  }, [activeTab, clientId, fetchProgressData]);
 
   const fetchClientDetail = async () => {
     setLoading(true);
@@ -8303,7 +8348,9 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
         <div className="flex border-b border-gray-200">
           {(isManagementAccounts 
             ? ['assessments', 'documents', 'analysis'] 
-            : ['overview', 'roadmap', 'assessments', 'context', 'sprint']
+            : (serviceLineCode === '365_method'
+                ? ['overview', 'roadmap', 'assessments', 'context', 'sprint', 'progress']
+                : ['overview', 'roadmap', 'assessments', 'context', 'sprint'])
           ).map((tab) => (
             <button
               key={tab}
@@ -11554,6 +11601,159 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                 </div>
               )}
 
+              {/* PROGRESS TAB (365_method) — value tracker: snapshots + wins */}
+              {activeTab === 'progress' && serviceLineCode === '365_method' && (
+                <div className="space-y-6">
+                  {progressLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                    </div>
+                  ) : (
+                    <>
+                      {/* Summary stats from latest snapshot */}
+                      {progressSnapshots.length > 0 && (() => {
+                        const latest = progressSnapshots[progressSnapshots.length - 1];
+                        const totalCompleted = progressSnapshots.reduce((s, n) => s + (n.completed_tasks || 0), 0);
+                        return (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Hours reclaimed</p>
+                              <p className="text-2xl font-bold text-emerald-600 mt-1">{latest.hours_reclaimed ?? '—'}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tasks completed</p>
+                              <p className="text-2xl font-bold text-indigo-600 mt-1">{totalCompleted}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Life alignment</p>
+                              <p className="text-2xl font-bold text-rose-600 mt-1">{latest.life_alignment_score ?? '—'}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Completion rate</p>
+                              <p className="text-2xl font-bold text-slate-900 mt-1">{latest.completion_rate ?? 0}%</p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {progressSnapshots.length === 0 && (
+                        <div className="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-6 text-center text-gray-500 text-sm">
+                          No progress snapshots yet. Client progress will appear after they complete tasks.
+                        </div>
+                      )}
+
+                      {/* Wins: list + toggle highlight + Add Win */}
+                      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+                          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <Award className="w-5 h-5 text-amber-500" />
+                            Client Wins
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setAddingWin(true)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                          >
+                            Add Win
+                          </button>
+                        </div>
+                        <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+                          {progressWins.length === 0 && !addingWin && (
+                            <p className="text-sm text-gray-500 text-center py-6">No wins recorded yet.</p>
+                          )}
+                          {addingWin && (
+                            <div className="border border-indigo-200 rounded-lg p-4 bg-indigo-50/50 space-y-3">
+                              <input
+                                type="text"
+                                placeholder="Title"
+                                value={newWinTitle}
+                                onChange={(e) => setNewWinTitle(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              />
+                              <textarea
+                                placeholder="Description (optional)"
+                                value={newWinDescription}
+                                onChange={(e) => setNewWinDescription(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm min-h-[60px]"
+                              />
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600">Category:</label>
+                                <select
+                                  value={newWinCategory}
+                                  onChange={(e) => setNewWinCategory(e.target.value)}
+                                  className="border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                                >
+                                  {['general', 'team', 'financial', 'systems', 'life', 'personal'].map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!newWinTitle.trim() || !client?.practice_id) return;
+                                    try {
+                                      await supabase.from('client_wins').insert({
+                                        client_id: clientId,
+                                        practice_id: client.practice_id,
+                                        sprint_number: client?.gaEnrollment?.current_sprint_number ?? 1,
+                                        title: newWinTitle.trim(),
+                                        description: newWinDescription.trim() || null,
+                                        category: newWinCategory,
+                                        source: 'advisor',
+                                      });
+                                      setNewWinTitle('');
+                                      setNewWinDescription('');
+                                      setNewWinCategory('general');
+                                      setAddingWin(false);
+                                      fetchProgressData();
+                                    } catch (e) {
+                                      console.warn('Add win failed', e);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700"
+                                >
+                                  Save
+                                </button>
+                                <button type="button" onClick={() => { setAddingWin(false); setNewWinTitle(''); setNewWinDescription(''); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {progressWins.map((win: any) => (
+                            <div
+                              key={win.id}
+                              className={`flex items-start justify-between gap-3 p-3 rounded-lg border ${win.is_highlighted ? 'bg-amber-50 border-amber-200' : 'border-gray-200'}`}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900">{win.title}</p>
+                                {win.description && <p className="text-sm text-gray-600 mt-0.5">{win.description}</p>}
+                                <p className="text-xs text-gray-400 mt-1">Sprint {win.sprint_number}{win.week_number ? ` • Week ${win.week_number}` : ''} • {win.category} • {win.source}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await supabase.from('client_wins').update({ is_highlighted: !win.is_highlighted }).eq('id', win.id);
+                                    fetchProgressData();
+                                  } catch (e) {
+                                    console.warn('Toggle highlight failed', e);
+                                  }
+                                }}
+                                className={`flex-shrink-0 px-2 py-1 rounded text-xs font-medium ${win.is_highlighted ? 'bg-amber-200 text-amber-900' : 'bg-gray-100 text-gray-600'}`}
+                              >
+                                {win.is_highlighted ? '★ Highlighted' : 'Highlight'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Sprint Editor Modal — outside tab content so it opens from any tab */}
               {showSprintEditor && sprintStageRaw && (
                 <SprintEditorModal
@@ -13143,7 +13343,7 @@ function SystemsAuditClientModal({
 }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
-  const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'analysis'>('assessments');
+  const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'review' | 'analysis'>('assessments');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
   const [stage1Responses, setStage1Responses] = useState<any[]>([]);
@@ -13168,7 +13368,22 @@ function SystemsAuditClientModal({
   });
   const [savingEdits, setSavingEdits] = useState(false);
   const [makingAvailable, setMakingAvailable] = useState(false);
-  
+  const [staffInterviewCompleteCount, setStaffInterviewCompleteCount] = useState(0);
+  const [staffInterviewTotalCount, setStaffInterviewTotalCount] = useState(0);
+  const [gaps, setGaps] = useState<SAEngagementGap[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [newGapForm, setNewGapForm] = useState({ gap_area: 'cross_cutting' as SAEngagementGap['gap_area'], gap_tag: '', description: '', source_question: '' });
+  const [savingGap, setSavingGap] = useState(false);
+  const [resolvingGapId, setResolvingGapId] = useState<string | null>(null);
+  const [resolveForm, setResolveForm] = useState({ resolution: '', additional_context: '' });
+  const [gapTrends, setGapTrends] = useState<{ tag: string; count: number }[]>([]);
+  const [runningPreliminary, setRunningPreliminary] = useState(false);
+  const [dismissedSuggestedGapIds, setDismissedSuggestedGapIds] = useState<Set<number>>(new Set());
+  const [generatingScript, setGeneratingScript] = useState(false);
+  const [processingTranscript, setProcessingTranscript] = useState(false);
+  const [transcriptText, setTranscriptText] = useState('');
+  const [showTranscriptInput, setShowTranscriptInput] = useState(false);
+
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
   const [contextNotes, setContextNotes] = useState<any[]>([]);
@@ -13401,6 +13616,47 @@ function SystemsAuditClientModal({
           setContextNotes(contextData || []);
         }
 
+        // Staff interviews: total and completed count
+        const { count: staffTotal } = await supabase
+          .from('sa_staff_interviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('engagement_id', engagementData.id);
+        const { count: staffComplete } = await supabase
+          .from('sa_staff_interviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('engagement_id', engagementData.id)
+          .eq('status', 'complete');
+        setStaffInterviewCompleteCount(staffComplete ?? 0);
+        setStaffInterviewTotalCount(staffTotal ?? 0);
+
+        // Gaps (pre-generation review)
+        const { data: gapsData, error: gapsError } = await supabase
+          .from('sa_engagement_gaps')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('created_at', { ascending: true });
+        if (!gapsError) setGaps((gapsData || []) as SAEngagementGap[]);
+        const { data: tagData } = await supabase
+          .from('sa_engagement_gaps')
+          .select('gap_tag')
+          .not('gap_tag', 'is', null);
+        const uniqueTags = [...new Set((tagData || []).map((r: { gap_tag: string }) => r.gap_tag).filter(Boolean))] as string[];
+        setTagSuggestions(uniqueTags);
+        const { data: resolvedTagData } = await supabase
+          .from('sa_engagement_gaps')
+          .select('gap_tag')
+          .eq('status', 'resolved')
+          .not('gap_tag', 'is', null);
+        const tagCounts: Record<string, number> = {};
+        (resolvedTagData || []).forEach((g: { gap_tag: string }) => {
+          if (g.gap_tag) tagCounts[g.gap_tag] = (tagCounts[g.gap_tag] || 0) + 1;
+        });
+        const sortedTrends = Object.entries(tagCounts)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 10)
+          .map(([tag, count]) => ({ tag, count }));
+        setGapTrends(sortedTrends);
+
         // Fetch client name
         if (engagementData.client_id) {
           const { data: clientData } = await supabase
@@ -13430,6 +13686,25 @@ function SystemsAuditClientModal({
     setGenerating(true);
 
     try {
+      const { data: resolvedGaps } = await supabase
+        .from('sa_engagement_gaps')
+        .select('gap_area, gap_tag, description, resolution, additional_context')
+        .eq('engagement_id', engagement.id)
+        .eq('status', 'resolved')
+        .not('additional_context', 'is', null);
+      const additionalContext = (resolvedGaps || []).map((g: { gap_area: string; gap_tag: string | null; description: string; resolution: string | null; additional_context: string | null }) => ({
+        area: g.gap_area,
+        tag: g.gap_tag ?? undefined,
+        gap: g.description,
+        resolution: g.resolution ?? '',
+        context: g.additional_context ?? '',
+      }));
+      if (engagement.transcript_extraction?.additionalInsights?.length) {
+        for (const insight of engagement.transcript_extraction.additionalInsights) {
+          additionalContext.push({ area: 'cross_cutting', tag: 'call_insight', gap: '', resolution: '', context: insight });
+        }
+      }
+
       const pollDB = async (
         checkFn: () => Promise<boolean>,
         label: string,
@@ -13449,8 +13724,16 @@ function SystemsAuditClientModal({
       };
 
       const firePhase = (phaseNum: number) => {
+        const body: { engagementId: string; phase: number; additionalContext?: typeof additionalContext; preliminaryAnalysis?: typeof engagement.preliminary_analysis } = {
+          engagementId: engagement.id,
+          phase: phaseNum,
+        };
+        if (phaseNum === 1) {
+          if (additionalContext.length > 0) body.additionalContext = additionalContext;
+          if (engagement.preliminary_analysis) body.preliminaryAnalysis = engagement.preliminary_analysis;
+        }
         supabase.functions.invoke('generate-sa-report-pass1', {
-          body: { engagementId: engagement.id, phase: phaseNum }
+          body
         }).then(({ data, error }) => {
           if (error) console.warn(`[SA Report] Phase ${phaseNum} invoke returned error (may still complete):`, error.message);
           else console.log(`[SA Report] Phase ${phaseNum} invoke returned:`, data);
@@ -13734,6 +14017,17 @@ function SystemsAuditClientModal({
         approvedAt: updatedReport.approved_at,
         approvedBy: updatedReport.approved_by
       });
+
+      // RLS requires sa_engagements.is_shared_with_client = TRUE for clients to see the report
+      const { error: engagementError } = await supabase
+        .from('sa_engagements')
+        .update({ is_shared_with_client: true })
+        .eq('id', engagement.id);
+
+      if (engagementError) {
+        console.error('[SA Report] Error setting engagement is_shared_with_client:', engagementError);
+        alert('Report status was updated but sharing flag may not have been set. Client might not see the report until you try again.');
+      }
       
       alert('Report is now available to the client!');
       await fetchData(); // Refresh to show updated status
@@ -13904,7 +14198,199 @@ function SystemsAuditClientModal({
                             engagement?.status === 'analysis_complete' || 
                             engagement?.status === 'report_delivered' ||
                             engagement?.status === 'completed';
-  const canGenerateOrRegenerate = allStagesComplete || !!report;
+  const identifiedGapsCount = gaps.filter((g) => g.status === 'identified').length;
+  const canGenerateOrRegenerate = (allStagesComplete || !!report) && (identifiedGapsCount === 0 || engagement?.review_status === 'complete');
+
+  const handleAddGap = async () => {
+    if (!engagement || !newGapForm.description.trim()) return;
+    setSavingGap(true);
+    try {
+      const { data, error } = await supabase.from('sa_engagement_gaps').insert({
+        engagement_id: engagement.id,
+        gap_area: newGapForm.gap_area,
+        gap_tag: newGapForm.gap_tag.trim() || null,
+        description: newGapForm.description.trim(),
+        source_question: newGapForm.source_question.trim() || null,
+        status: 'identified',
+        created_by: user?.id ?? null,
+      }).select().single();
+      if (error) throw error;
+      setGaps((prev) => [...prev, data as SAEngagementGap]);
+      setNewGapForm({ gap_area: 'cross_cutting', gap_tag: '', description: '', source_question: '' });
+    } catch (e: any) {
+      alert(e?.message || 'Failed to add gap');
+    } finally {
+      setSavingGap(false);
+    }
+  };
+
+  const handleUpdateGapStatus = async (gapId: string, status: 'not_applicable' | 'deferred') => {
+    try {
+      const { error } = await supabase.from('sa_engagement_gaps').update({ status, updated_at: new Date().toISOString() }).eq('id', gapId);
+      if (error) throw error;
+      setGaps((prev) => prev.map((g) => (g.id === gapId ? { ...g, status } : g)));
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update gap');
+    }
+  };
+
+  const handleDeleteGap = async (gapId: string) => {
+    if (!confirm('Delete this gap?')) return;
+    try {
+      const { error } = await supabase.from('sa_engagement_gaps').delete().eq('id', gapId);
+      if (error) throw error;
+      setGaps((prev) => prev.filter((g) => g.id !== gapId));
+    } catch (e: any) {
+      alert(e?.message || 'Failed to delete gap');
+    }
+  };
+
+  const handleSaveResolve = async () => {
+    if (!resolvingGapId || !resolveForm.resolution.trim()) return;
+    setSavingGap(true);
+    try {
+      const { error } = await supabase
+        .from('sa_engagement_gaps')
+        .update({
+          status: 'resolved',
+          resolution: resolveForm.resolution.trim(),
+          additional_context: resolveForm.additional_context.trim() || null,
+          resolved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', resolvingGapId);
+      if (error) throw error;
+      setGaps((prev) =>
+        prev.map((g) =>
+          g.id === resolvingGapId
+            ? { ...g, status: 'resolved' as const, resolution: resolveForm.resolution.trim(), additional_context: resolveForm.additional_context.trim() || null, resolved_at: new Date().toISOString() }
+            : g
+        )
+      );
+      setResolvingGapId(null);
+      setResolveForm({ resolution: '', additional_context: '' });
+    } catch (e: any) {
+      alert(e?.message || 'Failed to save resolution');
+    } finally {
+      setSavingGap(false);
+    }
+  };
+
+  const handleMarkReviewComplete = async () => {
+    if (!engagement || identifiedGapsCount > 0) return;
+    try {
+      const { error } = await supabase
+        .from('sa_engagements')
+        .update({
+          review_status: 'complete',
+          review_completed_at: new Date().toISOString(),
+          review_completed_by: user?.id ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', engagement.id);
+      if (error) throw error;
+      setEngagement((prev: any) => (prev ? { ...prev, review_status: 'complete', review_completed_at: new Date().toISOString(), review_completed_by: user?.id } : prev));
+    } catch (e: any) {
+      alert(e?.message || 'Failed to mark review complete');
+    }
+  };
+
+  const gapAreaLabels: Record<SAEngagementGap['gap_area'], string> = {
+    stage_1_discovery: "Stage 1: Discovery",
+    stage_2_inventory: "Stage 2: Inventory",
+    stage_3_process: "Stage 3: Process",
+    cross_cutting: "Cross-cutting",
+  };
+
+  const hasPreliminary = !!engagement?.preliminary_analysis;
+  const preliminary = engagement?.preliminary_analysis as PreliminaryAnalysis | undefined;
+
+  const handleRunPreliminary = async () => {
+    if (!engagement) return;
+    setRunningPreliminary(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-sa-preliminary', {
+        body: { engagementId: engagement.id },
+      });
+      if (error) throw error;
+      if (data?.analysis) {
+        setEngagement((prev: any) => (prev ? { ...prev, preliminary_analysis: data.analysis, preliminary_analysis_at: new Date().toISOString() } : prev));
+      }
+      if (!data?.success) throw new Error(data?.error || 'Preliminary analysis failed');
+    } catch (e: any) {
+      alert(e?.message || 'Failed to run preliminary analysis');
+    } finally {
+      setRunningPreliminary(false);
+    }
+  };
+
+  const handleAcceptSuggestedGap = async (suggested: { gap_area: string; gap_tag: string; description: string; source_question: string | null }) => {
+    if (!engagement) return;
+    setSavingGap(true);
+    try {
+      const { data, error } = await supabase.from('sa_engagement_gaps').insert({
+        engagement_id: engagement.id,
+        gap_area: suggested.gap_area,
+        gap_tag: suggested.gap_tag || null,
+        description: suggested.description,
+        source_question: suggested.source_question,
+        status: 'identified',
+        created_by: user?.id ?? null,
+      }).select().single();
+      if (error) throw error;
+      setGaps((prev) => [...prev, data as SAEngagementGap]);
+    } catch (e: any) {
+      alert(e?.message || 'Failed to add gap');
+    } finally {
+      setSavingGap(false);
+    }
+  };
+
+  const handleDismissSuggestedGap = (index: number) => {
+    setDismissedSuggestedGapIds((prev) => new Set(prev).add(index));
+  };
+
+  const handleGenerateScript = async () => {
+    if (!engagement?.id) return;
+    setGeneratingScript(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-sa-call-script', {
+        body: { engagementId: engagement.id },
+      });
+      if (error) throw error;
+      if (data?.script) {
+        setEngagement((prev: any) => (prev ? { ...prev, follow_up_script: data.script, follow_up_script_generated_at: new Date().toISOString() } : prev));
+      }
+      if (data?.message && !data?.script) {
+        alert(data.message);
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Script generation failed');
+    } finally {
+      setGeneratingScript(false);
+    }
+  };
+
+  const handleProcessTranscript = async () => {
+    if (!engagement?.id || !transcriptText.trim()) return;
+    if (!window.confirm(`Process this transcript (${transcriptText.length} characters)? The AI will extract answers and auto-resolve matching gaps.`)) return;
+    setProcessingTranscript(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-sa-transcript', {
+        body: { engagementId: engagement.id, transcript: transcriptText },
+      });
+      if (error) throw error;
+      setTranscriptText('');
+      setShowTranscriptInput(false);
+      await fetchData();
+      const stats = data?.stats || {};
+      alert(`Transcript processed! ${stats.resolved ?? 0} of ${stats.totalGaps ?? 0} gaps resolved.${(stats.additionalInsights ?? 0) > 0 ? ` ${stats.additionalInsights} additional insights captured.` : ''}`);
+    } catch (e: any) {
+      alert(e?.message || 'Processing failed');
+    } finally {
+      setProcessingTranscript(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -13925,6 +14411,7 @@ function SystemsAuditClientModal({
           {[
             { id: 'assessments', label: 'Assessments', icon: FileText },
             { id: 'documents', label: 'Documents / Context', icon: Upload },
+            { id: 'review', label: 'Review', icon: Eye },
             { id: 'analysis', label: 'Analysis', icon: Sparkles }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -14007,20 +14494,29 @@ function SystemsAuditClientModal({
                               // Section 4: Focus Areas
                               { key: 'broken_areas', rawKey: 'sa_priority_areas', label: 'Which areas of your business feel most broken?', section: 'Focus Areas' },
                               { key: 'magic_process_fix', rawKey: 'sa_magic_fix', label: 'If you could fix one process by magic, what would it be?', section: 'Focus Areas' },
-                              // Section 5: Your Vision
-                              { key: 'desired_outcomes', rawKey: 'sa_desired_outcomes', label: 'What specific outcomes do you want from fixing systems?', section: 'Your Vision' },
-                              { key: 'monday_morning_vision', rawKey: 'sa_monday_morning', label: 'What does Monday morning look like when systems work?', section: 'Your Vision' },
-                              { key: 'time_freedom_priority', rawKey: 'sa_time_freedom', label: 'What would you do with 10+ hours/week back?', section: 'Your Vision' },
-                              // Section 6: Readiness
+                              // Section 5: What Good Looks Like
+                              { key: 'desired_outcomes', rawKey: 'sa_desired_outcomes', label: 'What specific outcomes do you want from fixing systems?', section: 'What Good Looks Like' },
+                              { key: 'monday_morning_vision', rawKey: 'sa_monday_morning', label: 'What does Monday morning look like when systems work?', section: 'What Good Looks Like' },
+                              { key: 'time_freedom_priority', rawKey: 'sa_time_freedom', label: 'What would you do with 10+ hours/week back?', section: 'What Good Looks Like' },
+                              // Section 6: Where You're Going
+                              { key: 'growth_vision', rawKey: 'sa_growth_shape', label: 'When you picture the business in 12–18 months, what\'s actually different?', section: "Where You're Going" },
+                              { key: 'hiring_blockers', rawKey: 'sa_next_hires', label: 'Next 2–3 roles you\'ll hire for — and what\'s stopping you', section: "Where You're Going" },
+                              { key: 'growth_type', rawKey: 'sa_growth_type', label: 'Which best describes what growth looks like for you?', section: "Where You're Going" },
+                              { key: 'capacity_ceiling', rawKey: 'sa_capacity_ceiling', label: 'What would break if you won 3 new clients next month?', section: "Where You're Going" },
+                              { key: 'failed_tools', rawKey: 'sa_tried_and_failed', label: 'Systems or tools tried and abandoned in the last 2 years', section: "Where You're Going" },
+                              { key: 'non_negotiables', rawKey: 'sa_non_negotiables', label: 'What must NOT change?', section: "Where You're Going" },
+                              // Section 7: Your Business
+                              { key: 'team_size', rawKey: 'sa_team_size', label: 'Current team size', section: 'Your Business' },
+                              { key: 'expected_team_size_12mo', rawKey: 'sa_expected_team_size', label: 'Expected team size in 12 months', section: 'Your Business' },
+                              { key: 'industry_sector', rawKey: 'sa_industry', label: 'Industry sector', section: 'Your Business' },
+                              { key: 'business_model', rawKey: 'sa_business_model', label: 'How does your business make money?', section: 'Your Business' },
+                              { key: 'team_structure', rawKey: 'sa_team_structure', label: 'How is your team structured?', section: 'Your Business' },
+                              { key: 'work_location', rawKey: 'sa_locations', label: 'Where does your team work?', section: 'Your Business' },
+                              { key: 'key_person_dependency', rawKey: 'sa_key_people_dependencies', label: 'If one person went away for 2 weeks, what would break?', section: 'Your Business' },
+                              // Section 8: Readiness
                               { key: 'change_appetite', rawKey: 'sa_change_appetite', label: 'What\'s your appetite for change right now?', section: 'Readiness' },
                               { key: 'systems_fears', rawKey: 'sa_fears', label: 'What are your biggest fears about changing systems?', section: 'Readiness' },
                               { key: 'internal_champion', rawKey: 'sa_champion', label: 'Who would champion systems improvements internally?', section: 'Readiness' },
-                              
-                              // Section 6: Context
-                              { key: 'team_size', rawKey: 'sa_team_size', label: 'Current team size', section: 'Context' },
-                              { key: 'expected_team_size_12mo', rawKey: 'sa_expected_team_size', label: 'Expected team size in 12 months', section: 'Context' },
-                              { key: 'revenue_band', rawKey: 'sa_revenue_band', label: 'Annual revenue band', section: 'Context' },
-                              { key: 'industry_sector', rawKey: 'sa_industry_sector', label: 'Industry sector', section: 'Context' },
                             ];
                             
                             // Group by section
@@ -14565,6 +15061,389 @@ function SystemsAuditClientModal({
                 </div>
               )}
 
+              {/* REVIEW TAB */}
+              {activeTab === 'review' && (
+                <div className="space-y-6">
+                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <h4 className="font-semibold text-gray-900">Pre-Generation Review</h4>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Review client responses and identify gaps before generating the report. Use the follow-up call to fill in missing context.
+                    </p>
+                    <div className="mt-4 flex flex-wrap items-center gap-4">
+                      <span className="text-sm text-gray-600">
+                        Status: <strong>{engagement?.review_status === 'complete' ? 'Complete' : engagement?.review_status === 'in_progress' ? 'In Progress' : 'Not Started'}</strong>
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        Gaps: {gaps.filter((g) => g.status === 'identified').length} identified, {gaps.filter((g) => g.status === 'resolved').length} resolved, {gaps.filter((g) => g.status === 'not_applicable').length} N/A, {gaps.filter((g) => g.status === 'deferred').length} deferred
+                      </span>
+                    </div>
+                  </div>
+
+                  {!allStagesComplete ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 text-sm">
+                      Complete all 3 stages before reviewing.
+                    </div>
+                  ) : (
+                    <>
+                      {preliminary && (
+                        <>
+                          <div className="bg-white border border-gray-200 rounded-xl p-6">
+                            <h4 className="font-medium text-gray-900 mb-3">Business snapshot</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <p><span className="text-gray-500">Type:</span> {preliminary.businessSnapshot?.companyType || '—'}</p>
+                              <p><span className="text-gray-500">Revenue model:</span> {preliminary.businessSnapshot?.revenue_model || '—'}</p>
+                              <p><span className="text-gray-500">Growth stage:</span> {preliminary.businessSnapshot?.growth_stage || '—'}</p>
+                              <p><span className="text-gray-500">Systems:</span> {preliminary.businessSnapshot?.systems_count ?? '—'}</p>
+                              <p className="sm:col-span-2"><span className="text-gray-500">Headline pain:</span> {preliminary.businessSnapshot?.headline_pain || '—'}</p>
+                            </div>
+                          </div>
+                          {preliminary.confidenceScores && preliminary.confidenceScores.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">Confidence by area</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {preliminary.confidenceScores.map((c: { area: string; confidence: string; reason: string }, i: number) => (
+                                  <span
+                                    key={i}
+                                    className={`px-3 py-1.5 rounded-lg text-sm ${
+                                      c.confidence === 'high' ? 'bg-emerald-100 text-emerald-800' :
+                                      c.confidence === 'medium' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                                    }`}
+                                    title={c.reason}
+                                  >
+                                    {c.area}: {c.confidence}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {preliminary.suggestedGaps && preliminary.suggestedGaps.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">AI-suggested gaps</h4>
+                              <p className="text-xs text-gray-500 mb-3">Accept to add to your gaps list, or dismiss.</p>
+                              <ul className="space-y-3">
+                                {preliminary.suggestedGaps.map((sg: { gap_area: string; gap_tag: string; description: string; source_question: string | null; severity: string }, idx: number) => (
+                                  dismissedSuggestedGapIds.has(idx) ? null : (
+                                    <li key={idx} className="border border-gray-200 rounded-lg p-3 bg-gray-50/50 flex flex-wrap items-start justify-between gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${sg.severity === 'blocking' ? 'bg-red-100 text-red-800' : sg.severity === 'important' ? 'bg-amber-100 text-amber-800' : 'bg-gray-200 text-gray-700'}`}>
+                                          {sg.severity}
+                                        </span>
+                                        <span className="text-xs text-gray-500 ml-2">[{sg.gap_area}]</span>
+                                        {sg.gap_tag && <span className="text-xs text-gray-500 ml-1">Tag: {sg.gap_tag}</span>}
+                                        <p className="text-sm text-gray-800 mt-1">{sg.description}</p>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button onClick={() => handleAcceptSuggestedGap(sg)} disabled={savingGap} className="px-2 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 disabled:opacity-50">Accept</button>
+                                        <button onClick={() => handleDismissSuggestedGap(idx)} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100">Dismiss</button>
+                                      </div>
+                                    </li>
+                                  )
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {preliminary.contradictions && preliminary.contradictions.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">Contradictions</h4>
+                              <ul className="space-y-3">
+                                {preliminary.contradictions.map((c: { claim_a: string; claim_b: string; source_a: string; source_b: string; suggested_resolution: string }, i: number) => (
+                                  <li key={i} className="border border-amber-200 rounded-lg p-3 bg-amber-50/50">
+                                    <p className="text-sm"><span className="text-amber-800 font-medium">A:</span> {c.claim_a} <span className="text-gray-500 text-xs">({c.source_a})</span></p>
+                                    <p className="text-sm mt-1"><span className="text-amber-800 font-medium">B:</span> {c.claim_b} <span className="text-gray-500 text-xs">({c.source_b})</span></p>
+                                    <p className="text-xs text-gray-600 mt-2">Resolve: {c.suggested_resolution}</p>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {preliminary.topInsights && preliminary.topInsights.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">Key insights preview</h4>
+                              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                                {preliminary.topInsights.map((insight: string, i: number) => (
+                                  <li key={i}>{insight}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h4 className="font-medium text-gray-900 mb-3">Response completeness</h4>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>
+                            Stage 1: {stage1Responses[0]?.raw_responses ? Object.entries(stage1Responses[0].raw_responses as Record<string, unknown>).filter(([, v]) => v != null && v !== '').length : 0} of 32 questions answered
+                          </li>
+                          <li>Stage 2: {stage2Inventory.length} systems logged</li>
+                          <li>Stage 3: {stage3DeepDives.length} of 7 chains completed</li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h4 className="font-medium text-gray-900 mb-3">Gaps</h4>
+                        <div className="space-y-4">
+                          {gaps.map((gap) => (
+                            <div key={gap.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50/50">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span>
+                                  {gap.status === 'identified' && '🟡'}
+                                  {gap.status === 'resolved' && '🟢'}
+                                  {gap.status === 'not_applicable' && '⚪'}
+                                  {gap.status === 'deferred' && '🔵'}
+                                </span>
+                                <span className="text-xs font-medium text-gray-500">[{gapAreaLabels[gap.gap_area]}]</span>
+                                {gap.gap_tag && <span className="text-xs text-gray-600">Tag: {gap.gap_tag}</span>}
+                              </div>
+                              <p className="text-sm text-gray-800 mb-2">{gap.description}</p>
+                              {gap.resolution && <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Resolution:</span> {gap.resolution}</p>}
+                              {gap.additional_context && <p className="text-sm text-gray-600 mb-2"><span className="font-medium">Additional context for AI:</span> {gap.additional_context}</p>}
+                              {resolvingGapId === gap.id ? (
+                                <div className="mt-3 space-y-2 border-t pt-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">What did you learn on the call?</label>
+                                    <textarea value={resolveForm.resolution} onChange={(e) => setResolveForm((f) => ({ ...f, resolution: e.target.value }))} maxLength={800} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="Resolution..." />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Additional context for the report AI (optional)</label>
+                                    <textarea value={resolveForm.additional_context} onChange={(e) => setResolveForm((f) => ({ ...f, additional_context: e.target.value }))} maxLength={800} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="Factual input for the AI..." />
+                                    <p className="text-xs text-gray-500 mt-0.5">This will be passed to the AI as supplementary context when generating the report.</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button onClick={handleSaveResolve} disabled={savingGap || !resolveForm.resolution.trim()} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50">Save</button>
+                                    <button onClick={() => { setResolvingGapId(null); setResolveForm({ resolution: '', additional_context: '' }); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">Cancel</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {gap.status === 'identified' && (
+                                    <button onClick={() => { setResolvingGapId(gap.id); setResolveForm({ resolution: gap.resolution || '', additional_context: gap.additional_context || '' }); }} className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">Resolve</button>
+                                  )}
+                                  {gap.status === 'identified' && (
+                                    <>
+                                      <button onClick={() => handleUpdateGapStatus(gap.id, 'not_applicable')} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100">Not Applicable</button>
+                                      <button onClick={() => handleUpdateGapStatus(gap.id, 'deferred')} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100">Defer</button>
+                                    </>
+                                  )}
+                                  <button onClick={() => handleDeleteGap(gap.id)} className="px-2 py-1 text-red-600 border border-red-200 rounded text-xs hover:bg-red-50">Delete</button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
+                          <h5 className="font-medium text-gray-800">Add gap</h5>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Area</label>
+                              <select value={newGapForm.gap_area} onChange={(e) => setNewGapForm((f) => ({ ...f, gap_area: e.target.value as SAEngagementGap['gap_area'] }))} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                                <option value="stage_1_discovery">Stage 1: Discovery</option>
+                                <option value="stage_2_inventory">Stage 2: Inventory</option>
+                                <option value="stage_3_process">Stage 3: Process</option>
+                                <option value="cross_cutting">Cross-cutting</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Tag (autocomplete)</label>
+                              <input list="gap-tag-list" value={newGapForm.gap_tag} onChange={(e) => setNewGapForm((f) => ({ ...f, gap_tag: e.target.value }))} placeholder="e.g. pricing_model_detail" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                              <datalist id="gap-tag-list">{tagSuggestions.map((t) => <option key={t} value={t} />)}</datalist>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Description * (max 400)</label>
+                            <textarea value={newGapForm.description} onChange={(e) => setNewGapForm((f) => ({ ...f, description: e.target.value }))} maxLength={400} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="What's missing or unclear..." />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Source question (optional)</label>
+                            <input value={newGapForm.source_question} onChange={(e) => setNewGapForm((f) => ({ ...f, source_question: e.target.value }))} placeholder="e.g. sa_business_model" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                          </div>
+                          <button onClick={handleAddGap} disabled={savingGap || !newGapForm.description.trim()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50">
+                            {savingGap ? 'Adding...' : 'Add gap'}
+                          </button>
+                        </div>
+
+                        {/* Follow-Up Call Workflow */}
+                        {preliminary && (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-4">Follow-Up Call</h4>
+                            {!engagement.follow_up_script && (
+                              <div className="mb-4">
+                                <button
+                                  onClick={handleGenerateScript}
+                                  disabled={generatingScript}
+                                  className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 disabled:opacity-50 text-sm font-medium"
+                                >
+                                  {generatingScript ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                                  {generatingScript ? 'Generating Script...' : 'Generate Call Script'}
+                                </button>
+                                <p className="text-xs text-gray-500 mt-1">Creates a conversational script from your accepted gaps (~15 seconds)</p>
+                              </div>
+                            )}
+                            {engagement.follow_up_script && (
+                              <div className="mb-6">
+                                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                  <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+                                    <span className="font-medium text-sm">Call Script</span>
+                                    <span className="text-xs text-gray-500">~{engagement.follow_up_script.estimatedMinutes ?? '?'} minutes</span>
+                                    <button type="button" onClick={handleGenerateScript} disabled={generatingScript} className="text-xs text-indigo-600 hover:underline">Regenerate</button>
+                                  </div>
+                                  <div className="px-4 py-3 border-b bg-indigo-50">
+                                    <p className="text-sm text-indigo-900 italic">&quot;{engagement.follow_up_script.opener}&quot;</p>
+                                  </div>
+                                  {(engagement.follow_up_script.sections || []).map((section: any, i: number) => (
+                                    <div key={i} className="px-4 py-3 border-b last:border-b-0">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <h5 className="font-medium text-sm">{i + 1}. {section.topic}</h5>
+                                        <span className="text-xs text-gray-400">~{section.estimatedMinutes ?? '?'} min</span>
+                                      </div>
+                                      <p className="text-xs text-gray-500 mb-2 italic">{section.leadIn}</p>
+                                      <div className="space-y-2">
+                                        {(section.questions || []).map((q: any, j: number) => (
+                                          <div key={j} className="bg-gray-50 rounded p-2">
+                                            <p className="text-sm font-medium">{q.question}</p>
+                                            {q.followUp && <p className="text-xs text-gray-500 mt-1"><span className="font-medium">If vague:</span> {q.followUp}</p>}
+                                            {q.goodEnough && <p className="text-xs text-green-600 mt-1"><span className="font-medium">✓ Good enough:</span> {q.goodEnough}</p>}
+                                            {q.addressesGapTags?.length > 0 && (
+                                              <div className="flex gap-1 mt-1 flex-wrap">
+                                                {q.addressesGapTags.map((tag: string) => (
+                                                  <span key={tag} className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">{tag}</span>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {engagement.follow_up_script.contradictions?.length > 0 && (
+                                    <div className="px-4 py-3 border-t bg-amber-50">
+                                      <h5 className="font-medium text-sm text-amber-800 mb-2">Clarifications</h5>
+                                      {engagement.follow_up_script.contradictions.map((c: any, idx: number) => (
+                                        <div key={idx} className="text-sm mb-1"><span className="font-medium">{c.topic}:</span> {c.question}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {engagement.follow_up_script.closer && (
+                                    <div className="px-4 py-3 border-t bg-gray-50">
+                                      <p className="text-sm text-gray-700 italic">&quot;{engagement.follow_up_script.closer}&quot;</p>
+                                    </div>
+                                  )}
+                                  {engagement.follow_up_script.callerNotes && (
+                                    <div className="px-4 py-2 border-t text-xs text-gray-500">
+                                      <span className="font-medium">Notes for caller:</span> {engagement.follow_up_script.callerNotes}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {engagement.follow_up_script && !engagement.transcript_extraction && (
+                              <div className="mb-4">
+                                {!showTranscriptInput ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowTranscriptInput(true)}
+                                    className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 text-sm font-medium"
+                                  >
+                                    <Upload className="w-4 h-4" />
+                                    Upload Call Transcript / Notes
+                                  </button>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <textarea
+                                      value={transcriptText}
+                                      onChange={(e) => setTranscriptText(e.target.value)}
+                                      placeholder="Paste the call transcript, meeting notes, or recording summary here..."
+                                      className="w-full h-48 border border-gray-300 rounded-lg p-3 text-sm resize-y focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-400">{transcriptText.length > 0 ? `${transcriptText.length} characters` : 'Paste transcript or notes'}</span>
+                                      <div className="flex gap-2">
+                                        <button type="button" onClick={() => { setShowTranscriptInput(false); setTranscriptText(''); }} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                                        <button
+                                          type="button"
+                                          onClick={handleProcessTranscript}
+                                          disabled={processingTranscript || transcriptText.trim().length < 50}
+                                          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                                        >
+                                          {processingTranscript ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                          {processingTranscript ? 'Processing...' : 'Process Transcript'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {engagement.transcript_extraction && (
+                              <div className="mb-4">
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                    <span className="font-medium text-green-800">Transcript Processed</span>
+                                  </div>
+                                  <p className="text-sm text-green-700 mb-2">
+                                    {engagement.transcript_extraction.resolvedGaps?.length || 0} gaps resolved, {engagement.transcript_extraction.unresolvedGaps?.length || 0} unresolved
+                                  </p>
+                                  {engagement.transcript_extraction.additionalInsights?.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-green-200">
+                                      <p className="text-xs font-medium text-green-800 mb-1">Additional insights from the call:</p>
+                                      {engagement.transcript_extraction.additionalInsights.map((insight: string, i: number) => (
+                                        <p key={i} className="text-xs text-green-700 ml-2">• {insight}</p>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {engagement.transcript_extraction.unresolvedGaps?.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-green-200">
+                                      <p className="text-xs font-medium text-amber-700 mb-1">Still need answers for:</p>
+                                      {engagement.transcript_extraction.unresolvedGaps.map((u: any, i: number) => (
+                                        <p key={i} className="text-xs text-amber-600 ml-2">• {u.gap_tag}: {u.reason}</p>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => { setShowTranscriptInput(true); setTranscriptText(engagement.follow_up_transcript || ''); }}
+                                  className="text-xs text-indigo-600 hover:underline mt-2"
+                                >
+                                  Upload additional notes or re-process
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                          <button
+                            onClick={handleMarkReviewComplete}
+                            disabled={identifiedGapsCount > 0 || engagement?.review_status === 'complete'}
+                            className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50"
+                          >
+                            Mark Review Complete
+                          </button>
+                          {identifiedGapsCount > 0 && <p className="text-xs text-amber-700 mt-1">Resolve, mark N/A, or defer all gaps first.</p>}
+                        </div>
+                      </div>
+
+                      <details className="bg-white border border-gray-200 rounded-xl">
+                        <summary className="p-4 cursor-pointer font-medium text-gray-900">Gap trends across all engagements</summary>
+                        <div className="px-4 pb-4 text-sm text-gray-600">
+                          {gapTrends.length === 0 ? (
+                            <p>No recurring gap tags yet.</p>
+                          ) : (
+                            <ol className="list-decimal list-inside space-y-1">
+                              {gapTrends.map((t) => (
+                                <li key={t.tag}>{t.tag} — {t.count} occurrences</li>
+                              ))}
+                            </ol>
+                          )}
+                        </div>
+                      </details>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* ANALYSIS TAB */}
               {activeTab === 'analysis' && (
                 <div className="space-y-6">
@@ -14572,18 +15451,64 @@ function SystemsAuditClientModal({
                     <div className="text-center py-12">
                       <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500 mb-4">No report generated yet</p>
-                      <button
-                        onClick={handleGenerateReport}
-                        disabled={generating || !canGenerateOrRegenerate}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg transition-colors text-sm font-medium"
-                      >
-                        {generating ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
-                        {generating ? 'Generating Analysis...' : 'Generate Analysis'}
-                      </button>
+                      {!hasPreliminary ? (
+                        <>
+                          <button
+                            onClick={handleRunPreliminary}
+                            disabled={runningPreliminary || !allStagesComplete}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                          >
+                            {runningPreliminary ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-4 h-4" />
+                            )}
+                            {runningPreliminary ? 'Running Preliminary Analysis...' : 'Run Preliminary Analysis'}
+                          </button>
+                          {!allStagesComplete && <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>}
+                        </>
+                      ) : (
+                        <>
+                          {identifiedGapsCount > 0 ? (
+                            <div className="max-w-md mx-auto space-y-3">
+                              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                                You have {identifiedGapsCount} unresolved gap{identifiedGapsCount !== 1 ? 's' : ''}. Complete the review before generating.
+                              </div>
+                              <button
+                                onClick={handleGenerateReport}
+                                disabled
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm font-medium"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                                Generate Full Report
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={handleGenerateReport}
+                              disabled={generating || !canGenerateOrRegenerate}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                            >
+                              {generating ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-4 h-4" />
+                              )}
+                              {generating ? 'Generating Full Report...' : 'Generate Full Report'}
+                            </button>
+                          )}
+                          <p className="mt-3">
+                            <button
+                              type="button"
+                              onClick={handleRunPreliminary}
+                              disabled={runningPreliminary}
+                              className="text-sm text-indigo-600 hover:underline disabled:opacity-50"
+                            >
+                              Re-run Preliminary Analysis
+                            </button>
+                          </p>
+                        </>
+                      )}
                       {saReportPollingAfterError && (
                         <div className="mt-4 max-w-md mx-auto p-3 bg-amber-50 border border-amber-200 rounded-lg text-left space-y-3">
                           <p className="text-sm text-amber-800">
@@ -14604,7 +15529,7 @@ function SystemsAuditClientModal({
                           </button>
                         </div>
                       )}
-                      {!canGenerateOrRegenerate && !saReportPollingAfterError && (
+                      {!allStagesComplete && !hasPreliminary && !saReportPollingAfterError && (
                         <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>
                       )}
                     </div>
@@ -14724,7 +15649,7 @@ function SystemsAuditClientModal({
                             >
                               {isEditing ? 'Cancel Edit' : 'Edit Client View'}
                             </button>
-                            {!isEditing && (report.status === 'generated' || report.status === 'approved') && (
+                            {!isEditing && (report.status === 'pass1_complete' || report.status === 'pass2_failed' || report.status === 'generated' || report.status === 'approved') && (
                               <button
                                 onClick={handleMakeAvailableToClient}
                                 disabled={makingAvailable}
@@ -14743,6 +15668,75 @@ function SystemsAuditClientModal({
                                 )}
                               </button>
                             )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Implementation Tools */}
+                      {engagement && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-4">
+                          <h3 className="text-sm font-semibold text-gray-900 mb-1">Implementation Tools</h3>
+                          <div className="border-t border-gray-200 pt-4 mt-4">
+                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Staff Interviews</h4>
+                            <p className="text-xs text-gray-600 mb-3">
+                              Enable staff-level questionnaires for the implementation phase. Generates a shareable link the client distributes to their team. Use this after the SA report is delivered and the client has committed to build-out.
+                            </p>
+                            <div className="flex items-center gap-4 mb-3">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!!engagement.staff_interviews_enabled}
+                                  onChange={async (e) => {
+                                    const v = e.target.checked;
+                                    const { error } = await supabase.from('sa_engagements').update({ staff_interviews_enabled: v }).eq('id', engagement.id);
+                                    if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_enabled: v }));
+                                  }}
+                                  className="rounded border-gray-300 text-indigo-600"
+                                />
+                                <span className="text-sm font-medium text-gray-700">Staff Interviews enabled</span>
+                              </label>
+                            </div>
+                            {engagement.staff_interviews_enabled && (
+                              <>
+                                <div className="flex items-center gap-4 mb-2">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!engagement.staff_interviews_anonymous}
+                                      onChange={async (e) => {
+                                        const v = e.target.checked;
+                                        const { error } = await supabase.from('sa_engagements').update({ staff_interviews_anonymous: v }).eq('id', engagement.id);
+                                        if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_anonymous: v }));
+                                      }}
+                                      className="rounded border-gray-300 text-indigo-600"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Anonymous Mode</span>
+                                  </label>
+                                </div>
+                                <p className="text-xs text-gray-600 mb-2">
+                                  Hide staff names from responses. Recommended for smaller teams where honest feedback might be sensitive.
+                                </p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm text-gray-600">Link:</span>
+                                <code className="text-xs bg-gray-100 px-2 py-1 rounded truncate max-w-md">
+                                  {`${(typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CLIENT_PORTAL_URL) || window.location.origin}/staff-interview/${engagement.id}`}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const url = `${(typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CLIENT_PORTAL_URL) || window.location.origin}/staff-interview/${engagement.id}`;
+                                    navigator.clipboard.writeText(url);
+                                  }}
+                                  className="text-sm px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-2">
+                                {staffInterviewCompleteCount} of {staffInterviewTotalCount} staff interviews completed
+                              </p>
+                            </>
+                          )}
                           </div>
                         </div>
                       )}

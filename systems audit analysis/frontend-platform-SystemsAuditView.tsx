@@ -35,6 +35,23 @@ interface SAEngagement {
   stage_1_completed_at: string | null;
   stage_2_completed_at: string | null;
   stage_3_completed_at: string | null;
+  preliminary_analysis?: any;
+  preliminary_analysis_at?: string | null;
+  review_status?: string;
+}
+
+interface SAGap {
+  id: string;
+  engagement_id: string;
+  gap_area: string;
+  gap_tag: string | null;
+  description: string;
+  source_question: string | null;
+  status: string;
+  source?: string;
+  severity?: string;
+  resolution?: string | null;
+  additional_context?: string | null;
 }
 
 interface SAReport {
@@ -56,14 +73,17 @@ interface SAReport {
 export default function SystemsAuditView({ clientId }: SystemsAuditViewProps) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'analysis'>('assessments');
+  const [runningPreliminary, setRunningPreliminary] = useState(false);
+  const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'review' | 'analysis'>('assessments');
   const [engagement, setEngagement] = useState<SAEngagement | null>(null);
   const [discovery, setDiscovery] = useState<any>(null);
   const [systems, setSystems] = useState<any[]>([]);
   const [deepDives, setDeepDives] = useState<any[]>([]);
+  const [gaps, setGaps] = useState<SAGap[]>([]);
   const [report, setReport] = useState<SAReport | null>(null);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [resolvingGapId, setResolvingGapId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -87,7 +107,7 @@ export default function SystemsAuditView({ clientId }: SystemsAuditViewProps) {
       setEngagement(engagementData);
 
       // Fetch all related data
-      const [discoveryRes, systemsRes, deepDivesRes, reportRes] = await Promise.all([
+      const [discoveryRes, systemsRes, deepDivesRes, reportRes, gapsRes] = await Promise.all([
         supabase
           .from('sa_discovery_responses')
           .select('*')
@@ -107,18 +127,96 @@ export default function SystemsAuditView({ clientId }: SystemsAuditViewProps) {
           .eq('engagement_id', engagementData.id)
           .order('generated_at', { ascending: false })
           .limit(1)
-          .maybeSingle()
+          .maybeSingle(),
+        supabase
+          .from('sa_engagement_gaps')
+          .select('*')
+          .eq('engagement_id', engagementData.id)
+          .order('created_at', { ascending: true })
       ]);
 
       setDiscovery(discoveryRes.data);
       setSystems(systemsRes.data || []);
       setDeepDives(deepDivesRes.data || []);
       setReport(reportRes.data);
+      setGaps(gapsRes.data || []);
     } catch (err) {
       console.error('Error loading Systems Audit data:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRunPreliminary = async () => {
+    if (!engagement?.id) return;
+    const confirmed = window.confirm(
+      'Run AI preliminary analysis? This reads all assessment responses and identifies gaps and insights (~30 seconds).'
+    );
+    if (!confirmed) return;
+
+    setRunningPreliminary(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-sa-preliminary', {
+        body: { engagementId: engagement.id },
+      });
+      if (error) throw error;
+      await loadData();
+      setActiveTab('review');
+      alert(`Preliminary analysis complete! ${data?.stats?.suggestedGaps ?? 0} gaps identified.`);
+    } catch (err: any) {
+      console.error('Preliminary analysis failed:', err);
+      alert(`Analysis failed: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setRunningPreliminary(false);
+    }
+  };
+
+  const handleDismissGap = async (gapId: string) => {
+    const { error } = await supabase
+      .from('sa_engagement_gaps')
+      .update({ status: 'not_applicable', updated_at: new Date().toISOString() })
+      .eq('id', gapId);
+    if (error) {
+      alert(`Failed to dismiss: ${error.message}`);
+      return;
+    }
+    setGaps((prev) => prev.map((g) => (g.id === gapId ? { ...g, status: 'not_applicable' } : g)));
+  };
+
+  const handleResolveGap = async (gapId: string, additionalContext: string) => {
+    setResolvingGapId(gapId);
+    const { error } = await supabase
+      .from('sa_engagement_gaps')
+      .update({
+        status: 'resolved',
+        additional_context: additionalContext || null,
+        resolved_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', gapId);
+    setResolvingGapId(null);
+    if (error) {
+      alert(`Failed to resolve: ${error.message}`);
+      return;
+    }
+    await loadData();
+  };
+
+  const handleMarkReviewComplete = async () => {
+    if (!engagement?.id) return;
+    const { error } = await supabase
+      .from('sa_engagements')
+      .update({
+        review_status: 'complete',
+        review_completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', engagement.id);
+    if (error) {
+      alert(`Failed to mark complete: ${error.message}`);
+      return;
+    }
+    await loadData();
   };
 
   const handleGenerateReport = async () => {
@@ -131,13 +229,30 @@ export default function SystemsAuditView({ clientId }: SystemsAuditViewProps) {
 
     setGenerating(true);
     try {
+      const { data: resolvedGaps } = await supabase
+        .from('sa_engagement_gaps')
+        .select('*')
+        .eq('engagement_id', engagement.id)
+        .eq('status', 'resolved');
+
+      const additionalContext = (resolvedGaps || [])
+        .filter((g: any) => g.additional_context)
+        .map((g: any) => ({
+          area: g.gap_area,
+          tag: g.gap_tag,
+          context: g.additional_context,
+        }));
+
       const { data, error } = await supabase.functions.invoke('generate-sa-report', {
-        body: { engagementId: engagement.id }
+        body: {
+          engagementId: engagement.id,
+          additionalContext: additionalContext.length > 0 ? additionalContext : undefined,
+          preliminaryAnalysis: engagement.preliminary_analysis || undefined,
+        },
       });
 
       if (error) throw error;
 
-      // Reload data to get the new report
       await loadData();
       setActiveTab('analysis');
       alert('Report generated successfully!');
@@ -220,18 +335,69 @@ export default function SystemsAuditView({ clientId }: SystemsAuditViewProps) {
           <p className="text-slate-600 mt-1">Complete assessment of operational systems and processes</p>
         </div>
         {allStagesComplete && !report && (
-          <button
-            onClick={handleGenerateReport}
-            disabled={generating}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors"
-          >
-            {generating ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+          <div className="flex flex-col items-end gap-2">
+            {!engagement.preliminary_analysis ? (
+              <>
+                <button
+                  onClick={handleRunPreliminary}
+                  disabled={runningPreliminary}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors"
+                >
+                  {runningPreliminary ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Running Preliminary Analysis...
+                    </>
+                  ) : (
+                    <>
+                      <BarChart3 className="w-4 h-4" />
+                      Run Preliminary Analysis
+                    </>
+                  )}
+                </button>
+                <p className="text-sm text-slate-500 text-right max-w-xs">
+                  AI will review all responses and identify gaps before report generation (~30 seconds)
+                </p>
+              </>
             ) : (
-              <Sparkles className="w-4 h-4" />
+              <>
+                {engagement.review_status === 'complete' ? (
+                  <button
+                    onClick={handleGenerateReport}
+                    disabled={generating}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors"
+                  >
+                    {generating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4" />
+                    )}
+                    {generating ? 'Generating...' : 'Generate Full Report'}
+                  </button>
+                ) : (
+                  <div className="text-right">
+                    <button
+                      disabled
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-300 text-slate-500 rounded-lg cursor-not-allowed"
+                    >
+                      Generate Full Report
+                    </button>
+                    <p className="text-sm text-amber-600 mt-1">
+                      Complete the Review tab before generating — resolve or dismiss identified gaps
+                    </p>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleRunPreliminary}
+                  disabled={runningPreliminary}
+                  className="text-sm text-indigo-600 hover:text-indigo-800 underline disabled:opacity-50"
+                >
+                  {runningPreliminary ? 'Re-running...' : 'Re-run preliminary analysis'}
+                </button>
+              </>
             )}
-            {generating ? 'Generating...' : 'Generate Analysis'}
-          </button>
+          </div>
         )}
       </div>
 
@@ -296,6 +462,7 @@ export default function SystemsAuditView({ clientId }: SystemsAuditViewProps) {
           {[
             { id: 'assessments', label: 'Assessments', icon: FileText },
             { id: 'documents', label: 'Documents / Context', icon: Upload },
+            { id: 'review', label: 'Review', icon: Eye },
             { id: 'analysis', label: 'Analysis', icon: BarChart3 }
           ].map((tab) => (
             <button
@@ -378,7 +545,7 @@ export default function SystemsAuditView({ clientId }: SystemsAuditViewProps) {
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">Upload Documents / Context</h3>
-                
+
                 <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
                   <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                   <p className="text-slate-600 mb-2">Upload documents, spreadsheets, or other context</p>
@@ -410,6 +577,206 @@ export default function SystemsAuditView({ clientId }: SystemsAuditViewProps) {
             </div>
           )}
 
+          {/* Review Tab — Preliminary analysis + gaps */}
+          {activeTab === 'review' && (
+            <div className="space-y-6">
+              {!engagement?.preliminary_analysis ? (
+                <div className="text-center py-12 bg-indigo-50 border border-indigo-200 rounded-lg">
+                  <Eye className="w-12 h-12 text-indigo-600 mx-auto mb-4" />
+                  <p className="text-indigo-900 font-medium mb-2">No preliminary analysis yet</p>
+                  <p className="text-sm text-indigo-700 mb-4">
+                    Run &quot;Run Preliminary Analysis&quot; from the header to review data quality and suggested gaps before generating the full report.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleRunPreliminary}
+                    disabled={runningPreliminary}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg disabled:opacity-50"
+                  >
+                    {runningPreliminary ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
+                    {runningPreliminary ? 'Running...' : 'Run Preliminary Analysis'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Business Snapshot */}
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-indigo-900 mb-2">Business Snapshot</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-gray-500">Profile:</span>{' '}
+                        {engagement.preliminary_analysis.businessSnapshot?.companyProfile ?? engagement.preliminary_analysis.businessSnapshot?.companyType ?? '—'}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Revenue model:</span>{' '}
+                        {engagement.preliminary_analysis.businessSnapshot?.revenueModel ?? engagement.preliminary_analysis.businessSnapshot?.revenue_model ?? '—'}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Growth stage:</span>{' '}
+                        {engagement.preliminary_analysis.businessSnapshot?.growthStage ?? engagement.preliminary_analysis.businessSnapshot?.growth_stage ?? '—'}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Core pain:</span>{' '}
+                        {engagement.preliminary_analysis.businessSnapshot?.headlinePain ?? engagement.preliminary_analysis.businessSnapshot?.headline_pain ?? '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Confidence Scores */}
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-3">Data Confidence by Area</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(engagement.preliminary_analysis.confidenceScores || []).map((score: any, i: number) => (
+                        <div
+                          key={i}
+                          className={`rounded-lg p-3 text-sm border ${
+                            score.confidence === 'high'
+                              ? 'bg-green-50 border-green-200'
+                              : score.confidence === 'medium'
+                              ? 'bg-amber-50 border-amber-200'
+                              : 'bg-red-50 border-red-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium">{score.area}</span>
+                            <span className={`text-xs font-bold uppercase ${
+                              score.confidence === 'high' ? 'text-green-700'
+                              : score.confidence === 'medium' ? 'text-amber-700'
+                              : 'text-red-700'
+                            }`}>
+                              {score.confidence}
+                            </span>
+                          </div>
+                          <p className="text-gray-600 text-xs">{score.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Contradictions */}
+                  {engagement.preliminary_analysis.contradictions?.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-gray-900 mb-3">
+                        ⚠️ Contradictions ({engagement.preliminary_analysis.contradictions.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {engagement.preliminary_analysis.contradictions.map((c: any, i: number) => (
+                          <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                              <div><span className="text-gray-500">Source A:</span> {c.claim_a}</div>
+                              <div><span className="text-gray-500">Source B:</span> {c.claim_b}</div>
+                            </div>
+                            <div className="text-amber-800 text-xs">
+                              <strong>Ask:</strong> {c.suggested_resolution}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Key Insights */}
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-3">Key Insights Preview</h4>
+                    <div className="space-y-1">
+                      {(engagement.preliminary_analysis.topInsights || []).map((insight: string, i: number) => (
+                        <div key={i} className="flex gap-2 text-sm">
+                          <span className="text-indigo-500 font-bold">{i + 1}.</span>
+                          <span>{insight}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Stats bar */}
+                  <div className="flex gap-4 text-xs text-gray-400 border-t pt-2">
+                    <span>Analysis run: {engagement.preliminary_analysis_at ? new Date(engagement.preliminary_analysis_at).toLocaleString() : '—'}</span>
+                    <span>Questions: {engagement.preliminary_analysis.questionsAnswered ?? 0}/{engagement.preliminary_analysis.totalQuestions ?? 0}</span>
+                    <span>Chains: {engagement.preliminary_analysis.chainsCompleted ?? 0}/{engagement.preliminary_analysis.totalChains ?? 0}</span>
+                  </div>
+
+                  {/* Gaps list */}
+                  <div>
+                    <h4 className="font-semibold text-gray-900 mb-3">Identified Gaps</h4>
+                    {gaps.length === 0 ? (
+                      <p className="text-sm text-slate-500">No gaps recorded.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {gaps.map((gap) => (
+                          <div key={gap.id} className="border border-slate-200 rounded-lg p-4 bg-white">
+                            <div className="flex items-center gap-2 flex-wrap mb-2">
+                              {gap.source === 'ai_preliminary' && (
+                                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                                  AI suggested
+                                </span>
+                              )}
+                              {gap.severity && (
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                  gap.severity === 'blocking' ? 'bg-red-100 text-red-700'
+                                  : gap.severity === 'important' ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {gap.severity}
+                                </span>
+                              )}
+                              <span className="text-xs text-slate-500">{gap.gap_area}</span>
+                              {gap.status !== 'identified' && (
+                                <span className="text-xs text-slate-500">— {gap.status}</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-700 mb-2">{gap.description}</p>
+                            {gap.source === 'ai_preliminary' && gap.status === 'identified' && (
+                              <div className="flex gap-2 mt-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDismissGap(gap.id)}
+                                  className="text-xs text-gray-500 hover:text-gray-700 underline"
+                                >
+                                  Dismiss (not relevant)
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const ctx = window.prompt('Add context from follow-up call (this will be sent to report generation):');
+                                    if (ctx !== null) handleResolveGap(gap.id, ctx);
+                                  }}
+                                  disabled={resolvingGapId === gap.id}
+                                  className="text-xs text-indigo-600 hover:text-indigo-800 underline disabled:opacity-50"
+                                >
+                                  {resolvingGapId === gap.id ? 'Saving...' : 'Resolve with context'}
+                                </button>
+                              </div>
+                            )}
+                            {gap.status === 'resolved' && gap.additional_context && (
+                              <p className="text-xs text-slate-600 mt-2 pt-2 border-t border-slate-100">
+                                <strong>Context:</strong> {gap.additional_context}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {engagement.review_status !== 'complete' && gaps.some((g) => g.status === 'identified') && (
+                      <p className="text-sm text-amber-600 mt-3">
+                        Resolve or dismiss all gaps, then mark review complete to enable report generation.
+                      </p>
+                    )}
+                    {engagement.preliminary_analysis && engagement.review_status !== 'complete' && (
+                      <button
+                        type="button"
+                        onClick={handleMarkReviewComplete}
+                        className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+                      >
+                        Mark review complete
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Analysis Tab */}
           {activeTab === 'analysis' && (
             <div className="space-y-6">
@@ -423,23 +790,55 @@ export default function SystemsAuditView({ clientId }: SystemsAuditViewProps) {
                 </div>
               ) : !report ? (
                 <div className="text-center py-12 bg-indigo-50 border border-indigo-200 rounded-lg">
-                  <Sparkles className="w-12 h-12 text-indigo-600 mx-auto mb-4" />
-                  <p className="text-indigo-900 font-medium mb-2">Ready to Generate Analysis</p>
-                  <p className="text-sm text-indigo-700 mb-4">
-                    Click the "Generate Analysis" button above to create the comprehensive Systems Audit report
-                  </p>
-                  <button
-                    onClick={handleGenerateReport}
-                    disabled={generating}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors"
-                  >
-                    {generating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="w-4 h-4" />
-                    )}
-                    {generating ? 'Generating...' : 'Generate Analysis'}
-                  </button>
+                  {!engagement.preliminary_analysis ? (
+                    <>
+                      <BarChart3 className="w-12 h-12 text-indigo-600 mx-auto mb-4" />
+                      <p className="text-indigo-900 font-medium mb-2">Run preliminary analysis first</p>
+                      <p className="text-sm text-indigo-700 mb-4">
+                        Use &quot;Run Preliminary Analysis&quot; above to review data quality and gaps, then complete the Review tab before generating the full report.
+                      </p>
+                      <button
+                        onClick={handleRunPreliminary}
+                        disabled={runningPreliminary}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors"
+                      >
+                        {runningPreliminary ? <Loader2 className="w-4 h-4 animate-spin" /> : <BarChart3 className="w-4 h-4" />}
+                        {runningPreliminary ? 'Running...' : 'Run Preliminary Analysis'}
+                      </button>
+                    </>
+                  ) : engagement.review_status === 'complete' ? (
+                    <>
+                      <Sparkles className="w-12 h-12 text-indigo-600 mx-auto mb-4" />
+                      <p className="text-indigo-900 font-medium mb-2">Ready to Generate Full Report</p>
+                      <p className="text-sm text-indigo-700 mb-4">
+                        Review is complete. Click below to generate the comprehensive Systems Audit report (1–2 minutes).
+                      </p>
+                      <button
+                        onClick={handleGenerateReport}
+                        disabled={generating}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors"
+                      >
+                        {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        {generating ? 'Generating...' : 'Generate Full Report'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-12 h-12 text-amber-600 mx-auto mb-4" />
+                      <p className="text-amber-900 font-medium mb-2">Complete the Review tab</p>
+                      <p className="text-sm text-amber-700 mb-4">
+                        Resolve or dismiss identified gaps and mark review complete, then you can generate the full report.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('review')}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Go to Review tab
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-6">

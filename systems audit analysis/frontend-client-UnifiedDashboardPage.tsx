@@ -116,6 +116,7 @@ export default function UnifiedDashboardPage() {
     nextTaskTitle: string | null;
     sprintTheme: string | null;
   } | null>(null);
+  const [gaLifeAlignmentScore, setGALifeAlignmentScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -520,6 +521,7 @@ export default function UnifiedDashboardPage() {
       // Fetch GA sprint data if enrolled
       const hasGA = serviceList.some(s => s.serviceCode === '365_method' || s.serviceCode === '365_alignment');
       if (hasGA && clientSession?.clientId) {
+        setGALifeAlignmentScore(null);
         try {
           const { data: slRow } = await supabase
             .from('service_lines')
@@ -620,6 +622,23 @@ export default function UnifiedDashboardPage() {
             const isSprintComplete = resolvedWeeks === totalWeeks;
             const weeksBehind = Math.max(0, calendarWeek - activeWeek);
             const completionRate = totalTaskCount > 0 ? Math.round((completedCount / totalTaskCount) * 100) : 0;
+
+            // Latest life alignment score for GA card badge
+            let lifeScore: number | null = null;
+            try {
+              const { data: latestScore } = await supabase
+                .from('life_alignment_scores')
+                .select('overall_score')
+                .eq('client_id', clientSession.clientId)
+                .eq('sprint_number', sprintNumber)
+                .order('week_number', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (latestScore?.overall_score != null) lifeScore = Number(latestScore.overall_score);
+            } catch {
+              // ignore
+            }
+            setGALifeAlignmentScore(lifeScore);
 
             let nextTaskTitle: string | null = null;
             const activeWeekData = weeks.find((w: any) => w.weekNumber === activeWeek);
@@ -1189,6 +1208,13 @@ export default function UnifiedDashboardPage() {
                   {/* Goal Alignment card body */}
                   {(service.serviceCode === '365_method' || service.serviceCode === '365_alignment') && (
                     <>
+                      {gaLifeAlignmentScore != null && (
+                        <div className="mb-3">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-rose-100 text-rose-700">
+                            Life Alignment: {Math.round(gaLifeAlignmentScore)}
+                          </span>
+                        </div>
+                      )}
                       {gaSprintData?.hasSprint && !gaSprintData.isSprintComplete && (
                         <div className="mb-4 space-y-3">
                           <div>
@@ -1204,11 +1230,14 @@ export default function UnifiedDashboardPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-4 text-xs text-gray-500">
-                            <span>{gaSprintData.completedTasks} of {gaSprintData.totalTasks} tasks done</span>
+                            <span>Tasks: {gaSprintData.completedTasks}/{gaSprintData.totalTasks} complete</span>
                             {gaSprintData.sprintTheme && (
                               <span className="truncate">• {gaSprintData.sprintTheme}</span>
                             )}
                           </div>
+                          <Link to="/progress" className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mt-1 inline-block">
+                            View full progress →
+                          </Link>
                           {gaSprintData.hasCatchUpNeeded && (
                             <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
                               <Clock className="w-3.5 h-3.5 flex-shrink-0" />
@@ -1326,6 +1355,7 @@ export default function UnifiedDashboardPage() {
             {gaSprintData?.hasSprint ? (
               <>
                 <QuickLink to="/tasks" icon={Target} label="Sprint" />
+                <QuickLink to="/progress" icon={BarChart3} label="Progress" />
                 <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
                 <QuickLink to="/chat" icon="💬" label="Chat" />
                 <QuickLink to="/appointments" icon="📅" label="Book Call" />

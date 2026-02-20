@@ -521,7 +521,12 @@ function buildPhase1Prompt(
   const MAX_TEXT = 600;
   const systemsSlice = systems.slice(0, MAX_SYSTEMS);
 
-  const systemDetails = systemsSlice.map(s => `
+  const systemDetails = systemsSlice.map((s: any) => {
+    const notes = s.field_notes || {};
+    const noteLines = Object.entries(notes).length
+      ? '\n- Client context (anything to add): ' + Object.entries(notes).map(([f, note]) => `${f}: "${TRUNCATE(String(note), 200)}"`).join('; ')
+      : '';
+    return `
 **${s.system_name}** (${s.category_code})
 - Criticality: ${s.criticality}
 - Cost: £${s.monthly_cost || 0}/mo
@@ -532,8 +537,21 @@ function buildPhase1Prompt(
 - User satisfaction: ${s.user_satisfaction || '?'}/5
 - Known issues: "${TRUNCATE(s.known_issues || 'None specified', MAX_TEXT)}"
 - Workarounds: "${TRUNCATE(s.workarounds_in_use || 'None specified', MAX_TEXT)}"
-- Future plan: ${s.future_plan || 'keep'}
-`).join('\n');
+- Future plan: ${s.future_plan || 'keep'}${noteLines}
+`;
+  }).join('\n');
+
+  const raw = discovery.raw_responses || {};
+  const stage1ContextLines = Object.entries(raw)
+    .filter(([k]) => k.endsWith('_context') && raw[k])
+    .map(([k, v]) => `- ${k.replace(/_context$/, '')}: "${TRUNCATE(String(v), 300)}"`)
+    .join('\n');
+  const stage1ContextBlock = stage1ContextLines
+    ? `
+
+Optional context from Stage 1 ("anything to add"):
+${stage1ContextLines}`
+    : '';
 
   return `
 You are extracting structured FACTS from a Systems Audit assessment. Extract ALL facts, numbers, and quotes. Analyse each system's integration status. Do NOT generate findings, process analysis, scores, or recommendations — only facts about the company and its systems.
@@ -560,7 +578,7 @@ Integration rating: ${discovery.integration_rating}
 Critical spreadsheets: ${discovery.critical_spreadsheets}
 Change appetite: ${discovery.change_appetite}
 Fears: ${(discovery.systems_fears || []).join(', ')}
-Champion: ${discovery.internal_champion}
+Champion: ${discovery.internal_champion}${stage1ContextBlock}
 
 TARGET STATE:
 - Desired outcomes: ${(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
@@ -664,15 +682,22 @@ function buildPhase2AnalysePrompt(
   const MAX_TEXT = 600;
   const deepDivesSlice = deepDives.slice(0, MAX_DEEP_DIVES);
 
-  const deepDiveDetails = deepDivesSlice.map(dd => {
+  const deepDiveDetails = deepDivesSlice.map((dd: any) => {
     const responses = dd.responses || {};
     const pains = dd.key_pain_points || [];
+    const respEntries = Object.entries(responses)
+      .filter(([k]) => !k.endsWith('_context'))
+      .slice(0, 25)
+      .map(([k, v]) => {
+        const ctx = responses[`${k}_context`];
+        return `- ${k}: ${TRUNCATE(JSON.stringify(v), 400)}${ctx ? `\n  → Context: "${TRUNCATE(String(ctx), 200)}"` : ''}`;
+      });
     return `
 ### ${dd.chain_code.toUpperCase().replace(/_/g, ' ')}
 **Pain Points (their words):**
 ${pains.slice(0, 15).map((p: string) => `- "${TRUNCATE(p, 300)}"`).join('\n')}
 **All Responses:**
-${Object.entries(responses).slice(0, 25).map(([k, v]) => `- ${k}: ${TRUNCATE(JSON.stringify(v), 400)}`).join('\n')}
+${respEntries.join('\n')}
 `;
   }).join('\n\n');
 

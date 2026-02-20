@@ -28,6 +28,49 @@ interface ProcessChain {
   display_order: number;
 }
 
+function DeepDiveContextField({
+  contextValue,
+  onContextChange,
+}: {
+  contextValue: string;
+  onContextChange: (value: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(!!contextValue);
+
+  if (!expanded && !contextValue) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="mt-2 text-xs text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Anything to add?
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <textarea
+        value={contextValue || ''}
+        onChange={(e) => onContextChange(e.target.value)}
+        onBlur={() => { if (!contextValue?.trim()) setExpanded(false); }}
+        placeholder="Optional — add context to explain your answer..."
+        maxLength={300}
+        rows={2}
+        autoFocus={!contextValue}
+        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none bg-gray-50"
+      />
+      <p className="text-[10px] text-gray-400 text-right mt-0.5">
+        {contextValue?.length || 0} / 300
+      </p>
+    </div>
+  );
+}
+
 export default function ProcessDeepDivesPage() {
   const navigate = useNavigate();
   const { clientSession } = useAuth();
@@ -669,6 +712,14 @@ export default function ProcessDeepDivesPage() {
                         </label>
                       ))}
                     </div>
+                  )}
+
+                  {(question.type === 'select' || question.type === 'multi_select') &&
+                    (question.type === 'select' ? responses[question.field] : (responses[question.field]?.length ?? 0) > 0) && (
+                    <DeepDiveContextField
+                      contextValue={responses[`${question.field}_context`] || ''}
+                      onContextChange={(val) => handleResponseChange(`${question.field}_context`, val)}
+                    />
                   )}
                 </div>
               ))}

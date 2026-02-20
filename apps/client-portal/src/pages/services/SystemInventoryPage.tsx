@@ -61,7 +61,51 @@ interface SystemInventory {
   training_status?: 'formal_training' | 'self_taught' | 'one_person_knows' | 'nobody_really_knows';
   setup_owner?: string;
   contract_commitment?: 'month_to_month' | 'annual_locked' | 'multi_year' | 'free' | 'dont_know';
+  field_notes?: Record<string, string>;
   created_at: string;
+}
+
+function InventoryContextField({
+  fieldKey,
+  contextValue,
+  onContextChange,
+}: {
+  fieldKey: string;
+  contextValue: string;
+  onContextChange: (value: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(!!contextValue);
+
+  if (!expanded && !contextValue) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="mt-1.5 text-xs text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Anything to add?
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-1.5">
+      <textarea
+        value={contextValue || ''}
+        onChange={(e) => onContextChange(e.target.value)}
+        onBlur={() => { if (!contextValue?.trim()) setExpanded(false); }}
+        placeholder="Optional — add context..."
+        maxLength={300}
+        rows={2}
+        autoFocus={!contextValue}
+        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none bg-gray-50"
+      />
+      <p className="text-[10px] text-gray-400 text-right mt-0.5">{contextValue?.length || 0} / 300</p>
+    </div>
+  );
 }
 
 export default function SystemInventoryPage() {
@@ -253,10 +297,20 @@ export default function SystemInventoryPage() {
       actual_usage_description: system.actual_usage_description,
       training_status: system.training_status,
       setup_owner: system.setup_owner,
-      contract_commitment: system.contract_commitment
+      contract_commitment: system.contract_commitment,
+      field_notes: system.field_notes || {}
     });
     setEditingId(system.id);
     setShowAddForm(true);
+  };
+
+  const handleFieldNoteChange = (field: string, value: string) => {
+    setFormData(prev => {
+      const nextNotes = { ...(prev.field_notes || {}) };
+      if (value?.trim()) nextNotes[field] = value;
+      else delete nextNotes[field];
+      return { ...prev, field_notes: nextNotes };
+    });
   };
 
   const handleSaveSystem = async () => {
@@ -309,7 +363,8 @@ export default function SystemInventoryPage() {
         actual_usage_description: formData.actual_usage_description || null,
         training_status: formData.training_status || null,
         setup_owner: formData.setup_owner || null,
-        contract_commitment: formData.contract_commitment || null
+        contract_commitment: formData.contract_commitment || null,
+        field_notes: formData.field_notes && Object.keys(formData.field_notes).length > 0 ? formData.field_notes : null
       };
 
       if (editingId) {
@@ -602,6 +657,11 @@ export default function SystemInventoryPage() {
                   <option value="important">Important</option>
                   <option value="nice_to_have">Nice to Have</option>
                 </select>
+                <InventoryContextField
+                  fieldKey="criticality"
+                  contextValue={formData.field_notes?.criticality || ''}
+                  onContextChange={(val) => handleFieldNoteChange('criticality', val)}
+                />
               </div>
 
               {/* Primary Users */}
@@ -752,6 +812,11 @@ export default function SystemInventoryPage() {
                     <option value="none">None</option>
                     <option value="zapier_make">Zapier/Make</option>
                   </select>
+                  <InventoryContextField
+                    fieldKey="integration_method"
+                    contextValue={formData.field_notes?.integration_method || ''}
+                    onContextChange={(val) => handleFieldNoteChange('integration_method', val)}
+                  />
                 </div>
 
                 {/* Integrates With (text input for now - can be enhanced later) */}
@@ -1022,6 +1087,11 @@ export default function SystemInventoryPage() {
                     <option value="unsure">Unsure</option>
                     <option value="upgrade">Upgrade</option>
                   </select>
+                  <InventoryContextField
+                    fieldKey="future_plan"
+                    contextValue={formData.field_notes?.future_plan || ''}
+                    onContextChange={(val) => handleFieldNoteChange('future_plan', val)}
+                  />
                   <input
                     type="text"
                     value={formData.future_plan_context || ''}

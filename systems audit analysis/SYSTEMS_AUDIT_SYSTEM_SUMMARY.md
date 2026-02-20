@@ -3,7 +3,7 @@
 **Purpose:** Comprehensive reference for the Systems Audit (Systems & Process Audit) service line in torsor-practice-platform: data model, migrations, edge functions, front-end (admin, platform, client portal), and integration with Discovery/scoring.  
 **This folder and summary are read-only in normal work; update the summary only when explicitly requested.**
 
-**Last updated:** February 2026 (post tech stack intelligence + Pass 1 phase split).
+**Last updated:** February 2026 (post Part 4 universal "Add Context", field_notes, preliminary/report prompts).
 
 ---
 
@@ -28,21 +28,21 @@
 | Table | Purpose |
 |------|--------|
 | **sa_engagements** | One row per client engagement. Tracks `client_id`, `practice_id`, `status` with **validated transitions** (pending → stage_1_complete → stage_2_complete → stage_3_scheduled | stage_3_complete → analysis_complete → report_delivered → implementation | completed). **New (20260216):** `is_shared_with_client` (BOOLEAN, default FALSE), `hourly_rate` (NUMERIC, default 45.00). Stage timestamps, `stage_3_consultant_id`, dates, `engagement_type`, `scope_areas`, `quoted_price`. Trigger `enforce_sa_status_transition` blocks invalid status changes (service_role bypass). |
-| **sa_discovery_responses** | Stage 1 discovery: one row per engagement. Columns: Current Pain (`systems_breaking_point`, `operations_self_diagnosis`, `month_end_shame`), Impact (`manual_hours_monthly`, `month_end_close_duration`, `data_error_frequency`, `expensive_systems_mistake`, **`information_access_frequency`**), Tech Stack (`software_tools_used`, `integration_rating`, `critical_spreadsheets`), Focus (`broken_areas`, `magic_process_fix`), Readiness (`change_appetite`, `systems_fears`, `internal_champion`), **Context** (`team_size`, `expected_team_size_12mo`, `revenue_band`, `industry_sector`). Plus `raw_responses` JSONB. |
+| **sa_discovery_responses** | Stage 1 discovery: one row per engagement. Columns: Current Pain, Impact, Tech Stack, Focus, Readiness, **Context** (`team_size`, `expected_team_size_12mo`, `revenue_band`, `industry_sector`). Plus **`raw_responses`** JSONB: answers keyed by question ID; optional **`{questionId}_context`** keys for "Anything to add?" (max 300 chars, single/multi questions). |
 
 ### 2.2 Stage 2 – System inventory
 
 | Table | Purpose |
 |------|--------|
 | **sa_system_categories** | Reference: category codes and names for grouping systems. |
-| **sa_system_inventory** | Per-engagement system cards: `system_name`, `category_code`, usage, criticality, pricing, `integration_method`, `integrates_with`, `manual_transfer_required`, `manual_hours_monthly`, `data_quality_score`, `user_satisfaction`, `known_issues`, `workarounds_in_use`, `future_plan`, etc. |
+| **sa_system_inventory** | Per-engagement system cards: `system_name`, `category_code`, usage, criticality, pricing, `integration_method`, `integrates_with`, `manual_transfer_required`, `manual_hours_monthly`, `data_quality_score`, `user_satisfaction`, `known_issues`, `workarounds_in_use`, `future_plan`, etc. **`field_notes`** JSONB (optional): per-field "Anything to add?" context keyed by field name (e.g. `criticality`, `integration_method`, `future_plan`). |
 
 ### 2.3 Stage 3 – Process deep dives
 
 | Table | Purpose |
 |------|--------|
 | **sa_process_chains** | Reference: process chains (e.g. quote_to_cash, procure_to_pay). |
-| **sa_process_deep_dives** | Per-engagement, per `chain_code`: consultant-led; `responses` JSONB, `key_pain_points`, `hours_identified`, scheduling and conduct timestamps. |
+| **sa_process_deep_dives** | Per-engagement, per `chain_code`: consultant-led; **`responses`** JSONB (answers keyed by field; optional **`{field}_context`** for "Anything to add?"), `key_pain_points`, `hours_identified`, scheduling and conduct timestamps. |
 
 ### 2.4 Report and outputs
 
@@ -85,6 +85,11 @@ All SA-related migrations are copied into this folder with the prefix `migration
 - **20260217_sa_*** – Engagements client insert, inventory data-entry context, text char limit 800, aspiration columns.
 - **20260218000000_sa_pass1_phase_statuses** – Pass 1 phase status handling.
 - **20260219000000_sa_tech_product_tables** – `sa_tech_products`, `sa_tech_integrations`, `sa_middleware_capabilities`, `sa_auto_discovery_log` (indexes, RLS).
+- **20260220000001_sa_inventory_expansion** – Inventory columns (e.g. actual_usage_vs_capability, training_status, setup_ownership, contract_commitment).
+- **20260220000002_sa_process_staff_interviews**, **20260220000003_sa_engagement_gaps_review** – Process/staff and gaps review.
+- **20260221000001_sa_preliminary_analysis**, **20260221000002_sa_follow_up_script_transcript**, **20260222000001_sa_preliminary_gaps_and_status**, **20260222000002_sa_follow_up_script_transcript** – Preliminary analysis and follow-up.
+- **20260223000001_sa_inventory_field_notes** – **`field_notes`** JSONB on `sa_system_inventory` for optional per-field context ("Anything to add?").
+- **20260223000002_sa_pp_test_data_context** – Optional backfill of sample context for P&P test engagement (Stage 1 `raw_responses` and Stage 3 `responses`).
 
 ---
 
@@ -95,7 +100,10 @@ All SA-related migrations are copied into this folder with the prefix `migration
 | **generate-sa-report** | **Deprecated orchestrator.** Thin redirect: parses `engagementId`, logs deprecation, calls `generate-sa-report-pass1` via fetch, returns Pass 1 response with `_note: 'Routed through deprecated orchestrator → Pass 1 pipeline'`. No longer contains inline Pass 1/Pass 2 logic. |
 | **generate-sa-report-pass1** | **Phase 1:** Extract core facts and system inventory (12k tokens). **Phase 2:** Analyse processes, scores, uniquenessBrief, aspirationGap (12k). **Phase 3:** Diagnose — findings + quick wins (12k). **Phase 4a:** Recommend — recommendations only (12k tokens). **Phase 4b (separate call):** Queries tech stack DB (products with `uk_strong`, integrations, middleware), builds **tech context** via `buildTechContext()`, then one AI call (32k tokens) to generate **systemsMaps** (four levels), **techStackSummary**, **hoursBreakdown**; wrapped in try/catch — on failure sets null and continues. Final `pass1_data` includes `systemsMaps`, `techStackSummary`, `hoursBreakdown` (from Phase 4b merge). Writes findings/recommendations to `sa_findings` / `sa_recommendations`. Invokes Pass 2 via fetch when complete. |
 | **generate-sa-report-pass2** | Reads `pass1_data` from `sa_audit_reports`. Writes narrative using **client’s actual system names** from inventory (no hardcoded Harvest/Asana/Xero); uses **`breakingPoint`** for framing; dynamic Path and time-freedom examples from `f.systems`. Updates report with headline, executive_summary, cost_of_chaos_narrative, time_freedom_narrative, scores; status → `generated`. |
+| **analyze-sa-preliminary** | Reviews completed SA assessment (Stage 1 `raw_responses`, Stage 2 inventory with **`field_notes`**, Stage 3 deep dives **`responses`** including **`_context`** keys). Builds prompt with context inline (`→ Context: "..."` / `→ {field} note: "..."`). Returns JSON: businessSnapshot, confidenceScores, suggestedGaps, contradictions, topInsights. |
 | **discover-sa-tech-product** | **Lookup:** `action: 'lookup'`, `productName` → returns `found`, `product` (full payload with pricing, scores, integration_count, middleware_count, integrations list), `integrations`. **Lookup batch:** `action: 'lookup_batch'`, `productNames[]` → returns `results: Record<name, { found, slug, product_name, category, integration_count }>`. **Discover:** `action: 'discover'` → stub (returns "Auto-discovery coming soon"). Uses live schema (`slug`, `category`, `uk_strong`, `score_ease`, etc.). Fuzzy match: slug, name, contains, slug partial. |
+
+**Context in prompts:** **generate-sa-report-pass1** Phase 1 includes Stage 1 optional context (raw_responses keys ending `_context`) and per-system **field_notes**; Phase 2 deep-dive text includes **`_context`** per response. **analyze-sa-preliminary** includes the same context inline.
 
 Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.ts** (Discovery scoring for `systems_audit`).
 
@@ -118,7 +126,9 @@ Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.t
 - **UnifiedDashboardPage** – SA tile; **if `saReportShared`** then route to `/service/systems_audit/report` and status “Report Ready” (emerald); else stage-based routing (assessment → inventory → process-deep-dives).
 - **App.tsx** – Declares routes including **SAReportPage** at `/service/systems_audit/report`.
 - **Config** – **serviceLineAssessments.ts**: **SYSTEMS_AUDIT_ASSESSMENT** with **19 questions, 6 sections** (Current Pain, Impact Quantification, Tech Stack, Focus Areas, Readiness, **Context**). Includes **sa_information_access** (Q2.5), **sa_team_size**, **sa_expected_team_size**, **sa_revenue_band**, **sa_industry**; **sa_manual_hours** has 5 options only; **sa_fears** has 7 options including “No major fears – just want to get on with it” and “We’ll discover how bad things really are”.
-- **ServiceAssessmentPage** – Maps **information_access_frequency** from `sa_information_access`; maps **team_size**, **expected_team_size_12mo**, **revenue_band**, **industry_sector** from Context section.
+- **ServiceAssessmentPage** – Stage 1: **"Anything to add?"** optional context on every **single** and **multi** question (collapsible link → 300-char textarea); stored in `raw_responses` as `{questionId}_context`. Maps information_access_frequency, team_size, expected_team_size_12mo, revenue_band, industry_sector.
+- **SystemInventoryPage** – Stage 2: **"Anything to add?"** after key dropdowns (criticality, integration_method, future_plan); stored in **`field_notes`** JSONB per system.
+- **ProcessDeepDivesPage** – Stage 3: **"Anything to add?"** on every **select** and **multi_select**; stored in `responses` as `{field}_context`.
 - **SAReportPage** – Full client report: sticky nav (Overview, Cost of Chaos, Findings, The Plan, Your Future); hero + score rings; cost narrative; findings accordion; recommendations with phase badges and payback; “Your Future” + magic-fix quote; CTA to `/appointments`. Loads from `sa_engagements` (checks `is_shared_with_client`), `sa_audit_reports`, `sa_findings`, `sa_recommendations`; redirects to dashboard if not shared or no report.
 
 ---
@@ -142,9 +152,9 @@ Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.t
 
 All files are in a **single folder** (no subfolders). Naming convention:
 
-- **Edge functions:** `generate-sa-report-copy.ts`, `generate-sa-report-pass1-copy.ts`, `generate-sa-report-pass2-copy.ts`, **`discover-sa-tech-product-copy.ts`**
+- **Edge functions:** `generate-sa-report-copy.ts`, `generate-sa-report-pass1-copy.ts`, `generate-sa-report-pass2-copy.ts`, **`analyze-sa-preliminary-copy.ts`**, **`discover-sa-tech-product-copy.ts`**
 - **Shared:** `shared-service-registry-copy.ts`, `shared-service-scorer-v2-copy.ts`, `shared-service-scorer-copy.ts`
-- **Migrations:** `migrations-20251219_systems_audit_complete.sql`, … `migrations-20260216_sa_rls_systematic_review.sql`, **`migrations-20260217_sa_*.sql`**, **`migrations-20260218000000_sa_pass1_phase_statuses.sql`**, **`migrations-20260219000000_sa_tech_product_tables.sql`**
+- **Migrations:** `migrations-20251219_systems_audit_complete.sql`, … **`migrations-20260219000000_sa_tech_product_tables.sql`**, **`migrations-20260220000001_sa_inventory_expansion.sql`** … **`migrations-20260223000002_sa_pp_test_data_context.sql`**
 - **Frontend admin:** `frontend-admin-ClientServicesPage.tsx`, **`frontend-admin-TechDatabasePage.tsx`**, **`frontend-admin-SystemMatchBadge.tsx`**, **`frontend-admin-useTechLookupBatch.ts`**, **`frontend-admin-types-tech-stack.ts`**, etc.
 - **Frontend platform:** `frontend-platform-SystemsAuditView.tsx`, etc.
 - **Frontend client:** `frontend-client-ServiceAssessmentPage.tsx`, `frontend-client-SystemInventoryPage.tsx`, `frontend-client-ProcessDeepDivesPage.tsx`, **`frontend-client-SAReportPage.tsx`**, `frontend-client-UnifiedDashboardPage.tsx`, `frontend-client-App.tsx`, `frontend-client-serviceLineAssessments.ts`, etc.
@@ -167,4 +177,4 @@ This overwrites all **copied** files from the live codebase (including the two 2
 ---
 
 **Document generated:** February 2026  
-**Scope:** torsor-practice-platform — Systems Audit service line (50/50 implementation, tech stack intelligence, Pass 1 phase split, systems maps).
+**Scope:** torsor-practice-platform — Systems Audit service line (50/50 implementation, tech stack intelligence, Pass 1 phase split, systems maps, universal "Add Context" on structured questions, field_notes, preliminary analysis).

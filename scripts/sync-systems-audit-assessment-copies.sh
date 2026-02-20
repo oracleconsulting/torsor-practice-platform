@@ -10,10 +10,11 @@ mkdir -p "$DEST"
 
 echo "Syncing live files -> systems audit analysis (flat copies)..."
 
-# --- Edge functions: Systems Audit report pipeline + tech stack discovery ---
+# --- Edge functions: Systems Audit report pipeline + preliminary analysis + tech stack discovery ---
 cp "$ROOT/supabase/functions/generate-sa-report/index.ts" "$DEST/generate-sa-report-copy.ts" 2>/dev/null && echo "  generate-sa-report-copy.ts" || true
 cp "$ROOT/supabase/functions/generate-sa-report-pass1/index.ts" "$DEST/generate-sa-report-pass1-copy.ts" 2>/dev/null && echo "  generate-sa-report-pass1-copy.ts" || true
 cp "$ROOT/supabase/functions/generate-sa-report-pass2/index.ts" "$DEST/generate-sa-report-pass2-copy.ts" 2>/dev/null && echo "  generate-sa-report-pass2-copy.ts" || true
+cp "$ROOT/supabase/functions/analyze-sa-preliminary/index.ts" "$DEST/analyze-sa-preliminary-copy.ts" 2>/dev/null && echo "  analyze-sa-preliminary-copy.ts" || true
 cp "$ROOT/supabase/functions/discover-sa-tech-product/index.ts" "$DEST/discover-sa-tech-product-copy.ts" 2>/dev/null && echo "  discover-sa-tech-product-copy.ts" || true
 
 # --- Shared (registry, scorer - systems_audit entries) ---
@@ -22,7 +23,7 @@ cp "$ROOT/supabase/functions/discover-sa-tech-product/index.ts" "$DEST/discover-
 [ -f "$ROOT/supabase/functions/_shared/service-scorer.ts" ] && cp "$ROOT/supabase/functions/_shared/service-scorer.ts" "$DEST/shared-service-scorer-copy.ts" && echo "  shared-service-scorer-copy.ts"
 
 # --- Migrations (SA-specific: sa_engagements, sa_discovery_responses, sa_audit_reports, sa_findings, sa_recommendations, sa_system_*, sa_process_*, sa_tech_*, service_lines systems_audit) ---
-for m in 20251219_systems_audit_complete 20251220_fix_sa_deep_dives_client_rls 20251220_fix_sa_engagements_client_rls 20251221_add_admin_guidance_columns 20251221_update_sa_reports_status_constraint 20251221_add_pass1_data_column 20251221_fix_sa_engagements_admin_rls 20251222_fix_sa_reports_update_rls 20251222_fix_sa_reports_client_rls 20260114_sa_documents_and_context 20260114_fix_sa_reports_rls_member_role 20260204_add_systems_audit_service 20260216_sa_status_validation_and_sharing 20260216_sa_rls_systematic_review 20260217_sa_engagements_client_insert 20260217_sa_inventory_data_entry_context 20260217_sa_text_char_limit_800 20260217_sa_aspiration_columns 20260218000000_sa_pass1_phase_statuses 20260219000000_sa_tech_product_tables; do
+for m in 20251219_systems_audit_complete 20251220_fix_sa_deep_dives_client_rls 20251220_fix_sa_engagements_client_rls 20251221_add_admin_guidance_columns 20251221_update_sa_reports_status_constraint 20251221_add_pass1_data_column 20251221_fix_sa_engagements_admin_rls 20251222_fix_sa_reports_update_rls 20251222_fix_sa_reports_client_rls 20260114_sa_documents_and_context 20260114_fix_sa_reports_rls_member_role 20260204_add_systems_audit_service 20260216_sa_status_validation_and_sharing 20260216_sa_rls_systematic_review 20260217_sa_engagements_client_insert 20260217_sa_inventory_data_entry_context 20260217_sa_text_char_limit_800 20260217_sa_aspiration_columns 20260218000000_sa_pass1_phase_statuses 20260219000000_sa_tech_product_tables 20260220000001_sa_inventory_expansion 20260220000002_sa_process_staff_interviews 20260220000003_sa_engagement_gaps_review 20260221000001_sa_preliminary_analysis 20260221000002_sa_follow_up_script_transcript 20260222000001_sa_preliminary_gaps_and_status 20260222000002_sa_follow_up_script_transcript 20260223000001_sa_inventory_field_notes 20260223000002_sa_pp_test_data_context; do
   [ -f "$ROOT/supabase/migrations/${m}.sql" ] && cp "$ROOT/supabase/migrations/${m}.sql" "$DEST/migrations-${m}.sql" && echo "  migrations-${m}.sql"
 done
 

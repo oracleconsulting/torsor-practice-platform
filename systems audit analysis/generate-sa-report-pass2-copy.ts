@@ -13,6 +13,68 @@ const corsHeaders = {
 // Updates report with status 'generated'
 // =============================================================================
 
+function buildNumberLock(pass1Data: any): string {
+  const f = pass1Data.facts || {};
+  const recs = pass1Data.recommendations || [];
+  const qwins = pass1Data.quickWins || [];
+  const scores = pass1Data.scores || {};
+
+  const totalBenefit = recs.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0);
+  const totalInvestment = recs.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0);
+  const hoursReclaimable = recs.reduce((sum: number, r: any) =>
+    sum + (parseFloat(r.hoursSavedWeekly) || 0), 0);
+  const qwinHours = qwins.reduce((sum: number, q: any) =>
+    sum + (parseFloat(q.hoursSavedWeekly) || 0), 0);
+
+  const paybackMonths = totalBenefit > 0 && totalInvestment > 0
+    ? Math.max(1, Math.round(totalInvestment / (totalBenefit / 12)))
+    : 0;
+  const roiYear1 = totalInvestment > 0 ? Math.round(totalBenefit / totalInvestment) : 0;
+  const roi3Year = totalInvestment > 0 ? Math.round(totalBenefit * 3 / totalInvestment) : 0;
+
+  return `
+╔═══════════════════════════════════════════════════════════════════════════╗
+NUMBER LOCK — USE THESE EXACT NUMBERS IN ALL NARRATIVES
+╚═══════════════════════════════════════════════════════════════════════════╝
+
+These numbers are pre-calculated and reconciled. Do NOT recalculate.
+Do NOT round differently. Copy them exactly into your prose.
+
+COST OF CHAOS:
+- Hours wasted weekly: ${f.hoursWastedWeekly || 0}
+- Annual cost of chaos: £${(f.annualCostOfChaos || 0).toLocaleString()}
+- Growth multiplier: ${f.growthMultiplier || 1.3}x
+- Projected cost at scale: £${(f.projectedCostAtScale || 0).toLocaleString()}
+
+BENEFIT:
+- Total annual benefit (all ${recs.length} recommendations): £${totalBenefit.toLocaleString()}
+- Hours reclaimable weekly: ${Math.round(hoursReclaimable)}
+- Quick wins only: ${qwins.length} actions, ${qwinHours}h/week
+
+INVESTMENT:
+- Total investment: £${totalInvestment.toLocaleString()}${totalInvestment === 0 ? ' (process fixes only)' : ''}
+- Payback: ${paybackMonths <= 0 ? 'Immediate' : `${paybackMonths} months`}
+- ROI (Year 1): ${roiYear1 > 0 ? `${roiYear1}:1` : 'Infinite'}
+- ROI (3 Year): ${roi3Year > 0 ? `${roi3Year}:1` : 'Infinite'}
+
+SCORES:
+- Integration: ${scores.integration?.score || 0}/100
+- Automation: ${scores.automation?.score || 0}/100
+- Data Accessibility: ${scores.dataAccessibility?.score || 0}/100
+- Scalability: ${scores.scalability?.score || 0}/100
+
+RECOMMENDATIONS: ${recs.length} total
+${recs.map((r: any, i: number) => `  ${i + 1}. ${r.title} — £${(r.annualBenefit || 0).toLocaleString()}/yr, ${r.hoursSavedWeekly || 0}h/wk, £${(r.estimatedCost || 0).toLocaleString()} cost`).join('\n')}
+
+WHEN WRITING NARRATIVES:
+- The headline MUST include "£${(f.annualCostOfChaos || 0).toLocaleString()}"
+- Use "${Math.round(hoursReclaimable)} hours" for time reclaimed — not any other number
+- Use "£${totalBenefit.toLocaleString()}" for total annual benefit
+- Use "${recs.length} recommendations" for the count
+- DO NOT say "35 hours" if the number is ${Math.round(hoursReclaimable)}
+`;
+}
+
 function buildPass2Prompt(pass1Data: any): string {
   const f = pass1Data.facts;
   
@@ -244,6 +306,8 @@ GOOD: "You can't make good decisions with bad numbers. This fixes the numbers."
 BAD: "Not only does this address operational challenges, but it also positions you for sustainable long-term growth in an evolving market landscape."
 
 GOOD: "This fixes the chaos. Then you can grow."
+
+${buildNumberLock(pass1Data)}
 
 Return ONLY the JSON object with these four fields. No markdown wrapping.
 `;
@@ -533,7 +597,28 @@ serve(async (req) => {
       tokens: tokensUsed,
       timeMs: generationTime
     });
-    
+
+    // McKinsey validation: check narratives use correct numbers
+    const f2 = pass1Data.facts || {};
+    const recs2 = pass1Data.recommendations || [];
+    const totalBenefit2 = recs2.reduce((s: number, r: any) => s + (r.annualBenefit || 0), 0);
+    const annualStr = (f2.annualCostOfChaos || 0).toLocaleString();
+    if (narratives.headline && !narratives.headline.includes(annualStr) && !narratives.headline.includes(`£${Math.round((f2.annualCostOfChaos || 0) / 1000)}k`)) {
+      console.warn(`[SA McKinsey] Headline may use wrong annual cost. Expected £${annualStr}. Got: "${narratives.headline}"`);
+    }
+    const execAmounts = (narratives.executiveSummary || '').match(/£[\d,]+/g) || [];
+    const knownAmounts = [
+      f2.annualCostOfChaos, f2.projectedCostAtScale, totalBenefit2,
+      ...recs2.map((r: any) => r.annualBenefit),
+      ...recs2.map((r: any) => r.estimatedCost),
+    ].filter(Boolean);
+    for (const amt of execAmounts) {
+      const numVal = parseInt(amt.replace(/[£,]/g, ''));
+      if (numVal > 1000 && !knownAmounts.some((k: number) => Math.abs(numVal - k) < k * 0.05)) {
+        console.warn(`[SA McKinsey] Executive summary contains unrecognised amount: ${amt}`);
+      }
+    }
+
     // Calculate totals
     const totalTokens = (report.llm_tokens_used || 0) + tokensUsed;
     const totalCost = (report.llm_cost || 0) + cost;

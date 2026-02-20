@@ -925,7 +925,14 @@ export default function ServiceAssessmentPage() {
 
         <div className="space-y-8">
           {sectionQuestions.map(q => (
-            <QuestionCard key={q.id} question={q} value={responses[q.id]} onChange={v => setResponses({ ...responses, [q.id]: v })} />
+            <QuestionCard
+              key={q.id}
+              question={q}
+              value={responses[q.id]}
+              onChange={v => setResponses(prev => ({ ...prev, [q.id]: v }))}
+              contextValue={responses[`${q.id}_context`] || ''}
+              onContextChange={val => setResponses(prev => ({ ...prev, [`${q.id}_context`]: val }))}
+            />
           ))}
         </div>
 
@@ -956,7 +963,62 @@ export default function ServiceAssessmentPage() {
   );
 }
 
-function QuestionCard({ question, value, onChange }: { question: AssessmentQuestion; value: any; onChange: (v: any) => void }) {
+function ContextField({
+  contextValue,
+  onContextChange,
+}: {
+  contextValue: string;
+  onContextChange: (value: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(!!contextValue);
+
+  if (!expanded && !contextValue) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="mt-3 text-sm text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+        </svg>
+        Anything to add?
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <textarea
+        value={contextValue || ''}
+        onChange={(e) => onContextChange(e.target.value)}
+        onBlur={() => { if (!contextValue?.trim()) setExpanded(false); }}
+        placeholder="Optional — add any context that helps explain your answer..."
+        maxLength={300}
+        rows={2}
+        autoFocus={!contextValue}
+        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 resize-none bg-gray-50"
+      />
+      <p className="text-xs text-gray-400 text-right mt-0.5">
+        {contextValue?.length || 0} / 300
+      </p>
+    </div>
+  );
+}
+
+function QuestionCard({
+  question,
+  value,
+  onChange,
+  contextValue = '',
+  onContextChange,
+}: {
+  question: AssessmentQuestion;
+  value: any;
+  onChange: (v: any) => void;
+  contextValue?: string;
+  onContextChange?: (v: string) => void;
+}) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <label className="block text-lg font-medium text-gray-900 mb-4">{question.question}{question.required && <span className="text-red-500 ml-1">*</span>}</label>
@@ -986,6 +1048,10 @@ function QuestionCard({ question, value, onChange }: { question: AssessmentQuest
           })}
           {question.maxSelections && <p className="text-sm text-gray-500 mt-2">Select up to {question.maxSelections} ({value?.length || 0} selected)</p>}
         </div>
+      )}
+
+      {(question.type === 'single' || question.type === 'multi') && value != null && (value !== '' && (!Array.isArray(value) || value.length > 0)) && onContextChange && (
+        <ContextField contextValue={contextValue} onContextChange={onContextChange} />
       )}
 
       {question.type === 'text' && (
