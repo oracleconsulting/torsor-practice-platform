@@ -724,7 +724,11 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
         const enrichedClients: Client[] = (discoveryClients || []).map((client: any) => {
           const discovery = discoveryMap.get(client.id);
-          const isComplete = discovery?.completed_at || client.program_status === 'discovery_complete';
+          const responseCount = discovery?.responses ? Object.keys(discovery.responses).length : 0;
+          // Only show 100% / Roadmap Active when there are actual discovery responses AND
+          // a completion signal. Avoids showing complete when program_status is discovery_complete
+          // (e.g. from Goal Alignment) but the client never did the discovery assessment.
+          const isComplete = responseCount > 0 && (discovery?.completed_at || client.program_status === 'discovery_complete');
           
           // Calculate actual progress based on responses
           // Discovery has ~40 questions total across all sections
@@ -732,8 +736,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           let progress = 0;
           if (isComplete) {
             progress = 100;
-          } else if (discovery?.responses) {
-            const responseCount = Object.keys(discovery.responses || {}).length;
+          } else if (responseCount > 0) {
             progress = Math.min(95, Math.round((responseCount / TOTAL_DISCOVERY_QUESTIONS) * 100));
           } else if (client.last_portal_login) {
             // Logged in but no responses yet
@@ -4857,6 +4860,17 @@ function DiscoveryClientModal({
               {/* RESPONSES TAB */}
               {activeTab === 'responses' && (
                 <div className="space-y-6">
+                  {/* IDs for database lookup - always show when on Responses tab */}
+                  <div className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-2 font-mono text-xs text-slate-600">
+                    <p className="text-slate-500 font-sans font-medium mb-1.5">IDs for tables</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      <span><strong className="text-slate-500">client_id</strong> (practice_members): <code className="bg-slate-200 px-1 rounded">{clientId}</code></span>
+                      {discovery?.id && <span><strong className="text-slate-500">destination_discovery.id</strong>: <code className="bg-slate-200 px-1 rounded">{discovery.id}</code></span>}
+                      {discoveryEngagement?.id && <span><strong className="text-slate-500">discovery_engagement.id</strong>: <code className="bg-slate-200 px-1 rounded">{discoveryEngagement.id}</code></span>}
+                      {destinationReport?.id && <span><strong className="text-slate-500">discovery_report.id</strong>: <code className="bg-slate-200 px-1 rounded">{destinationReport.id}</code></span>}
+                    </div>
+                  </div>
+
                   {!discovery ? (
                     <div className="text-center py-12 bg-gray-50 rounded-xl">
                       <Compass className="w-12 h-12 text-gray-300 mx-auto mb-4" />
