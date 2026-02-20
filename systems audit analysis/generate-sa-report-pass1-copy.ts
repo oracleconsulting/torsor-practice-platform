@@ -353,7 +353,9 @@ function calculateMetrics(
   map1Metrics: any,
   recommendations: any[],
   mapLevel: number,
+  blendedHourlyRate?: number,
 ): any {
+  const rate = blendedHourlyRate ?? map1Metrics?.blendedHourlyRate ?? 45;
   const totalSoftware = Object.values(nodes).reduce((s, n) => s + n.cost, 0);
   const greenEdges = edges.filter((e) => e.status === 'green' || e.status === 'blue').length;
   const totalNodes = Object.keys(nodes).length;
@@ -376,7 +378,7 @@ function calculateMetrics(
   }
   if (mapLevel >= 4) investment += 4000;
   const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved);
-  const annualWaste = Math.round(manualHours * 45 * 52);
+  const annualWaste = Math.round(manualHours * rate * 52);
   const annualSavings = map1Metrics.annualWaste - annualWaste;
   let payback = '—';
   if (investment > 0 && annualSavings > 0) {
@@ -404,12 +406,18 @@ function buildSystemsMaps(
   findings: any[],
   recommendations: any[],
   aiMap4?: any,
+  blendedHourlyRate?: number,
 ): SystemsMap[] {
   const systems = facts?.systems || [];
   if (systems.length === 0) return [];
   const nodes = layoutSystems(systems);
   const map1Edges = buildEdgesMap1(nodes, systems, findings);
-  const map1Metrics = { manualHours: facts.hoursWastedWeekly || 0, annualWaste: facts.annualCostOfChaos || 0 };
+  const map1Metrics = {
+    manualHours: facts.hoursWastedWeekly || 0,
+    annualWaste: facts.annualCostOfChaos || 0,
+    blendedHourlyRate: blendedHourlyRate ?? facts?.blendedHourlyRate ?? 45,
+  };
+  const rate = map1Metrics.blendedHourlyRate;
   const map1: SystemsMap = {
     title: 'Where You Are Today',
     subtitle: 'The reality',
@@ -417,7 +425,7 @@ function buildSystemsMaps(
     nodes,
     edges: map1Edges,
     middlewareHub: null,
-    metrics: calculateMetrics(nodes, map1Edges, map1Metrics, recommendations, 1),
+    metrics: calculateMetrics(nodes, map1Edges, map1Metrics, recommendations, 1, rate),
   };
   const map2Edges = buildEdgesMap2(map1Edges, recommendations);
   const map2: SystemsMap = {
@@ -427,7 +435,7 @@ function buildSystemsMaps(
     nodes: { ...nodes },
     edges: map2Edges,
     middlewareHub: null,
-    metrics: calculateMetrics(nodes, map2Edges, map1Metrics, recommendations, 2),
+    metrics: calculateMetrics(nodes, map2Edges, map1Metrics, recommendations, 2, rate),
   };
   const { edges: map3Edges, hub } = buildEdgesMap3(map2Edges, recommendations);
   const map3: SystemsMap = {
@@ -437,7 +445,7 @@ function buildSystemsMaps(
     nodes: { ...nodes },
     edges: map3Edges,
     middlewareHub: hub,
-    metrics: calculateMetrics(nodes, map3Edges, map1Metrics, recommendations, 3),
+    metrics: calculateMetrics(nodes, map3Edges, map1Metrics, recommendations, 3, rate),
   };
   const maps: SystemsMap[] = [map1, map2, map3];
   if (aiMap4?.nodes && aiMap4.edges) {
@@ -448,7 +456,7 @@ function buildSystemsMaps(
       nodes: aiMap4.nodes,
       edges: aiMap4.edges,
       middlewareHub: null,
-      metrics: calculateMetrics(aiMap4.nodes, aiMap4.edges, map1Metrics, recommendations, 4),
+      metrics: calculateMetrics(aiMap4.nodes, aiMap4.edges, map1Metrics, recommendations, 4, rate),
     };
     maps.push(map4);
   }
@@ -579,6 +587,18 @@ Critical spreadsheets: ${discovery.critical_spreadsheets}
 Change appetite: ${discovery.change_appetite}
 Fears: ${(discovery.systems_fears || []).join(', ')}
 Champion: ${discovery.internal_champion}${stage1ContextBlock}
+
+WHERE YOU'RE GOING / YOUR BUSINESS:
+- Growth vision (12-18mo): "${TRUNCATE(discovery.growth_vision || '', MAX_TEXT)}"
+- Next hires / blockers: "${TRUNCATE(discovery.hiring_blockers || '', MAX_TEXT)}"
+- Growth type: ${discovery.growth_type || 'Not specified'}
+- Capacity ceiling (what breaks first): "${TRUNCATE(discovery.capacity_ceiling || '', MAX_TEXT)}"
+- Tried and failed (tools): "${TRUNCATE(discovery.failed_tools || '', MAX_TEXT)}"
+- Non-negotiables: "${TRUNCATE(discovery.non_negotiables || '', MAX_TEXT)}"
+- Business model: ${discovery.business_model || 'Not specified'}
+- Team structure / roster: "${TRUNCATE(discovery.team_structure || '', MAX_TEXT)}"
+- Work location: ${discovery.work_location || 'Not specified'}
+- Key person dependency: "${TRUNCATE(discovery.key_person_dependency || '', MAX_TEXT)}"
 
 TARGET STATE:
 - Desired outcomes: ${(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
@@ -1572,6 +1592,20 @@ async function runPhase5(
   ];
 
   const pass1Data = reportRow.pass1_data as any;
+
+  // Staff roster for per-person cost and narrative (legacy engagements: no roster → fallback to blended rate)
+  const { data: staffMembers } = await supabaseClient
+    .from('sa_staff_members')
+    .select('id, name, role_title, department, hourly_rate, hours_per_week')
+    .eq('engagement_id', engagementId);
+  const staffForFacts = (staffMembers || []).map((sm: any) => ({
+    id: sm.id,
+    name: sm.name,
+    roleTitle: sm.role_title,
+    hourlyRate: Number(sm.hourly_rate),
+    hoursPerWeek: Number(sm.hours_per_week) || 37.5,
+  }));
+
   const finalPass1Data = {
     uniquenessBrief: phase2.uniquenessBrief,
     facts: {
@@ -1582,6 +1616,7 @@ async function runPhase5(
       projectedCostAtScale: phase2.projectedCostAtScale,
       aspirationGap: phase2.aspirationGap,
       allClientQuotes: allQuotes,
+      staffMembers: staffForFacts,
     },
     scores: phase2.scores,
     findings: phase3.findings,
@@ -1594,6 +1629,10 @@ async function runPhase5(
     clientPresentation: phase5.clientPresentation,
   };
 
+  // ─── McKinsey: resolve hourly rate for cost calculations (used in maps + reconciliation) ─────
+  const { data: engRow } = await supabaseClient.from('sa_engagements').select('hourly_rate').eq('id', engagementId).single();
+  const hourlyRate = engRow?.hourly_rate != null ? Number(engRow.hourly_rate) : 45;
+
   // ─── Build Systems Maps (deterministic Maps 1–3 + optional Map 4 from Phase 4b) ─────
   const phase4b = pass1Data.phase4b ?? null;
   const systemsMaps = buildSystemsMaps(
@@ -1601,6 +1640,7 @@ async function runPhase5(
     finalPass1Data.findings || [],
     finalPass1Data.recommendations || [],
     phase4b,
+    hourlyRate,
   );
   if (systemsMaps.length > 0) {
     finalPass1Data.systemsMaps = systemsMaps;
@@ -1614,9 +1654,6 @@ async function runPhase5(
 
   // ─── McKinsey Number Reconciliation Layer ──────────────────────────
   // Every number must trace to ONE calculation chain. pass1_data is the single source of truth.
-  const { data: engRow } = await supabaseClient.from('sa_engagements').select('hourly_rate').eq('id', engagementId).single();
-  const hourlyRate = engRow?.hourly_rate != null ? Number(engRow.hourly_rate) : 45;
-
   const f = finalPass1Data.facts;
   const recs = finalPass1Data.recommendations || [];
   const qwins = finalPass1Data.quickWins || [];

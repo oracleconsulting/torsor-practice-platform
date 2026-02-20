@@ -75,6 +75,8 @@ import { AccountsUploadPanel } from '../../components/benchmarking/admin/Account
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
 import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
 import SprintEditorModal from '../../components/admin/SprintEditorModal';
+import { getAssessmentByCode } from '../../config/serviceLineAssessments';
+import type { AssessmentQuestion } from '../../config/serviceLineAssessments';
 
 
 interface ClientServicesPageProps {
@@ -203,6 +205,7 @@ interface Client {
   client_owner_id?: string | null;
   owner?: { id: string; name: string } | null;
   is_test_client?: boolean;
+  hide_discovery_in_portal?: boolean;
 }
 
 interface StaffMember {
@@ -224,7 +227,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [pendingGAClientId, setPendingGAClientId] = useState<string | null>(null);
   const [assigningOwner, setAssigningOwner] = useState<string | null>(null);
-  
+  const [updatingDiscoveryHide, setUpdatingDiscoveryHide] = useState<string | null>(null);
+
   // Invitation modal state
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
@@ -491,6 +495,25 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     }
   };
 
+  const handleToggleHideDiscovery = async (clientId: string, hide: boolean) => {
+    setUpdatingDiscoveryHide(clientId);
+    try {
+      const { error } = await supabase
+        .from('practice_members')
+        .update({ hide_discovery_in_portal: hide })
+        .eq('id', clientId);
+      if (error) throw error;
+      setClients(prev => prev.map(c =>
+        c.id === clientId ? { ...c, hide_discovery_in_portal: hide } : c
+      ));
+    } catch (e) {
+      console.error('Failed to update hide Discovery:', e);
+      alert('Failed to update setting');
+    } finally {
+      setUpdatingDiscoveryHide(null);
+    }
+  };
+
   // Send client invitation
   const handleSendInvite = async () => {
     // For discovery invites, services are optional. For direct invites, at least one is required.
@@ -710,6 +733,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             last_portal_login,
             created_at,
             client_owner_id,
+            hide_discovery_in_portal,
             owner:practice_members!client_owner_id(id, name)
           `)
           .eq('practice_id', practiceId)
@@ -755,7 +779,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             lastActivity: client.last_portal_login,
             hasRoadmap: isComplete,
             client_owner_id: client.client_owner_id,
-            owner: client.owner
+            owner: client.owner,
+            hide_discovery_in_portal: client.hide_discovery_in_portal ?? false
           };
         });
         
@@ -791,7 +816,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         if (serviceLineCode === '365_method') {
           const { data: clientsData } = await supabase
             .from('practice_members')
-            .select('id, name, email, client_company, program_status, last_portal_login')
+            .select('id, name, email, client_company, program_status, last_portal_login, hide_discovery_in_portal')
             .eq('practice_id', practiceId)
             .eq('member_type', 'client')
             .order('name');
@@ -808,7 +833,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             .select('client_id, status')
             .in('client_id', clientIds);
 
-          const enrichedClients: Client[] = (clientsData || []).map(client => {
+          const enrichedClients: Client[] = (clientsData || []).map((client: any) => {
             const clientAssessments = assessments?.filter(a => a.client_id === client.id) || [];
             const completedCount = clientAssessments.filter(a => a.status === 'completed').length;
             const hasRoadmap = roadmaps?.some(r => r.client_id === client.id) || false;
@@ -821,7 +846,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
               status: client.program_status || 'active',
               progress: completedCount * 33,
               lastActivity: client.last_portal_login,
-              hasRoadmap
+              hasRoadmap,
+              hide_discovery_in_portal: client.hide_discovery_in_portal ?? false
             };
           });
           setClients(enrichedClients);
@@ -845,7 +871,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             email,
             client_company,
             program_status,
-            last_portal_login
+            last_portal_login,
+            hide_discovery_in_portal
           )
         `)
         .eq('practice_id', practiceId)
@@ -932,7 +959,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             status: enrollment.status || client.program_status || 'active',
             progress,
             lastActivity: client.last_portal_login,
-            hasRoadmap: serviceLineCode === '365_method' ? hasRoadmap : !!enrollment.onboarding_completed_at
+            hasRoadmap: serviceLineCode === '365_method' ? hasRoadmap : !!enrollment.onboarding_completed_at,
+            hide_discovery_in_portal: client.hide_discovery_in_portal ?? false
           };
         });
 
@@ -1422,6 +1450,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Owner</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Progress</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Status</th>
+                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Discovery in portal</th>
                       <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Last Activity</th>
                       <th className="px-6 py-4"></th>
                     </tr>
@@ -1484,6 +1513,18 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
                               </span>
                             )}
                           </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <label className="flex items-center gap-2 cursor-pointer" title="When checked, Discovery assessment is hidden on this client's dashboard (e.g. for auto-onboarded service-line clients)">
+                            <input
+                              type="checkbox"
+                              checked={!!client.hide_discovery_in_portal}
+                              onChange={(e) => handleToggleHideDiscovery(client.id, e.target.checked)}
+                              disabled={updatingDiscoveryHide === client.id}
+                              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <span className="text-sm text-gray-600">Hide Discovery</span>
+                          </label>
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-sm text-gray-500">
@@ -13347,6 +13388,8 @@ function SystemsAuditClientModal({
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
   const [stage1Responses, setStage1Responses] = useState<any[]>([]);
+  /** Prefer service_line_assessments.responses when present so admin and client read from same place */
+  const [serviceLineAssessmentResponses, setServiceLineAssessmentResponses] = useState<Record<string, unknown> | null>(null);
   const [stage2Inventory, setStage2Inventory] = useState<any[]>([]);
   const [stage3DeepDives, setStage3DeepDives] = useState<any[]>([]);
   const [report, setReport] = useState<any>(null);
@@ -13501,9 +13544,20 @@ function SystemsAuditClientModal({
             console.warn('[Systems Audit Modal] Stage 1 data exists but appears empty');
             setStage1Responses([]);
           }
-        } else {
-          setStage1Responses([]);
+} else {
+            setStage1Responses([]);
         }
+
+        // Prefer service_line_assessments for Stage 1 display (same source as client portal)
+        const { data: slaRow } = await supabase
+          .from('service_line_assessments')
+          .select('responses')
+          .eq('client_id', clientId)
+          .eq('service_line_code', 'systems_audit')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setServiceLineAssessmentResponses((slaRow?.responses as Record<string, unknown>) ?? null);
 
         // Fetch Stage 2 inventory
         const { data: stage2Data, error: stage2Error } = await supabase
@@ -14305,12 +14359,18 @@ function SystemsAuditClientModal({
   const hasPreliminary = !!engagement?.preliminary_analysis;
   const preliminary = engagement?.preliminary_analysis as PreliminaryAnalysis | undefined;
 
+  // SA Edge Functions (LLM) can run 1–3+ minutes; use long timeout to avoid "Failed to send a request to the Edge Function".
+  const SA_EDGE_FN_TIMEOUT_MS = 300000; // 5 minutes
+
   const handleRunPreliminary = async () => {
     if (!engagement) return;
     setRunningPreliminary(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SA_EDGE_FN_TIMEOUT_MS);
     try {
       const { data, error } = await supabase.functions.invoke('analyze-sa-preliminary', {
         body: { engagementId: engagement.id },
+        signal: controller.signal as AbortSignal,
       });
       if (error) throw error;
       if (data?.analysis) {
@@ -14318,8 +14378,14 @@ function SystemsAuditClientModal({
       }
       if (!data?.success) throw new Error(data?.error || 'Preliminary analysis failed');
     } catch (e: any) {
-      alert(e?.message || 'Failed to run preliminary analysis');
+      const msg = e?.message || 'Failed to run preliminary analysis';
+      if (msg.includes('Failed to send') || msg.includes('aborted') || msg.includes('Edge Function')) {
+        alert('The request is taking longer than expected. The analysis may still be running — refresh the page in a minute to check for new gaps.');
+      } else {
+        alert(msg);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setRunningPreliminary(false);
     }
   };
@@ -14353,9 +14419,12 @@ function SystemsAuditClientModal({
   const handleGenerateScript = async () => {
     if (!engagement?.id) return;
     setGeneratingScript(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SA_EDGE_FN_TIMEOUT_MS);
     try {
       const { data, error } = await supabase.functions.invoke('generate-sa-call-script', {
         body: { engagementId: engagement.id },
+        signal: controller.signal as AbortSignal,
       });
       if (error) throw error;
       if (data?.script) {
@@ -14365,8 +14434,14 @@ function SystemsAuditClientModal({
         alert(data.message);
       }
     } catch (e: any) {
-      alert(e?.message || 'Script generation failed');
+      const msg = e?.message || 'Script generation failed';
+      if (msg.includes('Failed to send') || msg.includes('aborted') || msg.includes('Edge Function')) {
+        alert('The request is taking longer than expected. The script may still be generating — refresh the page in a minute to check.');
+      } else {
+        alert(msg);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setGeneratingScript(false);
     }
   };
@@ -14375,9 +14450,12 @@ function SystemsAuditClientModal({
     if (!engagement?.id || !transcriptText.trim()) return;
     if (!window.confirm(`Process this transcript (${transcriptText.length} characters)? The AI will extract answers and auto-resolve matching gaps.`)) return;
     setProcessingTranscript(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SA_EDGE_FN_TIMEOUT_MS);
     try {
       const { data, error } = await supabase.functions.invoke('process-sa-transcript', {
         body: { engagementId: engagement.id, transcript: transcriptText },
+        signal: controller.signal as AbortSignal,
       });
       if (error) throw error;
       setTranscriptText('');
@@ -14386,8 +14464,14 @@ function SystemsAuditClientModal({
       const stats = data?.stats || {};
       alert(`Transcript processed! ${stats.resolved ?? 0} of ${stats.totalGaps ?? 0} gaps resolved.${(stats.additionalInsights ?? 0) > 0 ? ` ${stats.additionalInsights} additional insights captured.` : ''}`);
     } catch (e: any) {
-      alert(e?.message || 'Processing failed');
+      const msg = e?.message || 'Processing failed';
+      if (msg.includes('Failed to send') || msg.includes('aborted') || msg.includes('Edge Function') || msg.includes('connection closed')) {
+        alert('The request took a long time and the connection may have closed. Transcript processing often completes anyway — refresh the page in a minute to see if gaps were resolved.');
+      } else {
+        alert(msg);
+      }
     } finally {
+      clearTimeout(timeoutId);
       setProcessingTranscript(false);
     }
   };
@@ -14452,109 +14536,64 @@ function SystemsAuditClientModal({
                       </p>
                     </div>
                     <div className="p-6">
-                      {stage1Responses.length > 0 && stage1Responses[0] ? (
-                        <div className="space-y-4">
-                          {(() => {
-                            const response = stage1Responses[0];
-                            const rawResponses = response.raw_responses || {};
-                            
-                            // Helper to get value from either individual column or raw_responses
-                            const getValue = (dbKey: string, rawKey?: string): any => {
-                              // First try individual column
-                              if (response[dbKey] !== null && response[dbKey] !== undefined && response[dbKey] !== '') {
-                                return response[dbKey];
+                      {(() => {
+                            // Same source as client: prefer service_line_assessments.responses, else sa_discovery_responses.raw_responses
+                            const discoveryRow = stage1Responses[0];
+                            const responses: Record<string, unknown> = serviceLineAssessmentResponses
+                              ?? (discoveryRow?.raw_responses as Record<string, unknown>)
+                              ?? {};
+                            const assessment = getAssessmentByCode('systems_audit');
+                            if (!assessment) return <p className="text-gray-500">Assessment config not found</p>;
+
+                            function formatStage1Value(q: AssessmentQuestion, value: unknown): string | null {
+                              if (value == null || value === '') return null;
+                              if (q.type === 'staff_roster' || q.id === 'sa_staff_roster') {
+                                const roster = Array.isArray(value) ? value : (typeof value === 'string' ? (() => { try { return JSON.parse(value) as unknown[]; } catch { return []; } })() : []);
+                                if (roster.length === 0) return null;
+                                return roster
+                                  .map((p: { name?: string; roleTitle?: string; hourlyRate?: number; hoursPerWeek?: number }) => {
+                                    const name = (p as { name?: string }).name || '—';
+                                    const role = (p as { roleTitle?: string }).roleTitle;
+                                    const rate = (p as { hourlyRate?: number }).hourlyRate;
+                                    const hours = (p as { hoursPerWeek?: number }).hoursPerWeek;
+                                    let line = name;
+                                    if (role) line += ` · ${role}`;
+                                    if (rate != null && rate > 0) line += ` · £${rate}/hr`;
+                                    if (hours != null) line += ` · ${hours}h/week`;
+                                    return line;
+                                  })
+                                  .join('\n');
                               }
-                              // Fallback to raw_responses if provided
-                              if (rawKey && rawResponses[rawKey] !== null && rawResponses[rawKey] !== undefined && rawResponses[rawKey] !== '') {
-                                return rawResponses[rawKey];
+                              if (Array.isArray(value)) {
+                                return value.length > 0 && typeof value[0] === 'object' && value[0] !== null && 'name' in (value[0] as object)
+                                  ? (value as { name?: string; roleTitle?: string }[]).map((p) => p.name + (p.roleTitle ? ` (${p.roleTitle})` : '')).join(', ')
+                                  : (value as string[]).join(', ');
                               }
-                              return null;
-                            };
-                            
-                            // All possible fields from sa_discovery_responses table
-                            // Format: { key: 'db_column_name', rawKey: 'raw_responses_key', label: '...', section: '...' }
-                            const fields = [
-                              // Section 1: Current Pain
-                              { key: 'systems_breaking_point', rawKey: 'sa_breaking_point', label: 'What broke – or is about to break – that made you think about systems?', section: 'Current Pain' },
-                              { key: 'operations_self_diagnosis', rawKey: 'sa_operations_diagnosis', label: 'How would you describe your current operations?', section: 'Current Pain' },
-                              { key: 'month_end_shame', rawKey: 'sa_month_end_shame', label: 'What would embarrass you if a potential investor saw it?', section: 'Current Pain' },
-                              
-                              // Section 2: Impact Quantification
-                              { key: 'manual_hours_monthly', rawKey: 'sa_manual_hours', label: 'How many hours per month are spent on manual data entry or transfer?', section: 'Impact Quantification' },
-                              { key: 'month_end_close_duration', rawKey: 'sa_month_end_duration', label: 'How long does your month-end close take?', section: 'Impact Quantification' },
-                              { key: 'data_error_frequency', rawKey: 'sa_data_error_frequency', label: 'How often do you discover data errors or inconsistencies?', section: 'Impact Quantification' },
-                              { key: 'expensive_systems_mistake', rawKey: 'sa_expensive_mistake', label: 'What\'s the most expensive mistake your systems have caused?', section: 'Impact Quantification' },
-                              { key: 'information_access_frequency', rawKey: 'sa_information_access', label: 'How often can\'t you get the information you need within 5 minutes?', section: 'Impact Quantification' },
-                              
-                              // Section 3: Tech Stack
-                              { key: 'software_tools_used', rawKey: 'sa_tech_stack', label: 'What software tools do you currently use?', section: 'Tech Stack' },
-                              { key: 'integration_rating', rawKey: 'sa_integration_health', label: 'How well do your systems integrate with each other?', section: 'Tech Stack' },
-                              { key: 'critical_spreadsheets', rawKey: 'sa_spreadsheet_count', label: 'How many critical spreadsheets do you rely on?', section: 'Tech Stack' },
-                              
-                              // Section 4: Focus Areas
-                              { key: 'broken_areas', rawKey: 'sa_priority_areas', label: 'Which areas of your business feel most broken?', section: 'Focus Areas' },
-                              { key: 'magic_process_fix', rawKey: 'sa_magic_fix', label: 'If you could fix one process by magic, what would it be?', section: 'Focus Areas' },
-                              // Section 5: What Good Looks Like
-                              { key: 'desired_outcomes', rawKey: 'sa_desired_outcomes', label: 'What specific outcomes do you want from fixing systems?', section: 'What Good Looks Like' },
-                              { key: 'monday_morning_vision', rawKey: 'sa_monday_morning', label: 'What does Monday morning look like when systems work?', section: 'What Good Looks Like' },
-                              { key: 'time_freedom_priority', rawKey: 'sa_time_freedom', label: 'What would you do with 10+ hours/week back?', section: 'What Good Looks Like' },
-                              // Section 6: Where You're Going
-                              { key: 'growth_vision', rawKey: 'sa_growth_shape', label: 'When you picture the business in 12–18 months, what\'s actually different?', section: "Where You're Going" },
-                              { key: 'hiring_blockers', rawKey: 'sa_next_hires', label: 'Next 2–3 roles you\'ll hire for — and what\'s stopping you', section: "Where You're Going" },
-                              { key: 'growth_type', rawKey: 'sa_growth_type', label: 'Which best describes what growth looks like for you?', section: "Where You're Going" },
-                              { key: 'capacity_ceiling', rawKey: 'sa_capacity_ceiling', label: 'What would break if you won 3 new clients next month?', section: "Where You're Going" },
-                              { key: 'failed_tools', rawKey: 'sa_tried_and_failed', label: 'Systems or tools tried and abandoned in the last 2 years', section: "Where You're Going" },
-                              { key: 'non_negotiables', rawKey: 'sa_non_negotiables', label: 'What must NOT change?', section: "Where You're Going" },
-                              // Section 7: Your Business
-                              { key: 'team_size', rawKey: 'sa_team_size', label: 'Current team size', section: 'Your Business' },
-                              { key: 'expected_team_size_12mo', rawKey: 'sa_expected_team_size', label: 'Expected team size in 12 months', section: 'Your Business' },
-                              { key: 'industry_sector', rawKey: 'sa_industry', label: 'Industry sector', section: 'Your Business' },
-                              { key: 'business_model', rawKey: 'sa_business_model', label: 'How does your business make money?', section: 'Your Business' },
-                              { key: 'team_structure', rawKey: 'sa_team_structure', label: 'How is your team structured?', section: 'Your Business' },
-                              { key: 'work_location', rawKey: 'sa_locations', label: 'Where does your team work?', section: 'Your Business' },
-                              { key: 'key_person_dependency', rawKey: 'sa_key_people_dependencies', label: 'If one person went away for 2 weeks, what would break?', section: 'Your Business' },
-                              // Section 8: Readiness
-                              { key: 'change_appetite', rawKey: 'sa_change_appetite', label: 'What\'s your appetite for change right now?', section: 'Readiness' },
-                              { key: 'systems_fears', rawKey: 'sa_fears', label: 'What are your biggest fears about changing systems?', section: 'Readiness' },
-                              { key: 'internal_champion', rawKey: 'sa_champion', label: 'Who would champion systems improvements internally?', section: 'Readiness' },
-                            ];
-                            
-                            // Group by section
-                            const sections: Record<string, typeof fields> = {};
-                            fields.forEach((field) => {
-                              if (!sections[field.section]) sections[field.section] = [];
-                              sections[field.section].push(field);
-                            });
-                            
-                            return Object.entries(sections).map(([sectionName, sectionFields]: [string, typeof fields]) => {
-                              const sectionData = sectionFields
-                                .map((field) => {
-                                  let value = getValue(field.key, field.rawKey);
-                                  if (value === null || value === undefined || value === '') {
-                                    return null;
-                                  }
-                                  if (Array.isArray(value)) {
-                                    value = value.join(', ');
-                                  } else if (typeof value === 'string' && value.includes('_') && !value.includes(' ')) {
-                                    // Format enum values: 'controlled_chaos' -> 'Controlled Chaos'
-                                    value = value.split('_').map((word: string) => 
-                                      word.charAt(0).toUpperCase() + word.slice(1)
-                                    ).join(' ');
-                                  }
-                                  return { field, value };
+                              if (typeof value === 'string' && value.includes('_') && !value.includes(' ')) {
+                                return value.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                              }
+                              return String(value);
+                            }
+
+                            return assessment.sections.map((sectionName) => {
+                              const sectionQuestions = assessment.questions.filter((q) => q.section === sectionName);
+                              const items = sectionQuestions
+                                .map((q) => {
+                                  const value = responses[q.id];
+                                  const formatted = formatStage1Value(q, value);
+                                  if (formatted == null || formatted === '') return null;
+                                  return { q, formatted };
                                 })
-                                .filter((item): item is { field: typeof fields[0], value: any } => item !== null);
-                              
-                              if (sectionData.length === 0) return null;
-                              
+                                .filter((item): item is { q: AssessmentQuestion; formatted: string } => item !== null);
+                              if (items.length === 0) return null;
                               return (
                                 <div key={sectionName} className="mb-6">
                                   <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">{sectionName}</h5>
                                   <div className="space-y-3">
-                                    {sectionData.map(({ field, value }) => (
-                                      <div key={field.key} className="border-l-4 border-amber-500 pl-4">
-                                        <p className="font-medium text-gray-900">{field.label}</p>
-                                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{String(value)}</p>
+                                    {items.map(({ q, formatted }) => (
+                                      <div key={q.id} className="border-l-4 border-amber-500 pl-4">
+                                        <p className="font-medium text-gray-900">{q.question}</p>
+                                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{formatted}</p>
                                       </div>
                                     ))}
                                   </div>
@@ -14562,10 +14601,6 @@ function SystemsAuditClientModal({
                               );
                             }).filter(Boolean);
                           })()}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500">No responses yet</p>
-                      )}
                     </div>
                   </div>
 
@@ -15172,7 +15207,7 @@ function SystemsAuditClientModal({
                         <h4 className="font-medium text-gray-900 mb-3">Response completeness</h4>
                         <ul className="text-sm text-gray-600 space-y-1">
                           <li>
-                            Stage 1: {stage1Responses[0]?.raw_responses ? Object.entries(stage1Responses[0].raw_responses as Record<string, unknown>).filter(([, v]) => v != null && v !== '').length : 0} of 32 questions answered
+                            Stage 1: {(serviceLineAssessmentResponses ?? stage1Responses[0]?.raw_responses) ? Object.entries((serviceLineAssessmentResponses ?? stage1Responses[0]?.raw_responses) as Record<string, unknown>).filter(([, v]) => v != null && v !== '').length : 0} of 32 questions answered
                           </li>
                           <li>Stage 2: {stage2Inventory.length} systems logged</li>
                           <li>Stage 3: {stage3DeepDives.length} of 7 chains completed</li>
@@ -15401,13 +15436,40 @@ function SystemsAuditClientModal({
                                     </div>
                                   )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => { setShowTranscriptInput(true); setTranscriptText(engagement.follow_up_transcript || ''); }}
-                                  className="text-xs text-indigo-600 hover:underline mt-2"
-                                >
-                                  Upload additional notes or re-process
-                                </button>
+                                {!showTranscriptInput ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setShowTranscriptInput(true); setTranscriptText(engagement.follow_up_transcript || ''); }}
+                                    className="text-xs text-indigo-600 hover:underline mt-2"
+                                  >
+                                    Upload additional notes or re-process
+                                  </button>
+                                ) : (
+                                  <div className="mt-4 space-y-3 pt-4 border-t border-green-200">
+                                    <p className="text-sm text-gray-700">Add more notes or edit the transcript and re-run extraction.</p>
+                                    <textarea
+                                      value={transcriptText}
+                                      onChange={(e) => setTranscriptText(e.target.value)}
+                                      placeholder="Paste updated call transcript or additional notes..."
+                                      className="w-full h-48 border border-gray-300 rounded-lg p-3 text-sm resize-y focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-400">{transcriptText.length > 0 ? `${transcriptText.length} characters` : 'Paste transcript or notes'}</span>
+                                      <div className="flex gap-2">
+                                        <button type="button" onClick={() => { setShowTranscriptInput(false); setTranscriptText(''); }} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                                        <button
+                                          type="button"
+                                          onClick={handleProcessTranscript}
+                                          disabled={processingTranscript || transcriptText.trim().length < 50}
+                                          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                                        >
+                                          {processingTranscript ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                          {processingTranscript ? 'Processing...' : 'Re-process Transcript'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

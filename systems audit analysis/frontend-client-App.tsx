@@ -14,6 +14,7 @@ import AssessmentPart1Page from './pages/assessments/Part1Page';
 import AssessmentPart2Page from './pages/assessments/Part2Page';
 import AssessmentPart3Page from './pages/assessments/Part3Page';
 import AssessmentReviewPage from './pages/assessments/ReviewPage';
+import ViewAssessmentAnswersPage from './pages/assessments/ViewAssessmentAnswersPage';
 import RoadmapPage from './pages/roadmap/RoadmapPage';
 import SprintDashboardPage from './pages/SprintDashboardPage';
 import ChatPage from './pages/chat/ChatPage';
@@ -60,6 +61,7 @@ function App() {
             
             {/* Assessments */}
             <Route path="/assessments" element={<AssessmentsPage />} />
+            <Route path="/assessments/view/:serviceCode" element={<ViewAssessmentAnswersPage />} />
             <Route path="/assessment/part1" element={<AssessmentPart1Page />} />
             <Route path="/assessment/part2" element={<AssessmentPart2Page />} />
             <Route path="/assessment/part3" element={<AssessmentPart3Page />} />

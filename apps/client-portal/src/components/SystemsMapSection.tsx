@@ -594,7 +594,7 @@ export default function SystemsMapSection({ systemsMaps, facts }: {
           { label: 'Software/mo', value: metrics.monthlySoftware || 0, prefix: '£' },
           { label: 'Manual hrs/wk', value: metrics.manualHours || 0, highlight: true },
           { label: 'Annual waste', value: metrics.annualWaste || 0, prefix: '£' },
-          { label: 'Annual savings', value: metrics.annualSavings || 0, prefix: '£', accent: true },
+          { label: 'Annual savings', value: metrics.annualSavings ?? metrics.annualSavingsVsMap1 ?? 0, prefix: '£', accent: true },
         ].map((item, i) => (
           <div key={i} style={{
             background: item.accent ? `${MAP_COLORS[activeMap]}10` : '#0f172a',
@@ -629,6 +629,7 @@ export default function SystemsMapSection({ systemsMaps, facts }: {
             label: 'Key person risk', value: metrics.risk || '—',
             color: metrics.risk === 'Critical' ? '#ef4444'
               : metrics.risk === 'High' ? '#f59e0b'
+              : metrics.risk === 'Moderate' ? '#eab308'
               : metrics.risk === 'Low' ? '#3b82f6' : '#22c55e',
           },
         ].map((item, i) => (

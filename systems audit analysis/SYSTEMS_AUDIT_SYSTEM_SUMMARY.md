@@ -3,7 +3,7 @@
 **Purpose:** Comprehensive reference for the Systems Audit (Systems & Process Audit) service line in torsor-practice-platform: data model, migrations, edge functions, front-end (admin, platform, client portal), and integration with Discovery/scoring.  
 **This folder and summary are read-only in normal work; update the summary only when explicitly requested.**
 
-**Last updated:** February 2026 (post Part 4 universal "Add Context", field_notes, preliminary/report prompts).
+**Last updated:** February 2026 (staff roster, 32q/8-section Stage 1, admin/service_line_assessments alignment, call script + transcript processing, re-process UX).
 
 ---
 
@@ -15,7 +15,7 @@
 - **Outcome:** Map every system, process, and workaround; identify what to fix first; deliver an audit report with findings and recommendations.  
 - **Tiers:** Tier 1 (Systems map and priority list, £2,000 one-off); Tier 2 (Full audit with implementation roadmap, £4,500 one-off).
 
-**50/50 implementation (Feb 2026):** Status transition validation, `is_shared_with_client` and `hourly_rate` on engagements; comprehensive RLS review; 19-question 6-section Stage 1 assessment (including Context); Pass 1/Pass 2 pipeline (orchestrator deprecated); client-facing SA report page at `/service/systems_audit/report` when report is shared.
+**50/50 implementation (Feb 2026):** Status transition validation, `is_shared_with_client` and `hourly_rate` on engagements; comprehensive RLS review; **32-question 8-section** Stage 1 (Current Pain, Impact Quantification, Tech Stack, Focus Areas, What Good Looks Like, Where You're Going, Your Business, Readiness) with **staff roster** (`sa_staff_roster` → `sa_staff_members`, blended rate → `hourly_rate`); admin Stage 1 reads from **service_line_assessments** (same as client); Pass 1/Pass 2 pipeline (orchestrator deprecated); client-facing SA report at `/service/systems_audit/report` when shared; **Assessments** and **View answers** (Stage 1–3) in client portal; **generate-sa-call-script** and **process-sa-transcript** for follow-up call flow; Review tab **Upload additional notes or re-process** shows transcript form when already processed.
 
 **Tech stack intelligence (Feb 2026):** Tech product database (`sa_tech_products`, `sa_tech_integrations`, `sa_middleware_capabilities`, `sa_auto_discovery_log`); **discover-sa-tech-product** edge function (lookup / lookup_batch / discover stub); Pass 1 Phase 4 injects tech context and generates **systems maps** (four-level), **techStackSummary**, **hoursBreakdown** in a separate AI call (Phase 4b) with graceful degradation; admin **Tech Database** page at `/tech-database`; **inventory badges** (In Database / Not in Database) and batch lookup on Stage 2 system inventory.
 
@@ -27,8 +27,9 @@
 
 | Table | Purpose |
 |------|--------|
-| **sa_engagements** | One row per client engagement. Tracks `client_id`, `practice_id`, `status` with **validated transitions** (pending → stage_1_complete → stage_2_complete → stage_3_scheduled | stage_3_complete → analysis_complete → report_delivered → implementation | completed). **New (20260216):** `is_shared_with_client` (BOOLEAN, default FALSE), `hourly_rate` (NUMERIC, default 45.00). Stage timestamps, `stage_3_consultant_id`, dates, `engagement_type`, `scope_areas`, `quoted_price`. Trigger `enforce_sa_status_transition` blocks invalid status changes (service_role bypass). |
-| **sa_discovery_responses** | Stage 1 discovery: one row per engagement. Columns: Current Pain, Impact, Tech Stack, Focus, Readiness, **Context** (`team_size`, `expected_team_size_12mo`, `revenue_band`, `industry_sector`). Plus **`raw_responses`** JSONB: answers keyed by question ID; optional **`{questionId}_context`** keys for "Anything to add?" (max 300 chars, single/multi questions). |
+| **sa_engagements** | One row per client engagement. Tracks `client_id`, `practice_id`, `status` with **validated transitions** (pending → stage_1_complete → …). **`is_shared_with_client`** (BOOLEAN), **`hourly_rate`** (NUMERIC; from staff roster blended rate or default 45). Stage timestamps, `stage_3_consultant_id`, `follow_up_transcript`, `follow_up_transcript_uploaded_at`, `transcript_extraction`, `transcript_processed_at`, etc. Trigger `enforce_sa_status_transition` blocks invalid status changes (service_role bypass). |
+| **sa_discovery_responses** | Stage 1 discovery: one row per engagement. **`raw_responses`** JSONB keyed by question ID (e.g. sa_breaking_point, sa_staff_roster); optional **`{questionId}_context`** for "Anything to add?". Canonical Stage 1 display uses **service_line_assessments** (client_id + service_line_code systems_audit); admin and client both prefer that for consistency. |
+| **sa_staff_members** | Per-engagement staff roster from Stage 1 **sa_staff_roster**: `engagement_id`, `name`, `role_title`, `hourly_rate`, `hours_per_week`. Pass 1 uses for cost-of-chaos and systems maps. **staff_member_ids** on `sa_system_inventory` links inventory to roster (optional). |
 
 ### 2.2 Stage 2 – System inventory
 
@@ -90,6 +91,8 @@ All SA-related migrations are copied into this folder with the prefix `migration
 - **20260221000001_sa_preliminary_analysis**, **20260221000002_sa_follow_up_script_transcript**, **20260222000001_sa_preliminary_gaps_and_status**, **20260222000002_sa_follow_up_script_transcript** – Preliminary analysis and follow-up.
 - **20260223000001_sa_inventory_field_notes** – **`field_notes`** JSONB on `sa_system_inventory` for optional per-field context ("Anything to add?").
 - **20260223000002_sa_pp_test_data_context** – Optional backfill of sample context for P&P test engagement (Stage 1 `raw_responses` and Stage 3 `responses`).
+- **20260225000001_sa_staff_roster_foundation** – **`sa_staff_members`** table (engagement_id, name, role_title, hourly_rate, hours_per_week); **`staff_member_ids`** on `sa_system_inventory`; cost-of-chaos trigger uses `engagement.hourly_rate`; RLS with user_id.
+- **20260226000001_service_line_assessments_rls_staff** – **service_line_assessments** SELECT policy: practice staff (member_type = 'team' OR role IN ('admin','member','owner')) can read; enables admin to show Stage 1 from same source as client.
 
 ---
 
@@ -102,6 +105,8 @@ All SA-related migrations are copied into this folder with the prefix `migration
 | **generate-sa-report-pass2** | Reads `pass1_data` from `sa_audit_reports`. Writes narrative using **client’s actual system names** from inventory (no hardcoded Harvest/Asana/Xero); uses **`breakingPoint`** for framing; dynamic Path and time-freedom examples from `f.systems`. Updates report with headline, executive_summary, cost_of_chaos_narrative, time_freedom_narrative, scores; status → `generated`. |
 | **analyze-sa-preliminary** | Reviews completed SA assessment (Stage 1 `raw_responses`, Stage 2 inventory with **`field_notes`**, Stage 3 deep dives **`responses`** including **`_context`** keys). Builds prompt with context inline (`→ Context: "..."` / `→ {field} note: "..."`). Returns JSON: businessSnapshot, confidenceScores, suggestedGaps, contradictions, topInsights. |
 | **discover-sa-tech-product** | **Lookup:** `action: 'lookup'`, `productName` → returns `found`, `product` (full payload with pricing, scores, integration_count, middleware_count, integrations list), `integrations`. **Lookup batch:** `action: 'lookup_batch'`, `productNames[]` → returns `results: Record<name, { found, slug, product_name, category, integration_count }>`. **Discover:** `action: 'discover'` → stub (returns "Auto-discovery coming soon"). Uses live schema (`slug`, `category`, `uk_strong`, `score_ease`, etc.). Fuzzy match: slug, name, contains, slug partial. |
+| **generate-sa-call-script** | Builds follow-up call script from preliminary analysis: initial questions, observations, contradictions, closer, caller notes. Stored on engagement for Review tab. |
+| **process-sa-transcript** | Accepts `engagementId` + `transcript`. OpenRouter (Sonnet or Haiku for heavy payloads) extracts resolved/unresolved gaps and additional insights; updates **sa_engagement_gaps** (status → resolved, resolution, additional_context) and engagement **follow_up_transcript**, **transcript_extraction**, **transcript_processed_at**. Subject to Edge Function timeout (150s free / 400s Pro); use Haiku for large transcripts/gap counts. |
 
 **Context in prompts:** **generate-sa-report-pass1** Phase 1 includes Stage 1 optional context (raw_responses keys ending `_context`) and per-system **field_notes**; Phase 2 deep-dive text includes **`_context`** per response. **analyze-sa-preliminary** includes the same context inline.
 
@@ -113,20 +118,21 @@ Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.t
 
 ### 5.1 Admin (src/ and apps/platform)
 
-- **ClientServicesPage.tsx** – Service line list includes “Systems Audit”; Systems Audit modal shows Stage 1–3, Report, Findings, Recommendations, Documents, Context notes.
-- **apps/platform** – **ClientDetailPage.tsx**, **SystemsAuditView.tsx**; **systems-audit-discovery.ts** (19q config); **types/systems-audit.ts**. Stage 2 inventory uses **discover-sa-tech-product** (`lookup_batch`) and **SystemMatchBadge** (In Database / Not in Database). **TechDatabasePage** at /tech-database; **useTechLookupBatch**, **types/tech-stack.ts**.
+- **ClientServicesPage.tsx** – Service line list includes “Systems Audit”; Systems Audit modal shows Stage 1–3, Report, Findings, Recommendations, Documents, Context notes. **Stage 1** loads from **service_line_assessments** (client_id + service_line_code systems_audit), else sa_discovery_responses.raw_responses; renders via **getAssessmentByCode(‘systems_audit’)** (32q, 8 sections; staff roster formatted). **Review** tab: when transcript already processed, “Upload additional notes or re-process” reveals transcript textarea + Re-process button.
+- **apps/platform** – **ClientDetailPage.tsx**, **SystemsAuditView.tsx**; **systems-audit-discovery.ts** (32q/8-section); **types/systems-audit.ts**. Stage 2 inventory uses **discover-sa-tech-product** (`lookup_batch`) and **SystemMatchBadge** (In Database / Not in Database). **TechDatabasePage** at /tech-database; **useTechLookupBatch**, **types/tech-stack.ts**.
 
 ### 5.2 Client portal (apps/client-portal)
 
 - **Routes**  
-  - `/service/systems_audit/assessment` → **ServiceAssessmentPage** (Stage 1; **19 questions, 6 sections** including Context).  
+  - `/service/systems_audit/assessment` → **ServiceAssessmentPage** (Stage 1; **32 questions, 8 sections**).  
   - `/service/systems_audit/inventory` → **SystemInventoryPage** (Stage 2).  
   - `/service/systems_audit/process-deep-dives` → **ProcessDeepDivesPage** (Stage 3).  
-  - **`/service/systems_audit/report`** → **SAReportPage** (client-facing report when `is_shared_with_client = TRUE`).
+  - **`/service/systems_audit/report`** → **SAReportPage** (client-facing report when `is_shared_with_client = TRUE`).  
+  - **`/assessments`** → **AssessmentsPage**; **`/assessments/view/systems_audit`** → **ViewAssessmentAnswersPage** (Stage 1–3 read-only).
 - **UnifiedDashboardPage** – SA tile; **if `saReportShared`** then route to `/service/systems_audit/report` and status “Report Ready” (emerald); else stage-based routing (assessment → inventory → process-deep-dives).
-- **App.tsx** – Declares routes including **SAReportPage** at `/service/systems_audit/report`.
-- **Config** – **serviceLineAssessments.ts**: **SYSTEMS_AUDIT_ASSESSMENT** with **19 questions, 6 sections** (Current Pain, Impact Quantification, Tech Stack, Focus Areas, Readiness, **Context**). Includes **sa_information_access** (Q2.5), **sa_team_size**, **sa_expected_team_size**, **sa_revenue_band**, **sa_industry**; **sa_manual_hours** has 5 options only; **sa_fears** has 7 options including “No major fears – just want to get on with it” and “We’ll discover how bad things really are”.
-- **ServiceAssessmentPage** – Stage 1: **"Anything to add?"** optional context on every **single** and **multi** question (collapsible link → 300-char textarea); stored in `raw_responses` as `{questionId}_context`. Maps information_access_frequency, team_size, expected_team_size_12mo, revenue_band, industry_sector.
+- **App.tsx** – Declares routes including **SAReportPage** at `/service/systems_audit/report` and **ViewAssessmentAnswersPage** at `/assessments/view/:serviceCode`.
+- **Config** – **serviceLineAssessments.ts**: **SYSTEMS_AUDIT_ASSESSMENT** with **32 questions, 8 sections** (incl. Where You're Going, Your Business, sa_staff_roster). Completion writes to service_line_assessments and sa_discovery_responses; staff roster → sa_staff_members, blended rate → sa_engagements.hourly_rate.
+- **ServiceAssessmentPage** – Stage 1: **"Anything to add?"** optional context; **StaffRosterBuilder** for sa_staff_roster (name, role, hourly rate, hours/week; max 10). Saves to service_line_assessments.responses and sa_discovery_responses; on completion upserts sa_staff_members and engagement.hourly_rate.
 - **SystemInventoryPage** – Stage 2: **"Anything to add?"** after key dropdowns (criticality, integration_method, future_plan); stored in **`field_notes`** JSONB per system.
 - **ProcessDeepDivesPage** – Stage 3: **"Anything to add?"** on every **select** and **multi_select**; stored in `responses` as `{field}_context`.
 - **SAReportPage** – Full client report: sticky nav (Overview, Cost of Chaos, Findings, The Plan, Your Future); hero + score rings; cost narrative; findings accordion; recommendations with phase badges and payback; “Your Future” + magic-fix quote; CTA to `/appointments`. Loads from `sa_engagements` (checks `is_shared_with_client`), `sa_audit_reports`, `sa_findings`, `sa_recommendations`; redirects to dashboard if not shared or no report.
@@ -143,8 +149,8 @@ Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.t
 
 ## 7. Assessment Configuration
 
-- **Client portal (live):** `apps/client-portal/src/config/serviceLineAssessments.ts` – **SYSTEMS_AUDIT_ASSESSMENT**: **19 questions, 6 sections** (Current Pain, Impact Quantification, Tech Stack, Focus Areas, Readiness, Context). Used by **ServiceAssessmentPage** for Stage 1. All fields map to `sa_discovery_responses` including `information_access_frequency`, `team_size`, `expected_team_size_12mo`, `revenue_band`, `industry_sector`.
-- **Platform admin:** `apps/platform/src/config/assessments/systems-audit-discovery.ts` – 19q config for platform display/assessment. See **docs-SYSTEMS_AUDIT_ASSESSMENT_STATUS.md** for alignment notes.
+- **Client portal (live):** `apps/client-portal/src/config/serviceLineAssessments.ts` – **SYSTEMS_AUDIT_ASSESSMENT**: **32 questions, 8 sections** (Current Pain, Impact Quantification, Tech Stack, Focus Areas, What Good Looks Like, Where You're Going, Your Business, Readiness). Includes **sa_staff_roster** (staff_roster type). Used by **ServiceAssessmentPage** and **ViewAssessmentAnswersPage**. Responses in **service_line_assessments.responses** (and sa_discovery_responses.raw_responses).
+- **Platform admin:** `src/config/serviceLineAssessments.ts` – Same 32q/8-section config; admin Stage 1 display uses **getAssessmentByCode('systems_audit')** and prefers **service_line_assessments.responses** (service_line_code systems_audit). See **docs-SYSTEMS_AUDIT_ASSESSMENT_STATUS.md** for alignment notes.
 
 ---
 
@@ -152,12 +158,12 @@ Shared modules: **\_shared/service-registry.ts**, **\_shared/service-scorer-v2.t
 
 All files are in a **single folder** (no subfolders). Naming convention:
 
-- **Edge functions:** `generate-sa-report-copy.ts`, `generate-sa-report-pass1-copy.ts`, `generate-sa-report-pass2-copy.ts`, **`analyze-sa-preliminary-copy.ts`**, **`discover-sa-tech-product-copy.ts`**
+- **Edge functions:** `generate-sa-report-copy.ts`, `generate-sa-report-pass1-copy.ts`, `generate-sa-report-pass2-copy.ts`, **`analyze-sa-preliminary-copy.ts`**, **`discover-sa-tech-product-copy.ts`**, **`generate-sa-call-script-copy.ts`**, **`process-sa-transcript-copy.ts`**
 - **Shared:** `shared-service-registry-copy.ts`, `shared-service-scorer-v2-copy.ts`, `shared-service-scorer-copy.ts`
-- **Migrations:** `migrations-20251219_systems_audit_complete.sql`, … **`migrations-20260219000000_sa_tech_product_tables.sql`**, **`migrations-20260220000001_sa_inventory_expansion.sql`** … **`migrations-20260223000002_sa_pp_test_data_context.sql`**
+- **Migrations:** `migrations-20251219_systems_audit_complete.sql`, … **`migrations-20260223000002_sa_pp_test_data_context.sql`**, **`migrations-20260225000001_sa_staff_roster_foundation.sql`**, **`migrations-20260226000001_service_line_assessments_rls_staff.sql`**
 - **Frontend admin:** `frontend-admin-ClientServicesPage.tsx`, **`frontend-admin-TechDatabasePage.tsx`**, **`frontend-admin-SystemMatchBadge.tsx`**, **`frontend-admin-useTechLookupBatch.ts`**, **`frontend-admin-types-tech-stack.ts`**, etc.
 - **Frontend platform:** `frontend-platform-SystemsAuditView.tsx`, etc.
-- **Frontend client:** `frontend-client-ServiceAssessmentPage.tsx`, `frontend-client-SystemInventoryPage.tsx`, `frontend-client-ProcessDeepDivesPage.tsx`, **`frontend-client-SAReportPage.tsx`**, `frontend-client-UnifiedDashboardPage.tsx`, `frontend-client-App.tsx`, `frontend-client-serviceLineAssessments.ts`, etc.
+- **Frontend client:** `frontend-client-ServiceAssessmentPage.tsx`, `frontend-client-SystemInventoryPage.tsx`, `frontend-client-ProcessDeepDivesPage.tsx`, **`frontend-client-SAReportPage.tsx`**, `frontend-client-UnifiedDashboardPage.tsx`, `frontend-client-App.tsx`, **`frontend-client-AssessmentsPage.tsx`**, **`frontend-client-ViewAssessmentAnswersPage.tsx`**, `frontend-client-serviceLineAssessments.ts`, etc.
 - **Docs:** `docs-SYSTEMS_AUDIT_ASSESSMENT_STATUS.md`, `docs-SYSTEMS_AUDIT_ASSESSMENT_QUESTIONS.md`, `docs-SERVICE_LINES_ARCHITECTURE_DISCOVERY.md`
 - **Summary:** **SYSTEMS_AUDIT_SYSTEM_SUMMARY.md** (this file) — update only when explicitly requested.
 - **Master:** **TORSOR_PRACTICE_PLATFORM_MASTER.md** — copied from `docs/TORSOR_PRACTICE_PLATFORM_MASTER.md` by sync script.
@@ -177,4 +183,4 @@ This overwrites all **copied** files from the live codebase (including the two 2
 ---
 
 **Document generated:** February 2026  
-**Scope:** torsor-practice-platform — Systems Audit service line (50/50 implementation, tech stack intelligence, Pass 1 phase split, systems maps, universal "Add Context" on structured questions, field_notes, preliminary analysis).
+**Scope:** torsor-practice-platform — Systems Audit service line (50/50 implementation, tech stack intelligence, Pass 1 phase split, systems maps, universal "Add Context", field_notes, preliminary analysis, staff roster, 32q/8-section Stage 1, admin/service_line_assessments alignment, call script + transcript processing, Assessments/View answers).

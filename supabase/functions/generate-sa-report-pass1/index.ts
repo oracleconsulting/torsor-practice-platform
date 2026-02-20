@@ -314,15 +314,24 @@ function buildEdgesMap2(map1Edges: MapEdge[], recommendations: any[]): MapEdge[]
     const phase = rec.implementationPhase || '';
     if (cost === 0 && (phase === 'immediate' || phase === 'quick_win' || phase === 'short_term')) {
       const title = (rec.title || '').toLowerCase();
-      if (title.includes('auto-publish') || title.includes('dext')) nativeFixes.add('dext');
-      if (title.includes('stripe') || title.includes('duplicate')) nativeFixes.add('stripe');
-      if (title.includes('slack') || title.includes('notification')) nativeFixes.add('slack');
-      if (title.includes('timesheet') || title.includes('deadline')) nativeFixes.add('harvest');
+      const desc = (rec.description || '').toLowerCase();
+      const combined = title + ' ' + desc;
+      if (combined.includes('auto-publish') || combined.includes('dext')) nativeFixes.add('dext');
+      if (combined.includes('stripe') || combined.includes('duplicate')) nativeFixes.add('stripe');
+      if (combined.includes('slack') || combined.includes('notification')) nativeFixes.add('slack');
+      if (combined.includes('timesheet') || combined.includes('harvest') || combined.includes('reminder')) nativeFixes.add('harvest');
+      if (combined.includes('monday') || combined.includes('pipeline') || combined.includes('master tracker')) nativeFixes.add('monday_com');
+      if (combined.includes('xero') || combined.includes('chart of accounts') || combined.includes('cost centre')) nativeFixes.add('xero');
+      if (combined.includes('notion') || combined.includes('template') || combined.includes('proposal')) nativeFixes.add('notion');
+      if (combined.includes('budget') || combined.includes('profitability')) nativeFixes.add('monday_com');
     }
   });
   return map1Edges.map((edge) => {
     if (edge.status === 'amber' && (nativeFixes.has(edge.from) || nativeFixes.has(edge.to))) {
       return { ...edge, status: 'green' as const, label: edge.label?.replace('OFF', 'ON') || 'Fixed', changed: true };
+    }
+    if (edge.status === 'red' && (nativeFixes.has(edge.from) || nativeFixes.has(edge.to))) {
+      return { ...edge, status: 'amber' as const, label: 'Improved', changed: true };
     }
     return { ...edge };
   });
@@ -374,9 +383,7 @@ function calculateMetrics(
         investment += r.estimatedCost || 0;
       }
     });
-    investment += 50 * 12;
   }
-  if (mapLevel >= 4) investment += 4000;
   const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved);
   const annualWaste = Math.round(manualHours * rate * 52);
   const annualSavings = map1Metrics.annualWaste - annualWaste;
@@ -388,7 +395,26 @@ function calculateMetrics(
     else if (months < 2) payback = `${Math.round(months * 4)} weeks`;
     else payback = `${Math.round(months)} months`;
   } else if (investment === 0 && mapLevel > 1) payback = 'Instant';
-  const risk = manualHours > 40 ? 'Critical' : manualHours > 20 ? 'High' : manualHours > 10 ? 'Low' : 'Minimal';
+  const spofFindings = (recommendations || []).filter((r: any) => {
+    const title = (r.title || '').toLowerCase();
+    return title.includes('backup') || title.includes('documentation') || title.includes('single point') || title.includes('cross-train');
+  });
+  const hasSpofFix = spofFindings.length > 0 && mapLevel >= 3;
+  const hasPartialSpofFix = spofFindings.length > 0 && mapLevel >= 2;
+  let risk: string;
+  if (manualHours > 60) risk = 'Critical';
+  else if (manualHours > 40 && !hasPartialSpofFix) risk = 'Critical';
+  else if (manualHours > 40 && hasPartialSpofFix) risk = 'High';
+  else if (manualHours > 25 && !hasSpofFix) risk = 'High';
+  else if (manualHours > 25 && hasSpofFix) risk = 'Moderate';
+  else if (manualHours > 10) risk = 'Low';
+  else risk = 'Minimal';
+
+  const connectedEdges = edges.filter((e) => e.status === 'green' || e.status === 'blue').length;
+  const partialEdges = edges.filter((e) => e.status === 'amber' && (e as any).changed).length;
+  const totalEdges = edges.length;
+  const integrationsStr = totalEdges > 0 ? `${connectedEdges + partialEdges} / ${totalEdges}` : `${greenEdges} / ${totalNodes}`;
+
   return {
     monthlySoftware: totalSoftware,
     manualHours: Math.round(manualHours),
@@ -396,7 +422,7 @@ function calculateMetrics(
     annualSavings,
     investment: Math.round(investment),
     payback,
-    integrations: `${greenEdges} / ${totalNodes}`,
+    integrations: integrationsStr,
     risk,
   };
 }
@@ -407,6 +433,7 @@ function buildSystemsMaps(
   recommendations: any[],
   aiMap4?: any,
   blendedHourlyRate?: number,
+  pass1DataFallback?: any,
 ): SystemsMap[] {
   const systems = facts?.systems || [];
   if (systems.length === 0) return [];
@@ -459,6 +486,44 @@ function buildSystemsMaps(
       metrics: calculateMetrics(aiMap4.nodes, aiMap4.edges, map1Metrics, recommendations, 4, rate),
     };
     maps.push(map4);
+  } else if (pass1DataFallback?.systemsMaps) {
+    const aiMaps = Array.isArray(pass1DataFallback.systemsMaps) ? pass1DataFallback.systemsMaps : [];
+    const aiMap4Entry = aiMaps.find((m: any) => m.level === 4) || aiMaps[3];
+    if (aiMap4Entry?.nodes && aiMap4Entry.edges) {
+      const aiNodes: Record<string, SystemNode> = {};
+      (Array.isArray(aiMap4Entry.nodes) ? aiMap4Entry.nodes : Object.values(aiMap4Entry.nodes)).forEach((n: any) => {
+        const id = (n.id ?? n.name ?? '').toString().toLowerCase().replace(/[\s.]+/g, '_');
+        aiNodes[id] = {
+          name: n.name ?? id,
+          category: n.category ?? 'other',
+          cost: n.monthlyCost ?? n.cost ?? 0,
+          x: n.x ?? 400,
+          y: n.y ?? 300,
+        };
+      });
+      const map4Edges = (aiMap4Entry.edges || []).map((e: any) => ({
+        from: e.from,
+        to: e.to,
+        status: (e.colour === 'green' || e.status === 'active') ? 'green' : (e.status || 'green'),
+        label: e.label || 'Native',
+        changed: true,
+      }));
+      const map4: SystemsMap = {
+        title: aiMap4Entry.title || 'Optimal Stack',
+        subtitle: aiMap4Entry.description || 'Best-in-class replacements',
+        recommended: false,
+        nodes: aiNodes,
+        edges: map4Edges,
+        middlewareHub: null,
+        metrics: calculateMetrics(aiNodes, map4Edges, map1Metrics, recommendations, 4, rate),
+      };
+      maps.push(map4);
+      console.log('[SA Pass 1] Map 4 built from AI-generated data (Phase 4.5 fallback)');
+    } else {
+      console.warn('[SA Pass 1] No valid Map 4 data from either phase4b or AI systemsMaps');
+    }
+  } else {
+    console.warn('[SA Pass 1] phase4b missing or invalid — checking for AI-generated Map 4');
   }
   return maps;
 }
@@ -970,6 +1035,13 @@ Return JSON:
 }
 
 Generate AT LEAST 6 findings (mix of critical, high, medium). Generate AT LEAST 4 quick wins.
+
+CRITICAL RULES FOR FINDINGS:
+- SINGLE POINT OF FAILURE findings MUST have a non-zero annualCostImpact. Calculate as:
+  Risk exposure = probability_of_absence × days_disrupted × daily_cost_of_disruption.
+  Example: If a key person is the SPOF for invoicing, month-end, payroll, and expenses — and there is a material chance they will be unavailable for 2+ weeks in any 12-month period — the risk exposure is at least the annualised cost of all processes they solely own, multiplied by disruption probability. Assign a minimum of 30% of the total process cost they control.
+- hoursWastedWeekly for SPOF findings should reflect documentation/cross-training time needed (typically 2-4h/wk for 8 weeks), NOT zero.
+
 ${SPECIFICITY_RULES}
 `;
 }
@@ -1584,7 +1656,12 @@ async function runPhase5(
   const phase4 = reportRow.pass1_data.phase4;
   const clientName = phase1.facts.companyName || 'the business';
   const prompt = buildPhase5Prompt(phase1, phase2, phase3, phase4, clientName);
-  const { data: phase5, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 5, openRouterKey);
+  let phase5Result = await callSonnet(prompt, 16000, 5, openRouterKey);
+  let { data: phase5, tokensUsed, cost, generationTime } = phase5Result;
+  if (!phase5) {
+    console.error('[SA Pass 1] Phase 5: Response did not parse');
+    phase5 = { adminGuidance: null, clientPresentation: null };
+  }
 
   const allQuotes = [
     ...(phase1.facts.allClientQuotes || []),
@@ -1611,9 +1688,9 @@ async function runPhase5(
     facts: {
       ...phase1.facts,
       processes: phase2.processes,
-      hoursWastedWeekly: phase2.hoursWastedWeekly,
-      annualCostOfChaos: phase2.annualCostOfChaos,
-      projectedCostAtScale: phase2.projectedCostAtScale,
+      hoursWastedWeekly: typeof phase2.hoursWastedWeekly === 'number' ? phase2.hoursWastedWeekly : parseFloat(String(phase2.hoursWastedWeekly).replace(/[£,]/g, '')) || 0,
+      annualCostOfChaos: typeof phase2.annualCostOfChaos === 'number' ? phase2.annualCostOfChaos : parseFloat(String(phase2.annualCostOfChaos).replace(/[£,]/g, '')) || 0,
+      projectedCostAtScale: typeof phase2.projectedCostAtScale === 'number' ? phase2.projectedCostAtScale : parseFloat(String(phase2.projectedCostAtScale).replace(/[£,]/g, '')) || 0,
       aspirationGap: phase2.aspirationGap,
       allClientQuotes: allQuotes,
       staffMembers: staffForFacts,
@@ -1635,12 +1712,16 @@ async function runPhase5(
 
   // ─── Build Systems Maps (deterministic Maps 1–3 + optional Map 4 from Phase 4b) ─────
   const phase4b = pass1Data.phase4b ?? null;
+  console.log('[SA Pass 1] Phase 5: phase4b available:', !!phase4b,
+    'nodes:', phase4b ? Object.keys(phase4b.nodes || {}).length : 0,
+    'edges:', phase4b ? (phase4b.edges || []).length : 0);
   const systemsMaps = buildSystemsMaps(
     finalPass1Data.facts,
     finalPass1Data.findings || [],
     finalPass1Data.recommendations || [],
     phase4b,
     hourlyRate,
+    pass1Data,
   );
   if (systemsMaps.length > 0) {
     finalPass1Data.systemsMaps = systemsMaps;
@@ -1669,8 +1750,8 @@ async function runPhase5(
   const roiRatio = totalInvestment > 0 ? `${Math.round(totalBenefit / totalInvestment)}:1` : 'Infinite';
 
   const expectedAnnualCost = Math.round((f.hoursWastedWeekly || 0) * hourlyRate * 52);
-  if (f.annualCostOfChaos && Math.abs(f.annualCostOfChaos - expectedAnnualCost) > expectedAnnualCost * 0.05) {
-    console.warn(`[SA McKinsey] annualCostOfChaos mismatch: pass1=${f.annualCostOfChaos}, expected=${expectedAnnualCost}. Overriding.`);
+  if (f.annualCostOfChaos !== expectedAnnualCost) {
+    console.log(`[SA McKinsey] Aligning annualCostOfChaos: AI=${f.annualCostOfChaos}, calc=${expectedAnnualCost}. Using calculated.`);
     f.annualCostOfChaos = expectedAnnualCost;
     finalPass1Data.facts.annualCostOfChaos = expectedAnnualCost;
   }
@@ -1697,11 +1778,12 @@ async function runPhase5(
     low: (finalPass1Data.findings || []).filter((x: any) => x.severity === 'low').length,
   };
 
+  const fmt = (v: any) => String(v ?? 0).replace(/£/g, '');
   console.log(`[SA McKinsey] Reconciliation complete:
-    annualCostOfChaos: £${f.annualCostOfChaos} (${f.hoursWastedWeekly}h × £${hourlyRate} × 52)
-    projectedCostAtScale: £${f.projectedCostAtScale} (${f.growthMultiplier}x growth)
-    totalBenefit: £${totalBenefit} (${recs.length} recs)
-    totalInvestment: £${totalInvestment}
+    annualCostOfChaos: £${fmt(f.annualCostOfChaos)} (${f.hoursWastedWeekly}h × £${hourlyRate} × 52)
+    projectedCostAtScale: £${fmt(f.projectedCostAtScale)} (${f.growthMultiplier}x growth)
+    totalBenefit: £${fmt(totalBenefit)} (${recs.length} recs)
+    totalInvestment: £${fmt(totalInvestment)}
     hoursReclaimable: ${hoursReclaimable}h/wk
     payback: ${paybackMonths} months | ROI: ${roiRatio}
     findings: ${findingCounts.critical}C/${findingCounts.high}H/${findingCounts.medium}M/${findingCounts.low}L

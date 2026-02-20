@@ -8,7 +8,7 @@ export interface AssessmentQuestion {
   id: string;
   section: string;
   question: string;
-  type: 'single' | 'multi' | 'text' | 'rank';
+  type: 'single' | 'multi' | 'text' | 'rank' | 'staff_roster';
   options?: string[];
   maxSelections?: number;
   placeholder?: string;
@@ -912,14 +912,13 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       required: true
     },
     {
-      id: 'sa_team_structure',
+      id: 'sa_staff_roster',
       section: 'Your Business',
-      question: 'Roughly, how is your team structured?',
-      type: 'text',
-      placeholder: 'e.g., Sophie (founder) + Priya (ops) + Jake leads 6 devs + 4 designers + Maria (finance) + 3 account managers',
-      charLimit: 800,
-      technicalField: 'team_structure',
-      required: true
+      question: "Who are the key people involved in running your business operations and systems?",
+      type: 'staff_roster',
+      placeholder: "You don't need to list everyone — just the people who touch your core systems and processes. We'll use this to understand where time is being spent and what it's costing.",
+      required: true,
+      technicalField: 'staff_roster',
     },
     {
       id: 'sa_locations',
