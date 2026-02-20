@@ -650,6 +650,7 @@ export default function ServiceAssessmentPage() {
               const totalHours = staffRows.reduce((s: number, r: { hours_per_week: number }) => s + r.hours_per_week, 0);
               const blendedRate = totalHours > 0 ? Math.round((totalWeighted / totalHours) * 100) / 100 : 45;
               await supabase.from('sa_engagements').update({ hourly_rate: blendedRate, updated_at: new Date().toISOString() }).eq('id', engagement.id);
+              discoveryData.team_structure = `Staff roster: ${staffRows.length} people`;
             }
           }
         }

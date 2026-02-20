@@ -588,6 +588,18 @@ Change appetite: ${discovery.change_appetite}
 Fears: ${(discovery.systems_fears || []).join(', ')}
 Champion: ${discovery.internal_champion}${stage1ContextBlock}
 
+WHERE YOU'RE GOING / YOUR BUSINESS:
+- Growth vision (12-18mo): "${TRUNCATE(discovery.growth_vision || '', MAX_TEXT)}"
+- Next hires / blockers: "${TRUNCATE(discovery.hiring_blockers || '', MAX_TEXT)}"
+- Growth type: ${discovery.growth_type || 'Not specified'}
+- Capacity ceiling (what breaks first): "${TRUNCATE(discovery.capacity_ceiling || '', MAX_TEXT)}"
+- Tried and failed (tools): "${TRUNCATE(discovery.failed_tools || '', MAX_TEXT)}"
+- Non-negotiables: "${TRUNCATE(discovery.non_negotiables || '', MAX_TEXT)}"
+- Business model: ${discovery.business_model || 'Not specified'}
+- Team structure / roster: "${TRUNCATE(discovery.team_structure || '', MAX_TEXT)}"
+- Work location: ${discovery.work_location || 'Not specified'}
+- Key person dependency: "${TRUNCATE(discovery.key_person_dependency || '', MAX_TEXT)}"
+
 TARGET STATE:
 - Desired outcomes: ${(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
 - Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
