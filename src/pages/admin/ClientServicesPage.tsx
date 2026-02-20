@@ -13379,7 +13379,11 @@ function SystemsAuditClientModal({
   const [gapTrends, setGapTrends] = useState<{ tag: string; count: number }[]>([]);
   const [runningPreliminary, setRunningPreliminary] = useState(false);
   const [dismissedSuggestedGapIds, setDismissedSuggestedGapIds] = useState<Set<number>>(new Set());
-  
+  const [generatingScript, setGeneratingScript] = useState(false);
+  const [processingTranscript, setProcessingTranscript] = useState(false);
+  const [transcriptText, setTranscriptText] = useState('');
+  const [showTranscriptInput, setShowTranscriptInput] = useState(false);
+
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
   const [contextNotes, setContextNotes] = useState<any[]>([]);
@@ -13695,6 +13699,11 @@ function SystemsAuditClientModal({
         resolution: g.resolution ?? '',
         context: g.additional_context ?? '',
       }));
+      if (engagement.transcript_extraction?.additionalInsights?.length) {
+        for (const insight of engagement.transcript_extraction.additionalInsights) {
+          additionalContext.push({ area: 'cross_cutting', tag: 'call_insight', gap: '', resolution: '', context: insight });
+        }
+      }
 
       const pollDB = async (
         checkFn: () => Promise<boolean>,
@@ -14339,6 +14348,48 @@ function SystemsAuditClientModal({
 
   const handleDismissSuggestedGap = (index: number) => {
     setDismissedSuggestedGapIds((prev) => new Set(prev).add(index));
+  };
+
+  const handleGenerateScript = async () => {
+    if (!engagement?.id) return;
+    setGeneratingScript(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-sa-call-script', {
+        body: { engagementId: engagement.id },
+      });
+      if (error) throw error;
+      if (data?.script) {
+        setEngagement((prev: any) => (prev ? { ...prev, follow_up_script: data.script, follow_up_script_generated_at: new Date().toISOString() } : prev));
+      }
+      if (data?.message && !data?.script) {
+        alert(data.message);
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Script generation failed');
+    } finally {
+      setGeneratingScript(false);
+    }
+  };
+
+  const handleProcessTranscript = async () => {
+    if (!engagement?.id || !transcriptText.trim()) return;
+    if (!window.confirm(`Process this transcript (${transcriptText.length} characters)? The AI will extract answers and auto-resolve matching gaps.`)) return;
+    setProcessingTranscript(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-sa-transcript', {
+        body: { engagementId: engagement.id, transcript: transcriptText },
+      });
+      if (error) throw error;
+      setTranscriptText('');
+      setShowTranscriptInput(false);
+      await fetchData();
+      const stats = data?.stats || {};
+      alert(`Transcript processed! ${stats.resolved ?? 0} of ${stats.totalGaps ?? 0} gaps resolved.${(stats.additionalInsights ?? 0) > 0 ? ` ${stats.additionalInsights} additional insights captured.` : ''}`);
+    } catch (e: any) {
+      alert(e?.message || 'Processing failed');
+    } finally {
+      setProcessingTranscript(false);
+    }
   };
 
   return (
@@ -15210,6 +15261,157 @@ function SystemsAuditClientModal({
                             {savingGap ? 'Adding...' : 'Add gap'}
                           </button>
                         </div>
+
+                        {/* Follow-Up Call Workflow */}
+                        {preliminary && (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-4">Follow-Up Call</h4>
+                            {!engagement.follow_up_script && (
+                              <div className="mb-4">
+                                <button
+                                  onClick={handleGenerateScript}
+                                  disabled={generatingScript}
+                                  className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 disabled:opacity-50 text-sm font-medium"
+                                >
+                                  {generatingScript ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                                  {generatingScript ? 'Generating Script...' : 'Generate Call Script'}
+                                </button>
+                                <p className="text-xs text-gray-500 mt-1">Creates a conversational script from your accepted gaps (~15 seconds)</p>
+                              </div>
+                            )}
+                            {engagement.follow_up_script && (
+                              <div className="mb-6">
+                                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                  <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+                                    <span className="font-medium text-sm">Call Script</span>
+                                    <span className="text-xs text-gray-500">~{engagement.follow_up_script.estimatedMinutes ?? '?'} minutes</span>
+                                    <button type="button" onClick={handleGenerateScript} disabled={generatingScript} className="text-xs text-indigo-600 hover:underline">Regenerate</button>
+                                  </div>
+                                  <div className="px-4 py-3 border-b bg-indigo-50">
+                                    <p className="text-sm text-indigo-900 italic">&quot;{engagement.follow_up_script.opener}&quot;</p>
+                                  </div>
+                                  {(engagement.follow_up_script.sections || []).map((section: any, i: number) => (
+                                    <div key={i} className="px-4 py-3 border-b last:border-b-0">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <h5 className="font-medium text-sm">{i + 1}. {section.topic}</h5>
+                                        <span className="text-xs text-gray-400">~{section.estimatedMinutes ?? '?'} min</span>
+                                      </div>
+                                      <p className="text-xs text-gray-500 mb-2 italic">{section.leadIn}</p>
+                                      <div className="space-y-2">
+                                        {(section.questions || []).map((q: any, j: number) => (
+                                          <div key={j} className="bg-gray-50 rounded p-2">
+                                            <p className="text-sm font-medium">{q.question}</p>
+                                            {q.followUp && <p className="text-xs text-gray-500 mt-1"><span className="font-medium">If vague:</span> {q.followUp}</p>}
+                                            {q.goodEnough && <p className="text-xs text-green-600 mt-1"><span className="font-medium">✓ Good enough:</span> {q.goodEnough}</p>}
+                                            {q.addressesGapTags?.length > 0 && (
+                                              <div className="flex gap-1 mt-1 flex-wrap">
+                                                {q.addressesGapTags.map((tag: string) => (
+                                                  <span key={tag} className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">{tag}</span>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {engagement.follow_up_script.contradictions?.length > 0 && (
+                                    <div className="px-4 py-3 border-t bg-amber-50">
+                                      <h5 className="font-medium text-sm text-amber-800 mb-2">Clarifications</h5>
+                                      {engagement.follow_up_script.contradictions.map((c: any, idx: number) => (
+                                        <div key={idx} className="text-sm mb-1"><span className="font-medium">{c.topic}:</span> {c.question}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {engagement.follow_up_script.closer && (
+                                    <div className="px-4 py-3 border-t bg-gray-50">
+                                      <p className="text-sm text-gray-700 italic">&quot;{engagement.follow_up_script.closer}&quot;</p>
+                                    </div>
+                                  )}
+                                  {engagement.follow_up_script.callerNotes && (
+                                    <div className="px-4 py-2 border-t text-xs text-gray-500">
+                                      <span className="font-medium">Notes for caller:</span> {engagement.follow_up_script.callerNotes}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {engagement.follow_up_script && !engagement.transcript_extraction && (
+                              <div className="mb-4">
+                                {!showTranscriptInput ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowTranscriptInput(true)}
+                                    className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 text-sm font-medium"
+                                  >
+                                    <Upload className="w-4 h-4" />
+                                    Upload Call Transcript / Notes
+                                  </button>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <textarea
+                                      value={transcriptText}
+                                      onChange={(e) => setTranscriptText(e.target.value)}
+                                      placeholder="Paste the call transcript, meeting notes, or recording summary here..."
+                                      className="w-full h-48 border border-gray-300 rounded-lg p-3 text-sm resize-y focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-400">{transcriptText.length > 0 ? `${transcriptText.length} characters` : 'Paste transcript or notes'}</span>
+                                      <div className="flex gap-2">
+                                        <button type="button" onClick={() => { setShowTranscriptInput(false); setTranscriptText(''); }} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                                        <button
+                                          type="button"
+                                          onClick={handleProcessTranscript}
+                                          disabled={processingTranscript || transcriptText.trim().length < 50}
+                                          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                                        >
+                                          {processingTranscript ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                          {processingTranscript ? 'Processing...' : 'Process Transcript'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {engagement.transcript_extraction && (
+                              <div className="mb-4">
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                    <span className="font-medium text-green-800">Transcript Processed</span>
+                                  </div>
+                                  <p className="text-sm text-green-700 mb-2">
+                                    {engagement.transcript_extraction.resolvedGaps?.length || 0} gaps resolved, {engagement.transcript_extraction.unresolvedGaps?.length || 0} unresolved
+                                  </p>
+                                  {engagement.transcript_extraction.additionalInsights?.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-green-200">
+                                      <p className="text-xs font-medium text-green-800 mb-1">Additional insights from the call:</p>
+                                      {engagement.transcript_extraction.additionalInsights.map((insight: string, i: number) => (
+                                        <p key={i} className="text-xs text-green-700 ml-2">• {insight}</p>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {engagement.transcript_extraction.unresolvedGaps?.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-green-200">
+                                      <p className="text-xs font-medium text-amber-700 mb-1">Still need answers for:</p>
+                                      {engagement.transcript_extraction.unresolvedGaps.map((u: any, i: number) => (
+                                        <p key={i} className="text-xs text-amber-600 ml-2">• {u.gap_tag}: {u.reason}</p>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => { setShowTranscriptInput(true); setTranscriptText(engagement.follow_up_transcript || ''); }}
+                                  className="text-xs text-indigo-600 hover:underline mt-2"
+                                >
+                                  Upload additional notes or re-process
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         <div className="mt-6 pt-6 border-t border-gray-200">
                           <button
