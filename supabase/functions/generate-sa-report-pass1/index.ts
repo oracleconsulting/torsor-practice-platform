@@ -9,12 +9,13 @@ const corsHeaders: Record<string, string> = {
 };
 
 // =============================================================================
-// PASS 1: 5-PHASE EXTRACTION & ANALYSIS (each phase ~130s, under ~200s wall limit)
+// PASS 1: 6-PHASE EXTRACTION & ANALYSIS (each phase ~90s target, under 150s wall clock)
 // Phase 1: EXTRACT CORE — company facts, system inventory, metrics, quotes
 // Phase 2: ANALYSE PROCESSES — process deep dives, scores, uniquenessBrief, costs
-// Phase 3: DIAGNOSE — findings with evidence + quick wins
-// Phase 4: RECOMMEND — recommendations with ROI and freedom mapping
-// Phase 5: GUIDE & PRESENT — admin guidance + client presentation
+// Phase 3: DIAGNOSE (Critical + High) — critical and high severity findings only
+// Phase 4: DIAGNOSE (Medium + Low + Quick Wins) — remaining findings + quick wins
+// Phase 5: RECOMMEND — recommendations with ROI and systems maps
+// Phase 6: GUIDE & PRESENT — admin guidance + client presentation
 // Then assemble final pass1_data and set status='pass1_complete'
 // =============================================================================
 
@@ -887,7 +888,7 @@ async function runPhase1(
     {
       engagement_id: engagementId,
       status: 'generating',
-      executive_summary: 'Phase 1/5: Extracting facts and analysing systems...',
+      executive_summary: 'Phase 1/6: Extracting facts and analysing systems...',
       pass1_data: { phase1: data },
       systems_count: (data.facts?.systems || []).length,
       llm_model: 'claude-sonnet-4.5',
@@ -953,13 +954,13 @@ async function runPhase2Analyse(
 
   const existingPass1 = report.pass1_data as any;
 
-  // Phase 2: write to pass1_data ONLY. Columns updated in Phase 5 assembly.
-  console.log('[SA Pass 1] Phase 2: Writing to DB (pass1_data only, columns deferred to Phase 5)...');
+  // Phase 2: write to pass1_data ONLY. Columns updated in Phase 6 assembly.
+  console.log('[SA Pass 1] Phase 2: Writing to DB (pass1_data only, columns deferred to Phase 6)...');
   await supabaseClient
     .from('sa_audit_reports')
     .update({
       pass1_data: { ...existingPass1, phase2: data },
-      executive_summary: 'Phase 2/5: Analysing processes and calculating scores...',
+      executive_summary: 'Phase 2/6: Analysing processes and calculating scores...',
       executive_summary_sentiment: sentiment,
     })
     .eq('engagement_id', engagementId);
@@ -1046,7 +1047,123 @@ ${SPECIFICITY_RULES}
 `;
 }
 
-async function runPhase3Diagnose(
+function buildPhase3CriticalHighPrompt(phase1: any, phase2: any, clientName: string, hourlyRate: number): string {
+  const allFacts = {
+    ...phase1.facts,
+    processes: phase2.processes,
+    hoursWastedWeekly: phase2.hoursWastedWeekly,
+    annualCostOfChaos: phase2.annualCostOfChaos,
+    projectedCostAtScale: phase2.projectedCostAtScale,
+    aspirationGap: phase2.aspirationGap,
+  };
+  const factsStr = JSON.stringify(allFacts, null, 2);
+  const scoresStr = JSON.stringify(phase2.scores, null, 2);
+  return `
+Given these extracted facts about ${clientName}, generate ONLY critical and high severity findings. Use EXACT verbatim quotes where relevant. Every finding must be tied to specific systems, specific processes, and specific numbers from the data.
+
+uniquenessBrief: ${phase2.uniquenessBrief}
+
+facts (extracted from Phase 1 + Phase 2):
+${factsStr}
+
+scores:
+${scoresStr}
+
+Return JSON:
+{
+  "findings": [
+    {
+      "severity": "critical|high",
+      "category": "integration_gap|manual_process|data_silo|single_point_failure|scalability_risk",
+      "title": "Specific title with system names and numbers",
+      "description": "What's broken and why, using their words.",
+      "evidence": ["Specific data point 1 with number", "Data point 2 with system name"],
+      "clientQuote": "Their exact words that prove this finding",
+      "affectedSystems": ["Xero", "Asana"],
+      "affectedProcesses": ["quote_to_cash", "record_to_report"],
+      "hoursWastedWeekly": number,
+      "annualCostImpact": number,
+      "scalabilityImpact": "What specifically happens at growth — name the breaking point",
+      "recommendation": "Specific fix — name the integration, tool, or setting change",
+      "blocksGoal": "Which desired_outcome this blocks — use their exact text from desiredOutcomes"
+    }
+  ]
+}
+
+Generate ALL critical and high severity findings. Focus on the most impactful issues: integration gaps causing manual workarounds, single points of failure, and processes that will break at growth. Generate 4-6 findings, all critical or high severity only. Do NOT generate medium or low severity findings — those come in the next phase.
+
+CRITICAL RULES FOR FINDINGS:
+- SINGLE POINT OF FAILURE findings MUST have a non-zero annualCostImpact.
+- hoursWastedWeekly for SPOF findings should reflect documentation/cross-training time needed (typically 2-4h/wk for 8 weeks), NOT zero.
+
+${SPECIFICITY_RULES}
+Return ONLY valid JSON.`;
+}
+
+function buildPhase4MediumLowQuickWinsPrompt(phase1: any, phase2: any, phase3: any, clientName: string): string {
+  const existingTitles = (phase3.findings || []).map((f: any) => f.title).filter(Boolean);
+  const allFacts = {
+    ...phase1.facts,
+    processes: phase2.processes,
+    hoursWastedWeekly: phase2.hoursWastedWeekly,
+    annualCostOfChaos: phase2.annualCostOfChaos,
+    projectedCostAtScale: phase2.projectedCostAtScale,
+    aspirationGap: phase2.aspirationGap,
+  };
+  const factsStr = JSON.stringify(allFacts, null, 2);
+  const scoresStr = JSON.stringify(phase2.scores, null, 2);
+  return `
+Phase 3 already identified these critical/high findings: ${existingTitles.length ? existingTitles.map((t: string) => `"${t}"`).join(', ') : 'none'}.
+
+Now generate medium and low severity findings for REMAINING issues (do not duplicate the above), plus actionable quick wins. Use exact verbatim quotes where relevant.
+
+uniquenessBrief: ${phase2.uniquenessBrief}
+
+facts:
+${factsStr}
+
+scores:
+${scoresStr}
+
+Return JSON:
+{
+  "findings": [
+    {
+      "severity": "medium|low",
+      "category": "integration_gap|manual_process|data_silo|single_point_failure|scalability_risk",
+      "title": "Specific title with system names and numbers",
+      "description": "What's broken and why.",
+      "evidence": ["Data point 1", "Data point 2"],
+      "clientQuote": "Exact words",
+      "affectedSystems": ["Xero"],
+      "affectedProcesses": ["quote_to_cash"],
+      "hoursWastedWeekly": number,
+      "annualCostImpact": number,
+      "scalabilityImpact": "What happens at growth",
+      "recommendation": "Specific fix",
+      "blocksGoal": "Which desired_outcome this blocks"
+    }
+  ],
+  "quickWins": [
+    {
+      "title": "Action with specific system name and person",
+      "action": "Step 1: [action], Step 2: [action], Step 3: [action]",
+      "systems": ["Xero", "Asana"],
+      "timeToImplement": "X hours",
+      "hoursSavedWeekly": number,
+      "annualBenefit": number,
+      "impact": "Specific outcome — what changes for the team on Monday morning"
+    }
+  ]
+}
+
+Generate 2-4 medium/low findings (do not repeat critical/high). Generate AT LEAST 4 quick wins.
+
+${SPECIFICITY_RULES}
+Return ONLY valid JSON.`;
+}
+
+async function runPhase3CriticalHigh(
   supabaseClient: any,
   engagementId: string,
   engagement: any,
@@ -1064,16 +1181,16 @@ async function runPhase3Diagnose(
   const phase1 = report.pass1_data.phase1;
   const phase2 = report.pass1_data.phase2;
   const clientName = phase1.facts.companyName || 'the business';
-  const prompt = buildPhase3DiagnosePrompt(phase1, phase2, clientName, hourlyRate);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 3, openRouterKey);
+  const prompt = buildPhase3CriticalHighPrompt(phase1, phase2, clientName, hourlyRate);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 3, openRouterKey);
 
   const existingPass1 = report.pass1_data as any;
-  console.log('[SA Pass 1] Phase 3: Writing to DB...');
+  console.log('[SA Pass 1] Phase 3: Writing to DB (critical+high findings only)...');
   await supabaseClient
     .from('sa_audit_reports')
     .update({
-      pass1_data: { ...existingPass1, phase3: data },
-      executive_summary: 'Phase 3/5: Generating detailed findings and quick wins...',
+      pass1_data: { ...existingPass1, phase3: { findings: data.findings || [], quickWins: [] } },
+      executive_summary: 'Phase 3/6: Generating critical findings...',
     })
     .eq('engagement_id', engagementId);
   console.log('[SA Pass 1] Phase 3: DB write complete');
@@ -1099,6 +1216,72 @@ async function runPhase3Diagnose(
   }
 
   return { success: true, phase: 3 };
+}
+
+async function runPhase4MediumLowQuickWins(
+  supabaseClient: any,
+  engagementId: string,
+  engagement: any,
+  hourlyRate: number,
+  openRouterKey: string
+): Promise<{ success: boolean; phase: number }> {
+  const { data: report } = await supabaseClient
+    .from('sa_audit_reports')
+    .select('pass1_data')
+    .eq('engagement_id', engagementId)
+    .single();
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase2 || !report.pass1_data.phase3) {
+    throw new Error('Phase 1, 2, or 3 data not found');
+  }
+  const phase1 = report.pass1_data.phase1;
+  const phase2 = report.pass1_data.phase2;
+  const phase3 = report.pass1_data.phase3;
+  const clientName = phase1.facts.companyName || 'the business';
+  const prompt = buildPhase4MediumLowQuickWinsPrompt(phase1, phase2, phase3, clientName);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 4, openRouterKey);
+
+  const existingPass1 = report.pass1_data as any;
+  const combinedFindings = [...(existingPass1.phase3?.findings || []), ...(data.findings || [])];
+  const combinedPhase3 = {
+    ...existingPass1.phase3,
+    findings: combinedFindings,
+    quickWins: data.quickWins || [],
+  };
+
+  console.log('[SA Pass 1] Phase 4: Merging findings and quick wins, writing to DB...');
+  await supabaseClient
+    .from('sa_audit_reports')
+    .update({
+      pass1_data: {
+        ...existingPass1,
+        phase3: combinedPhase3,
+        phase4: { findings: data.findings || [], quickWins: data.quickWins || [] },
+      },
+      executive_summary: 'Phase 4/6: Completing findings and quick wins...',
+    })
+    .eq('engagement_id', engagementId);
+
+  if (data.findings?.length) {
+    const findingRows = data.findings.map((finding: any) => ({
+      engagement_id: engagementId,
+      finding_code: `F-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      source_stage: 'ai_generated',
+      category: finding.category,
+      severity: finding.severity,
+      title: finding.title,
+      description: `${finding.description}${finding.blocksGoal ? `\n\nBlocks goal: ${finding.blocksGoal}` : ''}\n\nSystems: ${(finding.affectedSystems || []).join(', ')}\nProcesses: ${(finding.affectedProcesses || []).join(', ')}`,
+      evidence: finding.evidence || [],
+      client_quote: finding.clientQuote,
+      hours_wasted_weekly: finding.hoursWastedWeekly,
+      annual_cost_impact: finding.annualCostImpact,
+      scalability_impact: finding.scalabilityImpact,
+      recommendation: finding.recommendation,
+    }));
+    await supabaseClient.from('sa_findings').insert(findingRows);
+  }
+  console.log('[SA Pass 1] Phase 4: DB write complete');
+
+  return { success: true, phase: 4 };
 }
 
 // ---------- Tech stack intelligence context (Stage 2) ----------
@@ -1331,8 +1514,8 @@ async function runPhase4(
 ): Promise<{ success: boolean; phase: number }> {
   const { data: report } = await supabaseClient
     .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
-  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase2 || !report.pass1_data.phase3) {
-    throw new Error('Phase 1, 2, or 3 data not found');
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase2 || !report.pass1_data.phase3 || !report.pass1_data.phase4) {
+    throw new Error('Phase 1, 2, 3, or 4 data not found');
   }
 
   const phase1 = report.pass1_data.phase1;
@@ -1340,14 +1523,14 @@ async function runPhase4(
   const phase3 = report.pass1_data.phase3;
   const clientName = phase1.facts.companyName || 'the business';
 
-  // ---------- Phase 4a: Recommendations only ----------
+  // ---------- Phase 5a: Recommendations only ----------
   const prompt = buildPhase4Prompt(phase1, phase2, phase3, clientName);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 4, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 5, openRouterKey);
 
-  console.log('[SA Pass 1] Phase 4: Writing recommendations to DB...');
+  console.log('[SA Pass 1] Phase 5: Writing recommendations to DB...');
   await supabaseClient.from('sa_audit_reports').update({
-    pass1_data: { ...report.pass1_data, phase4: data },
-    executive_summary: 'Phase 4/5: Building recommendations with ROI analysis...',
+    pass1_data: { ...report.pass1_data, phase5: data },
+    executive_summary: 'Phase 5/6: Building recommendations with ROI analysis...',
   }).eq('engagement_id', engagementId);
 
   await supabaseClient.from('sa_recommendations').delete().eq('engagement_id', engagementId);
@@ -1368,12 +1551,12 @@ async function runPhase4(
     }));
     await supabaseClient.from('sa_recommendations').insert(recRows);
   }
-  console.log('[SA Pass 1] Phase 4: Recommendations complete');
+  console.log('[SA Pass 1] Phase 5: Recommendations complete');
 
-  // ---------- Phase 4b: Optional Map 4 (Optimal Stack) AI call — non-blocking ----------
+  // ---------- Phase 5b: Optional Map 4 (Optimal Stack) AI call — non-blocking ----------
   let phase4bResult: any = null;
   try {
-    console.log('[SA Pass 1] Phase 4b: Generating optimal stack...');
+    console.log('[SA Pass 1] Phase 5b: Generating optimal stack...');
     const phase4bPrompt = buildPhase4bPrompt(phase1.facts, data.recommendations || []);
     const phase4bResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -1401,20 +1584,20 @@ async function runPhase4(
   } catch (e: any) {
     console.warn('[SA Pass 1] Phase 4b: Optimal stack generation failed (non-blocking):', e?.message ?? e);
   }
-  // Preserve phase4 (written earlier in this handler); do not overwrite pass1_data with stale report.pass1_data
-  const pass1WithPhase4And4b = { ...report.pass1_data, phase4: data, phase4b: phase4bResult } as any;
+  // Preserve phase5 (written earlier in this handler); do not overwrite pass1_data with stale report.pass1_data
+  const pass1WithPhase5And4b = { ...report.pass1_data, phase5: data, phase4b: phase4bResult } as any;
   await supabaseClient
     .from('sa_audit_reports')
     .update({
-      pass1_data: pass1WithPhase4And4b,
-      executive_summary: 'Phase 4b/5: Building technology roadmap...',
+      pass1_data: pass1WithPhase5And4b,
+      executive_summary: 'Phase 5b/6: Building technology roadmap...',
     })
     .eq('engagement_id', engagementId);
 
-  // ---------- Phase 4b (legacy): Systems maps AI call — graceful degradation ----------
+  // ---------- Phase 5: Systems maps AI call — graceful degradation ----------
   await supabaseClient
     .from('sa_audit_reports')
-    .update({ executive_summary: 'Phase 4/5: Generating systems maps...' })
+    .update({ executive_summary: 'Phase 5/6: Generating systems maps...' })
     .eq('engagement_id', engagementId);
 
   try {
@@ -1444,7 +1627,7 @@ async function runPhase4(
       .eq('engagement_id', engagementId);
   }
 
-  return { success: true, phase: 4 };
+  return { success: true, phase: 5 };
 }
 
 async function runPhase4SystemsMaps(
@@ -1454,13 +1637,13 @@ async function runPhase4SystemsMaps(
 ): Promise<{ systemsMaps: any; techStackSummary: any; hoursBreakdown: any }> {
   const { data: report } = await supabaseClient
     .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
-  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase4) {
-    throw new Error('Phase 1 or 4 data not found');
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase5) {
+    throw new Error('Phase 1 or 5 (recommendations) data not found');
   }
   const phase1 = report.pass1_data.phase1;
   const phase2 = report.pass1_data.phase2;
   const phase3 = report.pass1_data.phase3;
-  const phase4 = report.pass1_data.phase4;
+  const phase4 = report.pass1_data.phase5;
   const clientName = phase1.facts?.companyName || 'the business';
 
   console.log('[SA Pass 1] Querying tech stack for systems maps...');
@@ -1508,7 +1691,7 @@ async function runPhase4SystemsMaps(
   const techContextStr = buildTechContext(matchedProducts, relevantIntegrations, alternativeProducts, relevantMiddleware, discoveryRes);
   const mapsPrompt = buildPhase4SystemsMapsPrompt(phase1, phase2, phase3, phase4, techContextStr, clientName);
 
-  const { data: mapsData, tokensUsed, cost, generationTime } = await callSonnet(mapsPrompt, 32000, 4.5, openRouterKey);
+  const { data: mapsData, tokensUsed, cost, generationTime } = await callSonnet(mapsPrompt, 32000, 5, openRouterKey);
 
   const wasTruncated = typeof mapsData?.systemsMaps === 'undefined' || (Array.isArray(mapsData.systemsMaps) && mapsData.systemsMaps.length < 4);
   if (wasTruncated) {
@@ -1646,21 +1829,21 @@ async function runPhase5(
 ): Promise<{ success: boolean; phase: number; reportId: string }> {
   const { data: reportRow } = await supabaseClient
     .from('sa_audit_reports').select('id, pass1_data').eq('engagement_id', engagementId).single();
-  if (!reportRow?.pass1_data?.phase1 || !reportRow.pass1_data.phase2 || !reportRow.pass1_data.phase3 || !reportRow.pass1_data.phase4) {
-    throw new Error('Phase 1, 2, 3, or 4 data not found');
+  if (!reportRow?.pass1_data?.phase1 || !reportRow.pass1_data.phase2 || !reportRow.pass1_data.phase3 || !reportRow.pass1_data.phase5) {
+    throw new Error('Phase 1, 2, 3, or 5 data not found');
   }
 
   const phase1 = reportRow.pass1_data.phase1;
   const phase2 = reportRow.pass1_data.phase2;
   const phase3 = reportRow.pass1_data.phase3;
-  const phase4 = reportRow.pass1_data.phase4;
+  const phase5Recs = reportRow.pass1_data.phase5;
   const clientName = phase1.facts.companyName || 'the business';
-  const prompt = buildPhase5Prompt(phase1, phase2, phase3, phase4, clientName);
-  let phase5Result = await callSonnet(prompt, 16000, 5, openRouterKey);
-  let { data: phase5, tokensUsed, cost, generationTime } = phase5Result;
-  if (!phase5) {
-    console.error('[SA Pass 1] Phase 5: Response did not parse');
-    phase5 = { adminGuidance: null, clientPresentation: null };
+  const prompt = buildPhase5Prompt(phase1, phase2, phase3, phase5Recs, clientName);
+  let phase6Result = await callSonnet(prompt, 16000, 6, openRouterKey);
+  let { data: phase6, tokensUsed, cost, generationTime } = phase6Result;
+  if (!phase6) {
+    console.error('[SA Pass 1] Phase 6: Response did not parse');
+    phase6 = { adminGuidance: null, clientPresentation: null };
   }
 
   const allQuotes = [
@@ -1698,12 +1881,12 @@ async function runPhase5(
     scores: phase2.scores,
     findings: phase3.findings,
     quickWins: phase3.quickWins,
-    recommendations: phase4.recommendations,
+    recommendations: phase5Recs.recommendations,
     systemsMaps: null as any,
-    techStackSummary: pass1Data.techStackSummary ?? phase4.techStackSummary ?? null,
-    hoursBreakdown: pass1Data.hoursBreakdown ?? phase4.hoursBreakdown ?? null,
-    adminGuidance: phase5.adminGuidance,
-    clientPresentation: phase5.clientPresentation,
+    techStackSummary: pass1Data.techStackSummary ?? phase5Recs.techStackSummary ?? null,
+    hoursBreakdown: pass1Data.hoursBreakdown ?? phase5Recs.hoursBreakdown ?? null,
+    adminGuidance: phase6.adminGuidance,
+    clientPresentation: phase6.clientPresentation,
   };
 
   // ─── McKinsey: resolve hourly rate for cost calculations (used in maps + reconciliation) ─────
@@ -1712,7 +1895,7 @@ async function runPhase5(
 
   // ─── Build Systems Maps (deterministic Maps 1–3 + optional Map 4 from Phase 4b) ─────
   const phase4b = pass1Data.phase4b ?? null;
-  console.log('[SA Pass 1] Phase 5: phase4b available:', !!phase4b,
+  console.log('[SA Pass 1] Phase 6: phase4b available:', !!phase4b,
     'nodes:', phase4b ? Object.keys(phase4b.nodes || {}).length : 0,
     'edges:', phase4b ? (phase4b.edges || []).length : 0);
   const systemsMaps = buildSystemsMaps(
@@ -1725,11 +1908,11 @@ async function runPhase5(
   );
   if (systemsMaps.length > 0) {
     finalPass1Data.systemsMaps = systemsMaps;
-    console.log(`[SA Pass 1] Phase 5: Built ${systemsMaps.length} systems maps${systemsMaps.length === 4 ? ' (including AI optimal stack)' : ''}`);
+    console.log(`[SA Pass 1] Phase 6: Built ${systemsMaps.length} systems maps${systemsMaps.length === 4 ? ' (including AI optimal stack)' : ''}`);
   } else {
-    finalPass1Data.systemsMaps = pass1Data.systemsMaps ?? phase4.systemsMaps ?? null;
+    finalPass1Data.systemsMaps = pass1Data.systemsMaps ?? phase5Recs.systemsMaps ?? null;
     if (!finalPass1Data.systemsMaps) {
-      console.warn('[SA Pass 1] Phase 5: No systems to map — systemsMaps will be null');
+      console.warn('[SA Pass 1] Phase 6: No systems to map — systemsMaps will be null');
     }
   }
 
@@ -1789,7 +1972,7 @@ async function runPhase5(
     findings: ${findingCounts.critical}C/${findingCounts.high}H/${findingCounts.medium}M/${findingCounts.low}L
     quickWins: ${qwins.length}`);
 
-  console.log('[SA Pass 1] Phase 5: Writing final report to DB...');
+  console.log('[SA Pass 1] Phase 6: Writing final report to DB...');
   const updatePayload: any = {
     pass1_data: finalPass1Data,
     status: 'pass1_complete',
@@ -1903,7 +2086,7 @@ serve(async (req) => {
     switch (phase) {
       case 1: {
         await supabaseClient.from('sa_audit_reports').upsert(
-          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/5: Extracting facts and analysing systems...' },
+          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/6: Extracting facts and analysing systems...' },
           { onConflict: 'engagement_id' }
         );
         const [discoveryRes, systemsRes] = await Promise.all([
@@ -1932,7 +2115,7 @@ serve(async (req) => {
       case 2: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 2/5: Analysing processes and calculating scores...' })
+          .update({ executive_summary: 'Phase 2/6: Analysing processes and calculating scores...' })
           .eq('engagement_id', engagementId);
         result = await runPhase2Analyse(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
         break;
@@ -1940,23 +2123,31 @@ serve(async (req) => {
       case 3: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 3/5: Generating detailed findings and quick wins...' })
+          .update({ executive_summary: 'Phase 3/6: Generating critical findings...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase3Diagnose(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
+        result = await runPhase3CriticalHigh(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
         break;
       }
       case 4: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 4/5: Building recommendations with ROI analysis...' })
+          .update({ executive_summary: 'Phase 4/6: Completing findings and quick wins...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase4(supabaseClient, engagementId, openRouterKey);
+        result = await runPhase4MediumLowQuickWins(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
         break;
       }
       case 5: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 5/5: Generating admin guidance and client presentation...' })
+          .update({ executive_summary: 'Phase 5/6: Building recommendations with ROI analysis...' })
+          .eq('engagement_id', engagementId);
+        result = await runPhase4(supabaseClient, engagementId, openRouterKey);
+        break;
+      }
+      case 6: {
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({ executive_summary: 'Phase 6/6: Generating admin guidance and client presentation...' })
           .eq('engagement_id', engagementId);
         result = await runPhase5(supabaseClient, engagementId, openRouterKey);
         break;
@@ -1970,7 +2161,7 @@ serve(async (req) => {
         success: true,
         phase: result.phase,
         reportId: (result as any).reportId,
-        nextPhase: phase < 5 ? phase + 1 : null,
+        nextPhase: phase < 6 ? phase + 1 : null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

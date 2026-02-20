@@ -13797,7 +13797,7 @@ function SystemsAuditClientModal({
       };
 
       // ── Phase 1: Extract core facts and system inventory ──
-      console.log('[SA Report] Starting Phase 1/5: Extracting facts...', { engagementId: engagement.id });
+      console.log('[SA Report] Starting Phase 1/6: Extracting facts...', { engagementId: engagement.id });
       firePhase(1);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13806,7 +13806,7 @@ function SystemsAuditClientModal({
       console.log('[SA Report] Phase 1 complete');
 
       // ── Phase 2: Analyse processes, scores, costs ──
-      console.log('[SA Report] Starting Phase 2/5: Analysing processes...');
+      console.log('[SA Report] Starting Phase 2/6: Analysing processes...');
       firePhase(2);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13814,8 +13814,8 @@ function SystemsAuditClientModal({
       }, 'Phase 2');
       console.log('[SA Report] Phase 2 complete');
 
-      // ── Phase 3: Generate findings and quick wins ──
-      console.log('[SA Report] Starting Phase 3/5: Generating findings...');
+      // ── Phase 3: Critical + High findings ──
+      console.log('[SA Report] Starting Phase 3/6: Generating critical findings...');
       firePhase(3);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13823,23 +13823,32 @@ function SystemsAuditClientModal({
       }, 'Phase 3');
       console.log('[SA Report] Phase 3 complete');
 
-      // ── Phase 4: Build recommendations, then systems maps (two steps in one invoke) ──
-      console.log('[SA Report] Starting Phase 4/5: Building recommendations, then systems maps...');
+      // ── Phase 4: Medium + Low findings + Quick wins ──
+      console.log('[SA Report] Starting Phase 4/6: Completing findings and quick wins...');
       firePhase(4);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
         return !!data?.pass1_data?.phase4;
-      }, 'Phase 4 (recommendations + systems maps)');
+      }, 'Phase 4');
       console.log('[SA Report] Phase 4 complete');
 
-      // ── Phase 5: Admin guidance and client presentation ──
-      console.log('[SA Report] Starting Phase 5/5: Generating admin guidance...');
+      // ── Phase 5: Recommendations + systems maps ──
+      console.log('[SA Report] Starting Phase 5/6: Building recommendations, then systems maps...');
       firePhase(5);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase5;
+      }, 'Phase 5 (recommendations + systems maps)');
+      console.log('[SA Report] Phase 5 complete');
+
+      // ── Phase 6: Admin guidance and client presentation ──
+      console.log('[SA Report] Starting Phase 6/6: Generating admin guidance...');
+      firePhase(6);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
         return data?.status === 'pass1_complete';
-      }, 'Phase 5');
-      console.log('[SA Report] All 5 phases complete. Starting narrative generation (Pass 2)...');
+      }, 'Phase 6');
+      console.log('[SA Report] All 6 phases complete. Starting narrative generation (Pass 2)...');
 
       // ── Pass 2: Narrative generation (Opus) ──
       const { data: reportRow } = await supabase
@@ -13883,9 +13892,10 @@ function SystemsAuditClientModal({
       const phasesComplete = [
         partialReport?.pass1_data?.phase1 ? '1 (Extract)' : null,
         partialReport?.pass1_data?.phase2 ? '2 (Analyse)' : null,
-        partialReport?.pass1_data?.phase3 ? '3 (Diagnose)' : null,
-        partialReport?.pass1_data?.phase4 ? '4 (Recommend)' : null,
-        partialReport?.status === 'pass1_complete' ? '5 (Guide)' : null,
+        partialReport?.pass1_data?.phase3 ? '3 (Critical Findings)' : null,
+        partialReport?.pass1_data?.phase4 ? '4 (All Findings)' : null,
+        partialReport?.pass1_data?.phase5 ? '5 (Recommend)' : null,
+        partialReport?.status === 'pass1_complete' ? '6 (Guide)' : null,
       ].filter(Boolean).join(', ');
 
       if (phasesComplete) {
