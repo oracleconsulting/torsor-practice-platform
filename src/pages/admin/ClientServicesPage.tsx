@@ -13796,8 +13796,8 @@ function SystemsAuditClientModal({
         });
       };
 
-      // ── Phase 1: Extract core facts and system inventory ──
-      console.log('[SA Report] Starting Phase 1/6: Extracting facts...', { engagementId: engagement.id });
+      // ── Phase 1: Extract core facts ──
+      console.log('[SA Report] Starting Phase 1/8: Extracting facts...', { engagementId: engagement.id });
       firePhase(1);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13805,8 +13805,8 @@ function SystemsAuditClientModal({
       }, 'Phase 1');
       console.log('[SA Report] Phase 1 complete');
 
-      // ── Phase 2: Analyse processes, scores, costs ──
-      console.log('[SA Report] Starting Phase 2/6: Analysing processes...');
+      // ── Phase 2: Analyse processes ──
+      console.log('[SA Report] Starting Phase 2/8: Analysing processes...');
       firePhase(2);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13815,7 +13815,7 @@ function SystemsAuditClientModal({
       console.log('[SA Report] Phase 2 complete');
 
       // ── Phase 3: Critical + High findings ──
-      console.log('[SA Report] Starting Phase 3/6: Generating critical findings...');
+      console.log('[SA Report] Starting Phase 3/8: Identifying critical findings...');
       firePhase(3);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13823,8 +13823,8 @@ function SystemsAuditClientModal({
       }, 'Phase 3');
       console.log('[SA Report] Phase 3 complete');
 
-      // ── Phase 4: Medium + Low findings + Quick wins ──
-      console.log('[SA Report] Starting Phase 4/6: Completing findings and quick wins...');
+      // ── Phase 4: Medium/Low findings + Quick wins ──
+      console.log('[SA Report] Starting Phase 4/8: Completing findings and quick wins...');
       firePhase(4);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13832,23 +13832,41 @@ function SystemsAuditClientModal({
       }, 'Phase 4');
       console.log('[SA Report] Phase 4 complete');
 
-      // ── Phase 5: Recommendations + systems maps ──
-      console.log('[SA Report] Starting Phase 5/6: Building recommendations, then systems maps...');
+      // ── Phase 5: Recommendations ──
+      console.log('[SA Report] Starting Phase 5/8: Building recommendations...');
       firePhase(5);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
         return !!data?.pass1_data?.phase5;
-      }, 'Phase 5 (recommendations + systems maps)');
+      }, 'Phase 5');
       console.log('[SA Report] Phase 5 complete');
 
-      // ── Phase 6: Admin guidance and client presentation ──
-      console.log('[SA Report] Starting Phase 6/6: Generating admin guidance...');
+      // ── Phase 6: Systems maps ──
+      console.log('[SA Report] Starting Phase 6/8: Generating technology roadmap...');
       firePhase(6);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase6;
+      }, 'Phase 6');
+      console.log('[SA Report] Phase 6 complete');
+
+      // ── Phase 7: Admin guidance ──
+      console.log('[SA Report] Starting Phase 7/8: Preparing practice team guidance...');
+      firePhase(7);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase7;
+      }, 'Phase 7');
+      console.log('[SA Report] Phase 7 complete');
+
+      // ── Phase 8: Client presentation + assembly ──
+      console.log('[SA Report] Starting Phase 8/8: Finalising report...');
+      firePhase(8);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
         return data?.status === 'pass1_complete';
-      }, 'Phase 6');
-      console.log('[SA Report] All 6 phases complete. Starting narrative generation (Pass 2)...');
+      }, 'Phase 8');
+      console.log('[SA Report] All 8 phases complete. Starting narrative generation (Pass 2)...');
 
       // ── Pass 2: Narrative generation (Opus) ──
       const { data: reportRow } = await supabase
@@ -13895,7 +13913,9 @@ function SystemsAuditClientModal({
         partialReport?.pass1_data?.phase3 ? '3 (Critical Findings)' : null,
         partialReport?.pass1_data?.phase4 ? '4 (All Findings)' : null,
         partialReport?.pass1_data?.phase5 ? '5 (Recommend)' : null,
-        partialReport?.status === 'pass1_complete' ? '6 (Guide)' : null,
+        partialReport?.pass1_data?.phase6 ? '6 (Maps)' : null,
+        partialReport?.pass1_data?.phase7 ? '7 (Guidance)' : null,
+        partialReport?.status === 'pass1_complete' ? '8 (Presentation)' : null,
       ].filter(Boolean).join(', ');
 
       if (phasesComplete) {
