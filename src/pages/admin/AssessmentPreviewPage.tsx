@@ -9,7 +9,7 @@ import type { Page } from '../../types/navigation';
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { 
   ArrowLeft, Eye, Edit2, Save, X, ChevronDown, ChevronRight,
   Target, LineChart, Settings, Users, CheckCircle, AlertCircle,
@@ -358,26 +358,22 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
   // Service selection view
   if (!selectedService) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-        
-        <main className="ml-64 p-8">
-          <div className="max-w-5xl">
-            <div className="flex items-start justify-between mb-8">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Assessment Preview & Editor</h1>
-                <p className="text-gray-600 mt-1">
-                  Edit assessment questions - changes are saved to the database and used for AI value propositions
-                </p>
-              </div>
-              <button
-                onClick={() => setShowShareModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-              >
-                <Mail className="w-4 h-4" />
-                Share for Review
-              </button>
-            </div>
+      <AdminLayout
+        title="Assessment Preview & Editor"
+        subtitle="Edit assessment questions - changes are saved to the database and used for AI value propositions"
+        currentPage={currentPage}
+        onNavigate={onNavigate}
+        headerActions={
+          <button
+            onClick={() => setShowShareModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            Share for Review
+          </button>
+        }
+      >
+        <div className="max-w-5xl">
 
             {/* Success Message */}
             {successMessage && (
@@ -576,8 +572,7 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
               </div>
             </div>
           )}
-        </main>
-      </div>
+      </AdminLayout>
     );
   }
 
@@ -585,30 +580,19 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
   const Icon = serviceInfo?.icon || Target;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      
-      <main className="ml-64 p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSelectedService(null)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg bg-${serviceInfo?.color}-100`}>
-                <Icon className={`w-5 h-5 text-${serviceInfo?.color}-600`} />
-              </div>
-              <div>
-                <h1 className="font-bold text-gray-900">{serviceInfo?.name}</h1>
-                <p className="text-sm text-gray-500">{serviceInfo?.title}</p>
-              </div>
-            </div>
-          </div>
-          
+    <AdminLayout
+      title={serviceInfo?.name ?? 'Assessment'}
+      subtitle={serviceInfo?.title}
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+      headerActions={
+        <>
+          <button
+            onClick={() => setSelectedService(null)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
           <div className="flex items-center gap-2">
             <button
               onClick={() => loadQuestions(selectedService)}
@@ -636,8 +620,10 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
               Preview
             </button>
           </div>
-        </div>
-
+        </>
+      }
+    >
+      <div>
         {/* Systems Audit Stage Tabs */}
         {selectedService === 'systems_audit' && (
           <div className="mb-6 border-b border-gray-200">
@@ -1115,8 +1101,8 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
         </>
         )}
         </div>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
 

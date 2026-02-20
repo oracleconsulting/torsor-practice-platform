@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { ServiceLineBuilderModal } from '../../components/admin/ServiceLineBuilderModal';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import type { NavigationProps } from '../../types/navigation';
 
 const STATUS_COLOURS: Record<string, string> = {
@@ -76,25 +76,22 @@ export function ServiceLineBuilderPage({ currentPage, onNavigate }: NavigationPr
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Service Line Builder</h1>
-            <p className="text-sm text-gray-600 mt-1">
-              Generate full service line blueprints from concepts, opportunities, or scratch. Review and promote to live.
-            </p>
-          </div>
-          <button
+    <AdminLayout
+      title="Service Line Builder"
+      subtitle="Generate full service line blueprints from concepts, opportunities, or scratch. Review and promote to live."
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+      headerActions={
+        <button
             onClick={openNewManual}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             New blueprint (manual)
           </button>
-        </div>
-
+      }
+    >
+      <div className="max-w-4xl mx-auto">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
@@ -142,7 +139,6 @@ export function ServiceLineBuilderPage({ currentPage, onNavigate }: NavigationPr
             ))}
           </ul>
         )}
-      </div>
 
       {manualFormOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" onClick={() => setManualFormOpen(false)}>
@@ -205,6 +201,7 @@ export function ServiceLineBuilderPage({ currentPage, onNavigate }: NavigationPr
           onImplemented={loadBlueprints}
         />
       )}
-    </div>
+      </div>
+    </AdminLayout>
   );
 }

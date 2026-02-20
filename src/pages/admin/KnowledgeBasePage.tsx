@@ -6,7 +6,7 @@ import type { Page } from '../../types/navigation';
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { 
@@ -206,30 +206,22 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-purple-100 rounded-xl">
-              <Database className="w-8 h-8 text-purple-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Knowledge Base</h1>
-              <p className="text-gray-500">AI guidance, methodology, and best practices</p>
-            </div>
-          </div>
-          
-          <button 
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-          >
-            <Plus className="w-4 h-4" />
-            Add Entry
-          </button>
-        </div>
+    <AdminLayout
+      title="Knowledge Base"
+      subtitle="AI guidance, methodology, and best practices"
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+      headerActions={
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+        >
+          <Plus className="w-4 h-4" />
+          Add Entry
+        </button>
+      }
+    >
+      <div className="max-w-7xl mx-auto">
 
         {/* Search */}
         <div className="relative mb-6">
@@ -404,8 +396,8 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
             )}
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
 

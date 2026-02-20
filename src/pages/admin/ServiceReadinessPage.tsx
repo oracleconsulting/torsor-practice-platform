@@ -2,7 +2,7 @@ import { useAuth } from '../../hooks/useAuth';
 import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useServiceReadiness } from '../../hooks/useServiceReadiness';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 
 
 interface ServiceReadinessPageProps {
@@ -11,18 +11,20 @@ interface ServiceReadinessPageProps {
 }
 
 export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadinessPageProps) {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const { data: readiness, isLoading } = useServiceReadiness(currentMember?.practice_id ?? null);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading service readiness...</p>
+      <AdminLayout title="Service Readiness" currentPage={currentPage} onNavigate={onNavigate}>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading service readiness...</p>
+          </div>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
@@ -33,34 +35,12 @@ export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadine
   const totalCapableMembers = new Set(readiness?.flatMap(r => r.teamMembersCapable?.map(m => m.memberId) || [])).size || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                🎯 Service Launch Readiness: {Math.round(averageReadiness)}% Average
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Capability matrix for advisory services go-to-market decisions
-              </p>
-            </div>
-            <button
-              onClick={() => signOut()}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Navigation Tabs */}
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <AdminLayout
+      title={`Service Launch Readiness: ${Math.round(averageReadiness)}% Average`}
+      subtitle="Capability matrix for advisory services go-to-market decisions"
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+    >
         {/* Summary Stats */}
         <div className="bg-white border border-gray-200 rounded-lg mb-6 p-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -315,7 +295,6 @@ export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadine
             );
           })}
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }

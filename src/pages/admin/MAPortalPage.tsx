@@ -47,6 +47,7 @@ import type {
   TierType 
 } from '../../types/ma';
 import type { NavigationProps } from '../../types/navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 
 // ============================================================================
 // TYPES
@@ -573,12 +574,14 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-slate-600">Loading...</p>
+      <AdminLayout title="BI Portal" currentPage={_currentPage} onNavigate={onNavigate}>
+        <div className="flex items-center justify-center py-24">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
+            <p className="text-slate-600">Loading...</p>
+          </div>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
@@ -588,27 +591,22 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
   if (view === 'list') {
     return (
-      <div className="min-h-screen bg-slate-50">
-        {/* Header */}
-        <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-800">Business Intelligence Portal</h1>
-                <p className="text-slate-500 mt-1">Manage client engagements and deliverables</p>
-              </div>
-              <button
-                onClick={() => onNavigate('clients')}
-                className="px-4 py-2 text-slate-600 hover:text-slate-800 flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Clients
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-6 py-8">
+      <AdminLayout
+        title="Business Intelligence Portal"
+        subtitle="Manage client engagements and deliverables"
+        currentPage={_currentPage}
+        onNavigate={onNavigate}
+        headerActions={
+          <button
+            onClick={() => onNavigate('clients')}
+            className="px-4 py-2 text-slate-600 hover:text-slate-800 flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Clients
+          </button>
+        }
+      >
+        <div className="max-w-7xl mx-auto">
           {/* Search and Filters */}
           <div className="flex items-center gap-4 mb-6">
             <div className="relative flex-1 max-w-md">
@@ -768,7 +766,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
             </div>
           )}
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
@@ -778,22 +776,24 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
   if (view === 'engagement' && engagement) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        {/* Header */}
-        <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={navigateBack}
-                className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
+      <AdminLayout
+        title={engagement.client?.client_company || engagement.client?.name || 'Engagement'}
+        currentPage={_currentPage}
+        onNavigate={onNavigate}
+        headerActions={
+          <button
+            onClick={navigateBack}
+            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+        }
+      >
+        <div className="space-y-6">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
-                  <h1 className="text-xl font-bold text-slate-800">
-                    {engagement.client?.client_company || engagement.client?.name}
-                  </h1>
                   
                   {/* Tier Selector Dropdown */}
                   <div className="relative">
@@ -1058,6 +1058,8 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
           </div>
         )}
       </div>
+        </div>
+      </AdminLayout>
     );
   }
 
@@ -1067,35 +1069,20 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
   if (view === 'period' && period && engagement) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        {/* Header */}
-        <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-          <div className="max-w-7xl mx-auto px-6 py-4">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={navigateBack}
-                className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-                  <span>{engagement.client?.client_company || engagement.client?.name}</span>
-                  <span>→</span>
-                  <span>{period.period_label}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <h1 className="text-xl font-bold text-slate-800">{period.period_label}</h1>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${PERIOD_STATUS_CONFIG[period.status]?.bg} ${PERIOD_STATUS_CONFIG[period.status]?.color}`}>
-                    {PERIOD_STATUS_CONFIG[period.status]?.icon}
-                    {PERIOD_STATUS_CONFIG[period.status]?.label}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Workflow Steps */}
-            <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+      <AdminLayout
+        title={period.period_label}
+        subtitle={`${engagement.client?.client_company || engagement.client?.name} → ${period.period_label}`}
+        currentPage={_currentPage}
+        onNavigate={onNavigate}
+        headerActions={
+          <>
+            <button
+              onClick={navigateBack}
+              className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="flex gap-2 overflow-x-auto pb-2">
               {WORKFLOW_STEPS.map((step, idx) => (
                 <button
                   key={step.tab}
@@ -1114,10 +1101,10 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-
-        <div className="max-w-7xl mx-auto px-6 py-8">
+          </>
+        }
+      >
+        <div className="max-w-7xl mx-auto">
           {/* Upload Tab */}
           {workflowTab === 'upload' && (
             <div className="space-y-6">
@@ -1385,7 +1372,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
             />
           )}
         </div>
-      </div>
+    </AdminLayout>
     );
   }
 
@@ -1394,18 +1381,20 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   // ============================================================================
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-      <div className="text-center">
-        <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-        <p className="text-slate-600">Something went wrong. Please try again.</p>
-        <button
-          onClick={() => setView('list')}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          Back to Engagements
-        </button>
+    <AdminLayout title="BI Portal" currentPage={_currentPage} onNavigate={onNavigate}>
+      <div className="flex items-center justify-center py-24">
+        <div className="text-center">
+          <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+          <p className="text-slate-600">Something went wrong. Please try again.</p>
+          <button
+            onClick={() => setView('list')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Back to Engagements
+          </button>
+        </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 }
 

@@ -6,7 +6,7 @@ import type { Page } from '../../types/navigation';
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { 
@@ -160,22 +160,19 @@ export function CPDTrackerPage({ currentPage, onNavigate }: CPDTrackerPageProps)
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
+    <AdminLayout
+      title="CPD Tracker"
+      subtitle="Track continuing professional development"
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+    >
+      <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-amber-100 rounded-xl">
               <Award className="w-8 h-8 text-amber-600" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">CPD Tracker</h1>
-              <p className="text-gray-500">Track continuing professional development</p>
-            </div>
           </div>
-          
           <div className="flex items-center gap-4">
             <select
               value={selectedYear}
@@ -345,8 +342,8 @@ export function CPDTrackerPage({ currentPage, onNavigate }: CPDTrackerPageProps)
               })}
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
 

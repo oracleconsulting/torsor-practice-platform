@@ -6,7 +6,7 @@ import type { Page } from '../../types/navigation';
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
@@ -383,27 +383,22 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
   // Service selection view
   if (!selectedService) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Navigation 
-          currentPage={currentPage} 
-          onNavigate={onNavigate} 
-        />
-        
-        <main className="ml-64 p-8">
+      <AdminLayout
+        title="Delivery Management"
+        subtitle="Create delivery teams, assign team members, and manage capacity"
+        currentPage={currentPage}
+        onNavigate={onNavigate}
+        headerActions={
           <button
             onClick={() => onNavigate('clients')}
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 group"
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <ArrowLeft className="w-4 h-4" />
             <span>Back to Dashboard</span>
           </button>
-
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Delivery Management</h1>
-            <p className="text-gray-600 mt-1">
-              Create delivery teams, assign team members, and manage capacity
-            </p>
-          </div>
+        }
+      >
+        <div>
 
           {/* Service Line Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -481,8 +476,8 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
               </div>
             </div>
           </div>
-        </main>
-      </div>
+        </div>
+      </AdminLayout>
     );
   }
 
@@ -490,33 +485,19 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
   const Icon = serviceInfo?.icon || Target;
   
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation 
-        currentPage={currentPage} 
-        onNavigate={onNavigate} 
-      />
-      
-      <main className="ml-64 p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSelectedService(null)}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-xl bg-${serviceInfo?.color}-100`}>
-                <Icon className={`w-6 h-6 text-${serviceInfo?.color}-600`} />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">{serviceInfo?.name}</h1>
-                <p className="text-sm text-gray-500">Delivery Teams</p>
-              </div>
-            </div>
-          </div>
-          
+    <AdminLayout
+      title={serviceInfo?.name ?? 'Delivery'}
+      subtitle="Delivery Teams"
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+      headerActions={
+        <>
+          <button
+            onClick={() => setSelectedService(null)}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
           <button
             onClick={() => setShowCreateTeam(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
@@ -524,7 +505,10 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
             <Plus className="w-4 h-4" />
             Create Team
           </button>
-        </div>
+        </>
+      }
+    >
+      <div className="mb-8">
 
         {/* Roles Reference */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
@@ -831,8 +815,8 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
             onClose={() => setShowAddMember(null)}
           />
         )}
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
 

@@ -2,7 +2,7 @@ import { useAuth } from '../../hooks/useAuth';
 import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useTeamAnalytics } from '../../hooks/useTeamAnalytics';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { Brain, TrendingUp, AlertTriangle, Award, Users, Target } from 'lucide-react';
 
 
@@ -12,18 +12,20 @@ interface TeamAnalyticsPageProps {
 }
 
 export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPageProps) {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const { data: analytics, isLoading } = useTeamAnalytics(currentMember?.practice_id ?? null);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Calculating team analytics...</p>
+      <AdminLayout title="Team Analytics" currentPage={currentPage} onNavigate={onNavigate}>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Calculating team analytics...</p>
+          </div>
         </div>
-      </div>
+      </AdminLayout>
     );
   }
 
@@ -31,37 +33,17 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
   const highRetentionRisk = analytics?.filter(a => a.retentionRisk?.riskLevel === 'high').length || 0;
   const highBurnoutRisk = analytics?.filter(a => a.burnoutRisk?.riskLevel === 'high').length || 0;
   const promotionReady = analytics?.filter(a => a.promotionReadiness?.successProbability === 'high').length || 0;
-  const roleAlignmentIssues = analytics?.filter(a => 
+  const roleAlignmentIssues = analytics?.filter(a =>
     a.belbinMotivation?.alignmentScore && a.belbinMotivation.alignmentScore < 60
   ).length || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Team Analytics & Insights</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Advanced predictive analytics and cross-assessment correlations
-              </p>
-            </div>
-            <button
-              onClick={() => signOut()}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Navigation Tabs */}
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+    <AdminLayout
+      title="Team Analytics & Insights"
+      subtitle="Advanced predictive analytics and cross-assessment correlations"
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+    >
         {/* Overview Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -350,8 +332,7 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
             </div>
           ))}
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
 

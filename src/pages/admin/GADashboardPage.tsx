@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Page } from '../../types/navigation';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
@@ -774,20 +774,18 @@ export function GADashboardPage({ currentPage, onNavigate }: GADashboardPageProp
 
   if (loading) {
     return (
-      <>
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
+      <AdminLayout title="Goal Alignment" currentPage={currentPage} onNavigate={onNavigate}>
         <div className="flex items-center justify-center py-24">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
         </div>
-      </>
+      </AdminLayout>
     );
   }
 
   if (clients.length === 0) {
     return (
-      <>
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-        <div className="max-w-6xl mx-auto px-6 py-8">
+      <AdminLayout title="Goal Alignment" currentPage={currentPage} onNavigate={onNavigate}>
+        <div className="max-w-6xl mx-auto">
           <div className="text-center py-16">
             <Target className="w-16 h-16 text-slate-300 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-slate-900 mb-2">
@@ -799,41 +797,36 @@ export function GADashboardPage({ currentPage, onNavigate }: GADashboardPageProp
             </p>
           </div>
         </div>
-      </>
+      </AdminLayout>
     );
   }
 
   return (
-    <>
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Goal Alignment Dashboard
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {clients.length} client{clients.length !== 1 ? 's' : ''} enrolled
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">
-              Updated {lastRefresh.toLocaleTimeString()}
-            </span>
-            <button
-              type="button"
-              onClick={fetchDashboard}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-          </div>
-        </div>
-
+    <AdminLayout
+      title="Goal Alignment Dashboard"
+      subtitle={`${clients.length} client${clients.length !== 1 ? 's' : ''} enrolled`}
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+      headerActions={
+        <>
+          <span className="text-xs text-slate-400">
+            Updated {lastRefresh.toLocaleTimeString()}
+          </span>
+          <button
+            type="button"
+            onClick={fetchDashboard}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </>
+      }
+    >
+      <div className="max-w-6xl mx-auto space-y-6">
         <SummaryCards clients={clients} />
         <ClientList clients={clients} onViewDetail={handleViewDetail} />
       </div>
-    </>
+    </AdminLayout>
   );
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Page } from '../../types/navigation';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
@@ -74,7 +74,7 @@ import type { SAEngagementGap, PreliminaryAnalysis } from '../../types/systems-a
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
 import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
-import SprintEditorModal from '../../components/admin/SprintEditorModal';
+import { SprintEditorModal } from '../../components/admin/sprint-editor';
 import { getAssessmentByCode } from '../../config/serviceLineAssessments';
 import type { AssessmentQuestion } from '../../config/serviceLineAssessments';
 
@@ -1169,39 +1169,31 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Client Services</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Manage clients across all service lines
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setShowBulkImportModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                Bulk Import
-              </button>
-            <button 
-              onClick={() => setShowInviteModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              Invite Client
-            </button>
-            </div>
-          </div>
-        </div>
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <AdminLayout
+      title="Client Services"
+      subtitle="Manage clients across all service lines"
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+      headerActions={
+        <>
+          <button
+            onClick={() => setShowBulkImportModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </button>
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            Invite Client
+          </button>
+        </>
+      }
+    >
+      <div className="max-w-7xl mx-auto">
         {!selectedServiceLine ? (
           // Service Lines Grid
           <div className="space-y-6">
@@ -2325,8 +2317,10 @@ Jeremy Baron	jeremy@baronsec.com	Baron Securities"
             </div>
           </div>
         )}
-      </main>
+      </div>
+      )}
     </div>
+  </AdminLayout>
   );
 }
 
@@ -11798,7 +11792,6 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* Sprint Editor Modal — outside tab content so it opens from any tab */}
               {showSprintEditor && sprintStageRaw && (
                 <SprintEditorModal
-                  isOpen={showSprintEditor}
                   onClose={() => setShowSprintEditor(false)}
                   onSave={() => { fetchClientDetail(); }}
                   clientId={client?.id || clientId || ''}

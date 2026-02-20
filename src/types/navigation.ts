@@ -1,21 +1,21 @@
 // ============================================================================
-// SHARED NAVIGATION TYPES
-// ============================================================================
-// Single source of truth for navigation types
+// ADMIN NAVIGATION TYPES
 // ============================================================================
 
-export type Page = 
-  | 'heatmap' 
-  | 'management' 
-  | 'readiness' 
-  | 'analytics' 
-  | 'clients' 
+import type { ComponentType } from 'react';
+
+export type Page =
+  | 'heatmap'
+  | 'management'
+  | 'readiness'
+  | 'analytics'
+  | 'clients'
   | 'ga-dashboard'
-  | 'assessments' 
-  | 'delivery' 
-  | 'config' 
-  | 'cpd' 
-  | 'training' 
+  | 'assessments'
+  | 'delivery'
+  | 'config'
+  | 'cpd'
+  | 'training'
   | 'knowledge'
   | 'ma-portal'
   | 'service-builder'
@@ -28,3 +28,13 @@ export interface NavigationProps {
 
 export interface PageProps extends NavigationProps {}
 
+export interface NavItem {
+  id: Page;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+}
+
+export interface NavSection {
+  title: string;
+  items: NavItem[];
+}

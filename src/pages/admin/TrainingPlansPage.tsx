@@ -6,7 +6,7 @@ import type { Page } from '../../types/navigation';
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { 
@@ -147,28 +147,19 @@ export function TrainingPlansPage({ currentPage, onNavigate }: TrainingPlansPage
     : plans.filter(p => p.status === filterStatus);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-100 rounded-xl">
-              <BookOpen className="w-8 h-8 text-blue-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Training Plans</h1>
-              <p className="text-gray-500">Develop team skills with structured learning</p>
-            </div>
-          </div>
-          
-          <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            <Plus className="w-4 h-4" />
-            Create Plan
-          </button>
-        </div>
-
+    <AdminLayout
+      title="Training Plans"
+      subtitle="Develop team skills with structured learning"
+      currentPage={currentPage}
+      onNavigate={onNavigate}
+      headerActions={
+        <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+          <Plus className="w-4 h-4" />
+          Create Plan
+        </button>
+      }
+    >
+      <div className="max-w-7xl mx-auto">
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -314,8 +305,8 @@ export function TrainingPlansPage({ currentPage, onNavigate }: TrainingPlansPage
             );
           })}
         </div>
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
 
