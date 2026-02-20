@@ -13553,7 +13553,7 @@ function SystemsAuditClientModal({
           .from('service_line_assessments')
           .select('responses')
           .eq('client_id', clientId)
-          .eq('service_line', 'systems_audit')
+          .eq('service_line_code', 'systems_audit')
           .order('updated_at', { ascending: false })
           .limit(1)
           .maybeSingle();
