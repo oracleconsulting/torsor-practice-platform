@@ -15436,13 +15436,40 @@ function SystemsAuditClientModal({
                                     </div>
                                   )}
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => { setShowTranscriptInput(true); setTranscriptText(engagement.follow_up_transcript || ''); }}
-                                  className="text-xs text-indigo-600 hover:underline mt-2"
-                                >
-                                  Upload additional notes or re-process
-                                </button>
+                                {!showTranscriptInput ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setShowTranscriptInput(true); setTranscriptText(engagement.follow_up_transcript || ''); }}
+                                    className="text-xs text-indigo-600 hover:underline mt-2"
+                                  >
+                                    Upload additional notes or re-process
+                                  </button>
+                                ) : (
+                                  <div className="mt-4 space-y-3 pt-4 border-t border-green-200">
+                                    <p className="text-sm text-gray-700">Add more notes or edit the transcript and re-run extraction.</p>
+                                    <textarea
+                                      value={transcriptText}
+                                      onChange={(e) => setTranscriptText(e.target.value)}
+                                      placeholder="Paste updated call transcript or additional notes..."
+                                      className="w-full h-48 border border-gray-300 rounded-lg p-3 text-sm resize-y focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-400">{transcriptText.length > 0 ? `${transcriptText.length} characters` : 'Paste transcript or notes'}</span>
+                                      <div className="flex gap-2">
+                                        <button type="button" onClick={() => { setShowTranscriptInput(false); setTranscriptText(''); }} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                                        <button
+                                          type="button"
+                                          onClick={handleProcessTranscript}
+                                          disabled={processingTranscript || transcriptText.trim().length < 50}
+                                          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                                        >
+                                          {processingTranscript ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                          {processingTranscript ? 'Processing...' : 'Re-process Transcript'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

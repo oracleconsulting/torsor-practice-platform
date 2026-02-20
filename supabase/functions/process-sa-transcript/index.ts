@@ -82,6 +82,11 @@ serve(async (req) => {
     const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
     if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
 
+    // Use faster model for large payloads to stay under gateway/worker timeout (e.g. 150s)
+    const isHeavy = transcriptStr.length > 8000 || gaps.length > 10;
+    const model = isHeavy ? 'anthropic/claude-3-5-haiku' : 'anthropic/claude-sonnet-4.5';
+    if (isHeavy) console.log('[SA Transcript] Using Haiku for large payload to reduce timeout risk');
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -91,10 +96,10 @@ serve(async (req) => {
         'X-Title': 'Torsor SA Transcript Processing',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4.5',
+        model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
-        max_tokens: 4000,
+        max_tokens: 8000,
         stream: true,
       }),
     });
@@ -146,7 +151,37 @@ serve(async (req) => {
     }
     if (lastBrace > 0) cleaned = cleaned.substring(0, lastBrace + 1);
 
-    const extraction = JSON.parse(cleaned);
+    let extraction: any;
+    try {
+      extraction = JSON.parse(cleaned);
+    } catch (parseErr) {
+      const msg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+      const isTruncated = /unterminated|position \d+|line \d+|unexpected end/i.test(msg);
+      if (isTruncated) {
+        let repaired = cleaned.trim();
+        if (!repaired.endsWith('}') && !repaired.endsWith(']')) {
+          if (!repaired.endsWith('"')) repaired = repaired + '"';
+        }
+        let open = 0;
+        for (let i = 0; i < repaired.length; i++) {
+          const c = repaired[i];
+          if (c === '{' || c === '[') open++;
+          else if (c === '}' || c === ']') open--;
+        }
+        while (open > 0) {
+          repaired += '}';
+          open--;
+        }
+        try {
+          extraction = JSON.parse(repaired);
+        } catch {
+          console.error('[SA Transcript] JSON repair failed. Raw length:', cleaned.length, 'Preview (last 200):', cleaned.slice(-200));
+          throw new Error('Transcript extraction response was truncated or invalid JSON. Try again with a shorter transcript or fewer gaps.');
+        }
+      } else {
+        throw parseErr;
+      }
+    }
     console.log(
       `[SA Transcript] Extracted: ${extraction.resolvedGaps?.length || 0} resolved, ${extraction.unresolvedGaps?.length || 0} unresolved`
     );
@@ -202,7 +237,16 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('[SA Transcript] Error:', error);
+    const err = error as { name?: string; message?: string };
+    const isConnectionClosed =
+      err?.name === 'Http' && typeof err?.message === 'string' && err.message.includes('connection closed');
+    if (isConnectionClosed) {
+      console.log(
+        '[SA Transcript] Client connection closed before response could be sent (e.g. gateway timeout). Processing and DB updates completed successfully; client should refresh to see results.'
+      );
+    } else {
+      console.error('[SA Transcript] Error:', error);
+    }
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
