@@ -790,8 +790,10 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
         }
       >
         <div className="space-y-6">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center gap-4">
+        {/* Engagement header — custom UI (tier selector, tabs) */}
+        <div className="bg-white border-b border-slate-200 -mx-6 -mt-6 mb-6 sticky top-[65px] z-10">
+          <div className="max-w-7xl mx-auto px-6 py-4">
+            <div className="flex items-center gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3">
                   
@@ -892,7 +894,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
           </div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="max-w-7xl mx-auto">
           {/* True Cash Card */}
           {trueCashDisplay && (
             <div className="mb-6">
@@ -1058,7 +1060,6 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
           </div>
         )}
       </div>
-        </div>
       </AdminLayout>
     );
   }
@@ -1070,8 +1071,8 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   if (view === 'period' && period && engagement) {
     return (
       <AdminLayout
-        title={period.period_label}
-        subtitle={`${engagement.client?.client_company || engagement.client?.name} → ${period.period_label}`}
+        title={period.period_label ?? 'Period'}
+        subtitle={`${engagement.client?.client_company || engagement.client?.name} → ${period.period_label ?? ''}`}
         currentPage={_currentPage}
         onNavigate={onNavigate}
         headerActions={
