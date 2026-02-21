@@ -6,7 +6,7 @@ import { SkillsHeatmapPage } from './pages/admin/SkillsHeatmapPage';
 import { SkillsManagementPage } from './pages/admin/SkillsManagementPage';
 import { ServiceReadinessPage } from './pages/admin/ServiceReadinessPage';
 import { TeamAnalyticsPage } from './pages/admin/TeamAnalyticsPage';
-import { ClientServicesPage } from './pages/admin/ClientServicesPage';
+import { ClientServicesPage } from './pages/admin/clients';
 import { AssessmentPreviewPage } from './pages/admin/AssessmentPreviewPage';
 import { DeliveryManagementPage } from './pages/admin/DeliveryManagementPage';
 import { ServiceConfigPage } from './pages/admin/ServiceConfigPage';
