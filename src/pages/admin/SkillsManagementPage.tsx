@@ -6,7 +6,7 @@ import { useSkillsByCategory } from '../../hooks/useSkillsByCategory';
 import { SkillCategoryCard } from '../../components/SkillCategoryCard';
 import { AdminLayout } from '../../components/AdminLayout';
 import { Plus, Download, Search } from 'lucide-react';
-import { SKILL_CATEGORIES } from '../../lib/types';
+import { SKILL_CATEGORIES, type SkillCategory } from '../../lib/types';
 import { supabase } from '../../lib/supabase';
 
 export function SkillsManagementPage() {
@@ -166,7 +166,7 @@ export function SkillsManagementPage() {
 
 function AddSkillModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [skillName, setSkillName] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(SKILL_CATEGORIES[0]);
+  const [selectedCategory, setSelectedCategory] = useState<SkillCategory>(SKILL_CATEGORIES[0]);
   const [requiredLevel, setRequiredLevel] = useState(3);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -216,7 +216,7 @@ function AddSkillModal({ onClose, onSuccess }: { onClose: () => void; onSuccess:
             <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
             <select
               value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
+              onChange={(e) => setSelectedCategory(e.target.value as SkillCategory)}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
             >
               {SKILL_CATEGORIES.map((c) => (
