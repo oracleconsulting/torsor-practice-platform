@@ -123,10 +123,10 @@ function resolveMetrics(report: SAReport) {
     : (report.roi_ratio || 'Infinite');
 
   return {
-    annualCostOfChaos: facts.annualCostOfChaos ?? report.total_annual_cost_of_chaos ?? 0,
+    annualCostOfChaos: Math.round(facts.annualCostOfChaos ?? report.total_annual_cost_of_chaos ?? 0),
     hoursWastedWeekly: facts.hoursWastedWeekly ?? report.total_hours_wasted_weekly ?? 0,
     growthMultiplier: facts.growthMultiplier ?? report.growth_multiplier ?? 1.3,
-    projectedCostAtScale: facts.projectedCostAtScale ?? report.projected_cost_at_scale ?? 0,
+    projectedCostAtScale: Math.round(facts.projectedCostAtScale ?? report.projected_cost_at_scale ?? 0),
     integrationScore: scores.integration?.score ?? report.integration_score ?? 0,
     automationScore: scores.automation?.score ?? report.automation_score ?? 0,
     dataAccessibilityScore: scores.dataAccessibility?.score ?? report.data_accessibility_score ?? 0,
@@ -146,7 +146,7 @@ function resolveMetrics(report: SAReport) {
 // ─── Format Helpers ──────────────────────────────────────────────────────────
 
 const fmt = (n: number) => n >= 1000 ? `£${Math.round(n / 1000)}k` : `£${n}`;
-const fmtFull = (n: number) => `£${n.toLocaleString()}`;
+const fmtFull = (n: number) => `£${Math.round(n).toLocaleString()}`;
 const fmtPayback = (months: number) => {
   if (months <= 0) return 'Immediate';
   if (months < 1) return '< 1 month';
@@ -327,7 +327,7 @@ export default function SAReportPage() {
       if (reportErr) {
         console.error('SA report fetch error:', reportErr.message, reportErr.code);
       }
-      if (!reportData || !['generated', 'approved', 'published', 'delivered'].includes(reportData.status)) {
+      if (!reportData || !['generated', 'regenerating', 'approved', 'published', 'delivered'].includes(reportData.status)) {
         setReport(null);
         setLoading(false);
         // One retry after 2s in case DB/RLS was slow or share was just applied

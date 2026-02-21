@@ -903,6 +903,7 @@ function buildPhase1Prompt(
 ): string {
   const MAX_SYSTEMS = 20;
   const MAX_TEXT = 600;
+  const MAX_VISION = 1000; // Client vision quotes (e.g. Monday morning) must not be cut mid-sentence
   const systemsSlice = systems.slice(0, MAX_SYSTEMS);
 
   const systemDetails = systemsSlice.map((s: any) => {
@@ -978,8 +979,8 @@ WHERE YOU'RE GOING / YOUR BUSINESS:
 
 TARGET STATE:
 - Desired outcomes: ${mapDesiredOutcomes(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
-- Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
-- Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_TEXT)}"
+- Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_VISION)}"
+- Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_VISION)}"
 - Magic fix (Focus Areas): "${TRUNCATE(discovery.magic_process_fix || 'Not specified', MAX_TEXT)}"
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -1077,6 +1078,7 @@ function buildPhase2AnalysePrompt(
 ): string {
   const MAX_DEEP_DIVES = 12;
   const MAX_TEXT = 600;
+  const MAX_VISION = 1000;
   const deepDivesSlice = deepDives.slice(0, MAX_DEEP_DIVES);
 
   const deepDiveDetails = deepDivesSlice.map((dd: any) => {
@@ -1123,8 +1125,8 @@ Integration gaps: ${(phase1Facts.integrationGaps || []).join('; ')}
 
 TARGET STATE:
 - Desired outcomes: ${mapDesiredOutcomes(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
-- Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
-- Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_TEXT)}"
+- Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_VISION)}"
+- Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_VISION)}"
 - Magic fix: "${TRUNCATE(discovery.magic_process_fix || 'Not specified', MAX_TEXT)}"
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -2374,10 +2376,29 @@ serve(async (req) => {
 
     switch (phase) {
       case 1: {
-        await supabaseClient.from('sa_audit_reports').upsert(
-          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/8: Extracting facts...' },
-          { onConflict: 'engagement_id' }
-        );
+        const { data: existingReport } = await supabaseClient
+          .from('sa_audit_reports')
+          .select('status')
+          .eq('engagement_id', engagementId)
+          .maybeSingle();
+
+        if (!existingReport) {
+          await supabaseClient.from('sa_audit_reports').insert({
+            engagement_id: engagementId,
+            status: 'generating',
+            executive_summary: 'Phase 1/8: Extracting facts...',
+          });
+        } else {
+          const isComplete = ['generated', 'approved', 'published', 'delivered'].includes(existingReport.status);
+          const updatePayload: Record<string, unknown> = { status: 'regenerating' };
+          if (!isComplete) {
+            updatePayload.executive_summary = 'Phase 1/8: Extracting facts...';
+          }
+          await supabaseClient.from('sa_audit_reports')
+            .update(updatePayload)
+            .eq('engagement_id', engagementId);
+        }
+
         const [discoveryRes, systemsRes] = await Promise.all([
           supabaseClient.from('sa_discovery_responses').select('*').eq('engagement_id', engagementId).single(),
           supabaseClient.from('sa_system_inventory').select('*').eq('engagement_id', engagementId),
@@ -2479,14 +2500,33 @@ serve(async (req) => {
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       );
-      const status = `phase${phase}_failed`;
-      await supabaseClient
+
+      const { data: existingReport } = await supabaseClient
         .from('sa_audit_reports')
-        .update({
-          status,
-          executive_summary: `Report generation failed at phase ${phase}: ${errMsg}. Retry from admin.`,
-        })
-        .eq('engagement_id', engagementId);
+        .select('pass1_data, status')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+
+      const hadCompletedReport = existingReport?.pass1_data?.systemsMaps
+        && existingReport?.pass1_data?.findings
+        && existingReport?.pass1_data?.recommendations;
+
+      if (hadCompletedReport) {
+        console.warn(`[SA Pass 1] Phase ${phase} failed but report has complete data from previous run. Restoring status to 'generated'.`);
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({ status: 'generated' })
+          .eq('engagement_id', engagementId);
+      } else {
+        const status = `phase${phase}_failed`;
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({
+            status,
+            executive_summary: `Report generation failed at phase ${phase}: ${errMsg}. Retry from admin.`,
+          })
+          .eq('engagement_id', engagementId);
+      }
     }
 
     return new Response(
