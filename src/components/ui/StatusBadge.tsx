@@ -27,6 +27,15 @@ const STATUS_MAP: Record<string, { label: string; variant: Variant }> = {
   ready: { label: 'Ready', variant: 'success' },
   shared: { label: 'Shared with Client', variant: 'success' },
   error: { label: 'Error', variant: 'danger' },
+  // MA period statuses
+  data_received: { label: 'Data Received', variant: 'info' },
+  processing: { label: 'Processing', variant: 'warning' },
+  review: { label: 'Ready for Review', variant: 'info' },
+  approved: { label: 'Approved', variant: 'success' },
+  delivered: { label: 'Delivered', variant: 'success' },
+  client_reviewed: { label: 'Client Reviewed', variant: 'success' },
+  published: { label: 'Published', variant: 'success' },
+  superseded: { label: 'Superseded', variant: 'neutral' },
 };
 
 const variantIcons = {

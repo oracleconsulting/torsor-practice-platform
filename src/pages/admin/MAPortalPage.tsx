@@ -49,6 +49,7 @@ import type {
 import { useNavigate } from 'react-router-dom';
 import { ADMIN_ROUTES } from '../../config/routes';
 import { AdminLayout } from '../../components/AdminLayout';
+import { PageSkeleton, StatCard, EmptyState, StatusBadge } from '../../components/ui';
 
 // ============================================================================
 // TYPES
@@ -106,19 +107,6 @@ function getTierDisplayName(tier: string | undefined | null) {
   if (!tier) return 'Clarity';
   const mappedTier = LEGACY_TIER_MAP[tier] || 'clarity';
   return mappedTier.charAt(0).toUpperCase() + mappedTier.slice(1);
-}
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'Pending', color: 'text-slate-500', bg: 'bg-slate-100' },
-  active: { label: 'Active', color: 'text-green-600', bg: 'bg-green-100' },
-  paused: { label: 'Paused', color: 'text-amber-600', bg: 'bg-amber-100' },
-  cancelled: { label: 'Cancelled', color: 'text-red-600', bg: 'bg-red-100' },
-};
-
-// Safe accessor for status config with fallback (v2 - handles null/undefined)
-function getStatusConfig(status: string | undefined | null) {
-  if (!status) return STATUS_CONFIG.pending;
-  return STATUS_CONFIG[status] || STATUS_CONFIG.pending;
 }
 
 const PERIOD_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -577,12 +565,7 @@ export function MAPortalPage() {
   if (loading) {
     return (
       <AdminLayout title="BI Portal">
-        <div className="flex items-center justify-center py-24">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-            <p className="text-slate-600">Loading...</p>
-          </div>
-        </div>
+        <PageSkeleton />
       </AdminLayout>
     );
   }
@@ -631,86 +614,36 @@ export function MAPortalPage() {
             </select>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Users className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-800">{engagements.length}</p>
-                  <p className="text-sm text-slate-500">Total Engagements</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <CheckCircle2 className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {engagements.filter(e => e.status === 'active').length}
-                  </p>
-                  <p className="text-sm text-slate-500">Active</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-amber-100 rounded-lg">
-                  <Clock className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {engagements.filter(e => e.currentPeriod?.status === 'pending' || e.currentPeriod?.status === 'in_progress').length}
-                  </p>
-                  <p className="text-sm text-slate-500">Periods Due</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-violet-100 rounded-lg">
-                  <TrendingUp className="h-5 w-5 text-violet-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-slate-800">
-                    {formatCurrency(engagements.reduce((sum, e) => sum + (e.monthly_fee || 0), 0))}
-                  </p>
-                  <p className="text-sm text-slate-500">Monthly Revenue</p>
-                </div>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <StatCard label="Total Engagements" value={engagements.length} accent="blue" icon={<Users className="w-5 h-5" />} />
+            <StatCard label="Active" value={engagements.filter(e => e.status === 'active').length} accent="teal" icon={<CheckCircle2 className="w-5 h-5" />} />
+            <StatCard label="Periods Due" value={engagements.filter(e => ['pending', 'data_received', 'in_progress', 'review'].includes(e.currentPeriod?.status ?? '')).length} accent="orange" icon={<Clock className="w-5 h-5" />} />
+            <StatCard label="Monthly Revenue" value={formatCurrency(engagements.reduce((sum, e) => sum + (e.monthly_fee || 0), 0))} accent="blue" icon={<TrendingUp className="w-5 h-5" />} subtitle="Recurring" />
           </div>
 
           {/* Engagements List */}
           {filteredEngagements.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-              <Users className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-700 mb-2">No engagements found</h3>
-              <p className="text-slate-500 mb-6">
-                {searchQuery ? 'Try adjusting your search' : 'Start by creating an engagement from the Client Services page'}
-              </p>
-              <button
-                onClick={() => navigate(ADMIN_ROUTES.clients)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Go to Client Services
-              </button>
-            </div>
+            <EmptyState
+              title="No engagements found"
+              description={searchQuery ? 'Try adjusting your search' : "Start by creating an engagement from the Client Services page"}
+              icon={<Users className="w-12 h-12 text-slate-300" />}
+              action={
+                <button type="button" onClick={() => navigate(ADMIN_ROUTES.clients)} className="btn-primary">
+                  Go to Client Services
+                </button>
+              }
+            />
           ) : (
-            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-slate-50 border-b border-slate-200">
+            <div className="card overflow-hidden">
+              <table className="data-table w-full">
+                <thead>
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Client</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Tier</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Status</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-slate-600">Current Period</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-slate-600">Fee</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-slate-600">Actions</th>
+                    <th>Client</th>
+                    <th>Tier</th>
+                    <th>Status</th>
+                    <th>Current Period</th>
+                    <th>Fee</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -731,14 +664,12 @@ export function MAPortalPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusConfig(eng.status).bg} ${getStatusConfig(eng.status).color}`}>
-                          {getStatusConfig(eng.status).label}
-                        </span>
+                        <StatusBadge status={eng.status} />
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600">
                         {eng.currentPeriod ? (
                           <div className="flex items-center gap-2">
-                            {PERIOD_STATUS_CONFIG[eng.currentPeriod.status]?.icon}
+                            <StatusBadge status={eng.currentPeriod.status} label={PERIOD_STATUS_CONFIG[eng.currentPeriod.status]?.label ?? eng.currentPeriod.status} />
                             <span>{eng.currentPeriod.period_label}</span>
                           </div>
                         ) : (

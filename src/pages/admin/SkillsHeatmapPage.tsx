@@ -1,3 +1,4 @@
+import { Users, BookOpen, ClipboardList } from 'lucide-react';
 import { useSkills } from '../../hooks/useSkills';
 import { useTeamMembers } from '../../hooks/useTeamMembers';
 import { useSkillAssessments } from '../../hooks/useSkillAssessments';
@@ -5,6 +6,7 @@ import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useAuth } from '../../hooks/useAuth';
 import { SkillsHeatmapGrid } from '../../components/SkillsHeatmapGrid';
 import { AdminLayout } from '../../components/AdminLayout';
+import { PageSkeleton, StatCard, EmptyState } from '../../components/ui';
 
 export function SkillsHeatmapPage() {
   const { user } = useAuth();
@@ -22,34 +24,35 @@ export function SkillsHeatmapPage() {
       subtitle={currentMember ? `${currentMember.name} • ${currentMember.role}` : undefined}
     >
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading skills data...</p>
-          </div>
-        </div>
+        <PageSkeleton />
       ) : (
         <>
-          {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-sm font-medium text-gray-600">Team Members</div>
-              <div className="text-3xl font-bold text-gray-900 mt-2">{members?.length ?? 0}</div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-sm font-medium text-gray-600">Active Skills</div>
-              <div className="text-3xl font-bold text-gray-900 mt-2">{skills?.length ?? 0}</div>
-            </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="text-sm font-medium text-gray-600">Total Assessments</div>
-              <div className="text-3xl font-bold text-gray-900 mt-2">{assessments?.length ?? 0}</div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <StatCard
+              label="Team Members"
+              value={members?.length ?? 0}
+              accent="blue"
+              icon={<Users className="w-5 h-5" />}
+            />
+            <StatCard
+              label="Active Skills"
+              value={skills?.length ?? 0}
+              accent="teal"
+              icon={<BookOpen className="w-5 h-5" />}
+            />
+            <StatCard
+              label="Total Assessments"
+              value={assessments?.length ?? 0}
+              accent="blue"
+              icon={<ClipboardList className="w-5 h-5" />}
+            />
           </div>
 
           {/* Legend */}
-          <div className="bg-white rounded-lg shadow p-4 mb-6">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">Skill Levels</h3>
-            <div className="flex flex-wrap gap-4">
+          <div className="card mb-6">
+            <div className="card-body">
+              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3 font-display">Skill Levels</h3>
+              <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded bg-gray-100 text-gray-400 flex items-center justify-center text-sm font-semibold">-</div>
                 <span className="text-sm text-gray-600">Not Assessed</span>
@@ -76,18 +79,20 @@ export function SkillsHeatmapPage() {
               </div>
             </div>
           </div>
+          </div>
 
           {/* Heatmap */}
-          {skills && members && assessments ? (
+          {skills && members && assessments && (skills.length > 0 || members.length > 0) ? (
             <SkillsHeatmapGrid
               skills={skills}
               members={members}
               assessments={assessments}
             />
           ) : (
-            <div className="bg-white rounded-lg shadow p-8 text-center">
-              <p className="text-gray-600">No data available</p>
-            </div>
+            <EmptyState
+              title="No heatmap data"
+              description="Add team members and skills to see the heatmap."
+            />
           )}
         </>
       )}

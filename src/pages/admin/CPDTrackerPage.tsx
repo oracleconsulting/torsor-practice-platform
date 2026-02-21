@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
+import { StatCard, StatusBadge } from '../../components/ui';
 import { 
   Award, Plus, Calendar, Clock, CheckCircle, 
   BookOpen, Video, Users, Filter, Target, AlertCircle
@@ -186,52 +187,18 @@ export function CPDTrackerPage() {
           </div>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <Clock className="w-5 h-5 text-gray-400" />
-              <span className="text-sm text-gray-500">Total Hours Logged</span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">
-              {summaries.reduce((sum, s) => sum + s.total_hours, 0)}
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <Target className="w-5 h-5 text-gray-400" />
-              <span className="text-sm text-gray-500">Team Target</span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900">
-              {summaries.reduce((sum, s) => sum + s.target_hours, 0)}
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <CheckCircle className="w-5 h-5 text-emerald-500" />
-              <span className="text-sm text-gray-500">On Track</span>
-            </div>
-            <div className="text-3xl font-bold text-emerald-600">
-              {summaries.filter(s => s.total_hours >= s.target_hours * 0.75).length}
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <AlertCircle className="w-5 h-5 text-red-500" />
-              <span className="text-sm text-gray-500">Behind Target</span>
-            </div>
-            <div className="text-3xl font-bold text-red-600">
-              {summaries.filter(s => s.total_hours < s.target_hours * 0.5).length}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard label="Total Hours Logged" value={summaries.reduce((sum, s) => sum + s.total_hours, 0)} accent="blue" icon={<Clock className="w-5 h-5" />} />
+          <StatCard label="Team Target" value={summaries.reduce((sum, s) => sum + s.target_hours, 0)} accent="blue" icon={<Target className="w-5 h-5" />} />
+          <StatCard label="On Track" value={summaries.filter(s => s.total_hours >= s.target_hours * 0.75).length} accent="teal" icon={<CheckCircle className="w-5 h-5" />} />
+          <StatCard label="Behind Target" value={summaries.filter(s => s.total_hours < s.target_hours * 0.5).length} accent="red" icon={<AlertCircle className="w-5 h-5" />} />
         </div>
 
-        {/* Team Progress */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">Team Progress</h2>
+        <div className="card mb-6">
+          <div className="card-header">
+            <h2 className="section-heading">Team Progress</h2>
+          </div>
+          <div className="card-body">
           
           <div className="space-y-4">
             {summaries.map((summary) => (
@@ -249,23 +216,21 @@ export function CPDTrackerPage() {
                   <span className="font-bold text-gray-900">{summary.total_hours}</span>
                   <span className="text-gray-400">/{summary.target_hours} hrs</span>
                 </div>
-                <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  summary.total_hours >= summary.target_hours 
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : summary.total_hours >= summary.target_hours * 0.75
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-amber-100 text-amber-700'
-                }`}>
-                  {Math.round((summary.total_hours / summary.target_hours) * 100)}%
-                </div>
+                <StatusBadge
+                  status={summary.total_hours >= summary.target_hours ? 'completed' : summary.total_hours >= summary.target_hours * 0.75 ? 'in_progress' : 'overdue'}
+                  label={`${Math.round((summary.total_hours / summary.target_hours) * 100)}%`}
+                />
               </div>
             ))}
           </div>
+          </div>
         </div>
 
-        {/* Category Breakdown */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">By Category</h2>
+        <div className="card mb-6">
+          <div className="card-header">
+            <h2 className="section-heading">By Category</h2>
+          </div>
+          <div className="card-body">
           
           <div className="grid grid-cols-5 gap-4">
             {CPD_CATEGORIES.map((cat) => {
@@ -278,12 +243,12 @@ export function CPDTrackerPage() {
               );
             })}
           </div>
+          </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
+        <div className="card">
+          <div className="card-header flex items-center justify-between">
+            <h2 className="section-heading">Recent Activity</h2>
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-gray-400" />
               <select
@@ -298,7 +263,7 @@ export function CPDTrackerPage() {
               </select>
             </div>
           </div>
-          
+          <div className="card-body">
           <div className="space-y-3">
             {records
               .filter(r => !filterCategory || r.category === filterCategory)
@@ -332,6 +297,7 @@ export function CPDTrackerPage() {
                   </div>
                 );
               })}
+          </div>
           </div>
         </div>
       </div>

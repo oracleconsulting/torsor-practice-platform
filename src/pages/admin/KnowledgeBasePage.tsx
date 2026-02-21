@@ -13,6 +13,7 @@ import {
   AlertTriangle, CheckCircle, Edit2, Trash2, Eye,
   Tag, Clock, User, Sparkles, ChevronRight
 } from 'lucide-react';
+import { StatCard, StatusBadge, EmptyState } from '../../components/ui';
 
 interface KnowledgeEntry {
   id: string;
@@ -254,40 +255,18 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
           })}
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3">
-              <Sparkles className="w-5 h-5 text-purple-500" />
-              <span className="text-sm text-gray-500">AI References</span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 mt-2">
-              {entries.reduce((sum, e) => sum + e.usage_count, 0)}
-            </div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3">
-              <FileText className="w-5 h-5 text-blue-500" />
-              <span className="text-sm text-gray-500">Total Entries</span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 mt-2">{entries.length}</div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-5 h-5 text-emerald-500" />
-              <span className="text-sm text-gray-500">Approved</span>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 mt-2">
-              {entries.filter(e => e.approved).length}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <StatCard label="AI References" value={entries.reduce((sum, e) => sum + e.usage_count, 0)} accent="blue" icon={<Sparkles className="w-5 h-5" />} />
+          <StatCard label="Total Entries" value={entries.length} accent="blue" icon={<FileText className="w-5 h-5" />} />
+          <StatCard label="Approved" value={entries.filter(e => e.approved).length} accent="teal" icon={<CheckCircle className="w-5 h-5" />} />
         </div>
 
-        {/* Entries */}
         <div className="grid grid-cols-2 gap-6">
-          {/* Entry List */}
-          <div className="space-y-4">
-            {filteredEntries.map((entry) => {
+          <div className="card">
+          <div className="card-body space-y-4">
+            {filteredEntries.length === 0 ? (
+              <EmptyState title="No articles yet" description="Add methodology, examples, or templates to your knowledge base." />
+            ) : filteredEntries.map((entry) => {
               const category = CATEGORIES.find(c => c.id === entry.category);
               const Icon = category?.icon || FileText;
               
@@ -295,7 +274,7 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
                 <div 
                   key={entry.id}
                   onClick={() => setSelectedEntry(entry)}
-                  className={`bg-white rounded-xl border p-4 cursor-pointer transition-all ${
+                  className={`rounded-xl border p-4 cursor-pointer transition-all ${
                     selectedEntry?.id === entry.id 
                       ? 'border-purple-300 shadow-md' 
                       : 'border-gray-200 hover:border-gray-300'
@@ -306,7 +285,10 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
                       <Icon className={`w-4 h-4 text-${category?.color}-600`} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{entry.title}</h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-medium text-gray-900 font-display">{entry.title}</h3>
+                        <StatusBadge status={entry.approved ? 'published' : 'draft'} label={entry.approved ? 'Published' : 'Draft'} showIcon={false} />
+                      </div>
                       <p className="text-sm text-gray-500 line-clamp-2 mt-1">
                         {entry.content.slice(0, 150)}...
                       </p>
@@ -327,18 +309,15 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
               );
             })}
           </div>
+          </div>
 
-          {/* Entry Detail */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 sticky top-8">
+          <div className="card sticky top-8">
+            <div className="card-body">
             {selectedEntry ? (
               <>
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-2">
-                    {selectedEntry.approved && (
-                      <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-xs rounded-full">
-                        Approved
-                      </span>
-                    )}
+                    <StatusBadge status={selectedEntry.approved ? 'published' : 'draft'} label={selectedEntry.approved ? 'Approved' : 'Draft'} showIcon={false} />
                     <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full capitalize">
                       {selectedEntry.category}
                     </span>
@@ -386,6 +365,7 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </AdminLayout>

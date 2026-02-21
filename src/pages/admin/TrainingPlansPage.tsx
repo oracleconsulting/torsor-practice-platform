@@ -8,10 +8,8 @@ import { useState, useEffect } from 'react';
 import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
-import { 
-  Plus, User, ChevronRight,
-  CheckCircle, Circle, Play, Pause, Calendar
-} from 'lucide-react';
+import { StatCard, StatusBadge } from '../../components/ui';
+import { Plus, User, ChevronRight, CheckCircle, Calendar } from 'lucide-react';
 
 
 interface TrainingPlan {
@@ -118,24 +116,6 @@ export function TrainingPlansPage() {
     setLoading(false);
   };
 
-  const getStatusColor = (status: TrainingPlan['status']) => {
-    switch (status) {
-      case 'completed': return 'bg-emerald-100 text-emerald-700';
-      case 'in_progress': return 'bg-blue-100 text-blue-700';
-      case 'paused': return 'bg-amber-100 text-amber-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const getStatusIcon = (status: TrainingPlan['status']) => {
-    switch (status) {
-      case 'completed': return CheckCircle;
-      case 'in_progress': return Play;
-      case 'paused': return Pause;
-      default: return Circle;
-    }
-  };
-
   const filteredPlans = filterStatus === 'all' 
     ? plans 
     : plans.filter(p => p.status === filterStatus);
@@ -145,37 +125,18 @@ export function TrainingPlansPage() {
       title="Training Plans"
       subtitle="Develop team skills with structured learning"
       headerActions={
-        <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+        <button type="button" className="btn-primary inline-flex items-center gap-2">
           <Plus className="w-4 h-4" />
           Create Plan
         </button>
       }
     >
       <div className="max-w-7xl mx-auto">
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="text-3xl font-bold text-gray-900">{plans.length}</div>
-            <div className="text-sm text-gray-500">Total Plans</div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="text-3xl font-bold text-blue-600">
-              {plans.filter(p => p.status === 'in_progress').length}
-            </div>
-            <div className="text-sm text-gray-500">In Progress</div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="text-3xl font-bold text-emerald-600">
-              {plans.filter(p => p.status === 'completed').length}
-            </div>
-            <div className="text-sm text-gray-500">Completed</div>
-          </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="text-3xl font-bold text-amber-600">
-              {Math.round(plans.reduce((sum, p) => sum + p.current_progress, 0) / plans.length)}%
-            </div>
-            <div className="text-sm text-gray-500">Avg Progress</div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard label="Total Plans" value={plans.length} accent="blue" />
+          <StatCard label="In Progress" value={plans.filter(p => p.status === 'in_progress').length} accent="blue" />
+          <StatCard label="Completed" value={plans.filter(p => p.status === 'completed').length} accent="teal" />
+          <StatCard label="Avg Progress" value={plans.length ? `${Math.round(plans.reduce((sum, p) => sum + p.current_progress, 0) / plans.length)}%` : '0%'} accent="orange" />
         </div>
 
         {/* Filter */}
@@ -198,22 +159,22 @@ export function TrainingPlansPage() {
         {/* Plans List */}
         <div className="space-y-4">
           {filteredPlans.map((plan) => {
-            const StatusIcon = getStatusIcon(plan.status);
             const completedModules = plan.modules.filter(m => m.completed).length;
             
             return (
               <div 
                 key={plan.id}
-                className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
+                className="card hover:shadow-md transition-shadow cursor-pointer"
                 onClick={() => setSelectedPlan(selectedPlan?.id === plan.id ? null : plan)}
               >
+              <div className="card-body">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
                     <div className="p-2 bg-gray-100 rounded-lg">
                       <User className="w-5 h-5 text-gray-600" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900">{plan.title}</h3>
+                      <h3 className="font-semibold text-gray-900 font-display">{plan.title}</h3>
                       <p className="text-sm text-gray-500">{plan.member_name}</p>
                       <div className="flex flex-wrap gap-2 mt-2">
                         {plan.skill_focus.map((skill, i) => (
@@ -254,10 +215,7 @@ export function TrainingPlansPage() {
                       </div>
                     </div>
                     
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(plan.status)}`}>
-                      <StatusIcon className="w-3 h-3 inline mr-1" />
-                      {plan.status.replace('_', ' ')}
-                    </span>
+                    <StatusBadge status={plan.status} />
                     
                     <ChevronRight className={`w-5 h-5 text-gray-400 transition-transform ${
                       selectedPlan?.id === plan.id ? 'rotate-90' : ''
@@ -294,6 +252,7 @@ export function TrainingPlansPage() {
                   </div>
                 )}
               </div>
+            </div>
             );
           })}
         </div>

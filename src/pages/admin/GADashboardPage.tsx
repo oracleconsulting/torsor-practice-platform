@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ADMIN_ROUTES } from '../../config/routes';
 import { AdminLayout } from '../../components/AdminLayout';
+import { PageSkeleton, EmptyState } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
@@ -22,7 +23,6 @@ import {
   RefreshCw,
   Flag,
   Eye,
-  Loader2,
 } from 'lucide-react';
 
 // ----------------------------------------------------------------------------
@@ -332,7 +332,7 @@ function MetricCard({
     slate: 'bg-slate-100 text-slate-600',
   };
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
+    <div className="card p-5">
       <div className="flex items-center gap-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorClasses[color]}`}>
           <Icon className="w-5 h-5" />
@@ -587,7 +587,7 @@ function ClientGroup({
           : 'bg-indigo-100 text-indigo-700';
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div className="card overflow-hidden">
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
@@ -772,9 +772,7 @@ export function GADashboardPage() {
   if (loading) {
     return (
       <AdminLayout title="Goal Alignment">
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
+        <PageSkeleton />
       </AdminLayout>
     );
   }
@@ -783,16 +781,11 @@ export function GADashboardPage() {
     return (
       <AdminLayout title="Goal Alignment">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center py-16">
-            <Target className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-slate-900 mb-2">
-              No Goal Alignment clients yet
-            </h2>
-            <p className="text-slate-500 max-w-md mx-auto">
-              When clients are enrolled in the Goal Alignment Programme, they&apos;ll
-              appear here with their sprint progress and status.
-            </p>
-          </div>
+          <EmptyState
+            title="No Goal Alignment clients yet"
+            description="When clients are enrolled in the Goal Alignment Programme, they'll appear here with their sprint progress and status."
+            icon={<Target className="w-12 h-12 text-slate-300" />}
+          />
         </div>
       </AdminLayout>
     );
