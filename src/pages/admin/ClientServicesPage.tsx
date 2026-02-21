@@ -77,54 +77,12 @@ import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryA
 import { SprintEditorModal } from '../../components/admin/sprint-editor';
 import { getAssessmentByCode } from '../../config/serviceLineAssessments';
 import type { AssessmentQuestion } from '../../config/serviceLineAssessments';
-
+import { ClientServicesClientList } from './ClientServicesClientList';
+import type { ClientRow } from './ClientServicesClientListTypes';
 
 interface ClientServicesPageProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
-}
-
-/** Client list table + modals; extracted to avoid TS parse error on large JSX in renderClientList. Full UI to be restored here or in a separate file. */
-function ClientListBody(_props: {
-  selectedServiceLine: string | null;
-  setSelectedServiceLine: (id: string | null) => void;
-  clients: unknown[];
-  filteredClients: unknown[];
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
-  setShowInviteModal: (v: boolean) => void;
-  setSelectedClient: (id: string | null) => void;
-  fetchClients: () => void;
-  handleDeleteClient: (id: string, name: string, email: string) => void;
-  confirmDeleteClient: () => void;
-  clientToDelete: { id: string; name: string; email: string } | null;
-  setClientToDelete: (v: { id: string; name: string; email: string } | null) => void;
-  deletingClient: string | null;
-  setShowBulkImportModal: (v: boolean) => void;
-  bulkImportResults: unknown;
-  setBulkImportResults: (v: unknown) => void;
-  editingService: unknown;
-  setEditingService: (v: unknown) => void;
-  handleDeleteService: (id: string) => void;
-  deletingService: string | null;
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-  getStatusColor: (status: string) => string;
-  DiscoveryClientModal?: React.ComponentType<any>;
-  SystemsAuditClientModal?: React.ComponentType<any>;
-  BenchmarkingClientModal?: React.ComponentType<any>;
-  ClientDetailModal?: React.ComponentType<any>;
-  handleSaveService?: (service: any) => Promise<void>;
-  handleAssignOwner?: (clientId: string, ownerId: string | null) => Promise<void>;
-  handleToggleHideDiscovery?: (clientId: string, hide: boolean) => Promise<void>;
-  handleSendInvite?: () => Promise<void>;
-  handleBulkImport?: () => Promise<void>;
-}) {
-  return (
-    <div className="py-8 text-center text-gray-500">
-      Client list (stats, table, modals) — full UI to be restored. Select a service line to see clients.
-    </div>
-  );
 }
 
 // All Service Lines - BSG Complete Offering
@@ -1335,56 +1293,58 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
   function renderClientList() {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => setSelectedServiceLine(null)}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            ← Back to Service Lines
-          </button>
-          <div className="h-6 w-px bg-gray-300" />
-          <h2 className="text-lg font-semibold text-gray-900">
-            {SERVICE_LINES.find(s => s.id === selectedServiceLine)?.name}
-          </h2>
-        </div>
-        <ClientListBody
-          selectedServiceLine={selectedServiceLine}
-          setSelectedServiceLine={setSelectedServiceLine}
-          clients={clients}
-          filteredClients={filteredClients}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
-          setShowInviteModal={setShowInviteModal}
-          setSelectedClient={setSelectedClient}
-          fetchClients={fetchClients}
-          handleDeleteClient={handleDeleteClient}
-          confirmDeleteClient={confirmDeleteClient}
-          clientToDelete={clientToDelete}
-          setClientToDelete={setClientToDelete}
-          deletingClient={deletingClient}
-          setShowBulkImportModal={setShowBulkImportModal}
-          bulkImportResults={bulkImportResults}
-          setBulkImportResults={setBulkImportResults}
-          editingService={editingService}
-          setEditingService={setEditingService}
-          handleDeleteService={handleDeleteService}
-          deletingService={deletingService}
-          currentPage={currentPage}
-          onNavigate={onNavigate}
-          getStatusColor={getStatusColor}
-          DiscoveryClientModal={DiscoveryClientModal}
-          SystemsAuditClientModal={SystemsAuditClientModal}
-          BenchmarkingClientModal={BenchmarkingClientModal}
-          ClientDetailModal={ClientDetailModal}
-          handleSaveService={_handleSaveService}
-          handleAssignOwner={_handleAssignOwner}
-          handleToggleHideDiscovery={_handleToggleHideDiscovery}
-          handleSendInvite={_handleSendInvite}
-          handleBulkImport={_handleBulkImport}
-        />
-      </div>
+      <ClientServicesClientList
+        serviceLines={SERVICE_LINES}
+        selectedServiceLine={selectedServiceLine}
+        setSelectedServiceLine={setSelectedServiceLine}
+        clients={clients as ClientRow[]}
+        filteredClients={filteredClients as ClientRow[]}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        setShowInviteModal={setShowInviteModal}
+        setSelectedClient={setSelectedClient}
+        selectedClient={_selectedClient}
+        fetchClients={fetchClients}
+        handleDeleteClient={handleDeleteClient}
+        confirmDeleteClient={confirmDeleteClient}
+        clientToDelete={clientToDelete}
+        setClientToDelete={setClientToDelete}
+        deletingClient={deletingClient}
+        setShowBulkImportModal={setShowBulkImportModal}
+        bulkImportResults={bulkImportResults}
+        setBulkImportResults={setBulkImportResults}
+        editingService={editingService}
+        setEditingService={setEditingService}
+        handleDeleteService={handleDeleteService}
+        savingService={_savingService}
+        deletingService={deletingService}
+        currentMember={currentMember ?? null}
+        currentPage={currentPage}
+        onNavigate={onNavigate}
+        getStatusColor={getStatusColor}
+        handleSaveService={_handleSaveService}
+        staffMembers={staffMembers}
+        assigningOwner={_assigningOwner}
+        updatingDiscoveryHide={_updatingDiscoveryHide}
+        handleAssignOwner={_handleAssignOwner}
+        handleToggleHideDiscovery={_handleToggleHideDiscovery}
+        DiscoveryClientModal={DiscoveryClientModal}
+        SystemsAuditClientModal={SystemsAuditClientModal}
+        BenchmarkingClientModal={BenchmarkingClientModal}
+        ClientDetailModal={ClientDetailModal}
+        showInviteModal={_showInviteModal}
+        inviteForm={inviteForm}
+        setInviteForm={setInviteForm}
+        sendingInvite={_sendingInvite}
+        handleSendInvite={_handleSendInvite}
+        showBulkImportModal={_showBulkImportModal}
+        bulkImportData={bulkImportData}
+        setBulkImportData={_setBulkImportData}
+        bulkSendEmails={bulkSendEmails}
+        setBulkSendEmails={_setBulkSendEmails}
+        bulkImporting={_bulkImporting}
+        handleBulkImport={_handleBulkImport}
+      />
     );
   }
 

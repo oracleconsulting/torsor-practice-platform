@@ -26,12 +26,12 @@ export function ClientServicesClientList(props: ClientServicesClientListProps): 
       {loading ? (
         <div className="p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
-          <p className="text-gray-500 mt-4">Loading props.clients...</p>
+          <p className="text-gray-500 mt-4">Loading clients...</p>
         </div>
       ) : props.filteredClients.length === 0 ? (
         <div className="p-8 text-center">
           <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-500">No props.clients found</p>
+          <p className="text-gray-500">No clients found</p>
         </div>
       ) : (
         <table className="w-full">
@@ -68,10 +68,14 @@ export function ClientServicesClientList(props: ClientServicesClientListProps): 
                 <td className="px-6 py-4">
                   <select
                     value={(client as { client_owner_id?: string }).client_owner_id || ''}
-                    onChange={() => {}}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    onChange={(e) => props.handleAssignOwner?.(client.id, e.target.value || null)}
+                    disabled={props.assigningOwner === client.id}
+                    className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 min-w-[140px]"
                   >
                     <option value="">Unassigned</option>
+                    {(props.staffMembers ?? []).map(staff => (
+                      <option key={staff.id} value={staff.id}>{staff.name}</option>
+                    ))}
                   </select>
                 </td>
                 <td className="px-6 py-4">
@@ -100,11 +104,12 @@ export function ClientServicesClientList(props: ClientServicesClientListProps): 
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer" title="When checked, Discovery assessment is hidden on this client's dashboard">
                     <input
                       type="checkbox"
                       checked={!!(client as { hide_discovery_in_portal?: boolean }).hide_discovery_in_portal}
-                      onChange={() => {}}
+                      onChange={(e) => props.handleToggleHideDiscovery?.(client.id, e.target.checked)}
+                      disabled={props.updatingDiscoveryHide === client.id}
                       className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
                     <span className="text-sm text-gray-600">Hide Discovery</span>
@@ -243,7 +248,7 @@ export function ClientServicesClientList(props: ClientServicesClientListProps): 
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
                     type="text"
-                    placeholder="Search props.clients..."
+                    placeholder="Search clients..."
                     value={props.searchQuery}
                     onChange={(e) => props.setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"

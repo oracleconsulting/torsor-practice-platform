@@ -244,9 +244,33 @@ export default function SystemsMapSection({ systemsMaps, facts }: { systemsMaps:
   if (!maps || maps.length === 0) return null;
 
   const current = maps[activeMap] || maps[0];
-  const nodesObj: Record<string, any> = Array.isArray(current.nodes)
+  const nodesRaw: Record<string, any> = Array.isArray(current.nodes)
     ? current.nodes.reduce((acc: any, n: any) => { acc[n.id] = n; return acc; }, {})
     : (current.nodes || {});
+
+  // Auto-layout: if any node lacks valid x/y, position all in a circle
+  const nodesObj = useMemo(() => {
+    const entries = Object.entries(nodesRaw);
+    if (entries.length === 0) return nodesRaw;
+
+    const needsLayout = entries.some(
+      ([, n]) => typeof n.x !== 'number' || typeof n.y !== 'number' || !isFinite(n.x) || !isFinite(n.y)
+    );
+    if (!needsLayout) return nodesRaw;
+
+    const centerX = 400, centerY = 290, radius = 180;
+    const laid: Record<string, any> = {};
+    entries.forEach(([id, node], i) => {
+      const angle = (2 * Math.PI * i) / entries.length - Math.PI / 2;
+      laid[id] = {
+        ...node,
+        x: typeof node.x === 'number' && isFinite(node.x) ? node.x : Math.round(centerX + radius * Math.cos(angle)),
+        y: typeof node.y === 'number' && isFinite(node.y) ? node.y : Math.round(centerY + radius * Math.sin(angle)),
+      };
+    });
+    return laid;
+  }, [nodesRaw]);
+
   const edges = current.edges || [];
   const metrics = current.metrics || {};
   const hub = current.middlewareHub || null;
@@ -287,11 +311,11 @@ export default function SystemsMapSection({ systemsMaps, facts }: { systemsMaps:
             const to = nodesObj[edge.to];
             if (!from || !to) return null;
             return (
-              <IntegrationEdge key={`${edge.from}-${edge.to}-${activeMap}`} x1={num(from.x, 0)} y1={num(from.y, 0)} x2={num(to.x, 0)} y2={num(to.y, 0)} status={edge.status} label={edge.label} changed={edge.changed} person={edge.person} />
+              <IntegrationEdge key={`${edge.from}-${edge.to}-${activeMap}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} status={edge.status} label={edge.label} changed={edge.changed} person={edge.person} />
             );
           })}
           {Object.entries(nodesObj).map(([id, sys]: [string, any]) => (
-            <SystemNode key={`${id}-${activeMap}`} id={id} name={sys.name} category={sys.category} cost={sys.cost || 0} x={num(sys.x, 0)} y={num(sys.y, 0)} status={sys.status} replaces={sys.replaces} isActive={hoveredNode === id} onClick={setHoveredNode} />
+            <SystemNode key={`${id}-${activeMap}`} id={id} name={sys.name} category={sys.category} cost={sys.cost || 0} x={sys.x} y={sys.y} status={sys.status} replaces={sys.replaces} isActive={hoveredNode === id} onClick={setHoveredNode} />
           ))}
         </svg>
       </div>

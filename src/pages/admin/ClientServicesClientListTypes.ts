@@ -45,12 +45,27 @@ export interface EditingServiceShape {
   [key: string]: unknown;
 }
 
+/** Minimal client shape used by the list table; compatible with Client and similar. */
+export interface ClientRow {
+  id: string;
+  name: string;
+  email?: string;
+  company?: string | null;
+  hasRoadmap?: boolean;
+  progress?: number;
+  status?: string;
+  client_owner_id?: string;
+  hide_discovery_in_portal?: boolean;
+  lastActivity?: string;
+  is_test_client?: boolean;
+}
+
 export interface ClientServicesClientListProps {
   serviceLines: Array<{ id: string; name: string; code?: string; status?: string; icon?: React.ComponentType<{ className?: string }>; [key: string]: unknown }>;
   selectedServiceLine: string | null;
   setSelectedServiceLine: (id: string | null) => void;
-  clients: Array<{ id: string; name: string; email?: string; company?: string; hasRoadmap?: boolean; progress?: number; [key: string]: unknown }>;
-  filteredClients: unknown[];
+  clients: ClientRow[];
+  filteredClients: ClientRow[];
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   setShowInviteModal: (v: boolean) => void;
@@ -75,6 +90,11 @@ export interface ClientServicesClientListProps {
   onNavigate: (page: Page) => void;
   getStatusColor: (status: string) => string;
   handleSaveService?: (service: unknown) => Promise<void>;
+  staffMembers?: Array<{ id: string; name: string }>;
+  assigningOwner?: string | null;
+  updatingDiscoveryHide?: string | null;
+  handleAssignOwner?: (clientId: string, ownerId: string | null) => Promise<void>;
+  handleToggleHideDiscovery?: (clientId: string, hide: boolean) => Promise<void>;
   DiscoveryClientModal?: React.ComponentType<any>;
   SystemsAuditClientModal?: React.ComponentType<any>;
   BenchmarkingClientModal?: React.ComponentType<any>;
