@@ -335,12 +335,11 @@ export default function SAReportPage() {
     return () => observer.disconnect();
   }, [report]);
 
-  // Scroll progress for nav bar
+  // Scroll progress for nav bar (0–100)
   useEffect(() => {
     const onScroll = () => {
-      const winScroll = document.documentElement.scrollTop;
-      const height = document.documentElement.scrollHeight - window.innerHeight;
-      setScrollProgress(height > 0 ? Math.min(1, winScroll / height) : 0);
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollProgress(total > 0 ? Math.round((window.scrollY / total) * 100) : 0);
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
@@ -459,6 +458,8 @@ export default function SAReportPage() {
   }, {});
   const phaseOrder = ['immediate', 'quick_win', 'foundation', 'short_term', 'strategic', 'medium_term', 'optimization', 'long_term'];
 
+  const contained = 'max-w-[1400px] mx-auto px-6 lg:px-10';
+
   // Navigation items
   const navItems = [
     { id: 'hero', label: 'Overview', icon: BarChart3 },
@@ -478,8 +479,8 @@ export default function SAReportPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       {/* ─── Sticky Navigation ──────────────────────────────────────── */}
-      <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center gap-4">
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm">
+        <div className={`${contained} py-2.5 flex items-center gap-4`}>
           <button onClick={() => navigate('/dashboard')}
             className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0">
             <ArrowLeft className="w-5 h-5" />
@@ -501,299 +502,267 @@ export default function SAReportPage() {
             })}
           </div>
         </div>
-        <div className="h-0.5 bg-gray-100 max-w-7xl mx-auto">
-          <div className="h-full bg-purple-600 transition-all duration-150" style={{ width: `${scrollProgress * 100}%` }} />
+        <div className="h-0.5 bg-gray-100">
+          <div className="h-full bg-purple-600 transition-all duration-150" style={{ width: `${scrollProgress}%` }} />
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+      <div className="space-y-0">
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 1: HERO + EXECUTIVE SUMMARY
-            ═══════════════════════════════════════════════════════════════ */}
+        {/* ═══ SECTION 1: HERO + EXEC SUMMARY + YOUR BUSINESS ═══ */}
         <div ref={sectionRefs.hero} className="scroll-mt-16" data-section-id="hero">
-          {/* Hero banner */}
-          <div className="bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 rounded-2xl p-8 text-white shadow-xl mb-8">
-            <div className="flex items-start gap-3 mb-4 opacity-70">
-              <Settings className="w-5 h-5 mt-0.5" />
-              <span className="text-sm font-medium tracking-wide uppercase">Systems Audit Report</span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold leading-tight mb-6">
-              {report.headline}
-            </h1>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-                <p className="text-purple-200 text-xs mb-1">Hours Lost / Week</p>
-                <p className="text-2xl font-bold">{m.hoursWastedWeekly}</p>
+          <div className="bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 text-white">
+            <div className={`${contained} py-12 lg:py-16`}>
+              <div className="flex items-start gap-3 mb-4 opacity-70">
+                <Settings className="w-5 h-5 mt-0.5" />
+                <span className="text-sm font-medium tracking-wide uppercase">Systems Audit Report</span>
               </div>
-              <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-                <p className="text-purple-200 text-xs mb-1">Annual Cost of Chaos</p>
-                <p className="text-2xl font-bold">{fmt(m.annualCostOfChaos)}</p>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-                <p className="text-purple-200 text-xs mb-1">Systems Audited</p>
-                <p className="text-2xl font-bold">{(facts.systems || []).length || report.systems_count}</p>
-              </div>
-              <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-                <p className="text-purple-200 text-xs mb-1">At {m.growthMultiplier}x Growth</p>
-                <p className="text-2xl font-bold text-red-300">{fmt(m.projectedCostAtScale)}</p>
+              <h1 className="text-3xl lg:text-4xl font-bold leading-tight mb-8 max-w-3xl">
+                {report.headline}
+              </h1>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+                <div className="bg-white/10 rounded-xl p-5 backdrop-blur-sm">
+                  <p className="text-purple-200 text-xs mb-1 uppercase tracking-wide">Hours Lost / Week</p>
+                  <p className="text-3xl font-bold">{m.hoursWastedWeekly}</p>
+                </div>
+                <div className="bg-white/10 rounded-xl p-5 backdrop-blur-sm">
+                  <p className="text-purple-200 text-xs mb-1 uppercase tracking-wide">Annual Cost of Chaos</p>
+                  <p className="text-3xl font-bold">{fmt(m.annualCostOfChaos)}</p>
+                </div>
+                <div className="bg-white/10 rounded-xl p-5 backdrop-blur-sm">
+                  <p className="text-purple-200 text-xs mb-1 uppercase tracking-wide">Systems Audited</p>
+                  <p className="text-3xl font-bold">{(facts.systems || []).length || report.systems_count}</p>
+                </div>
+                <div className="bg-white/10 rounded-xl p-5 backdrop-blur-sm">
+                  <p className="text-purple-200 text-xs mb-1 uppercase tracking-wide">At {m.growthMultiplier}x Growth</p>
+                  <p className="text-3xl font-bold text-red-300">{fmt(m.projectedCostAtScale)}</p>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Executive Summary */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <Brain className="w-5 h-5 text-purple-600" />
-              Executive Summary
-            </h2>
-            <div className="max-w-prose">
-              {(() => {
-                const paragraphs = (report.executive_summary || '').split('\n\n');
-                const visible = execSummaryExpanded ? paragraphs : paragraphs.slice(0, 1);
-                return (
-                  <>
-                    {visible.map((para: string, i: number) => (
-                      <p key={i} className="text-gray-700 leading-relaxed mb-4 last:mb-0 text-[15px]">{para}</p>
-                    ))}
-                    {paragraphs.length > 1 && (
-                      <button
-                        onClick={() => setExecSummaryExpanded(!execSummaryExpanded)}
-                        className="mt-2 text-sm font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1 transition-colors"
-                      >
-                        {execSummaryExpanded ? (
-                          <>Show less <ChevronUp className="w-4 h-4" /></>
-                        ) : (
-                          <>Continue reading <ChevronDown className="w-4 h-4" /></>
-                        )}
-                      </button>
+          <div className={`${contained} py-10`}>
+            <div className="lg:flex lg:gap-12">
+              <div className="lg:flex-1">
+                <h2 className="text-xl font-semibold text-gray-900 mb-5 flex items-center gap-2">
+                  <Brain className="w-5 h-5 text-purple-600" />
+                  Executive Summary
+                </h2>
+                <div className="max-w-[60ch]">
+                  {(report.executive_summary || '').split('\n\n').map((para: string, i: number) => (
+                    <p key={i} className="text-gray-700 leading-[1.75] mb-5 last:mb-0 text-[15.5px]">{para}</p>
+                  ))}
+                </div>
+              </div>
+              {(facts.teamSize || facts.revenueBand || facts.confirmedRevenue || facts.industry) && (
+                <div ref={sectionRefs.business} className="lg:w-[360px] flex-shrink-0 mt-8 lg:mt-0" data-section-id="business">
+                  <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200 sticky top-20">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-purple-600" />
+                      Your Business
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      {facts.teamSize && (
+                        <div>
+                          <p className="text-xs text-gray-500">Team Size</p>
+                          <p className="text-lg font-bold text-gray-900">{facts.teamSize} people</p>
+                          {facts.projectedTeamSize && (
+                            <p className="text-xs text-gray-400">→ {facts.projectedTeamSize} planned</p>
+                          )}
+                        </div>
+                      )}
+                      {(facts.confirmedRevenue || facts.revenueBand) && (
+                        <div>
+                          <p className="text-xs text-gray-500">Revenue</p>
+                          <p className="text-lg font-bold text-gray-900">
+                            {facts.confirmedRevenue ? facts.confirmedRevenue :
+                             facts.revenueBand === '1m_2m' ? '£1-2m' :
+                             facts.revenueBand === '500k_1m' ? '£500k-1m' :
+                             facts.revenueBand === '2m_5m' ? '£2-5m' :
+                             facts.revenueBand === '5m_10m' ? '£5-10m' :
+                             facts.revenueBand === '250k_500k' ? '£250-500k' :
+                             facts.revenueBand === '10m_plus' ? '£10m+' :
+                             facts.revenueBand}
+                          </p>
+                        </div>
+                      )}
+                      {facts.industry && (
+                        <div>
+                          <p className="text-xs text-gray-500">Industry</p>
+                          <p className="text-sm font-semibold text-gray-900 capitalize">{facts.industry}</p>
+                        </div>
+                      )}
+                      {facts.totalSystemCost > 0 && (
+                        <div>
+                          <p className="text-xs text-gray-500">Monthly Software</p>
+                          <p className="text-lg font-bold text-gray-900">£{facts.totalSystemCost}/mo</p>
+                        </div>
+                      )}
+                    </div>
+                    {facts.desiredOutcomes && facts.desiredOutcomes.length > 0 && (
+                      <div className="bg-purple-50 rounded-xl p-4 mt-2">
+                        <p className="text-[10px] font-medium text-purple-700 uppercase tracking-wide mb-2">
+                          What You Want
+                        </p>
+                        <div className="space-y-1.5">
+                          {facts.desiredOutcomes.map((outcome: string, i: number) => (
+                            <div key={i} className="flex items-start gap-1.5">
+                              <Target className="w-3.5 h-3.5 text-purple-500 mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-purple-900 leading-snug">{displayOutcome(outcome)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                  </>
-                );
-              })()}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 2: YOUR BUSINESS (if context available)
-            ═══════════════════════════════════════════════════════════════ */}
-        {(facts.teamSize || facts.revenueBand || facts.confirmedRevenue || facts.industry) && (
-          <div ref={sectionRefs.business} className="scroll-mt-16" data-section-id="business">
-            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-purple-600" />
-                Your Business
-              </h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                {facts.teamSize && (
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-500 mb-1">Team Size</p>
-                    <p className="text-xl font-bold text-gray-900">{facts.teamSize} people</p>
-                    {facts.projectedTeamSize && (
-                      <p className="text-xs text-gray-400 mt-1">→ {facts.projectedTeamSize} planned</p>
-                    )}
+        {/* ═══ SECTION 2: SYSTEMS + HEALTH ═══ */}
+        <div className="bg-gray-50 border-y border-gray-200">
+          <div className={`${contained} py-10`}>
+            <div className="lg:flex lg:gap-10">
+              {facts.systems && facts.systems.length > 0 && (
+                <div ref={sectionRefs.systems} className="scroll-mt-16 lg:flex-1" data-section-id="systems">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <Monitor className="w-5 h-5 text-purple-600" />
+                      Your Systems Today
+                    </h2>
+                    <button
+                      onClick={() => setSystemsExpanded(!systemsExpanded)}
+                      className="text-sm font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                    >
+                      {systemsExpanded ? 'Collapse' : 'View all systems'}
+                      {systemsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
                   </div>
-                )}
-                {(facts.confirmedRevenue || facts.revenueBand) && (
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-500 mb-1">Revenue</p>
-                    <p className="text-xl font-bold text-gray-900">
-                      {facts.confirmedRevenue ? facts.confirmedRevenue :
-                       facts.revenueBand === '1m_2m' ? '£1-2m' :
-                       facts.revenueBand === '500k_1m' ? '£500k-1m' :
-                       facts.revenueBand === '2m_5m' ? '£2-5m' :
-                       facts.revenueBand === '5m_10m' ? '£5-10m' :
-                       facts.revenueBand === '250k_500k' ? '£250-500k' :
-                       facts.revenueBand === '10m_plus' ? '£10m+' :
-                       facts.revenueBand}
-                    </p>
+                  <div className="flex flex-wrap items-center gap-3 mb-4">
+                    <span className="text-sm text-gray-600">
+                      <span className="font-semibold text-gray-900">{facts.systems.length}</span> systems
+                    </span>
+                    <span className="text-gray-300">·</span>
+                    <span className="text-sm text-red-600">
+                      <span className="font-semibold">{facts.disconnectedSystems?.length || 0}</span> disconnected
+                    </span>
+                    <span className="text-gray-300">·</span>
+                    <span className="text-sm text-gray-600">
+                      <span className="font-semibold text-gray-900">£{facts.totalSystemCost || 0}</span>/month total
+                    </span>
                   </div>
-                )}
-                {facts.industry && (
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-500 mb-1">Industry</p>
-                    <p className="text-xl font-bold text-gray-900 capitalize">{facts.industry}</p>
-                  </div>
-                )}
-                {facts.totalSystemCost > 0 && (
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs text-gray-500 mb-1">Monthly Software</p>
-                    <p className="text-xl font-bold text-gray-900">£{facts.totalSystemCost}/mo</p>
-                  </div>
-                )}
-              </div>
-
-              {facts.desiredOutcomes && facts.desiredOutcomes.length > 0 && (
-                <div className="bg-purple-50 rounded-xl p-5">
-                  <p className="text-xs font-medium text-purple-700 uppercase tracking-wide mb-3">
-                    What You Want From Your Operations
-                  </p>
-                  <div className="space-y-2">
-                    {facts.desiredOutcomes.map((outcome: string, i: number) => (
-                      <div key={i} className="flex items-start gap-2">
-                        <Target className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
-                        <p className="text-sm text-purple-900">{displayOutcome(outcome)}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {facts.systems.map((sys: any, i: number) => (
+                      <div key={i} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
+                        (sys.gaps || []).length > 1
+                          ? 'bg-red-50 border-red-200 text-red-800'
+                          : (sys.gaps || []).length === 1
+                            ? 'bg-amber-50 border-amber-200 text-amber-800'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      }`}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                        {sys.name}
+                        <span className="opacity-60">£{sys.monthlyCost || 0}</span>
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 3: YOUR SYSTEMS TODAY
-            ═══════════════════════════════════════════════════════════════ */}
-        {facts.systems && facts.systems.length > 0 && (
-          <div ref={sectionRefs.systems} className="scroll-mt-16" data-section-id="systems">
-            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Monitor className="w-5 h-5 text-purple-600" />
-                  Your Systems Today
-                </h2>
-                <button
-                  onClick={() => setSystemsExpanded(!systemsExpanded)}
-                  className="text-sm font-medium text-purple-600 hover:text-purple-700 flex items-center gap-1"
-                >
-                  {systemsExpanded ? 'Collapse' : 'View all systems'}
-                  {systemsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </button>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 mb-4">
-                <span className="text-sm text-gray-600">
-                  <span className="font-semibold text-gray-900">{facts.systems.length}</span> systems
-                </span>
-                <span className="text-gray-300">·</span>
-                <span className="text-sm text-red-600">
-                  <span className="font-semibold">{facts.disconnectedSystems?.length || 0}</span> disconnected
-                </span>
-                <span className="text-gray-300">·</span>
-                <span className="text-sm text-gray-600">
-                  <span className="font-semibold text-gray-900">£{facts.totalSystemCost || 0}</span>/month total
-                </span>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {facts.systems.map((sys: any, i: number) => (
-                  <div key={i} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border ${
-                    (sys.gaps || []).length > 1
-                      ? 'bg-red-50 border-red-200 text-red-800'
-                      : (sys.gaps || []).length === 1
-                        ? 'bg-amber-50 border-amber-200 text-amber-800'
-                        : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  }`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                    {sys.name}
-                    <span className="opacity-60">£{sys.monthlyCost || 0}</span>
-                  </div>
-                ))}
-              </div>
-
-              {systemsExpanded && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-100">
-                  {facts.systems.map((sys: any, i: number) => (
-                    <div key={i} className={`rounded-xl p-4 border ${
-                      sys.criticality === 'critical' ? 'border-purple-200 bg-purple-50/30' :
-                      sys.criticality === 'important' ? 'border-blue-200 bg-blue-50/30' :
-                      'border-gray-200 bg-gray-50/30'
-                    }`}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <IntegrationDot method={sys.integrationMethod} />
-                          <h4 className="font-medium text-gray-900 text-sm">{sys.name}</h4>
+                  {systemsExpanded && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200">
+                      {facts.systems.map((sys: any, i: number) => (
+                        <div key={i} className={`rounded-xl p-4 border ${
+                          sys.criticality === 'critical' ? 'border-purple-200 bg-purple-50/30' :
+                          sys.criticality === 'important' ? 'border-blue-200 bg-blue-50/30' :
+                          'border-gray-200 bg-gray-50/30'
+                        }`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <IntegrationDot method={sys.integrationMethod} />
+                              <h4 className="font-medium text-gray-900 text-sm">{sys.name}</h4>
+                            </div>
+                            <span className="text-xs text-gray-400">
+                              £{sys.monthlyCost || 0}/mo
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 mb-2 text-xs">
+                            <span className="text-gray-500">
+                              Quality: <span className="font-medium">{sys.dataQuality}/5</span>
+                            </span>
+                            <span className="text-gray-500">
+                              Satisfaction: <span className="font-medium">{sys.userSatisfaction}/5</span>
+                            </span>
+                          </div>
+                          {sys.gaps && sys.gaps.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-gray-100">
+                              {sys.gaps.slice(0, 2).map((gap: string, j: number) => (
+                                <p key={j} className="text-xs text-red-600 flex items-start gap-1 mb-0.5">
+                                  <Minus className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                  {gap}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                          {sys.strengths && sys.strengths.length > 0 && (
+                            <div className="mt-1">
+                              {sys.strengths.slice(0, 2).map((s: string, j: number) => (
+                                <p key={j} className="text-xs text-emerald-600 flex items-start gap-1 mb-0.5">
+                                  <Plus className="w-3 h-3 mt-0.5 flex-shrink-0" />
+                                  {s}
+                                </p>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <span className="text-xs text-gray-400">
-                          £{sys.monthlyCost || 0}/mo
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3 mb-2 text-xs">
-                        <span className="text-gray-500">
-                          Quality: <span className="font-medium">{sys.dataQuality}/5</span>
-                        </span>
-                        <span className="text-gray-500">
-                          Satisfaction: <span className="font-medium">{sys.userSatisfaction}/5</span>
-                        </span>
-                      </div>
-                      {sys.gaps && sys.gaps.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-gray-100">
-                          {sys.gaps.slice(0, 2).map((gap: string, j: number) => (
-                            <p key={j} className="text-xs text-red-600 flex items-start gap-1 mb-0.5">
-                              <Minus className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                              {gap}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                      {sys.strengths && sys.strengths.length > 0 && (
-                        <div className="mt-1">
-                          {sys.strengths.slice(0, 2).map((s: string, j: number) => (
-                            <p key={j} className="text-xs text-emerald-600 flex items-start gap-1 mb-0.5">
-                              <Plus className="w-3 h-3 mt-0.5 flex-shrink-0" />
-                              {s}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 4: SYSTEM HEALTH SCORES
-            ═══════════════════════════════════════════════════════════════ */}
-        <div ref={sectionRefs.health} className="scroll-mt-16" data-section-id="health">
-          <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
-              <Activity className="w-5 h-5 text-purple-600" />
-              Operations Health Scores
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6 justify-items-center mb-6">
-              <ScoreRing score={m.integrationScore} label="Integration" size={90} />
-              <ScoreRing score={m.automationScore} label="Automation" size={90} />
-              <ScoreRing score={m.dataAccessibilityScore} label="Data Access" size={90} />
-              <ScoreRing score={m.scalabilityScore} label="Scalability" size={90} />
-            </div>
-
-            {/* Score evidence expandables */}
-            <div className="space-y-2">
-              {[
-                { key: 'integration', label: 'Integration', score: m.integrationScore, evidence: m.integrationEvidence },
-                { key: 'automation', label: 'Automation', score: m.automationScore, evidence: m.automationEvidence },
-                { key: 'dataAccess', label: 'Data Accessibility', score: m.dataAccessibilityScore, evidence: m.dataAccessibilityEvidence },
-                { key: 'scalability', label: 'Scalability', score: m.scalabilityScore, evidence: m.scalabilityEvidence },
-              ].filter(s => s.evidence).map((s) => (
-                <div key={s.key} className="border border-gray-100 rounded-lg overflow-hidden">
-                  <button onClick={() => setShowScoreDetail(showScoreDetail === s.key ? null : s.key)}
-                    className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors">
-                    <span className="text-sm font-medium text-gray-700">{s.label}: {s.score}/100</span>
-                    {showScoreDetail === s.key
-                      ? <ChevronUp className="w-4 h-4 text-gray-400" />
-                      : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                  </button>
-                  {showScoreDetail === s.key && (
-                    <div className="px-4 pb-4 pt-1 border-t border-gray-100">
-                      <p className="text-sm text-gray-600 leading-relaxed">{s.evidence}</p>
+                      ))}
                     </div>
                   )}
                 </div>
-              ))}
+              )}
+              <div ref={sectionRefs.health} className="scroll-mt-16 lg:w-[320px] flex-shrink-0 mt-8 lg:mt-0" data-section-id="health">
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                  <h2 className="text-base font-semibold text-gray-900 mb-5 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-purple-600" />
+                    Operations Health
+                  </h2>
+                  <div className="grid grid-cols-2 gap-4 justify-items-center">
+                    <ScoreRing score={m.integrationScore} label="Integration" size={80} />
+                    <ScoreRing score={m.automationScore} label="Automation" size={80} />
+                    <ScoreRing score={m.dataAccessibilityScore} label="Data Access" size={80} />
+                    <ScoreRing score={m.scalabilityScore} label="Scalability" size={80} />
+                  </div>
+                  <div className="space-y-2 mt-4">
+                    {[
+                      { key: 'integration', label: 'Integration', score: m.integrationScore, evidence: m.integrationEvidence },
+                      { key: 'automation', label: 'Automation', score: m.automationScore, evidence: m.automationEvidence },
+                      { key: 'dataAccess', label: 'Data Accessibility', score: m.dataAccessibilityScore, evidence: m.dataAccessibilityEvidence },
+                      { key: 'scalability', label: 'Scalability', score: m.scalabilityScore, evidence: m.scalabilityEvidence },
+                    ].filter(s => s.evidence).map((s) => (
+                      <div key={s.key} className="border border-gray-100 rounded-lg overflow-hidden">
+                        <button onClick={() => setShowScoreDetail(showScoreDetail === s.key ? null : s.key)}
+                          className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors">
+                          <span className="text-sm font-medium text-gray-700">{s.label}: {s.score}/100</span>
+                          {showScoreDetail === s.key
+                            ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                            : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                        </button>
+                        {showScoreDetail === s.key && (
+                          <div className="px-4 pb-4 pt-1 border-t border-gray-100">
+                            <p className="text-sm text-gray-600 leading-relaxed">{s.evidence}</p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 5: COST OF CHAOS
-            ═══════════════════════════════════════════════════════════════ */}
-        <div ref={sectionRefs.chaos} className="scroll-mt-16" data-section-id="chaos">
-          <div className="bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl border border-red-200 p-8 shadow-sm">
+        {/* ═══ SECTION 3: COST OF CHAOS (full-bleed) ═══ */}
+        <div ref={sectionRefs.chaos} className="scroll-mt-16 bg-gradient-to-br from-red-50 via-orange-50 to-red-50 border-y border-red-200" data-section-id="chaos">
+          <div className={`${contained} py-10`}>
             <h2 className="text-lg font-semibold text-red-900 mb-6 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-red-600" />
               The Cost of Chaos
@@ -869,9 +838,8 @@ export default function SAReportPage() {
           </div>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 6: PROCESS ANALYSIS
-            ═══════════════════════════════════════════════════════════════ */}
+        {/* ═══ SECTION 4: PROCESS ANALYSIS (contained) ═══ */}
+        <div className={`${contained} py-10 space-y-10`}>
         {processes.length > 0 && (
           <div ref={sectionRefs.processes} className="scroll-mt-16" data-section-id="processes">
             <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
@@ -948,9 +916,7 @@ export default function SAReportPage() {
           </div>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 7: WHAT WE FOUND
-            ═══════════════════════════════════════════════════════════════ */}
+        {/* ═══ SECTION 5: WHAT WE FOUND (contained) ═══ */}
         <div ref={sectionRefs.findings} className="scroll-mt-16 space-y-4" data-section-id="findings">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -1063,32 +1029,30 @@ export default function SAReportPage() {
             );
           })}
         </div>
+        </div>
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 8+10 COMBINED: TECH MAP + ROADMAP (SPLIT PANEL)
-            ═══════════════════════════════════════════════════════════════ */}
+        {/* ═══ TECH MAP — FULL-BLEED IMMERSIVE (split layout inside component) ═══ */}
         <div ref={sectionRefs.techmap} className="scroll-mt-16" data-section-id="techmap">
-          <div ref={sectionRefs.roadmap} data-section-id="roadmap" />
+          <SystemsMapSection systemsMaps={systemsMaps} facts={facts} layout="split" />
+        </div>
 
-          <div className="lg:flex lg:gap-6 lg:items-start">
-            {/* LEFT: Sticky Tech Map */}
-            <div className="lg:w-[55%] lg:sticky lg:top-16 lg:self-start lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto scrollbar-hide">
-              <SystemsMapSection systemsMaps={systemsMaps} facts={facts} />
-            </div>
+        {/* ═══ IMPLEMENTATION ROADMAP (contained) ═══ */}
+        <div className={`${contained} py-10`}>
+          {displayRecs.length > 0 && (
+            <div ref={sectionRefs.roadmap} className="scroll-mt-16" data-section-id="roadmap">
+            <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                <CalendarClock className="w-5 h-5 text-purple-600" />
+                Implementation Roadmap
+              </h2>
+              <p className="text-sm text-gray-500 mb-6">
+                {displayRecs.length} recommendations, phased by impact and dependencies.
+                Combined: <span className="font-semibold text-emerald-700">{fmtFull(totalBenefit)}/year</span> benefit,{' '}
+                <span className="font-semibold text-emerald-700">{totalHoursSaved}h/week</span> saved.
+              </p>
 
-            {/* RIGHT: Scrolling Recommendations */}
-            <div className="lg:w-[45%] mt-6 lg:mt-0 space-y-4">
-              <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                  <CalendarClock className="w-5 h-5 text-purple-600" />
-                  Implementation Roadmap
-                </h2>
-                <p className="text-sm text-gray-500">
-                  {displayRecs.length} recommendations · {fmtFull(totalBenefit)}/year · {totalHoursSaved}h/week saved
-                </p>
-              </div>
-
-              {phaseOrder.filter(phase => recsByPhase[phase]).map((phase) => (
+              <div className="space-y-6">
+                {phaseOrder.filter(phase => recsByPhase[phase]).map((phase) => (
                 <div key={phase}>
                   <div className="flex items-center gap-2 mb-2 ml-1">
                     <PhaseBadge phase={phase} />
@@ -1188,14 +1152,15 @@ export default function SAReportPage() {
                   </div>
                 </div>
               ))}
+              </div>
             </div>
           </div>
+          )}
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 9: QUICK WINS
-            ═══════════════════════════════════════════════════════════════ */}
+        {/* ═══ QUICK WINS (contained) ═══ */}
         {quickWins.length > 0 && (
+          <div className={`${contained} py-10`}>
           <div ref={sectionRefs.quickwins} className="scroll-mt-16" data-section-id="quickwins">
             <div className="bg-emerald-50 rounded-2xl border border-emerald-200 p-6">
               <h3 className="text-base font-semibold text-emerald-900 mb-4 flex items-center gap-2">
@@ -1248,11 +1213,11 @@ export default function SAReportPage() {
               </div>
             </div>
           </div>
+          </div>
         )}
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 11: INVESTMENT & ROI
-            ═══════════════════════════════════════════════════════════════ */}
+        {/* ═══ INVESTMENT & ROI (contained) ═══ */}
+        <div className={`${contained} py-10`}>
         <div ref={sectionRefs.investment} className="scroll-mt-16" data-section-id="investment">
           <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200 p-8 shadow-sm">
             <h2 className="text-lg font-semibold text-emerald-900 mb-6 flex items-center gap-2">
@@ -1334,66 +1299,49 @@ export default function SAReportPage() {
             )}
           </div>
         </div>
+        </div>
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 12: YOUR MONDAY MORNING
-            ═══════════════════════════════════════════════════════════════ */}
+        {/* ═══ YOUR MONDAY MORNING — FULL-BLEED ═══ */}
         <div ref={sectionRefs.monday} className="scroll-mt-16" data-section-id="monday">
-          <div className="bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 rounded-2xl p-8 text-white shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <div className="bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 text-white">
+            <div className={`${contained} py-12 lg:py-16`}>
+            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
               <Coffee className="w-5 h-5 text-emerald-300" />
               Your Monday Morning
             </h2>
 
             {facts.mondayMorningVision && (
-              <div className="bg-white/10 rounded-xl p-5 mb-6 backdrop-blur-sm">
+              <div className="bg-white/10 rounded-xl p-6 mb-8 backdrop-blur-sm max-w-4xl">
                 <div className="flex gap-3">
                   <Quote className="w-5 h-5 text-emerald-300 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-emerald-100 text-sm italic leading-relaxed">
+                    <p className="text-emerald-100 text-base italic leading-relaxed">
                       &quot;{facts.mondayMorningVision}&quot;
                     </p>
-                    <p className="text-emerald-400 text-xs mt-2">— You said this. Here&apos;s how we make it real.</p>
+                    <p className="text-emerald-400 text-xs mt-3">— You said this. Here&apos;s how we make it real.</p>
                   </div>
                 </div>
               </div>
             )}
 
-            <div className="max-w-prose mx-auto">
-              {(() => {
-                const paragraphs = (report.time_freedom_narrative || '').split('\n\n');
-                const visible = mondayExpanded ? paragraphs : paragraphs.slice(0, 2);
-                return (
-                  <>
-                    {visible.map((para: string, i: number) => (
-                      <p key={i} className="text-emerald-50 leading-relaxed mb-4 last:mb-0 text-[15px]">{para}</p>
-                    ))}
-                    {paragraphs.length > 2 && (
-                      <button
-                        onClick={() => setMondayExpanded(!mondayExpanded)}
-                        className="mt-2 text-sm font-medium text-emerald-300 hover:text-emerald-200 flex items-center gap-1"
-                      >
-                        {mondayExpanded ? <>Show less <ChevronUp className="w-4 h-4" /></> : <>Read full vision <ChevronDown className="w-4 h-4" /></>}
-                      </button>
-                    )}
-                  </>
-                );
-              })()}
+            <div className="max-w-[60ch] mx-auto mb-10">
+              {(report.time_freedom_narrative || '').split('\n\n').map((para: string, i: number) => (
+                <p key={i} className="text-emerald-50 leading-[1.75] mb-5 last:mb-0 text-[15.5px]">{para}</p>
+              ))}
             </div>
 
-            {/* Vision metrics */}
-            <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-emerald-700/50">
+            <div className="grid grid-cols-3 gap-6 max-w-2xl mx-auto mb-10 pt-8 border-t border-emerald-700/50">
               <div className="text-center">
-                <p className="text-2xl font-bold">{totalHoursSaved}h</p>
-                <p className="text-emerald-300 text-xs">Saved per Week</p>
+                <p className="text-3xl font-bold">{totalHoursSaved}h</p>
+                <p className="text-emerald-300 text-xs mt-1">Saved per Week</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">{fmtFull(totalBenefit)}</p>
-                <p className="text-emerald-300 text-xs">Annual Benefit</p>
+                <p className="text-3xl font-bold">{fmtFull(totalBenefit)}</p>
+                <p className="text-emerald-300 text-xs mt-1">Annual Benefit</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">{fmtPayback(m.paybackMonths)}</p>
-                <p className="text-emerald-300 text-xs">Payback</p>
+                <p className="text-3xl font-bold">{fmtPayback(m.paybackMonths)}</p>
+                <p className="text-emerald-300 text-xs mt-1">Payback</p>
               </div>
             </div>
 
@@ -1436,12 +1384,12 @@ export default function SAReportPage() {
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
 
-        {/* ═══════════════════════════════════════════════════════════════
-            SECTION 13: NEXT STEPS / CTA
-            ═══════════════════════════════════════════════════════════════ */}
+        {/* ═══ NEXT STEPS (contained) ═══ */}
+        <div className={`${contained} py-10 pb-16`}>
         <div ref={sectionRefs.nextsteps} className="scroll-mt-16" data-section-id="nextsteps">
           <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
             <div className="flex items-center justify-between">
@@ -1461,6 +1409,7 @@ export default function SAReportPage() {
               </button>
             </div>
           </div>
+        </div>
         </div>
 
         <div className="h-8" />
