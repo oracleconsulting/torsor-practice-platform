@@ -5,7 +5,7 @@ import DashboardPage from '@/pages/DashboardPage';
 import ClientsPage from '@/pages/ClientsPage';
 import ClientDetailPage from '@/pages/ClientDetailPage';
 import MAPreCallPage from '@/pages/clients/MAPreCallPage';
-import RoadmapReviewPage from '@/pages/clients/RoadmapReviewPage';
+import { RoadmapReviewPage } from '@/pages/clients/RoadmapReviewPage';
 import { Loader2 } from 'lucide-react';
 
 function AppRoutes() {
