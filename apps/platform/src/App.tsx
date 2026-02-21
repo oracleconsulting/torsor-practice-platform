@@ -4,7 +4,7 @@ import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import ClientsPage from '@/pages/ClientsPage';
 import ClientDetailPage from '@/pages/ClientDetailPage';
-import MAPreCallPage from '@/pages/clients/MAPreCallPage';
+import BIPreCallPage from '@/pages/clients/BIPreCallPage';
 import { RoadmapReviewPage } from '@/pages/clients/RoadmapReviewPage';
 import { Loader2 } from 'lucide-react';
 
@@ -62,7 +62,8 @@ function AppRoutes() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/clients" element={<ClientsPage />} />
       <Route path="/clients/:clientId" element={<ClientDetailPage />} />
-      <Route path="/clients/:clientId/ma-precall" element={<MAPreCallPage />} />
+      <Route path="/clients/:clientId/bi-precall" element={<BIPreCallPage />} />
+      <Route path="/clients/:clientId/ma-precall" element={<BIPreCallPage />} />
       <Route path="/clients/:clientId/roadmap-review" element={<RoadmapReviewPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

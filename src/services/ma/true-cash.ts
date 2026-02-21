@@ -6,7 +6,7 @@
 // ============================================================================
 
 import { supabase } from '../../lib/supabase';
-import type { TrueCashCalculation, RAGStatus } from '../../types/ma';
+import type { TrueCashCalculation, RAGStatus } from '../../types/business-intelligence';
 
 export interface TrueCashInputs {
   bankBalance: number;

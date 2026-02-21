@@ -19,9 +19,9 @@ import SprintDashboardPage from './pages/SprintDashboardPage';
 import ChatPage from './pages/chat/ChatPage';
 import AppointmentsPage from './pages/appointments/AppointmentsPage';
 import ServiceAssessmentPage from './pages/services/ServiceAssessmentPage';
-import MAReportPage from './pages/services/MAReportPage';
-import MADashboardPage from './pages/services/MADashboardPage';
-import MAPresentationPage from './pages/services/MAPresentationPage';
+import BIReportPage from './pages/services/BIReportPage';
+import BIDashboardPage from './pages/services/BIDashboardPage';
+import BIPresentationPage from './pages/services/BIPresentationPage';
 import SystemInventoryPage from './pages/services/SystemInventoryPage';
 import ProcessDeepDivesPage from './pages/services/ProcessDeepDivesPage';
 import SAReportPage from './pages/services/SAReportPage';
@@ -80,13 +80,14 @@ function App() {
             
             {/* Service Line Assessments */}
             <Route path="/service/:serviceCode/assessment" element={<ServiceAssessmentPage />} />
-            <Route path="/service/management_accounts/report" element={<MAReportPage />} />
-            <Route path="/service/management_accounts/dashboard" element={<MADashboardPage />} />
-            <Route path="/service/management_accounts/presentation" element={<MAPresentationPage />} />
-            {/* Business Intelligence aliases (renamed from management_accounts) */}
-            <Route path="/service/business_intelligence/report" element={<MAReportPage />} />
-            <Route path="/service/business_intelligence/dashboard" element={<MADashboardPage />} />
-            <Route path="/service/business_intelligence/presentation" element={<MAPresentationPage />} />
+            {/* Business Intelligence (canonical) */}
+            <Route path="/service/business_intelligence/report" element={<BIReportPage />} />
+            <Route path="/service/business_intelligence/dashboard" element={<BIDashboardPage />} />
+            <Route path="/service/business_intelligence/presentation" element={<BIPresentationPage />} />
+            {/* Management Accounts (legacy alias — redirect) */}
+            <Route path="/service/management_accounts/report" element={<Navigate to="/service/business_intelligence/report" replace />} />
+            <Route path="/service/management_accounts/dashboard" element={<Navigate to="/service/business_intelligence/dashboard" replace />} />
+            <Route path="/service/management_accounts/presentation" element={<Navigate to="/service/business_intelligence/presentation" replace />} />
             <Route path="/service/systems_audit/inventory" element={<SystemInventoryPage />} />
             <Route path="/service/systems_audit/process-deep-dives" element={<ProcessDeepDivesPage />} />
             <Route path="/service/systems_audit/report" element={<SAReportPage />} />

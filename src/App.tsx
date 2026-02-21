@@ -13,7 +13,7 @@ import { ServiceConfigPage } from './pages/admin/ServiceConfigPage';
 import { CPDTrackerPage } from './pages/admin/CPDTrackerPage';
 import { TrainingPlansPage } from './pages/admin/TrainingPlansPage';
 import { KnowledgeBasePage } from './pages/admin/KnowledgeBasePage';
-import { MAPortalPage } from './pages/admin/MAPortalPage';
+import { BIPortalPage } from './pages/admin/BIPortalPage';
 import { ServiceLineBuilderPage } from './pages/admin/ServiceLineBuilderPage';
 import { TechDatabasePage } from './pages/admin/TechDatabasePage';
 import { GADashboardPage } from './pages/admin/GADashboardPage';
@@ -66,7 +66,7 @@ function AppRoutes() {
       {/* CLIENT section */}
       <Route path="/clients" element={<ClientServicesPage />} />
       <Route path="/goal-alignment" element={<GADashboardPage />} />
-      <Route path="/bi-portal" element={<MAPortalPage />} />
+      <Route path="/bi-portal" element={<BIPortalPage />} />
       <Route path="/delivery" element={<DeliveryManagementPage />} />
 
       {/* TEAM section */}

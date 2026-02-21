@@ -5,7 +5,7 @@
 // ============================================================================
 
 import { supabase } from '../../lib/supabase';
-import type { MAFinancialData, RAGStatus } from '../../types/ma';
+import type { MAFinancialData, RAGStatus } from '../../types/business-intelligence';
 
 export interface KPICalculationResult {
   code: string;
