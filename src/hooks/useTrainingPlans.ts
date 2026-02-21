@@ -145,7 +145,7 @@ export function useTrainingPlanMutations() {
     }) => {
       const { data: plan } = await supabase
         .from('training_plans')
-        .select('id, member_id, practice_id')
+        .select('id, member_id, practice_id, title, skill_ids')
         .eq('id', params.trainingPlanId)
         .single();
       if (!plan) throw new Error('Training plan not found');
@@ -157,15 +157,58 @@ export function useTrainingPlanMutations() {
         .single();
       if (!mod) throw new Error('Module not found');
 
-      const updates: { completed: boolean; completed_at: string; cpd_record_id?: string } = {
-        completed: true,
-        completed_at: new Date().toISOString(),
-      };
-      if (params.cpd_record_id) updates.cpd_record_id = params.cpd_record_id;
+      const now = new Date().toISOString();
+      const today = now.split('T')[0];
+      let cpdRecordId: string | null = params.cpd_record_id ?? null;
+
+      if (!mod.cpd_record_id) {
+        const activityTypeMap: Record<string, string> = {
+          video: 'course',
+          reading: 'reading',
+          exercise: 'course',
+          assessment: 'course',
+          workshop: 'workshop',
+          on_the_job: 'on_the_job',
+          shadowing: 'shadowing',
+          mentoring: 'mentoring',
+          client_delivery: 'on_the_job',
+        };
+        let skillCategory = 'Advisory & Consulting';
+        if (plan.skill_ids?.length > 0) {
+          const { data: skill } = await supabase
+            .from('skills')
+            .select('category')
+            .eq('id', plan.skill_ids[0])
+            .single();
+          if (skill?.category) skillCategory = skill.category;
+        }
+        const { data: cpdRecord, error: cpdErr } = await supabase
+          .from('cpd_records')
+          .insert({
+            practice_id: plan.practice_id,
+            member_id: plan.member_id,
+            activity_type: activityTypeMap[mod.module_type] || 'course',
+            title: `${plan.title} — ${mod.title}`,
+            hours: mod.duration_hours ?? 1,
+            date_completed: today,
+            skill_category: skillCategory,
+            skill_ids: plan.skill_ids ?? [],
+            notes: 'Auto-logged from training plan completion',
+            verified: false,
+          })
+          .select('id')
+          .single();
+        if (cpdErr) throw cpdErr;
+        cpdRecordId = cpdRecord?.id ?? null;
+      }
 
       const { data: updatedModule, error: modError } = await supabase
         .from('training_modules')
-        .update(updates)
+        .update({
+          completed: true,
+          completed_at: now,
+          ...(cpdRecordId && { cpd_record_id: cpdRecordId }),
+        })
         .eq('id', params.moduleId)
         .select()
         .single();
@@ -176,14 +219,14 @@ export function useTrainingPlanMutations() {
         .select('id, completed')
         .eq('training_plan_id', params.trainingPlanId);
       const total = allModules?.length ?? 0;
-      const completed = allModules?.filter((m) => m.completed).length ?? 0;
-      const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+      const completedCount = allModules?.filter((m) => m.completed).length ?? 0;
+      const progress = total > 0 ? Math.round((completedCount / total) * 100) : 0;
       const status = progress === 100 ? 'completed' : 'in_progress';
       const planUpdates: { current_progress: number; status: string; completed_at?: string } = {
         current_progress: progress,
         status,
       };
-      if (progress === 100) planUpdates.completed_at = new Date().toISOString();
+      if (progress === 100) planUpdates.completed_at = now;
 
       const { error: planError } = await supabase
         .from('training_plans')
@@ -195,6 +238,8 @@ export function useTrainingPlanMutations() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['training-plans'] });
+      queryClient.invalidateQueries({ queryKey: ['cpd-records'] });
+      queryClient.invalidateQueries({ queryKey: ['cpd-targets'] });
     },
   });
 
