@@ -10,7 +10,7 @@ import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { 
-  Database, Plus, Search, FileText, Lightbulb, 
+  Plus, Search, FileText, Lightbulb, 
   AlertTriangle, CheckCircle, Edit2, Trash2, Eye,
   Tag, Clock, User, Sparkles, ChevronRight
 } from 'lucide-react';

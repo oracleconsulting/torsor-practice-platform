@@ -10,7 +10,7 @@ import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { 
-  BookOpen, Plus, User, ChevronRight,
+  Plus, User, ChevronRight,
   CheckCircle, Circle, Play, Pause, Calendar
 } from 'lucide-react';
 

@@ -12,7 +12,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { AdminLayout } from '../../components/AdminLayout';
 import { 
   ArrowLeft, Eye, Edit2, Save, X, ChevronDown, ChevronRight,
-  Target, LineChart, Settings, Users, CheckCircle, AlertCircle,
+  LineChart, Settings, Users, CheckCircle, AlertCircle,
   Loader2, RefreshCw, Gem, Compass, Zap, TrendingUp, Briefcase,
   BarChart3, Shield, Mail, Send
 } from 'lucide-react';
@@ -577,7 +577,6 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
   }
 
   const serviceInfo = SERVICE_LINE_INFO.find(s => s.code === selectedService);
-  const Icon = serviceInfo?.icon || Target;
 
   return (
     <AdminLayout

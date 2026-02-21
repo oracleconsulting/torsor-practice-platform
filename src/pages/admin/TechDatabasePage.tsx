@@ -3,7 +3,7 @@ import { AdminLayout } from '../../components/AdminLayout';
 import { supabase } from '../../lib/supabase';
 import type { Page } from '../../types/navigation';
 import type { LiveTechProduct } from '../../types/tech-stack';
-import { Search, ChevronDown, ChevronRight, Database } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface TechDatabasePageProps {
   currentPage: Page;

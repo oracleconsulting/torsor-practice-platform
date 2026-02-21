@@ -336,8 +336,6 @@ export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPage
     );
   }
 
-  const Icon = serviceInfo?.icon || Target;
-
   return (
     <AdminLayout
       title={serviceInfo?.name ?? 'Service'}

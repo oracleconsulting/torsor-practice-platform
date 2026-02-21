@@ -482,8 +482,6 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
   }
 
   // Team management view
-  const Icon = serviceInfo?.icon || Target;
-  
   return (
     <AdminLayout
       title={serviceInfo?.name ?? 'Delivery'}

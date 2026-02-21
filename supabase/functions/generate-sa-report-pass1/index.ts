@@ -209,6 +209,7 @@ interface SystemNode {
   y: number;
   status?: 'new' | 'reconfigure';
   replaces?: string[];
+  advancesGoals?: string[];
 }
 interface MapEdge {
   from: string;
@@ -226,6 +227,9 @@ interface SystemsMap {
   nodes: Record<string, SystemNode>;
   edges: MapEdge[];
   middlewareHub: { name: string; x: number; y: number; cost: number } | null;
+  goalsCoverage?: Record<string, string[]>;
+  implementationStages?: { stage: number; title: string; description: string; tools: string[] }[];
+  consolidations?: { newTool: string; replaces: string[]; hoursSavedByConsolidation: number }[];
   metrics: {
     monthlySoftware: number;
     manualHours: number;
@@ -420,7 +424,29 @@ function calculateMetrics(
     (map1Metrics as any)._map4ConsolidationHours = consolidationHoursSaved;
   }
 
-  const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved);
+  // Map 4 bonuses: consolidation removes context-switching, native integrations remove middleware overhead
+  let map4Bonus = 0;
+  if (mapLevel === 4) {
+    const map4Nodes = nodes as Record<string, any>;
+    let toolsReplaced = 0;
+    Object.values(map4Nodes).forEach((node: any) => {
+      if (node.replaces && Array.isArray(node.replaces)) {
+        toolsReplaced += node.replaces.length;
+      }
+    });
+    const consolidationBonus = toolsReplaced * 1.5;
+
+    const allGreen = edges.every((e) => e.status === 'green');
+    const nativeBonus = allGreen ? 2.0 : 1.0;
+
+    const integrationDensity = edges.filter((e) => e.status === 'green').length;
+    const densityBonus = integrationDensity > 20 ? 2.0 : integrationDensity > 15 ? 1.5 : integrationDensity > 10 ? 1.0 : 0;
+
+    map4Bonus = consolidationBonus + nativeBonus + densityBonus;
+    console.log(`[SA Pass 1] Map 4 bonuses: ${toolsReplaced} tools replaced (${consolidationBonus}h), native=${allGreen} (${nativeBonus}h), density=${integrationDensity} (${densityBonus}h), total bonus=${map4Bonus}h`);
+  }
+
+  const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved - map4Bonus);
   const annualWaste = mapLevel === 1 ? map1Metrics.annualWaste : Math.round(manualHours * rate * 52);
   let annualSavings = mapLevel === 1 ? 0 : map1Metrics.annualWaste - annualWaste;
 
@@ -436,54 +462,35 @@ function calculateMetrics(
     else if (months < 2) payback = `${Math.round(months * 4)} weeks`;
     else payback = `${Math.round(months)} months`;
   } else if (investment === 0 && mapLevel > 1) payback = 'Instant';
-  const spofKeywords = [
-    'backup', 'back-up', 'back up',
-    'documentation', 'document',
-    'single point', 'spof', 'bus factor',
-    'cross-train', 'cross train', 'crosstrain',
-    'knowledge transfer', 'knowledge sharing',
-    'redundancy', 'redundant',
-    'delegate', 'delegation',
-    'train second', 'second person',
-    'key person', 'key-person', 'keyperson',
-    'handover', 'hand over', 'hand-over',
-    'procedure', 'runbook', 'playbook',
-    'maria', 'sole', 'only person', 'only one who',
-  ];
   const spofFindings = (recommendations || []).filter((r: any) => {
-    const text = ((r.title || '') + ' ' + (r.description || '')).toLowerCase();
-    return spofKeywords.some(kw => text.includes(kw));
+    const title = (r.title || '').toLowerCase();
+    const desc = (r.description || '').toLowerCase();
+    const combined = title + ' ' + desc;
+    return combined.includes('backup') || combined.includes('documentation') || combined.includes('single point')
+      || combined.includes('cross-train') || combined.includes('knowledge transfer') || combined.includes('bus factor')
+      || combined.includes('sole owner') || combined.includes('only person') || combined.includes('key person')
+      || combined.includes('delegate') || combined.includes('handover') || combined.includes('train ')
+      || combined.includes('redundancy') || combined.includes('runbook') || combined.includes('procedure');
   });
-  const hasSpofFix = spofFindings.length > 0 && mapLevel >= 3;
-  const hasPartialSpofFix = spofFindings.length > 0 && mapLevel >= 2;
+  const hasSpofFix = spofFindings.length > 0;
 
+  // Risk progression: Map 1 & 2 = Critical, Map 3 = High, Map 4 = Moderate
   let risk: string;
-  if (mapLevel === 1) {
+  if (mapLevel <= 2) {
     if (manualHours > 60) risk = 'Critical';
     else if (manualHours > 40) risk = 'Critical';
     else if (manualHours > 25) risk = 'High';
     else if (manualHours > 10) risk = 'Moderate';
     else risk = 'Low';
-  } else if (mapLevel === 2) {
-    if (manualHours > 60) risk = 'Critical';
-    else if (manualHours > 40 && !hasPartialSpofFix) risk = 'Critical';
-    else if (manualHours > 40 && hasPartialSpofFix) risk = 'High';
-    else if (manualHours > 25) risk = 'High';
-    else if (manualHours > 10) risk = 'Moderate';
-    else risk = 'Low';
   } else if (mapLevel === 3) {
-    if (manualHours > 60 && !hasSpofFix) risk = 'Critical';
-    else if (manualHours > 60 && hasSpofFix) risk = 'High';
-    else if (manualHours > 40 && !hasSpofFix) risk = 'High';
-    else if (manualHours > 40 && hasSpofFix) risk = 'Moderate';
-    else if (manualHours > 25) risk = 'Moderate';
-    else if (manualHours > 10) risk = 'Low';
-    else risk = 'Minimal';
+    if (manualHours > 60) risk = 'Critical';
+    else if (manualHours > 40) risk = 'High';
+    else if (manualHours > 20) risk = 'High';
+    else risk = 'Moderate';
   } else {
-    if (manualHours > 60 && !hasSpofFix) risk = 'High';
-    else if (manualHours > 60 && hasSpofFix) risk = 'Moderate';
-    else if (manualHours > 40) risk = 'Moderate';
-    else if (manualHours > 25) risk = 'Low';
+    if (manualHours > 50) risk = 'High';
+    else if (manualHours > 30) risk = 'Moderate';
+    else if (manualHours > 15) risk = 'Low';
     else risk = 'Minimal';
   }
 
@@ -556,14 +563,31 @@ function buildSystemsMaps(
   };
   const maps: SystemsMap[] = [map1, map2, map3];
   if (aiMap4?.nodes && aiMap4.edges) {
+    const map4Nodes = { ...aiMap4.nodes };
+    Object.keys(map4Nodes).forEach((key) => {
+      if (map4Nodes[key].replaces) {
+        map4Nodes[key] = { ...map4Nodes[key] };
+      }
+    });
+
+    const map4Metrics = calculateMetrics(map4Nodes, aiMap4.edges, map1Metrics, recommendations, 4, rate);
+
+    const map4Software = Object.values(map4Nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
+    const map1Software = map1Metrics.monthlySoftwareCost || Object.values(nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
+    const softwareDelta = map4Software - map1Software;
+    const subtitleCost = softwareDelta > 0 ? `+£${softwareDelta}/mo` : softwareDelta < 0 ? `saves £${Math.abs(softwareDelta)}/mo` : 'same cost';
+
     const map4: SystemsMap = {
       title: 'Optimal Stack',
-      subtitle: 'Best-in-class replacements',
+      subtitle: `Best-in-class replacements · ${subtitleCost}`,
       recommended: false,
-      nodes: aiMap4.nodes,
+      nodes: map4Nodes,
       edges: aiMap4.edges,
       middlewareHub: null,
-      metrics: calculateMetrics(aiMap4.nodes, aiMap4.edges, map1Metrics, recommendations, 4, rate),
+      metrics: map4Metrics,
+      goalsCoverage: aiMap4.goalsCoverage || undefined,
+      implementationStages: aiMap4.implementationStages || undefined,
+      consolidations: aiMap4.consolidations || undefined,
     };
     maps.push(map4);
   } else if (pass1DataFallback?.systemsMaps) {
@@ -608,26 +632,81 @@ function buildSystemsMaps(
   return maps;
 }
 
-function buildPhase4bPrompt(facts: any, recommendations: any[]): string {
+function buildPhase4bPrompt(
+  facts: any,
+  recommendations: any[],
+  phase2: any,
+  discovery: any
+): string {
   const systems = facts?.systems || [];
   const sysStr = systems.map((s: any) =>
-    `${s.name} (${s.category}, £${s.monthlyCost || 0}/mo, satisfaction: ${s.userSatisfaction ?? s.user_satisfaction ?? '?'}/5)`
+    `- ${s.name} (${s.category}): £${s.monthlyCost || 0}/mo, satisfaction ${s.userSatisfaction ?? s.user_satisfaction ?? '?'}/5, integration: ${s.integrationMethod || 'none'}`
   ).join('\n');
-  return `You are designing the "Optimal Stack" for a UK SMB. Given their current systems, suggest replacements that would give native integrations across the entire stack.
+
+  const desiredOutcomes = (facts.desiredOutcomes || []).map((o: string, i: number) => `${i + 1}. ${o}`).join('\n');
+  const aspirationGap = phase2?.aspirationGap || 'Not available';
+
+  const growthVision = discovery?.growth_vision || '';
+  const hiringBlockers = discovery?.hiring_blockers || '';
+  const growthType = discovery?.growth_type || '';
+  const capacityCeiling = discovery?.capacity_ceiling || '';
+  const failedTools = discovery?.failed_tools || '';
+  const nonNegotiables = discovery?.non_negotiables || '';
+
+  return `You are designing the "Optimal Stack" for a UK SMB. This must be the PERFECT technology setup that delivers every one of their stated goals. This is the aspirational end-state — what their business looks like when systems are no longer a constraint.
 
 CURRENT SYSTEMS:
 ${sysStr}
 
 CURRENT ISSUES (from findings):
-${(recommendations || []).slice(0, 5).map((r: any) => `- ${r.title}`).join('\n')}
+${(recommendations || []).slice(0, 8).map((r: any) => `- ${r.title} (saves ${r.hoursSavedWeekly || '?'}h/wk, £${r.annualBenefit || '?'}/yr)`).join('\n')}
+
+═══════════════════════════════════════════════════════════
+CLIENT GOALS — The optimal stack MUST deliver ALL of these
+═══════════════════════════════════════════════════════════
+
+DESIRED OUTCOMES (they picked these as their top priorities):
+${desiredOutcomes || 'Not specified'}
+
+MONDAY MORNING VISION:
+"${facts.mondayMorningVision || 'Not specified'}"
+
+ASPIRATION GAP:
+${aspirationGap}
+
+GROWTH VISION (12-18 months):
+"${growthVision}"
+
+NEXT HIRES & BLOCKERS:
+"${hiringBlockers}"
+
+GROWTH TYPE: ${growthType}
+
+CAPACITY CEILING (what breaks first with 3 new clients):
+"${capacityCeiling}"
+
+═══════════════════════════════════════════════════════════
+CONSTRAINTS
+═══════════════════════════════════════════════════════════
+
+TOOLS THEY TRIED AND ABANDONED:
+"${failedTools}"
+
+NON-NEGOTIABLES (must keep):
+"${nonNegotiables}"
+
+KEEP these systems (satisfaction 4+): ${systems.filter((s: any) => (s.userSatisfaction ?? s.user_satisfaction ?? 0) >= 4).map((s: any) => s.name).join(', ') || 'none'}
 
 RULES:
-- Keep systems the team loves (satisfaction 4+): ${systems.filter((s: any) => (s.userSatisfaction ?? s.user_satisfaction ?? 0) >= 4).map((s: any) => s.name).join(', ') || 'none'}
 - Replace underperformers (satisfaction ≤2) with best-in-class alternatives
+- DO NOT recommend tools they've already tried and abandoned
 - Prefer UK-market products with native Xero integration
 - Every system must have native integration with at least 2 others
-- Maximise native connections, eliminate need for middleware
+- Maximise native connections, eliminate ALL need for middleware
 - Include pricing in GBP monthly
+- If a single tool can REPLACE 2+ existing tools (e.g. a PSA replacing project management + time tracking), recommend it — this is the key differentiator from Map 3
+- Consider tools for UNMET needs revealed by their goals (e.g. if they need a dashboard but have no BI tool, add one; if dev team needs version control, add it)
+- Think about what tools would make their Monday morning vision REAL
 
 Return ONLY a JSON object:
 {
@@ -639,11 +718,39 @@ Return ONLY a JSON object:
       "x": 400,
       "y": 120,
       "status": "new",
-      "replaces": ["Old System 1", "Old System 2"]
+      "replaces": ["Old System 1", "Old System 2"],
+      "advancesGoals": ["Which desired outcome(s) this tool helps deliver"]
     }
   },
   "edges": [
     { "from": "system_a", "to": "system_b", "status": "green", "label": "Native deep", "changed": true }
+  ],
+  "goalsCoverage": {
+    "goal_text_1": ["tool_id_1", "tool_id_2"],
+    "goal_text_2": ["tool_id_3"]
+  },
+  "implementationStages": [
+    {
+      "stage": 1,
+      "title": "Foundation (Month 1-2)",
+      "description": "What to implement first and why",
+      "tools": ["tool_id_1", "tool_id_2"]
+    },
+    {
+      "stage": 2,
+      "title": "Core Integrations (Month 3-4)",
+      "description": "Major tool changes",
+      "tools": ["tool_id_3"]
+    },
+    {
+      "stage": 3,
+      "title": "Optimisation (Month 5-6)",
+      "description": "Dashboard, automation, polish",
+      "tools": ["tool_id_4"]
+    }
+  ],
+  "consolidations": [
+    { "newTool": "tool_id", "replaces": ["old_tool_1", "old_tool_2"], "hoursSavedByConsolidation": 2.0 }
   ]
 }
 
@@ -657,6 +764,8 @@ POSITION GUIDE (800x580 viewBox):
 Systems with status "new" get a green + badge. Status "reconfigure" gets amber ⟳.
 Include "replaces" array only on new systems that replace existing ones.
 All edges should be "green" with "Native" or "Native deep" labels.
+
+CRITICAL: Every desired outcome MUST appear in goalsCoverage with at least one tool addressing it. If no existing or replacement tool addresses a goal, ADD a new tool that does.
 
 JSON only, no markdown.`;
 }
@@ -1651,7 +1760,13 @@ async function runPhase6SystemsMaps(
   let optimalStack: any = null;
   try {
     console.log('[SA Pass 1] Phase 6: Generating optimal stack hint...');
-    const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || []);
+    const { data: discoveryRow } = await supabaseClient
+      .from('sa_discovery_responses')
+      .select('growth_vision, hiring_blockers, growth_type, capacity_ceiling, failed_tools, non_negotiables')
+      .eq('engagement_id', engagementId)
+      .single();
+    const phase2 = report.pass1_data.phase2 || {};
+    const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow);
     const phase4bResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
