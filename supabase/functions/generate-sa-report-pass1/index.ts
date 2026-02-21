@@ -230,6 +230,7 @@ interface SystemsMap {
   goalsCoverage?: Record<string, string[]>;
   implementationStages?: { stage: number; title: string; description: string; tools: string[] }[];
   consolidations?: { newTool: string; replaces: string[]; hoursSavedByConsolidation: number }[];
+  changes?: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[];
   metrics: {
     monthlySoftware: number;
     manualHours: number;
@@ -409,23 +410,9 @@ function calculateMetrics(
     });
   }
 
-  // Map 4 bonus: tool consolidation reduces context-switching and manual reconciliation.
-  if (mapLevel === 4) {
-    const map1NodeCount = Object.keys(map1Metrics.map1Nodes || {}).length || map1Metrics.systemCount || 0;
-    const map4NodeCount = Object.keys(nodes).length;
-    const toolsConsolidated = Math.max(0, map1NodeCount - map4NodeCount);
-    const consolidationHoursSaved = toolsConsolidated * 1.5;
-    hoursSaved += consolidationHoursSaved;
-
-    const map1SoftwareCost = map1Metrics.monthlySoftwareCost || 0;
-    const map4SoftwareCost = Object.values(nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
-    const monthlySoftwareSaving = Math.max(0, map1SoftwareCost - map4SoftwareCost);
-    (map1Metrics as any)._map4SoftwareSavingAnnual = monthlySoftwareSaving * 12;
-    (map1Metrics as any)._map4ConsolidationHours = consolidationHoursSaved;
-  }
-
-  // Map 4 bonuses: consolidation removes context-switching, native integrations remove middleware overhead
+  // Map 4 bonuses: consolidation (replaces), native integrations, density; plus software cost delta
   let map4Bonus = 0;
+  let softwareSavingAnnual = 0;
   if (mapLevel === 4) {
     const map4Nodes = nodes as Record<string, any>;
     let toolsReplaced = 0;
@@ -443,15 +430,17 @@ function calculateMetrics(
     const densityBonus = integrationDensity > 20 ? 2.0 : integrationDensity > 15 ? 1.5 : integrationDensity > 10 ? 1.0 : 0;
 
     map4Bonus = consolidationBonus + nativeBonus + densityBonus;
+    const map1SoftwareCost = map1Metrics.monthlySoftwareCost || 0;
+    const map4SoftwareCost = Object.values(nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
+    softwareSavingAnnual = Math.max(0, map1SoftwareCost - map4SoftwareCost) * 12;
     console.log(`[SA Pass 1] Map 4 bonuses: ${toolsReplaced} tools replaced (${consolidationBonus}h), native=${allGreen} (${nativeBonus}h), density=${integrationDensity} (${densityBonus}h), total bonus=${map4Bonus}h`);
   }
 
   const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved - map4Bonus);
   const annualWaste = mapLevel === 1 ? map1Metrics.annualWaste : Math.round(manualHours * rate * 52);
   let annualSavings = mapLevel === 1 ? 0 : map1Metrics.annualWaste - annualWaste;
-
-  if (mapLevel === 4 && (map1Metrics as any)._map4SoftwareSavingAnnual > 0) {
-    annualSavings += (map1Metrics as any)._map4SoftwareSavingAnnual;
+  if (mapLevel === 4 && softwareSavingAnnual > 0) {
+    annualSavings += softwareSavingAnnual;
   }
 
   let payback = '—';
@@ -541,6 +530,44 @@ function buildSystemsMaps(
     middlewareHub: null,
     metrics: calculateMetrics(nodes, map1Edges, map1Metrics, recommendations, 1, rate),
   };
+  const map1Changes: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[] = [];
+  map1Edges.filter(e => e.status === 'red').forEach(e => {
+    const fromNode = nodes[e.from];
+    const toNode = nodes[e.to];
+    if (!fromNode || !toNode) return;
+    map1Changes.push({
+      system: `${fromNode.name} ↔ ${toNode.name}`,
+      action: 'broken',
+      description: `No integration between ${fromNode.name} and ${toNode.name}. ${e.label || 'Manual data transfer required'}.`,
+      impact: e.person ? `${e.person} handles this manually` : 'Manual workaround in use',
+    });
+  });
+  map1Edges.filter(e => e.status === 'amber').forEach(e => {
+    const fromNode = nodes[e.from];
+    const toNode = nodes[e.to];
+    if (!fromNode || !toNode) return;
+    map1Changes.push({
+      system: `${fromNode.name} ↔ ${toNode.name}`,
+      action: 'broken',
+      description: `Partial connection: ${e.label || 'Known issues with this integration'}.`,
+      impact: 'Unreliable data flow requiring manual checks',
+    });
+  });
+  findings.filter((f: any) => f.severity === 'critical' || f.severity === 'high').slice(0, 3).forEach((f: any) => {
+    const affected = f.affectedSystems || f.affected_systems || [];
+    const systemName = (affected[0] || 'Multiple systems') as string;
+    const alreadyCovered = map1Changes.some(c => c.system.toLowerCase().includes(String(systemName).toLowerCase()));
+    if (!alreadyCovered) {
+      map1Changes.push({
+        system: systemName,
+        action: 'broken',
+        description: f.title || f.description || 'Critical issue identified',
+        impact: f.hoursWastedWeekly ? `${f.hoursWastedWeekly}h/wk wasted` : undefined,
+      });
+    }
+  });
+  map1.changes = map1Changes;
+
   const map2Edges = buildEdgesMap2(map1Edges, recommendations);
   const map2: SystemsMap = {
     title: 'Native Fixes',
@@ -551,6 +578,36 @@ function buildSystemsMaps(
     middlewareHub: null,
     metrics: calculateMetrics(nodes, map2Edges, map1Metrics, recommendations, 2, rate),
   };
+  const map2Changes: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[] = [];
+  map2Edges.forEach((edge, i) => {
+    if (edge.changed) {
+      const fromNode = nodes[edge.from];
+      const toNode = nodes[edge.to];
+      if (!fromNode || !toNode) return;
+      const wasRed = map1Edges[i]?.status === 'red';
+      const wasAmber = map1Edges[i]?.status === 'amber';
+      map2Changes.push({
+        system: `${fromNode.name} ↔ ${toNode.name}`,
+        action: 'fixed',
+        description: wasAmber
+          ? 'Enabled native integration feature that was turned off or misconfigured.'
+          : 'Improved connection — native settings activated to reduce manual work.',
+        impact: 'Zero cost — uses existing software capabilities',
+        cost: '£0',
+        why: 'This integration already exists in your current subscriptions but wasn\'t activated.',
+      });
+    }
+  });
+  if (map2Changes.length === 0) {
+    map2Changes.push({
+      system: 'Current stack',
+      action: 'kept',
+      description: 'No additional native integrations available with current configuration.',
+      why: 'Your current tools have limited native connection options — middleware needed for further improvement.',
+    });
+  }
+  map2.changes = map2Changes;
+
   const { edges: map3Edges, hub } = buildEdgesMap3(map2Edges, recommendations);
   const map3: SystemsMap = {
     title: 'Fully Connected',
@@ -561,6 +618,32 @@ function buildSystemsMaps(
     middlewareHub: hub,
     metrics: calculateMetrics(nodes, map3Edges, map1Metrics, recommendations, 3, rate),
   };
+  const map3Changes: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[] = [];
+  if (hub) {
+    map3Changes.push({
+      system: hub.name,
+      action: 'added',
+      description: `${hub.name} middleware added as central integration hub connecting previously disconnected systems.`,
+      impact: 'Eliminates manual data transfers between disconnected tools',
+      cost: `£${hub.cost}/mo`,
+      why: 'Middleware bridges the gaps where native integrations don\'t exist between your current tools.',
+    });
+  }
+  map3Edges.forEach((edge, i) => {
+    if (edge.changed && edge.status === 'blue') {
+      const fromNode = nodes[edge.from];
+      const toNode = nodes[edge.to];
+      if (!fromNode || !toNode) return;
+      map3Changes.push({
+        system: `${fromNode.name} ↔ ${toNode.name}`,
+        action: 'connected',
+        description: `${hub?.name || 'Middleware'} bridges ${fromNode.name} to ${toNode.name} automatically.`,
+        impact: map1Edges[i]?.person ? `Removes manual work from ${map1Edges[i].person}` : 'Automated data flow',
+      });
+    }
+  });
+  map3.changes = map3Changes;
+
   const maps: SystemsMap[] = [map1, map2, map3];
   if (aiMap4?.nodes && aiMap4.edges) {
     const map4Nodes = { ...aiMap4.nodes };
@@ -589,6 +672,39 @@ function buildSystemsMaps(
       implementationStages: aiMap4.implementationStages || undefined,
       consolidations: aiMap4.consolidations || undefined,
     };
+    const map4Changes: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[] = [];
+    Object.values(map4Nodes).forEach((node: any) => {
+      if (node.status === 'new' && node.replaces && node.replaces.length > 0) {
+        map4Changes.push({
+          system: node.name,
+          action: 'added',
+          description: `Replaces ${node.replaces.join(' and ')} with a single best-in-class platform.`,
+          impact: `Consolidates ${node.replaces.length} tools into one — fewer logins, unified data`,
+          cost: node.cost ? `£${node.cost}/mo` : undefined,
+          why: node.advancesGoals ? `Directly advances: ${Array.isArray(node.advancesGoals) ? node.advancesGoals.join(', ') : node.advancesGoals}` : undefined,
+        });
+      } else if (node.status === 'reconfigure' || node.status === 'reconfigured') {
+        map4Changes.push({
+          system: node.name,
+          action: 'reconfigured',
+          description: `${node.name} kept but reconfigured for optimal integration with the new stack.`,
+        });
+      }
+    });
+    if (aiMap4.consolidations) {
+      aiMap4.consolidations.forEach((c: any) => {
+        const existingChange = map4Changes.find(ch => ch.system.toLowerCase() === (c.newTool || '').toLowerCase());
+        if (!existingChange) {
+          map4Changes.push({
+            system: c.newTool,
+            action: 'added',
+            description: `Consolidates ${(c.replaces || []).join(', ')} into one tool.`,
+            impact: c.hoursSavedByConsolidation ? `Saves ${c.hoursSavedByConsolidation}h/wk from reduced context-switching` : undefined,
+          });
+        }
+      });
+    }
+    map4.changes = map4Changes;
     maps.push(map4);
   } else if (pass1DataFallback?.systemsMaps) {
     const aiMaps = Array.isArray(pass1DataFallback.systemsMaps) ? pass1DataFallback.systemsMaps : [];
@@ -621,6 +737,12 @@ function buildSystemsMaps(
         middlewareHub: null,
         metrics: calculateMetrics(aiNodes, map4Edges, map1Metrics, recommendations, 4, rate),
       };
+      map4.changes = [{
+        system: 'Optimal Stack',
+        action: 'added',
+        description: 'Best-in-class tool replacements selected for maximum native integration and goal coverage.',
+        impact: 'Eliminates middleware dependency and reduces total tool count',
+      }];
       maps.push(map4);
       console.log('[SA Pass 1] Map 4 built from AI-generated data (Phase 4.5 fallback)');
     } else {
@@ -1767,28 +1889,13 @@ async function runPhase6SystemsMaps(
       .single();
     const phase2 = report.pass1_data.phase2 || {};
     const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow);
-    const phase4bResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://torsor.co.uk',
-        'X-Title': 'Torsor SA Pass 1 Phase 6 Optimal Stack',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4',
-        messages: [{ role: 'user', content: phase4bPrompt }],
-        temperature: 0.2,
-        max_tokens: 2000,
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
-    if (phase4bResponse.ok) {
-      const phase4bJson = await phase4bResponse.json();
-      let content = (phase4bJson.choices?.[0]?.message?.content ?? '').trim();
-      content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
-      optimalStack = JSON.parse(content);
-      console.log('[SA Pass 1] Phase 6: Optimal stack generated:', Object.keys(optimalStack?.nodes || {}).length, 'systems,', (optimalStack?.edges || []).length, 'edges');
+
+    const { data: phase4bData } = await callSonnet(phase4bPrompt, 4000, 6.1, openRouterKey);
+    if (phase4bData?.nodes) {
+      optimalStack = phase4bData;
+      console.log('[SA Pass 1] Phase 6: Optimal stack generated:', Object.keys(optimalStack.nodes || {}).length, 'systems,', (optimalStack.edges || []).length, 'edges');
+    } else {
+      console.warn('[SA Pass 1] Phase 6: Optimal stack response missing nodes');
     }
   } catch (e: any) {
     console.warn('[SA Pass 1] Phase 6: Optimal stack generation failed (non-blocking):', e?.message ?? e);
@@ -1802,6 +1909,8 @@ async function runPhase6SystemsMaps(
   } catch (mapsErr: any) {
     console.warn('[SA Pass 1] Phase 6: Systems maps generation failed:', mapsErr?.message ?? mapsErr);
   }
+
+  console.log(`[SA Pass 1] Phase 6: Summary — optimalStack: ${optimalStack ? Object.keys(optimalStack.nodes || {}).length + ' nodes' : 'FAILED'}, aiMaps: ${phase6Data.systemsMaps ? (Array.isArray(phase6Data.systemsMaps) ? phase6Data.systemsMaps.length + ' levels' : 'present') : 'FAILED'}`);
 
   const existingPass1 = report.pass1_data as any;
   await supabaseClient
@@ -1876,7 +1985,7 @@ async function runPhase4SystemsMaps(
   const techContextStr = buildTechContext(matchedProducts, relevantIntegrations, alternativeProducts, relevantMiddleware, discoveryRes);
   const mapsPrompt = buildPhase4SystemsMapsPrompt(phase1, phase2, phase3, phase4, techContextStr, clientName);
 
-  const { data: mapsData, tokensUsed, cost, generationTime } = await callSonnet(mapsPrompt, 12000, 6, openRouterKey);
+  const { data: mapsData, tokensUsed, cost, generationTime } = await callSonnet(mapsPrompt, 32000, 6, openRouterKey);
 
   const wasTruncated = typeof mapsData?.systemsMaps === 'undefined' || (Array.isArray(mapsData.systemsMaps) && mapsData.systemsMaps.length < 4);
   if (wasTruncated) {
@@ -2019,7 +2128,7 @@ async function runPhase8Presentation(
   const clientName = phase1.facts.companyName || 'the business';
 
   const prompt = buildPhase8ClientPresentationPrompt(phase1, phase2, phase3, phase5Recs, clientName);
-  let phase8Result = await callSonnet(prompt, 8000, 8, openRouterKey);
+  let phase8Result = await callSonnet(prompt, 12000, 8, openRouterKey);
   let { data: phase8, tokensUsed, cost, generationTime } = phase8Result;
   if (!phase8) {
     console.error('[SA Pass 1] Phase 8: Response did not parse');
@@ -2071,28 +2180,9 @@ async function runPhase8Presentation(
   const { data: engRow } = await supabaseClient.from('sa_engagements').select('hourly_rate').eq('id', engagementId).single();
   const hourlyRate = engRow?.hourly_rate != null ? Number(engRow.hourly_rate) : 45;
 
-  // ALWAYS run deterministic builder for Maps 1-3 (correct metrics format).
-  // AI-generated optimal stack (phase4b) provides Map 4 nodes/edges only.
-  const phase4b = phase6?.optimalStack ?? pass1Data.phase4b ?? null;
-  console.log('[SA Pass 1] Phase 8: Building deterministic systems maps...');
-  const systemsMaps = buildSystemsMaps(
-    finalPass1Data.facts,
-    finalPass1Data.findings || [],
-    finalPass1Data.recommendations || [],
-    phase4b,
-    hourlyRate,
-    { ...pass1Data, systemsMaps: phase6?.systemsMaps },
-  );
-  if (systemsMaps.length > 0) {
-    finalPass1Data.systemsMaps = systemsMaps;
-    console.log(`[SA Pass 1] Phase 8: Built ${systemsMaps.length} systems maps (deterministic)`);
-  } else {
-    console.warn('[SA Pass 1] Phase 8: Deterministic builder returned 0 maps — falling back to AI maps');
-    finalPass1Data.systemsMaps = (phase6?.systemsMaps ?? pass1Data.systemsMaps) || null;
-  }
-
   // ─── McKinsey Number Reconciliation Layer ──────────────────────────
   // Every number must trace to ONE calculation chain. pass1_data is the single source of truth.
+  // Must run BEFORE buildSystemsMaps so Map 1 annualWaste uses reconciled annualCostOfChaos.
   const f = finalPass1Data.facts;
   const recs = finalPass1Data.recommendations || [];
   const qwins = finalPass1Data.quickWins || [];
@@ -2146,6 +2236,26 @@ async function runPhase8Presentation(
     payback: ${paybackMonths} months | ROI: ${roiRatio}
     findings: ${findingCounts.critical}C/${findingCounts.high}H/${findingCounts.medium}M/${findingCounts.low}L
     quickWins: ${qwins.length}`);
+
+  // ALWAYS run deterministic builder for Maps 1-3 (correct metrics format).
+  // AI-generated optimal stack (phase4b) provides Map 4 nodes/edges only.
+  const phase4b = phase6?.optimalStack ?? pass1Data.phase4b ?? null;
+  console.log('[SA Pass 1] Phase 8: Building deterministic systems maps...');
+  const systemsMaps = buildSystemsMaps(
+    finalPass1Data.facts,
+    finalPass1Data.findings || [],
+    finalPass1Data.recommendations || [],
+    phase4b,
+    hourlyRate,
+    { ...pass1Data, systemsMaps: phase6?.systemsMaps },
+  );
+  if (systemsMaps.length > 0) {
+    finalPass1Data.systemsMaps = systemsMaps;
+    console.log(`[SA Pass 1] Phase 8: Built ${systemsMaps.length} systems maps (deterministic)`);
+  } else {
+    console.warn('[SA Pass 1] Phase 8: Deterministic builder returned 0 maps — falling back to AI maps');
+    finalPass1Data.systemsMaps = (phase6?.systemsMaps ?? pass1Data.systemsMaps) || null;
+  }
 
   console.log('[SA Pass 1] Phase 8: Writing final report to DB...');
   const updatePayload: any = {
