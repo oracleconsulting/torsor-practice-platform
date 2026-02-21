@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Navigation } from './Navigation';
 import { useAuth } from '../hooks/useAuth';
 import { useCurrentMember } from '../hooks/useCurrentMember';
@@ -18,6 +19,7 @@ export function AdminLayout({
   subtitle,
   headerActions,
 }: AdminLayoutProps) {
+  const location = useLocation();
   const { user, signOut } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -73,7 +75,7 @@ export function AdminLayout({
             </div>
           </div>
         </header>
-        <main className="p-6">{children}</main>
+        <main className="p-6 page-enter" key={location.pathname}>{children}</main>
       </div>
     </div>
   );

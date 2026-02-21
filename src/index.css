@@ -168,9 +168,6 @@ h1, h2, h3, h4, h5, h6 {
     @apply bg-blue-700;
     transform: translateY(-0.5px);
   }
-  .btn-primary:active {
-    transform: scale(0.98);
-  }
 
   .btn-secondary {
     @apply px-4 py-2 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-200 transition-all;
@@ -178,6 +175,125 @@ h1, h2, h3, h4, h5, h6 {
   }
   .btn-secondary:hover {
     @apply bg-gray-50 border-gray-300;
+  }
+  .btn-primary:active,
+  .btn-secondary:active {
+    transform: scale(0.98);
+  }
+}
+
+/* ============================================================================
+   PAGE TRANSITIONS
+   ============================================================================ */
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: pageIn 150ms ease-out;
+}
+
+/* ============================================================================
+   MODAL & DROPDOWN ANIMATIONS
+   ============================================================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.modal-backdrop {
+  animation: fadeIn 150ms ease-out;
+}
+
+.modal-content {
+  animation: slideUp 200ms ease-out;
+}
+
+.dropdown-enter {
+  animation: scaleIn 100ms ease-out;
+  transform-origin: top right;
+}
+
+/* ============================================================================
+   TOAST ANIMATION
+   ============================================================================ */
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-enter {
+  animation: slideInRight 200ms ease-out;
+}
+
+/* ============================================================================
+   FOCUS RINGS (ACCESSIBILITY)
+   ============================================================================ */
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  aside {
+    display: none !important;
+  }
+  .lg\:pl-\[240px\] {
+    padding-left: 0 !important;
+  }
+  header {
+    position: relative !important;
   }
 }
 

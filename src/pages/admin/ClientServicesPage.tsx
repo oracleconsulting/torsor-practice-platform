@@ -61,7 +61,21 @@ import { calculateFounderRisk } from '../../lib/services/benchmarking/founder-ri
 import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-mapper';
 
 // Management Accounts Report Components (Two-Pass Architecture)
-import { MAAdminReportView, MAClientReportView } from '../../components/business-intelligence';
+import { MAAdminReportView } from '../../components/business-intelligence/MAAdminReportView';
+import { MAClientReportView } from '../../components/business-intelligence/MAClientReportView';
+
+// MA report context shape (matches AdditionalContext from MAAdminReportView)
+interface MAReportContext {
+  callNotes: string;
+  callTranscript: string;
+  gapsFilled: Record<string, string>;
+  gapsWithLabels?: Record<string, { question: string; answer: string }>;
+  gapsChecked?: Record<string, boolean>;
+  tierDiscussed: string;
+  clientObjections: string;
+  additionalInsights: string;
+  completedPhases: string[];
+}
 
 // Test Client Panel for testing workflows
 import { TestClientPanel as _TestClientPanel } from '../../components/admin/TestClientPanel';
@@ -8652,7 +8666,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         engagement={client}
                         clientName={client?.name || client?.client_company}
                         initialContext={maAssessmentReport.call_context || undefined}
-                        onSaveContext={async (context) => {
+                        onSaveContext={async (context: MAReportContext) => {
                           try {
                             const { error } = await supabase
                               .from('ma_assessment_reports')
@@ -8670,7 +8684,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           }
                         }}
                         isRegenerating={regeneratingMAReport}
-                        onRegenerateClientView={async (context) => {
+                        onRegenerateClientView={async (context: MAReportContext) => {
                           if (!maAssessmentReport?.id) {
                             alert('No report to regenerate');
                             return;
@@ -9223,7 +9237,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             call_context: maAssessmentReport.call_context // Pass call context for real financial data
                           }}
                           engagement={client}
-                          onTierSelect={async (tier) => {
+                          onTierSelect={async (tier: string) => {
                             console.log('[MA Report] Client selected tier:', tier);
                             // Parse tier - might be "foresight_monthly" or just "foresight"
                             const [tierName, frequency] = tier.includes('_') ? tier.split('_') : [tier, 'monthly'];
