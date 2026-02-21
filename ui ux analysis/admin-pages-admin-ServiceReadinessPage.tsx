@@ -1,28 +1,30 @@
+import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useServiceReadiness } from '../../hooks/useServiceReadiness';
-import { Navigation } from '../../components/Navigation';
+import { useTrainingPlanMutations } from '../../hooks/useTrainingPlans';
+import { useSkills } from '../../hooks/useSkills';
+import { useTeamMembers } from '../../hooks/useTeamMembers';
+import { AdminLayout } from '../../components/AdminLayout';
+import { PageSkeleton, StatCard } from '../../components/ui';
+import { CheckCircle, BarChart3, Users, AlertTriangle } from 'lucide-react';
+import type { SkillReadiness } from '../../lib/service-calculations';
+import type { ServiceLine } from '../../lib/advisory-services';
 
-
-interface ServiceReadinessPageProps {
-  onNavigate: (page: Page) => void;
-  currentPage: Page;
-}
-
-export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadinessPageProps) {
-  const { user, signOut } = useAuth();
+export function ServiceReadinessPage() {
+  const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const { data: readiness, isLoading } = useServiceReadiness(currentMember?.practice_id ?? null);
+  const { createPlan } = useTrainingPlanMutations();
+  const { data: allSkills = [] } = useSkills();
+  const { data: teamMembers = [] } = useTeamMembers(currentMember?.practice_id ?? null);
+  const [creatingPlan, setCreatingPlan] = useState<{ gap: SkillReadiness; service: ServiceLine } | null>(null);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading service readiness...</p>
-        </div>
-      </div>
+      <AdminLayout title="Service Readiness">
+        <PageSkeleton />
+      </AdminLayout>
     );
   }
 
@@ -33,106 +35,39 @@ export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadine
   const totalCapableMembers = new Set(readiness?.flatMap(r => r.teamMembersCapable?.map(m => m.memberId) || [])).size || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                🎯 Service Launch Readiness: {Math.round(averageReadiness)}% Average
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Capability matrix for advisory services go-to-market decisions
-              </p>
-            </div>
-            <button
-              onClick={() => signOut()}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Navigation Tabs */}
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* Summary Stats */}
-        <div className="bg-white border border-gray-200 rounded-lg mb-6 p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="border-l-4 border-green-500 pl-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                <span className="text-lg">✓</span>
-                <span>Ready to Deliver</span>
-              </div>
-              <div className="text-2xl font-bold text-gray-900">{servicesReady} / {servicesTotal}</div>
-            </div>
-
-            <div className="border-l-4 border-blue-500 pl-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                <span className="text-lg">📊</span>
-                <span>Avg Readiness</span>
-              </div>
-              <div className="text-2xl font-bold text-gray-900">{Math.round(averageReadiness)}%</div>
-            </div>
-
-            <div className="border-l-4 border-purple-500 pl-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                <span className="text-lg">👥</span>
-                <span>Contributors</span>
-              </div>
-              <div className="text-2xl font-bold text-gray-900">{totalCapableMembers}</div>
-            </div>
-
-            <div className="border-l-4 border-orange-500 pl-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
-                <span className="text-lg">⚠</span>
-                <span>Skills Gaps</span>
-              </div>
-              <div className="text-2xl font-bold text-gray-900">{totalGaps}</div>
-            </div>
-          </div>
+    <AdminLayout
+      title={`Service Launch Readiness: ${Math.round(averageReadiness)}% Average`}
+      subtitle="Capability matrix for advisory services go-to-market decisions"
+    >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard label="Ready to Deliver" value={`${servicesReady} / ${servicesTotal}`} accent="teal" icon={<CheckCircle className="w-5 h-5" />} />
+          <StatCard label="Avg Readiness" value={`${Math.round(averageReadiness)}%`} accent="blue" icon={<BarChart3 className="w-5 h-5" />} />
+          <StatCard label="Contributors" value={totalCapableMembers} accent="blue" icon={<Users className="w-5 h-5" />} />
+          <StatCard label="Skills Gaps" value={totalGaps} accent="orange" icon={<AlertTriangle className="w-5 h-5" />} />
         </div>
 
-        {/* Service Launch Readiness Matrix */}
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-            <h2 className="text-lg font-bold text-gray-900">Service Launch Readiness Matrix</h2>
-            <p className="text-sm text-gray-600 mt-1">
+        <div className="card overflow-hidden mb-6">
+          <div className="card-header">
+            <h2 className="text-lg font-semibold text-gray-900 font-display">Service Launch Readiness Matrix</h2>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">
               Green = Ready to deliver | Yellow = Close (70%+) | Orange = Needs development | Red = Significant gaps
             </p>
           </div>
-
-          {/* Table */}
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="data-table min-w-full">
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th>
                     SERVICE
                   </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    READINESS
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    STATUS
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    SKILLS<br/>COVERAGE
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    TEAM<br/>CAPACITY
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    CRITICAL<br/>GAPS
-                  </th>
+                  <th>READINESS</th>
+                  <th>STATUS</th>
+                  <th>SKILLS COVERAGE</th>
+                  <th>TEAM CAPACITY</th>
+                  <th>CRITICAL GAPS</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody>
                 {readiness?.map((r) => {
                   const criticalGapsCount = r.gaps.filter(g => g.isCritical).length;
                   const statusColor = 
@@ -180,7 +115,7 @@ export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadine
                         <div className="flex items-center justify-center gap-1">
                           <span className="text-lg">👥</span>
                           <span className="text-sm font-medium text-gray-900">
-                            {r.teamMembersCapable.length}members
+                            {r.teamMembersCapable.length} members
                           </span>
                         </div>
                       </td>
@@ -200,30 +135,30 @@ export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadine
           </div>
         </div>
 
-        {/* Detailed Service Breakdown */}
         <div className="mt-8 space-y-6">
           {readiness?.map((r) => {
-            // const criticalGaps = r.gaps.filter(g => g.isCritical); // not used
-            
             return (
-              <div key={r.service.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                {/* Service Header */}
-                <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-lg font-bold text-gray-900">{r.service.name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">{r.service.description}</p>
+              <div key={r.service.id} className="card overflow-hidden">
+                <div className="card-header flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 font-display">{r.service.name}</h3>
+                    <p className="text-sm text-gray-600 mt-1 font-body">{r.service.description}</p>
+                  </div>
+                  <div className="text-right ml-4">
+                    <div className="text-2xl font-bold text-gray-900 font-display">{Math.round(r.readinessPercent)}%</div>
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-1">
+                      {r.canDeliverNow ? 'Ready to Launch' : 'In Development'}
                     </div>
-                    <div className="text-right ml-4">
-                      <div className="text-3xl font-bold text-gray-900">{Math.round(r.readinessPercent)}%</div>
-                      <div className="text-xs text-gray-600 mt-1">
-                        {r.canDeliverNow ? '✅ Ready to Launch' : '⚠️ In Development'}
-                      </div>
+                    <div className="w-24 h-2 mt-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-brand-teal transition-all duration-500"
+                        style={{ width: `${r.readinessPercent}%` }}
+                      />
                     </div>
                   </div>
                 </div>
 
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="card-body grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Top Contributors */}
                   {r.teamMembersCapable.length > 0 && (
                     <div>
@@ -276,8 +211,8 @@ export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadine
                                 : 'bg-yellow-50 border-yellow-200'
                             }`}
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
                                 <div className="text-sm font-medium text-gray-900">
                                   {gap.isCritical && '🚨 '}
                                   {gap.skillName}
@@ -287,9 +222,19 @@ export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadine
                                   {gap.membersWithSkill.length > 0 && ` (Avg: ${gap.averageLevel.toFixed(1)})`}
                                 </div>
                               </div>
-                              <span className="ml-2 text-xs font-medium text-gray-500 whitespace-nowrap">
+                              <span className="text-xs font-medium text-gray-500 whitespace-nowrap">
                                 Need Lvl {gap.required}+
                               </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCreatingPlan({ gap, service: r.service });
+                                }}
+                                className="ml-2 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors whitespace-nowrap shrink-0"
+                              >
+                                📋 Create Plan
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -315,7 +260,118 @@ export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadine
             );
           })}
         </div>
-      </main>
+
+        {creatingPlan && currentMember?.practice_id && (
+          <CreatePlanFromGapModal
+            gap={creatingPlan.gap}
+            service={creatingPlan.service}
+            practiceId={currentMember.practice_id}
+            currentMemberId={currentMember.id}
+            teamMembers={teamMembers}
+            allSkills={allSkills}
+            createPlan={createPlan}
+            onClose={() => setCreatingPlan(null)}
+            onSuccess={() => setCreatingPlan(null)}
+          />
+        )}
+    </AdminLayout>
+  );
+}
+
+interface CreatePlanFromGapModalProps {
+  gap: SkillReadiness;
+  service: ServiceLine;
+  practiceId: string;
+  currentMemberId: string;
+  teamMembers: { id: string; name: string }[];
+  allSkills: { id: string; name: string; category: string }[];
+  createPlan: ReturnType<typeof useTrainingPlanMutations>['createPlan'];
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function CreatePlanFromGapModal({
+  gap,
+  service,
+  practiceId,
+  currentMemberId,
+  teamMembers,
+  allSkills,
+  createPlan,
+  onClose,
+  onSuccess,
+}: CreatePlanFromGapModalProps) {
+  const matchedSkill = allSkills.find((s) => s.name.toLowerCase() === gap.skillName.toLowerCase());
+  const candidateMembers = gap.membersWithSkill.filter((m) => m.currentLevel < gap.required);
+  const memberOptions = candidateMembers.length > 0
+    ? candidateMembers.map((m) => ({ id: m.memberId, name: m.memberName }))
+    : teamMembers;
+  const [memberId, setMemberId] = useState(memberOptions[0]?.id ?? '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const title = `Develop ${gap.skillName} for ${service.name}`;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const member = memberId || memberOptions[0]?.id;
+    if (!member) {
+      setError('Select a team member');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createPlan.mutateAsync({
+        practice_id: practiceId,
+        member_id: member,
+        title,
+        skill_ids: matchedSkill ? [matchedSkill.id] : [],
+        service_line_id: service.id,
+        target_level: gap.required,
+        status: 'not_started',
+        current_progress: 0,
+        created_by: currentMemberId,
+      });
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create plan');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
+      <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Create Training Plan</h3>
+        <p className="text-sm text-gray-600 mb-4">{title}</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Member</label>
+            <select
+              value={memberId}
+              onChange={(e) => setMemberId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              required
+            >
+              {memberOptions.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {submitting ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

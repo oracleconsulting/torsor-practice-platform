@@ -26,6 +26,20 @@ const MAP_LABELS = ['Today', 'Native Fixes', 'Connected', 'Optimal'];
 
 const getCategoryColor = (cat: string) => CATEGORY_COLORS[cat] || '#64748b';
 
+/** Normalize edge status so IntegrationEdge gets red/amber/green/blue for correct colours and dash. */
+function normalizeEdgeStatus(edge: { status?: string; colour?: string }): 'red' | 'amber' | 'green' | 'blue' {
+  const s = (edge.status || edge.colour || '').toLowerCase();
+  if (s === 'red' || s === 'amber' || s === 'green' || s === 'blue') return s as 'red' | 'amber' | 'green' | 'blue';
+  if (s === 'active' || s === 'native_new' || s === 'middleware') return 'green';
+  if (s === 'broken' || s === 'none' || s === 'off' || s === 'manual') return 'red';
+  return 'amber';
+}
+
+const num = (v: unknown, fallback: number): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
 function AnimatedNumber({ value, prefix = '', duration = 800 }: { value: number; prefix?: string; duration?: number }) {
   const [display, setDisplay] = useState(value);
   const rafRef = useRef<number | null>(null);
@@ -65,8 +79,10 @@ function SystemNode({ id, name, category, cost, x, y, status, replaces, isActive
 }) {
   const color = getCategoryColor(category);
   const r = 32;
+  const x_ = num(x, 0);
+  const y_ = num(y, 0);
   return (
-    <g transform={`translate(${x}, ${y})`} onClick={() => onClick(id)} style={{ cursor: 'pointer' }}>
+    <g transform={`translate(${x_}, ${y_})`} onClick={() => onClick(id)} style={{ cursor: 'pointer' }}>
       <circle r={r + 12} fill="none" stroke={color} strokeWidth="1" opacity={isActive ? 0.3 : 0.1} />
       <circle r={r + 6} fill="none" stroke={color} strokeWidth="0.5" opacity={isActive ? 0.2 : 0.05} />
       <circle r={r} fill={`${color}15`} stroke={color} strokeWidth={status === 'new' ? 2.5 : 1.5} />
@@ -100,22 +116,26 @@ function SystemNode({ id, name, category, cost, x, y, status, replaces, isActive
 function IntegrationEdge({ x1, y1, x2, y2, status, label, changed, person }: {
   x1: number; y1: number; x2: number; y2: number; status: string; label?: string; changed?: boolean; person?: string;
 }) {
+  const x1_ = num(x1, 0);
+  const y1_ = num(y1, 0);
+  const x2_ = num(x2, 0);
+  const y2_ = num(y2, 0);
   const color = STATUS_COLORS[status] || '#475569';
   const isDashed = status === 'red' || status === 'amber';
   const showParticles = status === 'green' || status === 'blue';
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
-  const dx = x2 - x1;
-  const dy = y2 - y1;
+  const midX = (x1_ + x2_) / 2;
+  const midY = (y1_ + y2_) / 2;
+  const dx = x2_ - x1_;
+  const dy = y2_ - y1_;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len === 0) return null;
   const nx = dx / len;
   const ny = dy / len;
   const offset = 36;
-  const sx = x1 + nx * offset;
-  const sy = y1 + ny * offset;
-  const ex = x2 - nx * offset;
-  const ey = y2 - ny * offset;
+  const sx = x1_ + nx * offset;
+  const sy = y1_ + ny * offset;
+  const ex = x2_ - nx * offset;
+  const ey = y2_ - ny * offset;
   const labelLen = label?.length || 0;
   return (
     <g>
@@ -123,7 +143,9 @@ function IntegrationEdge({ x1, y1, x2, y2, status, label, changed, person }: {
         <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={color} strokeWidth="6" opacity="0.15" strokeLinecap="round" />
       )}
       <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={color} strokeWidth={changed ? 2.5 : 1.5}
-        strokeDasharray={isDashed ? '6,4' : 'none'} opacity={status === 'red' ? 0.6 : 0.9} strokeLinecap="round" />
+        strokeDasharray={isDashed ? '6,4' : 'none'} opacity={status === 'red' ? 0.6 : 0.9} strokeLinecap="round">
+        {isDashed && <animate attributeName="stroke-dashoffset" values="0;20" dur="1.5s" repeatCount="indefinite" />}
+      </line>
       {showParticles && (
         <>
           <Particle x1={sx} y1={sy} x2={ex} y2={ey} color={color} delay={0} />
@@ -148,8 +170,10 @@ function IntegrationEdge({ x1, y1, x2, y2, status, label, changed, person }: {
 }
 
 function MiddlewareHub({ name, x, y, cost }: { name: string; x: number; y: number; cost: number }) {
+  const x_ = num(x, 400);
+  const y_ = num(y, 340);
   return (
-    <g transform={`translate(${x}, ${y})`}>
+    <g transform={`translate(${x_}, ${y_})`}>
       <circle r="22" fill="#facc1510" stroke="#facc15" strokeWidth="1" strokeDasharray="3,3" />
       <text textAnchor="middle" y="4" fill="#facc15" fontSize="9" fontWeight="600" fontFamily="'DM Sans', sans-serif">{name}</text>
       <text textAnchor="middle" y="38" fill="#94a3b8" fontSize="8" fontFamily="'JetBrains Mono', monospace">£{cost}/mo</text>
@@ -231,9 +255,33 @@ export default function SystemsMapSection({ systemsMaps, facts }: { systemsMaps:
   if (!maps || maps.length === 0) return null;
 
   const current = maps[activeMap] || maps[0];
-  const nodesObj: Record<string, any> = Array.isArray(current.nodes)
+  const nodesRaw: Record<string, any> = Array.isArray(current.nodes)
     ? current.nodes.reduce((acc: any, n: any) => { acc[n.id] = n; return acc; }, {})
     : (current.nodes || {});
+
+  // Auto-layout: if any node lacks valid x/y, position all in a circle
+  const nodesObj = useMemo(() => {
+    const entries = Object.entries(nodesRaw);
+    if (entries.length === 0) return nodesRaw;
+
+    const needsLayout = entries.some(
+      ([, n]) => typeof n.x !== 'number' || typeof n.y !== 'number' || !isFinite(n.x) || !isFinite(n.y)
+    );
+    if (!needsLayout) return nodesRaw;
+
+    const centerX = 400, centerY = 290, radius = 180;
+    const laid: Record<string, any> = {};
+    entries.forEach(([id, node], i) => {
+      const angle = (2 * Math.PI * i) / entries.length - Math.PI / 2;
+      laid[id] = {
+        ...node,
+        x: typeof node.x === 'number' && isFinite(node.x) ? node.x : Math.round(centerX + radius * Math.cos(angle)),
+        y: typeof node.y === 'number' && isFinite(node.y) ? node.y : Math.round(centerY + radius * Math.sin(angle)),
+      };
+    });
+    return laid;
+  }, [nodesRaw]);
+
   const edges = current.edges || [];
   const metrics = current.metrics || {};
   const hub = current.middlewareHub || null;
@@ -273,8 +321,9 @@ export default function SystemsMapSection({ systemsMaps, facts }: { systemsMaps:
             const from = nodesObj[edge.from];
             const to = nodesObj[edge.to];
             if (!from || !to) return null;
+            const status = normalizeEdgeStatus(edge);
             return (
-              <IntegrationEdge key={`${edge.from}-${edge.to}-${activeMap}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} status={edge.status} label={edge.label} changed={edge.changed} person={edge.person} />
+              <IntegrationEdge key={`${edge.from}-${edge.to}-${activeMap}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} status={status} label={edge.label} changed={edge.changed} person={edge.person} />
             );
           })}
           {Object.entries(nodesObj).map(([id, sys]: [string, any]) => (
@@ -287,7 +336,7 @@ export default function SystemsMapSection({ systemsMaps, facts }: { systemsMaps:
           { label: 'Software/mo', value: metrics.monthlySoftware || 0, prefix: '£' },
           { label: 'Manual hrs/wk', value: metrics.manualHours || 0, highlight: true },
           { label: 'Annual waste', value: metrics.annualWaste || 0, prefix: '£' },
-          { label: 'Annual savings', value: metrics.annualSavings || 0, prefix: '£', accent: true },
+          { label: 'Annual savings', value: metrics.annualSavings ?? metrics.annualSavingsVsMap1 ?? 0, prefix: '£', accent: true },
         ].map((item, i) => (
           <div key={i} style={{ background: item.accent ? `${MAP_COLORS[activeMap]}10` : '#0f172a', border: `1px solid ${item.accent ? MAP_COLORS[activeMap] + '40' : '#1e293b'}`, borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
             <div style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px', fontFamily: "'JetBrains Mono', monospace" }}>{item.label}</div>
@@ -302,7 +351,7 @@ export default function SystemsMapSection({ systemsMaps, facts }: { systemsMaps:
           { label: 'Investment', value: (metrics.investment || 0) === 0 ? '£0' : `£${(metrics.investment || 0).toLocaleString()}` },
           { label: 'Payback', value: metrics.payback || '—' },
           { label: 'Integrations', value: metrics.integrations || '—' },
-          { label: 'Key person risk', value: metrics.risk || '—', color: metrics.risk === 'Critical' ? '#ef4444' : metrics.risk === 'High' ? '#f59e0b' : metrics.risk === 'Low' ? '#3b82f6' : '#22c55e' },
+          { label: 'Key person risk', value: metrics.risk || '—', color: metrics.risk === 'Critical' ? '#ef4444' : metrics.risk === 'High' ? '#f59e0b' : metrics.risk === 'Moderate' ? '#eab308' : metrics.risk === 'Low' ? '#3b82f6' : '#22c55e' },
         ].map((item, i) => (
           <div key={i} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
             <div style={{ fontSize: '9px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px', fontFamily: "'JetBrains Mono', monospace" }}>{item.label}</div>

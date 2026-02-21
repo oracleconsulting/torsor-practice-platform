@@ -4,12 +4,12 @@
 
 import { useState, useEffect } from 'react';
 import { Layout } from '@/components/Layout';
+import { PageSkeleton } from '@/components/ui';
 import { useProgress } from '@/hooks/useProgress';
 import { HeroStats } from '@/components/progress/HeroStats';
 import { ProgressChart } from '@/components/progress/ProgressChart';
 import { ValueStory } from '@/components/progress/ValueStory';
 import { WinWall } from '@/components/progress/WinWall';
-import { Loader2 } from 'lucide-react';
 
 export default function ProgressPage() {
   const { heroStats, chartData, valueStory, wins, totalSprints, currentSprint, loading, recalculate } = useProgress();
@@ -35,10 +35,8 @@ export default function ProgressPage() {
 
   if (loading) {
     return (
-      <Layout title="Your Progress" subtitle="Loading...">
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-        </div>
+      <Layout title="Your Progress">
+        <PageSkeleton />
       </Layout>
     );
   }

@@ -15,7 +15,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
-import type { Page } from '../../types/navigation';
+import type { PageId } from '../../types/navigation';
 
 const STATUS_CONFIG: Record<string, { label: string; className: string; icon?: React.ReactNode }> = {
   pending: { label: 'Pending', className: 'bg-gray-100 text-gray-700' },
@@ -32,7 +32,7 @@ const STATUS_CONFIG: Record<string, { label: string; className: string; icon?: R
 export interface OnboardingPipelineProps {
   batchId?: string;
   advisorId?: string;
-  onNavigate?: (page: Page) => void;
+  onNavigate?: (page: PageId) => void;
   onViewClient?: (clientId: string, serviceLineCode: string) => void;
 }
 

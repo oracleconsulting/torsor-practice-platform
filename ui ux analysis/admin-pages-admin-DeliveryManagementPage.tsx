@@ -1,12 +1,13 @@
 // ============================================================================
-import type { Page } from '../../types/navigation';
 // DELIVERY MANAGEMENT PAGE
 // ============================================================================
 // Manage service delivery teams, capacity, and client assignments
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { Navigation } from '../../components/Navigation';
+import { useNavigate } from 'react-router-dom';
+import { ADMIN_ROUTES } from '../../config/routes';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
@@ -17,11 +18,6 @@ import {
   UserPlus, Trash2, Workflow, FileSearch
 } from 'lucide-react';
 
-
-interface DeliveryManagementPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
 
 interface ServiceLine {
   code: string;
@@ -92,7 +88,8 @@ const SERVICE_LINES: ServiceLine[] = [
   { code: 'benchmarking', name: 'Benchmarking', icon: BarChart3, color: 'teal' },
 ];
 
-export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryManagementPageProps) {
+export function DeliveryManagementPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   
@@ -383,27 +380,20 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
   // Service selection view
   if (!selectedService) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Navigation 
-          currentPage={currentPage} 
-          onNavigate={onNavigate} 
-        />
-        
-        <main className="ml-64 p-8">
+      <AdminLayout
+        title="Delivery Management"
+        subtitle="Create delivery teams, assign team members, and manage capacity"
+        headerActions={
           <button
-            onClick={() => onNavigate('clients')}
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 group"
+            onClick={() => navigate(ADMIN_ROUTES.clients)}
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <ArrowLeft className="w-4 h-4" />
             <span>Back to Dashboard</span>
           </button>
-
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Delivery Management</h1>
-            <p className="text-gray-600 mt-1">
-              Create delivery teams, assign team members, and manage capacity
-            </p>
-          </div>
+        }
+      >
+        <div>
 
           {/* Service Line Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -481,42 +471,24 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
               </div>
             </div>
           </div>
-        </main>
-      </div>
+        </div>
+      </AdminLayout>
     );
   }
 
   // Team management view
-  const Icon = serviceInfo?.icon || Target;
-  
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation 
-        currentPage={currentPage} 
-        onNavigate={onNavigate} 
-      />
-      
-      <main className="ml-64 p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setSelectedService(null)}
-              className="p-2 hover:bg-gray-100 rounded-lg"
-            >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className={`p-3 rounded-xl bg-${serviceInfo?.color}-100`}>
-                <Icon className={`w-6 h-6 text-${serviceInfo?.color}-600`} />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">{serviceInfo?.name}</h1>
-                <p className="text-sm text-gray-500">Delivery Teams</p>
-              </div>
-            </div>
-          </div>
-          
+    <AdminLayout
+      title={serviceInfo?.name ?? 'Delivery'}
+      subtitle="Delivery Teams"
+      headerActions={
+        <>
+          <button
+            onClick={() => setSelectedService(null)}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
           <button
             onClick={() => setShowCreateTeam(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
@@ -524,7 +496,10 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
             <Plus className="w-4 h-4" />
             Create Team
           </button>
-        </div>
+        </>
+      }
+    >
+      <div className="mb-8">
 
         {/* Roles Reference */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
@@ -554,7 +529,7 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
               <h3 className="font-semibold text-gray-900">Delivery Phases</h3>
             </div>
             <button
-              onClick={() => onNavigate('config')}
+              onClick={() => navigate(ADMIN_ROUTES.config)}
               className="text-sm text-indigo-600 hover:text-indigo-700"
             >
               Configure phases →
@@ -567,7 +542,7 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
             </div>
           ) : phases.length === 0 ? (
             <p className="text-gray-500 text-sm py-4 text-center">
-              No workflow phases configured. <button onClick={() => onNavigate('config')} className="text-indigo-600 hover:underline">Set up phases</button>
+              No workflow phases configured. <button onClick={() => navigate(ADMIN_ROUTES.config)} className="text-indigo-600 hover:underline">Set up phases</button>
             </p>
           ) : (
             <div className="grid grid-cols-4 gap-4">
@@ -831,8 +806,8 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
             onClose={() => setShowAddMember(null)}
           />
         )}
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
 

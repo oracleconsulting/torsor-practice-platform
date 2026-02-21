@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useParams, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { useClientDetail } from '@/hooks/useClients';
 import SystemsAuditView from '@/components/systems-audit/SystemsAuditView';
@@ -27,13 +28,13 @@ import {
 } from 'lucide-react';
 
 export default function ClientDetailPage() {
-  // Get client ID from URL
-  const clientId = window.location.pathname.split('/').pop() || null;
-  // Check URL params for service context
-  const urlParams = new URLSearchParams(window.location.search);
-  const serviceFromUrl = urlParams.get('service') || window.location.pathname.includes('systems_audit') ? 'systems_audit' : null;
-  
-  const { client, fetchClient, loading, addContext, regenerateRoadmap } = useClientDetail(clientId);
+  const { clientId: clientIdParam } = useParams<{ clientId: string }>();
+  const clientId = clientIdParam ?? null;
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const serviceFromUrl = searchParams.get('service') || (location.pathname.includes('systems_audit') ? 'systems_audit' : null);
+
+  const { client, fetchClient, loading, error, addContext, regenerateRoadmap } = useClientDetail(clientId);
   const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'assessments'>('overview');
   const [showAddContext, setShowAddContext] = useState(false);
   const [newContext, setNewContext] = useState({ type: 'note' as const, content: '', priority: 'normal' as const });
@@ -46,33 +47,34 @@ export default function ClientDetailPage() {
     if (clientId) {
       console.log('[ClientDetailPage] useEffect triggered, clientId:', clientId);
       fetchClient();
-      
-      // Check for Systems Audit - multiple methods
-      const checkForSystemsAudit = async () => {
-        setCheckingSA(true);
-        
-        // Method 1: Check for engagement directly (most reliable)
-        const { data: engagement } = await supabase
-          .from('sa_engagements')
-          .select('id')
-          .eq('client_id', clientId)
-          .maybeSingle();
-        
-        if (engagement) {
-          console.log('[ClientDetailPage] ✅ Found SA engagement - showing Systems Audit view');
-          setHasSystemsAudit(true);
+
+      // Run SA check after a short delay to avoid stacking with initial fetch burst (reduces 429 risk)
+      const saTimer = setTimeout(() => {
+        const checkForSystemsAudit = async () => {
+          setCheckingSA(true);
+          const { data: engagement } = await supabase
+            .from('sa_engagements')
+            .select('id')
+            .eq('client_id', clientId)
+            .maybeSingle();
+          if (engagement) {
+            setHasSystemsAudit(true);
+            setCheckingSA(false);
+            return;
+          }
+          await checkSystemsAuditEnrollment();
           setCheckingSA(false);
-          return;
-        }
-        
-        // Method 2: Check enrollment
-        await checkSystemsAuditEnrollment();
-        setCheckingSA(false);
-      };
-      
-      checkForSystemsAudit();
+        };
+        checkForSystemsAudit();
+      }, 500);
+
+      return () => clearTimeout(saTimer);
     }
   }, [clientId]);
+
+  if (!clientId) {
+    return <Navigate to="/clients" replace />;
+  }
 
   const checkSystemsAuditEnrollment = async () => {
     if (!clientId) {
@@ -157,6 +159,32 @@ export default function ClientDetailPage() {
       setRegenerating(false);
     }
   };
+
+  if (error) {
+    const isRateLimited = error.includes('Too many requests') || error.includes('429');
+    return (
+      <Layout
+        title="Error"
+        breadcrumbs={[{ label: 'Clients', href: '/clients' }, { label: 'Error' }]}
+      >
+        <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+          <AlertCircle className="w-12 h-12 text-amber-500 mb-4" />
+          <p className="text-slate-700 font-medium mb-1">{error}</p>
+          {isRateLimited && (
+            <p className="text-sm text-slate-500 mb-4">Wait a few seconds, then click Retry.</p>
+          )}
+          <button
+            type="button"
+            onClick={() => fetchClient()}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Retry
+          </button>
+        </div>
+      </Layout>
+    );
+  }
 
   if (loading || !client) {
     return (
@@ -582,9 +610,8 @@ export default function ClientDetailPage() {
           )}
         </div>
       </div>
-          </>
-        );
-      })()}
+        </>
+      )}
     </Layout>
   );
 }

@@ -1,5 +1,6 @@
 // ============================================================================
-import type { Page } from '../../types/navigation';
+import { useNavigate } from 'react-router-dom';
+import { ADMIN_ROUTES } from '../../config/routes';
 // SERVICE CONFIGURATION PAGE
 // ============================================================================
 // Define workflow phases with activities, match to skills, find best fit people
@@ -7,7 +8,7 @@ import type { Page } from '../../types/navigation';
 // ============================================================================
 
 import { useState, useEffect } from 'react';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
@@ -18,11 +19,6 @@ import {
   BarChart3, Shield, Trash2, Users, Check, X, DollarSign
 } from 'lucide-react';
 
-
-interface ServiceConfigPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
 
 interface WorkflowPhase {
   id: string;
@@ -69,7 +65,8 @@ const SERVICE_LINES = [
   { code: 'benchmarking', name: 'Benchmarking', icon: BarChart3, color: 'teal' },
 ];
 
-export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPageProps) {
+export function ServiceConfigPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   
@@ -259,25 +256,20 @@ export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPage
   // Service selection view (when no specific service selected for workflow)
   if (!selectedService) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-        
-        <main className="ml-64 p-8">
+      <AdminLayout
+        title="Service Configuration"
+        subtitle="Configure workflows, pricing, and team assignments for your services"
+        headerActions={
           <button
-            onClick={() => onNavigate('delivery')}
-            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 group"
+            onClick={() => navigate(ADMIN_ROUTES.delivery)}
+            className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <ArrowLeft className="w-4 h-4" />
             <span>Back to Delivery Teams</span>
           </button>
-
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Service Configuration</h1>
-            <p className="text-gray-600 mt-1">
-              Configure workflows, pricing, and team assignments for your services
-            </p>
-          </div>
-
+        }
+      >
+        <div className="mb-6">
           {/* Tab Navigation */}
           <div className="flex gap-1 mb-8 border-b border-gray-200">
             <button
@@ -334,37 +326,25 @@ export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPage
           ) : (
             <ServicePricingManager />
           )}
-        </main>
-      </div>
+        </div>
+      </AdminLayout>
     );
   }
 
-  const Icon = serviceInfo?.icon || Target;
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      
-      <main className="ml-64 p-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <button
-            onClick={() => setSelectedService(null)}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <div className="flex items-center gap-3">
-            <div className={`p-3 rounded-xl bg-${serviceInfo?.color}-100`}>
-              <Icon className={`w-6 h-6 text-${serviceInfo?.color}-600`} />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">{serviceInfo?.name}</h1>
-              <p className="text-sm text-gray-500">Workflow Configuration</p>
-            </div>
-          </div>
-        </div>
-
+    <AdminLayout
+      title={serviceInfo?.name ?? 'Service'}
+      subtitle="Workflow Configuration"
+      headerActions={
+        <button
+          onClick={() => setSelectedService(null)}
+          className="p-2 hover:bg-gray-100 rounded-lg"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-600" />
+        </button>
+      }
+    >
+      <div className="mb-8">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
@@ -535,8 +515,8 @@ export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPage
             })}
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </AdminLayout>
   );
 }
 

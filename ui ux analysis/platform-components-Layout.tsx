@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   Users, 
@@ -28,7 +29,8 @@ export function Layout({ children, title, subtitle, breadcrumbs }: LayoutProps) 
     { name: 'Settings', href: '/settings', icon: Settings },
   ];
 
-  const currentPath = window.location.pathname;
+  const location = useLocation();
+  const currentPath = location.pathname;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -41,12 +43,12 @@ export function Layout({ children, title, subtitle, breadcrumbs }: LayoutProps) 
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-slate-900 transform transition-transform lg:translate-x-0 ${
+      <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-[#1a2332] transform transition-transform lg:translate-x-0 ${
         sidebarOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
-        <div className="flex items-center justify-between p-6 border-b border-slate-800">
+        <div className="flex items-center justify-between p-6 border-b border-[#243044]">
           <div>
-            <h1 className="text-xl font-bold text-white">Torsor</h1>
+            <h1 className="text-xl font-bold text-white font-display tracking-tight">Torsor</h1>
             <p className="text-sm text-slate-400">{teamMember?.practiceName}</p>
           </div>
           <button 
@@ -63,25 +65,25 @@ export function Layout({ children, title, subtitle, breadcrumbs }: LayoutProps) 
               (item.href !== '/' && currentPath.startsWith(item.href));
             
             return (
-              <a
+              <Link
                 key={item.name}
-                href={item.href}
+                to={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive 
-                    ? 'bg-indigo-600 text-white' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-[#4a90d9]/15 text-[#6bb3f0]' 
+                    : 'text-slate-400 hover:bg-[#243044] hover:text-white'
                 }`}
               >
                 <item.icon className="w-5 h-5" />
                 {item.name}
-              </a>
+              </Link>
             );
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-800">
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-[#243044]">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold">
+            <div className="w-10 h-10 rounded-full bg-[#4a90d9] flex items-center justify-center text-white font-semibold">
               {teamMember?.name?.charAt(0) || 'U'}
             </div>
             <div className="flex-1 min-w-0">
@@ -91,7 +93,7 @@ export function Layout({ children, title, subtitle, breadcrumbs }: LayoutProps) 
           </div>
           <button
             onClick={signOut}
-            className="flex items-center gap-2 w-full px-4 py-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors"
+            className="flex items-center gap-2 w-full px-4 py-2 text-slate-400 hover:text-white hover:bg-[#243044] rounded-lg transition-colors"
           >
             <LogOut className="w-4 h-4" />
             Sign Out
@@ -117,9 +119,9 @@ export function Layout({ children, title, subtitle, breadcrumbs }: LayoutProps) 
                   <span key={i} className="flex items-center gap-2">
                     {i > 0 && <ChevronRight className="w-4 h-4 text-slate-400" />}
                     {crumb.href ? (
-                      <a href={crumb.href} className="text-slate-500 hover:text-slate-900">
+                      <Link to={crumb.href} className="text-slate-500 hover:text-slate-900">
                         {crumb.label}
-                      </a>
+                      </Link>
                     ) : (
                       <span className="text-slate-900 font-medium">{crumb.label}</span>
                     )}
@@ -134,7 +136,7 @@ export function Layout({ children, title, subtitle, breadcrumbs }: LayoutProps) 
         <main className="p-6">
           {(title || subtitle) && (
             <div className="mb-8">
-              {title && <h1 className="text-2xl font-bold text-slate-900">{title}</h1>}
+              {title && <h1 className="text-2xl font-bold text-slate-900 font-display">{title}</h1>}
               {subtitle && <p className="text-slate-600 mt-1">{subtitle}</p>}
             </div>
           )}

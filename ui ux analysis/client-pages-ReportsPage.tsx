@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Briefcase,
 } from 'lucide-react';
+import { PageSkeleton, EmptyState, StatusBadge } from '@/components/ui';
 
 interface ReportItem {
   id: string;
@@ -190,15 +191,13 @@ export default function ReportsPage() {
         </div>
 
         {loading ? (
-          <div className="text-center py-12 text-gray-400">Loading reports...</div>
+          <PageSkeleton />
         ) : reports.length === 0 ? (
-          <div className="text-center py-16 bg-gray-50 rounded-xl border border-gray-200">
-            <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <h3 className="text-gray-600 font-medium mb-1">No reports shared yet</h3>
-            <p className="text-gray-400 text-sm">
-            When your practice shares a report or analysis with you, it will appear here.
-            </p>
-          </div>
+          <EmptyState
+            title="No reports yet"
+            description="When your practice shares a report or analysis with you, it will appear here."
+            icon={<FileText className="w-8 h-8" />}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {reports.map((report) => {
@@ -220,13 +219,10 @@ export default function ReportsPage() {
                         <h3 className="font-semibold text-gray-900 group-hover:text-gray-700">
                           {report.title}
                         </h3>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          report.status === 'available' ? colors.badge :
-                          report.status === 'in_progress' ? 'bg-amber-100 text-amber-700' :
-                          'bg-gray-100 text-gray-500'
-                        }`}>
-                          {report.statusLabel}
-                        </span>
+                        <StatusBadge
+                          status={report.status === 'available' ? 'ready' : report.status === 'in_progress' ? 'generating' : 'neutral'}
+                          label={report.statusLabel}
+                        />
                       </div>
                       <p className="text-sm text-gray-500 mb-2">{report.description}</p>
                       {report.date && (

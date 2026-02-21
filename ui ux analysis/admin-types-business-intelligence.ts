@@ -203,7 +203,7 @@ export type KPICategory =
   | 'efficiency'
   | 'client_health';
 
-export type RAGStatus = 'green' | 'amber' | 'red' | 'neutral';
+export type RAGStatus = 'green' | 'amber' | 'red' | 'grey' | 'neutral';
 export type TrendDirection = 'up' | 'down' | 'flat';
 
 export interface BIKPIDefinition {
@@ -272,7 +272,7 @@ export type InsightTheme =
   | 'client_health'
   | 'pricing_power';
 
-export type InsightPriority = 'critical' | 'warning' | 'opportunity' | 'positive';
+export type InsightPriority = 'critical' | 'warning' | 'opportunity' | 'positive' | 'high' | 'medium' | 'low' | 'info';
 
 export type VisualizationType = 
   | 'none'
@@ -558,6 +558,8 @@ export interface BIReportConfig {
 // ============================================
 
 export interface TierFeatures {
+  name?: string;
+  label?: string;
   kpiCount: number;
   showForecast: boolean;
   showScenarios: boolean;
@@ -572,6 +574,8 @@ export interface TierFeatures {
 
 export const TIER_FEATURES: Record<BITier, TierFeatures> = {
   clarity: {
+    name: 'Clarity',
+    label: 'Clarity',
     kpiCount: 5,
     showForecast: false,
     showScenarios: false,
@@ -584,6 +588,8 @@ export const TIER_FEATURES: Record<BITier, TierFeatures> = {
     callDuration: 30
   },
   foresight: {
+    name: 'Foresight',
+    label: 'Foresight',
     kpiCount: 8,
     showForecast: true,
     showScenarios: true,
@@ -596,6 +602,8 @@ export const TIER_FEATURES: Record<BITier, TierFeatures> = {
     callDuration: 45
   },
   strategic: {
+    name: 'Strategic',
+    label: 'Strategic',
     kpiCount: -1, // Custom
     showForecast: true,
     showScenarios: true,
@@ -645,4 +653,6 @@ export const BANNED_PHRASES = [
 
 export const MAX_INSIGHTS = 7;
 
+// Re-export BI Portal types (canonical MA types for admin BI portal)
+export * from './bi-portal-types';
 

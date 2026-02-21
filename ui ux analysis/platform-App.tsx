@@ -1,12 +1,14 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import LoginPage from '@/pages/LoginPage';
 import DashboardPage from '@/pages/DashboardPage';
 import ClientsPage from '@/pages/ClientsPage';
 import ClientDetailPage from '@/pages/ClientDetailPage';
-import MAPreCallPage from '@/pages/clients/MAPreCallPage';
+import BIPreCallPage from '@/pages/clients/BIPreCallPage';
+import { RoadmapReviewPage } from '@/pages/clients/RoadmapReviewPage';
 import { Loader2 } from 'lucide-react';
 
-function AppRouter() {
+function AppRoutes() {
   const { user, teamMember, loading } = useAuth();
 
   if (loading) {
@@ -20,12 +22,10 @@ function AppRouter() {
     );
   }
 
-  // Not logged in
   if (!user) {
     return <LoginPage />;
   }
 
-  // Logged in but not a team member
   if (!teamMember) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
@@ -33,21 +33,21 @@ function AppRouter() {
           <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-3xl">🚫</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mb-2">Access Denied</h1>
+          <h1 className="text-xl font-bold text-slate-900 mb-2 font-display">Access Denied</h1>
           <p className="text-slate-600 mb-6">
-            This account doesn't have access to the practice platform. 
+            This account doesn't have access to the practice platform.
             If you're a client, please use the client portal instead.
           </p>
           <div className="space-y-3">
             <a
               href="https://client.torsor.co.uk"
-              className="block w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-medium"
+              className="block w-full py-2.5 px-4 btn-primary text-center"
             >
               Go to Client Portal
             </a>
             <button
               onClick={() => window.location.reload()}
-              className="block w-full py-2.5 px-4 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg transition-colors"
+              className="block w-full py-2.5 px-4 btn-secondary"
             >
               Try Again
             </button>
@@ -57,33 +57,27 @@ function AppRouter() {
     );
   }
 
-  // Simple routing based on pathname
-  const path = window.location.pathname;
-
-  // MA Pre-Call page
-  if (path.includes('/ma-precall')) {
-    return <MAPreCallPage />;
-  }
-
-  if (path.startsWith('/clients/') && path.length > 10) {
-    return <ClientDetailPage />;
-  }
-
-  if (path === '/clients') {
-    return <ClientsPage />;
-  }
-
-  // Default to dashboard
-  return <DashboardPage />;
+  return (
+    <Routes>
+      <Route path="/" element={<DashboardPage />} />
+      <Route path="/clients" element={<ClientsPage />} />
+      <Route path="/clients/:clientId" element={<ClientDetailPage />} />
+      <Route path="/clients/:clientId/bi-precall" element={<BIPreCallPage />} />
+      <Route path="/clients/:clientId/ma-precall" element={<BIPreCallPage />} />
+      <Route path="/clients/:clientId/roadmap-review" element={<RoadmapReviewPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
 
 function App() {
   return (
     <AuthProvider>
-      <AppRouter />
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
     </AuthProvider>
   );
 }
 
 export default App;
-

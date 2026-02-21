@@ -8,6 +8,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
+import { PageSkeleton } from '@/components/ui';
 import { useRoadmap, useTasks } from '@/hooks/useAnalysis';
 import { useWeeklyCheckIn, type LifeAlignmentSummary, type WeeklyCheckIn } from '@/hooks/useWeeklyCheckIn';
 import { useAuth } from '@/contexts/AuthContext';
@@ -294,7 +295,7 @@ function HeroMetrics({
         <p className="text-4xl font-bold text-indigo-900">{sprintProgress.percentage}%</p>
         <div className="h-2 bg-indigo-200 rounded-full mt-3 overflow-hidden">
           <div
-            className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+            className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-teal transition-all duration-700 ease-out"
             style={{ width: `${sprintProgress.percentage}%` }}
           />
         </div>
@@ -1441,10 +1442,8 @@ export default function SprintDashboardPage() {
 
   if (roadmapLoading && !roadmap) {
     return (
-      <Layout title="Your Sprint" subtitle="Loading...">
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-        </div>
+      <Layout title="Your Sprint">
+        <PageSkeleton />
       </Layout>
     );
   }

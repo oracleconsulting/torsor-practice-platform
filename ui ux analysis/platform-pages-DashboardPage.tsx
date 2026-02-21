@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { useClients } from '@/hooks/useClients';
 import { useAuth } from '@/contexts/AuthContext';
@@ -78,9 +79,9 @@ export default function DashboardPage() {
               </div>
             ) : (
               clientsInProgress.slice(0, 5).map((client) => (
-                <a
+                <Link
                   key={client.id}
-                  href={`/clients/${client.id}`}
+                  to={`/clients/${client.id}`}
                   className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
@@ -98,17 +99,17 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-slate-400" />
-                </a>
+                </Link>
               ))
             )}
           </div>
           {clientsInProgress.length > 5 && (
-            <a
-              href="/clients?status=in_progress"
+            <Link
+              to="/clients?status=in_progress"
               className="block p-4 text-center text-sm text-indigo-600 hover:bg-indigo-50 transition-colors"
             >
               View all {clientsInProgress.length} clients in progress
-            </a>
+            </Link>
           )}
         </div>
 
@@ -126,9 +127,9 @@ export default function DashboardPage() {
               </div>
             ) : (
               recentlyActive.map((client) => (
-                <a
+                <Link
                   key={client.id}
-                  href={`/clients/${client.id}`}
+                  to={`/clients/${client.id}`}
                   className="flex items-center gap-3 p-4 hover:bg-slate-50 transition-colors"
                 >
                   <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 text-sm font-medium">
@@ -143,7 +144,7 @@ export default function DashboardPage() {
                   {client.hasRoadmap && (
                     <Star className="w-4 h-4 text-emerald-500" />
                   )}
-                </a>
+                </Link>
               ))
             )}
           </div>
@@ -154,30 +155,30 @@ export default function DashboardPage() {
       <div className="mt-8">
         <h2 className="font-semibold text-slate-900 mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <a
-            href="/clients"
+          <Link
+            to="/clients"
             className="bg-white rounded-xl border border-slate-200 p-5 hover:border-indigo-300 hover:shadow-md transition-all group"
           >
             <Users className="w-8 h-8 text-indigo-600 mb-3" />
             <h3 className="font-medium text-slate-900 group-hover:text-indigo-600">View All Clients</h3>
             <p className="text-sm text-slate-500 mt-1">Manage 365 program clients</p>
-          </a>
-          <a
-            href="/clients?status=with_roadmap"
+          </Link>
+          <Link
+            to="/clients?status=with_roadmap"
             className="bg-white rounded-xl border border-slate-200 p-5 hover:border-emerald-300 hover:shadow-md transition-all group"
           >
             <CheckCircle className="w-8 h-8 text-emerald-600 mb-3" />
             <h3 className="font-medium text-slate-900 group-hover:text-emerald-600">Review Roadmaps</h3>
             <p className="text-sm text-slate-500 mt-1">See completed transformations</p>
-          </a>
-          <a
-            href="/clients?status=in_progress"
+          </Link>
+          <Link
+            to="/clients?status=in_progress"
             className="bg-white rounded-xl border border-slate-200 p-5 hover:border-amber-300 hover:shadow-md transition-all group"
           >
             <TrendingUp className="w-8 h-8 text-amber-600 mb-3" />
             <h3 className="font-medium text-slate-900 group-hover:text-amber-600">Track Progress</h3>
             <p className="text-sm text-slate-500 mt-1">Follow client journeys</p>
-          </a>
+          </Link>
         </div>
       </div>
     </Layout>

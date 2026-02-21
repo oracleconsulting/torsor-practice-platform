@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import type { SectionId, MAReportConfig } from '../types/ma-dashboard';
+import type { SectionId, MAReportConfig } from '../types/bi-dashboard';
 
 const DEFAULT_SECTION_ORDER: SectionId[] = [
   'tuesday_question',

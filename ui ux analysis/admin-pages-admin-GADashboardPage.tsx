@@ -5,8 +5,10 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Page } from '../../types/navigation';
-import { Navigation } from '../../components/Navigation';
+import { useNavigate } from 'react-router-dom';
+import { ADMIN_ROUTES } from '../../config/routes';
+import { AdminLayout } from '../../components/AdminLayout';
+import { PageSkeleton, EmptyState } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
@@ -21,7 +23,6 @@ import {
   RefreshCw,
   Flag,
   Eye,
-  Loader2,
 } from 'lucide-react';
 
 // ----------------------------------------------------------------------------
@@ -331,7 +332,7 @@ function MetricCard({
     slate: 'bg-slate-100 text-slate-600',
   };
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
+    <div className="card p-5">
       <div className="flex items-center gap-3">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorClasses[color]}`}>
           <Icon className="w-5 h-5" />
@@ -586,7 +587,7 @@ function ClientGroup({
           : 'bg-indigo-100 text-indigo-700';
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div className="card overflow-hidden">
       <button
         type="button"
         onClick={() => setCollapsed(!collapsed)}
@@ -710,12 +711,8 @@ function ClientList({
 // Page
 // ----------------------------------------------------------------------------
 
-interface GADashboardPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
-
-export function GADashboardPage({ currentPage, onNavigate }: GADashboardPageProps) {
+export function GADashboardPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [clients, setClients] = useState<GAClientSummary[]>([]);
@@ -769,71 +766,55 @@ export function GADashboardPage({ currentPage, onNavigate }: GADashboardPageProp
         JSON.stringify({ clientId, serviceLineCode: '365_method' }),
       );
     } catch (_) {}
-    onNavigate('clients');
+    navigate(ADMIN_ROUTES.clients);
   };
 
   if (loading) {
     return (
-      <>
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-        </div>
-      </>
+      <AdminLayout title="Goal Alignment">
+        <PageSkeleton />
+      </AdminLayout>
     );
   }
 
   if (clients.length === 0) {
     return (
-      <>
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-        <div className="max-w-6xl mx-auto px-6 py-8">
-          <div className="text-center py-16">
-            <Target className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-slate-900 mb-2">
-              No Goal Alignment clients yet
-            </h2>
-            <p className="text-slate-500 max-w-md mx-auto">
-              When clients are enrolled in the Goal Alignment Programme, they&apos;ll
-              appear here with their sprint progress and status.
-            </p>
-          </div>
+      <AdminLayout title="Goal Alignment">
+        <div className="max-w-6xl mx-auto">
+          <EmptyState
+            title="No Goal Alignment clients yet"
+            description="When clients are enrolled in the Goal Alignment Programme, they'll appear here with their sprint progress and status."
+            icon={<Target className="w-12 h-12 text-slate-300" />}
+          />
         </div>
-      </>
+      </AdminLayout>
     );
   }
 
   return (
-    <>
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">
-              Goal Alignment Dashboard
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {clients.length} client{clients.length !== 1 ? 's' : ''} enrolled
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">
-              Updated {lastRefresh.toLocaleTimeString()}
-            </span>
-            <button
-              type="button"
-              onClick={fetchDashboard}
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-              Refresh
-            </button>
-          </div>
-        </div>
-
+    <AdminLayout
+      title="Goal Alignment Dashboard"
+      subtitle={`${clients.length} client${clients.length !== 1 ? 's' : ''} enrolled`}
+      headerActions={
+        <>
+          <span className="text-xs text-slate-400">
+            Updated {lastRefresh.toLocaleTimeString()}
+          </span>
+          <button
+            type="button"
+            onClick={fetchDashboard}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
+        </>
+      }
+    >
+      <div className="max-w-6xl mx-auto space-y-6">
         <SummaryCards clients={clients} />
         <ClientList clients={clients} onViewDetail={handleViewDetail} />
       </div>
-    </>
+    </AdminLayout>
   );
 }

@@ -167,9 +167,17 @@ export function useClientDetail(clientId: string | null) {
     setLoading(true);
     setError(null);
 
+    const isRateLimited = (err: unknown): boolean => {
+      if (err && typeof err === 'object') {
+        const e = err as { status?: number; message?: string; code?: string };
+        return e.status === 429 || e.code === '429' || (typeof e.message === 'string' && (e.message.includes('Too Many Requests') || e.message.includes('429')));
+      }
+      return false;
+    };
+
     try {
-      // Get client data
-      const { data: clientData, error: clientError } = await supabase
+      // Run all independent fetches in parallel to reduce burst and load time
+      const clientQuery = supabase
         .from('practice_members')
         .select(`
           id,
@@ -186,65 +194,71 @@ export function useClientDetail(clientId: string | null) {
         .eq('practice_id', teamMember.practiceId)
         .single();
 
-      if (clientError) throw clientError;
-
-      // Get assessments
-      const { data: assessments } = await supabase
+      const assessmentsQuery = supabase
         .from('client_assessments')
         .select('assessment_type, status, responses, fit_profile')
         .eq('client_id', clientId);
 
-      // Get roadmap
-      const { data: roadmap } = await supabase
+      const roadmapQuery = supabase
         .from('client_roadmaps')
         .select('id, roadmap_data, value_analysis, created_at, status')
         .eq('client_id', clientId)
         .eq('is_active', true)
         .maybeSingle();
 
-      // Get tasks
-      const { data: tasks } = await supabase
+      const tasksQuery = supabase
         .from('client_tasks')
         .select('*')
         .eq('client_id', clientId)
         .order('week_number')
         .order('sort_order');
 
-      // Get context (if table exists)
-      let context: ClientContext[] = [];
-      try {
-        const { data: contextData } = await supabase
-          .from('client_context')
-          .select(`
-            id,
-            context_type,
-            content,
-            source_file_url,
-            added_by,
-            priority_level,
-            processed,
-            created_at,
-            adder:added_by (name)
-          `)
-          .eq('client_id', clientId)
-          .order('created_at', { ascending: false });
-
-        context = (contextData || []).map(c => ({
+      const contextQuery = supabase
+        .from('client_context')
+        .select(`
+          id,
+          context_type,
+          content,
+          source_file_url,
+          added_by,
+          priority_level,
+          processed,
+          created_at,
+          adder:added_by (name)
+        `)
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .then((r) => (r.data || []).map((c: any) => ({
           id: c.id,
           contextType: c.context_type,
           content: c.content,
           sourceFileUrl: c.source_file_url,
           addedBy: c.added_by,
-          addedByName: (c.adder as any)?.name || 'Unknown',
+          addedByName: c.adder?.name || 'Unknown',
           priorityLevel: c.priority_level || 'normal',
           processed: c.processed || false,
           createdAt: c.created_at
-        }));
-      } catch {
-        // Table may not exist yet
-      }
+        })))
+        .catch(() => [] as ClientContext[]);
 
-      // Get advisor
+      const [clientResult, assessmentsResult, roadmapResult, tasksResult, contextResolved] = await Promise.all([
+        clientQuery,
+        assessmentsQuery,
+        roadmapQuery,
+        tasksQuery,
+        contextQuery
+      ]);
+
+      const { data: clientData, error: clientError } = clientResult;
+      if (clientError) throw clientError;
+      if (!clientData) throw new Error('Client not found');
+
+      const assessments = assessmentsResult.data ?? [];
+      const roadmap = roadmapResult.data ?? null;
+      const tasks = tasksResult.data ?? [];
+      const context: ClientContext[] = Array.isArray(contextResolved) ? contextResolved : [];
+
+      // Advisor fetch depends on client; run after
       let advisor = null;
       if (clientData.assigned_advisor_id) {
         const { data: advisorData } = await supabase
@@ -300,8 +314,12 @@ export function useClientDetail(clientId: string | null) {
       return clientDetail;
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      setError(errorMessage);
+      if (isRateLimited(err)) {
+        setError('Too many requests. Please wait a moment and try again.');
+      } else {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errorMessage);
+      }
       return null;
     } finally {
       setLoading(false);

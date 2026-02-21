@@ -1,29 +1,20 @@
 import { useAuth } from '../../hooks/useAuth';
-import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useTeamAnalytics } from '../../hooks/useTeamAnalytics';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
+import { PageSkeleton, StatCard } from '../../components/ui';
 import { Brain, TrendingUp, AlertTriangle, Award, Users, Target } from 'lucide-react';
 
-
-interface TeamAnalyticsPageProps {
-  onNavigate: (page: Page) => void;
-  currentPage: Page;
-}
-
-export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPageProps) {
-  const { user, signOut } = useAuth();
+export function TeamAnalyticsPage() {
+  const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const { data: analytics, isLoading } = useTeamAnalytics(currentMember?.practice_id ?? null);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Calculating team analytics...</p>
-        </div>
-      </div>
+      <AdminLayout title="Team Analytics">
+        <PageSkeleton />
+      </AdminLayout>
     );
   }
 
@@ -31,99 +22,29 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
   const highRetentionRisk = analytics?.filter(a => a.retentionRisk?.riskLevel === 'high').length || 0;
   const highBurnoutRisk = analytics?.filter(a => a.burnoutRisk?.riskLevel === 'high').length || 0;
   const promotionReady = analytics?.filter(a => a.promotionReadiness?.successProbability === 'high').length || 0;
-  const roleAlignmentIssues = analytics?.filter(a => 
+  const roleAlignmentIssues = analytics?.filter(a =>
     a.belbinMotivation?.alignmentScore && a.belbinMotivation.alignmentScore < 60
   ).length || 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Team Analytics & Insights</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                Advanced predictive analytics and cross-assessment correlations
-              </p>
-            </div>
-            <button
-              onClick={() => signOut()}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Navigation Tabs */}
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* Overview Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <div className="text-sm font-medium text-gray-600 dark:text-gray-400">High Retention Risk</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{highRetentionRisk}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <Brain className="w-6 h-6 text-orange-600" />
-              </div>
-              <div>
-                <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Burnout Risk</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{highBurnoutRisk}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <TrendingUp className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Promotion Ready</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{promotionReady}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                <Target className="w-6 h-6 text-yellow-600" />
-              </div>
-              <div>
-                <div className="text-sm font-medium text-gray-600 dark:text-gray-400">Role Misalignment</div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{roleAlignmentIssues}</div>
-              </div>
-            </div>
-          </div>
+    <AdminLayout
+      title="Team Analytics & Insights"
+      subtitle="Advanced predictive analytics and cross-assessment correlations"
+    >
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard label="High Retention Risk" value={highRetentionRisk} accent="red" icon={<AlertTriangle className="w-5 h-5" />} />
+          <StatCard label="Burnout Risk" value={highBurnoutRisk} accent="orange" icon={<Brain className="w-5 h-5" />} />
+          <StatCard label="Promotion Ready" value={promotionReady} accent="teal" icon={<TrendingUp className="w-5 h-5" />} />
+          <StatCard label="Role Misalignment" value={roleAlignmentIssues} accent="orange" icon={<Target className="w-5 h-5" />} />
         </div>
 
-        {/* Individual Team Member Cards */}
         <div className="space-y-6">
           {analytics?.map((memberAnalytics) => (
-            <div
-              key={memberAnalytics.member.id}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6"
-            >
-              {/* Member Header */}
+            <div key={memberAnalytics.member.id} className="card overflow-hidden">
+              <div className="card-body">
               <div className="flex items-start justify-between mb-6">
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white font-display">
                     {memberAnalytics.member.name}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -154,7 +75,7 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
                 {/* Performance Correlation */}
                 {memberAnalytics.personalityPerformance && (
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 font-display">
                       <Award className="w-4 h-4" />
                       Performance Prediction
                     </h4>
@@ -188,7 +109,7 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
                 {/* Learning Effectiveness */}
                 {memberAnalytics.learningEffectiveness && (
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 font-display">
                       <Brain className="w-4 h-4" />
                       Learning Optimization
                     </h4>
@@ -216,7 +137,7 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
                 {/* EQ & Conflict Synergy */}
                 {memberAnalytics.eqConflictSynergy && (
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 font-display">
                       <Users className="w-4 h-4" />
                       Team Dynamics
                     </h4>
@@ -250,7 +171,7 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
                 {/* Belbin-Motivation Alignment */}
                 {memberAnalytics.belbinMotivation && (
                   <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 font-display">
                       <Target className="w-4 h-4" />
                       Role-Motivation Fit
                     </h4>
@@ -285,9 +206,8 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
                 )}
               </div>
 
-              {/* Predictive Analytics Section */}
               <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Predictive Insights</h4>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 font-display">Predictive Insights</h4>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   {/* Retention Risk */}
                   {memberAnalytics.retentionRisk && (
@@ -347,11 +267,11 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
                   )}
                 </div>
               </div>
+              </div>
             </div>
           ))}
         </div>
-      </main>
-    </div>
+    </AdminLayout>
   );
 }
 

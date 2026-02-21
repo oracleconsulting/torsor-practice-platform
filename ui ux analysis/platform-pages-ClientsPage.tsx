@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { useClients, Client } from '@/hooks/useClients';
 import { 
@@ -229,13 +230,13 @@ export default function ClientsPage() {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <a
-                        href={`/clients/${client.id}`}
+                      <Link
+                        to={`/clients/${client.id}`}
                         className="inline-flex items-center gap-1 px-3 py-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors text-sm font-medium"
                       >
                         View
                         <ChevronRight className="w-4 h-4" />
-                      </a>
+                      </Link>
                     </td>
                   </tr>
                 ))}
