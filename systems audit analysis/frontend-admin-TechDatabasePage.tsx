@@ -1,14 +1,8 @@
 import { useState, useEffect, Fragment, useMemo } from 'react';
-import { Navigation } from '../../components/Navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { supabase } from '../../lib/supabase';
-import type { Page } from '../../types/navigation';
 import type { LiveTechProduct } from '../../types/tech-stack';
-import { Search, ChevronDown, ChevronRight, Database } from 'lucide-react';
-
-interface TechDatabasePageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
+import { Search, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface IntegrationRow {
   product_a_slug: string;
@@ -32,7 +26,7 @@ interface CategoryRow {
   parent_category: string | null;
 }
 
-export function TechDatabasePage({ currentPage, onNavigate }: TechDatabasePageProps) {
+export function TechDatabasePage() {
   const [products, setProducts] = useState<LiveTechProduct[]>([]);
   const [integrations, setIntegrations] = useState<IntegrationRow[]>([]);
   const [middleware, setMiddleware] = useState<MiddlewareRow[]>([]);
@@ -133,16 +127,11 @@ export function TechDatabasePage({ currentPage, onNavigate }: TechDatabasePagePr
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Database className="w-7 h-7" />
-            Tech Stack Intelligence
-          </h1>
-        </div>
-
+    <AdminLayout
+      title="Tech Database"
+      subtitle={`${stats.products} products · ${stats.integrations} integrations · ${stats.middleware} middleware capabilities · ${stats.categoryCount} categories`}
+    >
+      <div className="max-w-7xl mx-auto">
         <p className="text-sm text-gray-600 mb-6">
           {stats.products} products · {stats.integrations} integrations · {stats.middleware} middleware capabilities · {stats.categoryCount} categories
         </p>
@@ -340,6 +329,6 @@ export function TechDatabasePage({ currentPage, onNavigate }: TechDatabasePagePr
           </div>
         )}
       </div>
-    </div>
+    </AdminLayout>
   );
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Page } from '../../types/navigation';
-import { Navigation } from '../../components/Navigation';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import type { PageId } from '../../types/navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
@@ -24,12 +24,12 @@ import {
   TrendingUp,
   Briefcase,
   Calendar,
-  Filter,
-  Search,
+  Filter as _Filter,
+  Search as _Search,
   Plus,
   Mail,
   X,
-  Send,
+  Send as _Send,
   LineChart,
   Settings,
   Compass,
@@ -64,7 +64,7 @@ import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-ma
 import { MAAdminReportView, MAClientReportView } from '../../components/management-accounts';
 
 // Test Client Panel for testing workflows
-import { TestClientPanel } from '../../components/admin/TestClientPanel';
+import { TestClientPanel as _TestClientPanel } from '../../components/admin/TestClientPanel';
 import { SystemMatchBadge } from '../../components/admin/SystemMatchBadge';
 import { useTechLookupBatch } from '../../hooks/useTechLookupBatch';
 import type { TechLookupBatchResult } from '../../types/tech-stack';
@@ -74,15 +74,11 @@ import type { SAEngagementGap, PreliminaryAnalysis } from '../../types/systems-a
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
 import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
-import SprintEditorModal from '../../components/admin/SprintEditorModal';
+import { SprintEditorModal } from '../../components/admin/sprint-editor';
 import { getAssessmentByCode } from '../../config/serviceLineAssessments';
 import type { AssessmentQuestion } from '../../config/serviceLineAssessments';
-
-
-interface ClientServicesPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
+import { ClientServicesClientList } from './ClientServicesClientList';
+import type { ClientRow } from './ClientServicesClientListTypes';
 
 // All Service Lines - BSG Complete Offering
 const SERVICE_LINES = [
@@ -216,21 +212,21 @@ interface StaffMember {
 
 const GA_DASHBOARD_STORAGE_KEY = 'gaDashboardSelected';
 
-export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPageProps) {
+export function ClientServicesPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [selectedServiceLine, setSelectedServiceLine] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [_selectedClient, setSelectedClient] = useState<string | null>(null);
   const [pendingGAClientId, setPendingGAClientId] = useState<string | null>(null);
-  const [assigningOwner, setAssigningOwner] = useState<string | null>(null);
-  const [updatingDiscoveryHide, setUpdatingDiscoveryHide] = useState<string | null>(null);
+  const [_assigningOwner, setAssigningOwner] = useState<string | null>(null);
+  const [_updatingDiscoveryHide, setUpdatingDiscoveryHide] = useState<string | null>(null);
 
   // Invitation modal state
-  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [_showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
     email: '',
     name: '',
@@ -239,14 +235,14 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     customMessage: '',
     inviteType: 'discovery' as 'discovery' | 'direct'  // Discovery First or Direct Service
   });
-  const [sendingInvite, setSendingInvite] = useState(false);
+  const [_sendingInvite, setSendingInvite] = useState(false);
   
   // Bulk import state
-  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
-  const [bulkImportData, setBulkImportData] = useState('');
-  const [bulkImporting, setBulkImporting] = useState(false);
+  const [_showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [bulkImportData, _setBulkImportData] = useState('');
+  const [_bulkImporting, setBulkImporting] = useState(false);
   const [bulkImportResults, setBulkImportResults] = useState<any>(null);
-  const [bulkSendEmails, setBulkSendEmails] = useState(false); // Default: NO auto emails
+  const [bulkSendEmails, _setBulkSendEmails] = useState(false); // Default: NO auto emails
   const [deletingClient, setDeletingClient] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string; email: string } | null>(null);
   
@@ -257,7 +253,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   // Service editing/deleting state
   const [editingService, setEditingService] = useState<any | null>(null);
   const [deletingService, setDeletingService] = useState<string | null>(null);
-  const [savingService, setSavingService] = useState(false);
+  const [_savingService, setSavingService] = useState(false);
 
   // Fetch additional services from database
   useEffect(() => {
@@ -385,7 +381,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   };
 
   // Save edited service
-  const handleSaveService = async (service: any) => {
+  const _handleSaveService = async (service: any) => {
     setSavingService(true);
     try {
       const { error } = await supabase
@@ -467,7 +463,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   }, [currentMember?.practice_id]);
 
   // Handle assigning a client to a staff owner
-  const handleAssignOwner = async (clientId: string, ownerId: string | null) => {
+  const _handleAssignOwner = async (clientId: string, ownerId: string | null) => {
     setAssigningOwner(clientId);
     try {
       const { error } = await supabase
@@ -495,7 +491,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     }
   };
 
-  const handleToggleHideDiscovery = async (clientId: string, hide: boolean) => {
+  const _handleToggleHideDiscovery = async (clientId: string, hide: boolean) => {
     setUpdatingDiscoveryHide(clientId);
     try {
       const { error } = await supabase
@@ -515,7 +511,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   };
 
   // Send client invitation
-  const handleSendInvite = async () => {
+  const _handleSendInvite = async () => {
     // For discovery invites, services are optional. For direct invites, at least one is required.
     if (!inviteForm.email || !currentMember?.practice_id) {
       alert('Please enter an email address');
@@ -600,7 +596,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   };
 
   // Bulk import clients from CSV/pasted data
-  const handleBulkImport = async () => {
+  const _handleBulkImport = async () => {
     if (!bulkImportData.trim() || !currentMember?.practice_id) {
       alert('Please paste client data');
       return;
@@ -1168,41 +1164,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Client Services</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Manage clients across all service lines
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setShowBulkImportModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                Bulk Import
-              </button>
-            <button 
-              onClick={() => setShowInviteModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              Invite Client
-            </button>
-            </div>
-          </div>
-        </div>
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!selectedServiceLine ? (
+  const mainContent = !selectedServiceLine ? (
           // Service Lines Grid
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-gray-900">Select Service Line</h2>
@@ -1322,1011 +1284,90 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
               </div>
             )}
           </div>
-        ) : (
-          // Client List for Selected Service Line
-          <div className="space-y-6">
-            {/* Back button and header */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setSelectedServiceLine(null)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ← Back to Service Lines
-              </button>
-              <div className="h-6 w-px bg-gray-300" />
-              <h2 className="text-lg font-semibold text-gray-900">
-                {SERVICE_LINES.find(s => s.id === selectedServiceLine)?.name}
-              </h2>
-            </div>
+  ) : renderClientList();
 
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                    <Users className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">{clients.length}</p>
-                    <p className="text-sm text-gray-500">Total Clients</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {clients.filter(c => c.hasRoadmap).length}
-                    </p>
-                    <p className="text-sm text-gray-500">With Roadmap</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {clients.filter(c => !c.hasRoadmap && c.progress > 0).length}
-                    </p>
-                    <p className="text-sm text-gray-500">In Progress</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                    <AlertCircle className="w-5 h-5 text-slate-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {clients.filter(c => c.progress === 0).length}
-                    </p>
-                    <p className="text-sm text-gray-500">Not Started</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+  function renderClientList() {
+    return (
+      <ClientServicesClientList
+        serviceLines={SERVICE_LINES}
+        selectedServiceLine={selectedServiceLine}
+        setSelectedServiceLine={setSelectedServiceLine}
+        clients={clients as ClientRow[]}
+        filteredClients={filteredClients as ClientRow[]}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        setShowInviteModal={setShowInviteModal}
+        setSelectedClient={setSelectedClient}
+        selectedClient={_selectedClient}
+        fetchClients={fetchClients}
+        handleDeleteClient={handleDeleteClient}
+        confirmDeleteClient={confirmDeleteClient}
+        clientToDelete={clientToDelete}
+        setClientToDelete={setClientToDelete}
+        deletingClient={deletingClient}
+        setShowBulkImportModal={setShowBulkImportModal}
+        bulkImportResults={bulkImportResults}
+        setBulkImportResults={setBulkImportResults}
+        editingService={editingService}
+        setEditingService={setEditingService}
+        handleDeleteService={handleDeleteService}
+        savingService={_savingService}
+        deletingService={deletingService}
+        currentMember={currentMember ?? null}
+        getStatusColor={getStatusColor}
+        handleSaveService={_handleSaveService}
+        staffMembers={staffMembers}
+        assigningOwner={_assigningOwner}
+        updatingDiscoveryHide={_updatingDiscoveryHide}
+        handleAssignOwner={_handleAssignOwner}
+        handleToggleHideDiscovery={_handleToggleHideDiscovery}
+        DiscoveryClientModal={DiscoveryClientModal}
+        SystemsAuditClientModal={SystemsAuditClientModal}
+        BenchmarkingClientModal={BenchmarkingClientModal}
+        ClientDetailModal={ClientDetailModal}
+        showInviteModal={_showInviteModal}
+        inviteForm={inviteForm}
+        setInviteForm={setInviteForm}
+        sendingInvite={_sendingInvite}
+        handleSendInvite={_handleSendInvite}
+        showBulkImportModal={_showBulkImportModal}
+        bulkImportData={bulkImportData}
+        setBulkImportData={_setBulkImportData}
+        bulkSendEmails={bulkSendEmails}
+        setBulkSendEmails={_setBulkSendEmails}
+        bulkImporting={_bulkImporting}
+        handleBulkImport={_handleBulkImport}
+      />
+    );
+  }
 
-            {/* Test Mode Panel */}
-            {currentMember?.practice_id && selectedServiceLine && (
-              <TestClientPanel
-                practiceId={currentMember.practice_id}
-                serviceLineCode={selectedServiceLine}
-                serviceLineName={SERVICE_LINES.find(s => s.id === selectedServiceLine)?.name || selectedServiceLine}
-                onTestClientCreated={(clientId) => {
-                  console.log('Test client created:', clientId);
-                  fetchClients();
-                }}
-                onTestClientReset={() => {
-                  console.log('Test client reset');
-                  fetchClients();
-                }}
-              />
-            )}
-
-            {/* Search and Filter */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search clients..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-                <button className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50">
-                  <Filter className="w-4 h-4" />
-                  Filters
-                </button>
-              </div>
-            </div>
-
-            {/* Client List */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              {loading ? (
-                <div className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
-                  <p className="text-gray-500 mt-4">Loading clients...</p>
-                </div>
-              ) : filteredClients.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No clients found</p>
-                </div>
-              ) : (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Client</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Owner</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Progress</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Status</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Discovery in portal</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Last Activity</th>
-                      <th className="px-6 py-4"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredClients.map((client) => (
-                      <tr key={client.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-start gap-2">
-                          <div>
-                            <p className="font-medium text-gray-900">{client.name}</p>
-                            <p className="text-sm text-gray-500">{client.email}</p>
-                            {client.company && (
-                              <p className="text-sm text-gray-400">{client.company}</p>
-                              )}
-                            </div>
-                            {client.is_test_client && (
-                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">
-                                TEST
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <select
-                            value={client.client_owner_id || ''}
-                            onChange={(e) => handleAssignOwner(client.id, e.target.value || null)}
-                            disabled={assigningOwner === client.id}
-                            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 min-w-[140px]"
-                          >
-                            <option value="">Unassigned</option>
-                            {staffMembers.map(staff => (
-                              <option key={staff.id} value={staff.id}>
-                                {staff.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-indigo-600 rounded-full transition-all"
-                                style={{ width: `${client.progress}%` }}
-                              />
-                            </div>
-                            <span className="text-sm text-gray-600">{client.progress}%</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            {client.hasRoadmap ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
-                                <CheckCircle className="w-4 h-4" />
-                                Roadmap Active
-                              </span>
-                            ) : (
-                              <span className={`px-2.5 py-1 rounded-full text-sm font-medium ${getStatusColor(client.status)}`}>
-                                {client.status === 'active' ? 'In Progress' : client.status}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <label className="flex items-center gap-2 cursor-pointer" title="When checked, Discovery assessment is hidden on this client's dashboard (e.g. for auto-onboarded service-line clients)">
-                            <input
-                              type="checkbox"
-                              checked={!!client.hide_discovery_in_portal}
-                              onChange={(e) => handleToggleHideDiscovery(client.id, e.target.checked)}
-                              disabled={updatingDiscoveryHide === client.id}
-                              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <span className="text-sm text-gray-600">Hide Discovery</span>
-                          </label>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-gray-500">
-                            {client.lastActivity 
-                              ? new Date(client.lastActivity).toLocaleDateString()
-                              : 'Never'
-                            }
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`/clients/${client.id}`}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setSelectedClient(client.id);
-                              }}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors text-sm font-medium"
-                            >
-                              View
-                              <ChevronRight className="w-4 h-4" />
-                            </a>
-                            <button
-                              onClick={() => handleDeleteClient(client.id, client.name, client.email)}
-                              disabled={deletingClient === client.id}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Delete client permanently"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Client Detail Modal - show Discovery modal for discovery clients */}
-        {selectedClient && selectedServiceLine === 'discovery' && (
-          <DiscoveryClientModal 
-            clientId={selectedClient} 
-            onClose={() => setSelectedClient(null)}
-            onRefresh={fetchClients}
-          />
-        )}
-        
-        {/* Systems Audit Modal - show Systems Audit view for systems_audit service line */}
-        {selectedClient && selectedServiceLine === 'systems_audit' && (
-          <SystemsAuditClientModal 
-            clientId={selectedClient} 
-            onClose={() => setSelectedClient(null)}
-          />
-        )}
-        
-        {/* Benchmarking Modal - show Benchmarking view for benchmarking service line */}
-        {selectedClient && selectedServiceLine === 'benchmarking' && (
-          <BenchmarkingClientModal 
-            clientId={selectedClient} 
-            onClose={() => setSelectedClient(null)}
-          />
-        )}
-        
-        {/* Regular Client Detail Modal for other service lines */}
-        {selectedClient && selectedServiceLine && selectedServiceLine !== 'discovery' && selectedServiceLine !== 'systems_audit' && selectedServiceLine !== 'benchmarking' && (
-          <ClientDetailModal 
-            clientId={selectedClient} 
-            serviceLineCode={selectedServiceLine}
-            onClose={() => setSelectedClient(null)} 
-            onNavigate={onNavigate}
-          />
-        )}
-
-        {/* Delete Client Confirmation Modal */}
-        {clientToDelete && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                  <Trash2 className="w-5 h-5 text-red-600" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900">Delete Client</h2>
-              </div>
-              
-              <p className="text-gray-600 mb-6">
-                Are you sure you want to permanently delete <strong>{clientToDelete.name}</strong> ({clientToDelete.email})?
-              </p>
-              
-              <p className="text-sm text-red-600 mb-6 bg-red-50 p-3 rounded-lg">
-                ⚠️ This action cannot be undone. This will permanently delete:
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>Client profile and account</li>
-                  <li>All service enrollments</li>
-                  <li>All assessments and progress data</li>
-                  <li>All roadmaps and plans</li>
-                  <li>All related records</li>
-                </ul>
-              </p>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setClientToDelete(null)}
-                  disabled={deletingClient === clientToDelete.id}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDeleteClient}
-                  disabled={deletingClient === clientToDelete.id}
-                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {deletingClient === clientToDelete.id ? 'Deleting...' : 'Delete Permanently'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Invite Client Modal */}
-        {showInviteModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-              {/* Modal Header */}
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Invite Client</h2>
-                  <p className="text-sm text-gray-500">Create their portal account and start their journey</p>
-                </div>
-                <button
-                  onClick={() => setShowInviteModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-6 space-y-6">
-                {/* Invite Type Toggle */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    How should they start?
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setInviteForm({ ...inviteForm, inviteType: 'discovery' })}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                        inviteForm.inviteType === 'discovery'
-                          ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          inviteForm.inviteType === 'discovery' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          <Target className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900">Destination Discovery</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Start with a questionnaire to understand their goals, then recommend services
-                          </p>
-                        </div>
-                      </div>
-                      {inviteForm.inviteType === 'discovery' && (
-                        <div className="absolute top-2 right-2">
-                          <CheckCircle className="w-5 h-5 text-indigo-500" />
-                        </div>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setInviteForm({ ...inviteForm, inviteType: 'direct' })}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                        inviteForm.inviteType === 'direct'
-                          ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          inviteForm.inviteType === 'direct' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          <Send className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900">Direct Enrollment</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Skip discovery and enroll directly in specific services
-                          </p>
-                        </div>
-                      </div>
-                      {inviteForm.inviteType === 'direct' && (
-                        <div className="absolute top-2 right-2">
-                          <CheckCircle className="w-5 h-5 text-emerald-500" />
-                        </div>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Client Details */}
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Email */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      value={inviteForm.email}
-                      onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                      placeholder="client@example.com"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-
-                  {/* Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Client Name
-                    </label>
-                    <input
-                      type="text"
-                      value={inviteForm.name}
-                      onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                      placeholder="John Smith"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Company */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Company Name
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteForm.company}
-                    onChange={(e) => setInviteForm({ ...inviteForm, company: e.target.value })}
-                    placeholder="Acme Ltd"
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-
-                {/* Service Lines - Only show for Direct enrollment, or optionally for Discovery */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {inviteForm.inviteType === 'discovery' 
-                      ? 'Pre-select services (optional - let discovery guide them)'
-                      : 'Enroll in Services *'
-                    }
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                    {SERVICE_LINES.filter((service, index, self) => 
-                      // Remove duplicates by id and only show ready services
-                      service.status === 'ready' && index === self.findIndex(s => s.id === service.id)
-                    ).map((service) => {
-                      const Icon = service.icon;
-                      const isSelected = inviteForm.services.includes(service.code);
-                      return (
-                        <label
-                          key={service.id}
-                          className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                            isSelected 
-                              ? 'border-indigo-500 bg-indigo-50' 
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setInviteForm({ ...inviteForm, services: [...inviteForm.services, service.code] });
-                              } else {
-                                setInviteForm({ ...inviteForm, services: inviteForm.services.filter(s => s !== service.code) });
-                              }
-                            }}
-                            className="w-4 h-4 text-indigo-600 rounded"
-                          />
-                          <Icon className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-medium text-gray-900">{service.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {inviteForm.inviteType === 'discovery' && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      Tip: Leave blank to let Discovery recommend the best services based on their goals
-                    </p>
-                  )}
-                </div>
-
-                {/* Custom Message */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Personal Message (optional)
-                  </label>
-                  <textarea
-                    value={inviteForm.customMessage}
-                    onChange={(e) => setInviteForm({ ...inviteForm, customMessage: e.target.value })}
-                    placeholder="Looking forward to helping you reach your goals..."
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-
-                {/* Preview what client will see */}
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <p className="text-sm font-medium text-slate-700 mb-2">What they will experience:</p>
-                  <div className="flex items-start gap-3 text-sm text-slate-600">
-                    <div className="flex flex-col items-center">
-                      <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold">1</div>
-                      <div className="w-px h-4 bg-slate-300" />
-                    </div>
-                    <p>Receive email invitation</p>
-                  </div>
-                  <div className="flex items-start gap-3 text-sm text-slate-600">
-                    <div className="flex flex-col items-center">
-                      <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold">2</div>
-                      <div className="w-px h-4 bg-slate-300" />
-                    </div>
-                    <p>Create their portal account (set password)</p>
-                  </div>
-                  {inviteForm.inviteType === 'discovery' ? (
-                    <>
-                      <div className="flex items-start gap-3 text-sm text-slate-600">
-                        <div className="flex flex-col items-center">
-                          <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">3</div>
-                          <div className="w-px h-4 bg-slate-300" />
-                        </div>
-                        <p>Complete Destination Discovery (~15 mins)</p>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm text-slate-600">
-                        <div className="flex flex-col items-center">
-                          <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">4</div>
-                        </div>
-                        <p>Receive personalized service recommendations</p>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex items-start gap-3 text-sm text-slate-600">
-                      <div className="flex flex-col items-center">
-                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">3</div>
-                      </div>
-                      <p>Start onboarding for {inviteForm.services.length > 0 ? inviteForm.services.length : 'selected'} service(s)</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-6 border-t border-gray-200 flex justify-end gap-3 sticky bottom-0 bg-white">
-                <button
-                  onClick={() => {
-                    setShowInviteModal(false);
-                    setInviteForm({ email: '', name: '', company: '', services: [], customMessage: '', inviteType: 'discovery' });
-                  }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSendInvite}
-                  disabled={sendingInvite || !inviteForm.email || (inviteForm.inviteType === 'direct' && inviteForm.services.length === 0)}
-                  className={`inline-flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    inviteForm.inviteType === 'discovery'
-                      ? 'bg-indigo-600 hover:bg-indigo-700'
-                      : 'bg-emerald-600 hover:bg-emerald-700'
-                  }`}
-                >
-                  {sendingInvite ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="w-4 h-4" />
-                      {inviteForm.inviteType === 'discovery' ? 'Send Discovery Invite' : 'Send Direct Invite'}
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Bulk Import Modal */}
-        {showBulkImportModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden max-h-[90vh] overflow-y-auto">
-              {/* Modal Header */}
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Bulk Import Clients</h2>
-                  <p className="text-sm text-gray-500">Import multiple clients at once for Destination Discovery</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowBulkImportModal(false);
-                    setBulkImportData('');
-                    setBulkImportResults(null);
-                    setBulkSendEmails(false);
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-6 space-y-6">
-                {!bulkImportResults ? (
-                  <>
-                    {/* Instructions */}
-                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                      <h3 className="font-medium text-blue-900 mb-2">How to format your data</h3>
-                      <p className="text-sm text-blue-700 mb-3">
-                        Paste data from Excel/Sheets with columns: <strong>Name</strong>, <strong>Email</strong>, and optionally <strong>Company</strong>
-                      </p>
-                      <div className="bg-white rounded-lg p-3 font-mono text-xs text-gray-600 border border-blue-200">
-                        <div>Yonas Ackholm	yackholm@hotmail.com	Ackholm Holdings</div>
-                        <div>Jeremy Baron	jeremy@baronsec.com	Baron Securities</div>
-                        <div>Claude Partridge	claudepartridge@me.com	CEP Developments</div>
-                      </div>
-                      <p className="text-xs text-blue-600 mt-2">
-                        ✓ Tab-separated (Excel copy) or comma-separated (CSV)<br />
-                        ✓ Passwords will be auto-generated if not provided<br />
-                        ✓ Each client will receive a welcome email with their credentials
-                      </p>
-                    </div>
-
-                    {/* Data Input */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Paste your client data here
-                      </label>
-                      <textarea
-                        value={bulkImportData}
-                        onChange={(e) => setBulkImportData(e.target.value)}
-                        placeholder="Name	Email	Company (optional)
-Yonas Ackholm	yackholm@hotmail.com	Ackholm Holdings
-Jeremy Baron	jeremy@baronsec.com	Baron Securities"
-                        rows={12}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-sm"
-                      />
-                    </div>
-
-                    {/* Preview */}
-                    {bulkImportData.trim() && (
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">
-                          Preview: {bulkImportData.trim().split('\n').filter(l => l.trim() && !l.toLowerCase().includes('name')).length} clients detected
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Email Option */}
-                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <div>
-                          <h3 className="font-medium text-gray-900">Send welcome emails automatically?</h3>
-                          <p className="text-sm text-gray-500 mt-1">
-                            {bulkSendEmails 
-                              ? 'Clients will receive an email with their login credentials'
-                              : 'No emails sent - you will share credentials personally'
-                            }
-                          </p>
-                        </div>
-                        <div 
-                          onClick={() => setBulkSendEmails(!bulkSendEmails)}
-                          className={`relative w-12 h-6 rounded-full transition-colors ${bulkSendEmails ? 'bg-emerald-500' : 'bg-gray-300'}`}
-                        >
-                          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${bulkSendEmails ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                        </div>
-                      </label>
-                    </div>
-
-                    {/* What happens */}
-                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-                      <h3 className="font-medium text-amber-900 mb-2">What happens when you import</h3>
-                      <div className="space-y-2 text-sm text-amber-800">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>Portal accounts created with auto-generated passwords</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>Credentials shown after import so you can share them</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>Clients enrolled in <strong>Destination Discovery</strong></span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>When they log in, Discovery assessment appears immediately</span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  /* Results View */
-                  <div className="space-y-4">
-                    {/* Summary */}
-                    <div className={`rounded-xl p-6 ${bulkImportResults.summary?.succeeded === bulkImportResults.summary?.total ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
-                      <h3 className="text-lg font-semibold mb-3">
-                        {bulkImportResults.summary?.succeeded === bulkImportResults.summary?.total 
-                          ? '✅ All clients imported successfully!'
-                          : `⚠️ ${bulkImportResults.summary?.succeeded} of ${bulkImportResults.summary?.total} clients imported`
-                        }
-                      </h3>
-                      <div className="grid grid-cols-3 gap-4 text-center">
-                        <div className="bg-white rounded-lg p-3">
-                          <div className="text-2xl font-bold text-emerald-600">{bulkImportResults.summary?.succeeded || 0}</div>
-                          <div className="text-xs text-gray-500">Succeeded</div>
-                        </div>
-                        <div className="bg-white rounded-lg p-3">
-                          <div className="text-2xl font-bold text-red-600">{bulkImportResults.summary?.failed || 0}</div>
-                          <div className="text-xs text-gray-500">Failed</div>
-                        </div>
-                        <div className="bg-white rounded-lg p-3">
-                          <div className="text-2xl font-bold text-blue-600">{bulkImportResults.summary?.emailsSent || 0}</div>
-                          <div className="text-xs text-gray-500">Emails Sent</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Credentials Table - Copyable */}
-                    {bulkImportResults.results?.some((r: any) => r.success) && (
-                      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                        <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-200 flex items-center justify-between">
-                          <h4 className="font-medium text-emerald-900">📋 Client Credentials</h4>
-                          <button
-                            onClick={() => {
-                              const successResults = bulkImportResults.results.filter((r: any) => r.success);
-                              const text = successResults.map((r: any) => 
-                                `${r.name}\t${r.email}\t${r.password}`
-                              ).join('\n');
-                              navigator.clipboard.writeText(`Name\tEmail\tPassword\n${text}`);
-                              alert('Credentials copied to clipboard!');
-                            }}
-                            className="text-xs px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-                          >
-                            Copy All
-                          </button>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                              <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email (Username)</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Password</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {bulkImportResults.results?.filter((r: any) => r.success).map((result: any, idx: number) => (
-                                <tr key={idx} className="hover:bg-gray-50">
-                                  <td className="px-4 py-2 font-medium text-gray-900">{result.name}</td>
-                                  <td className="px-4 py-2 text-gray-600">{result.email}</td>
-                                  <td className="px-4 py-2">
-                                    <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">{result.password}</code>
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-500">{result.company || '-'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="px-4 py-3 bg-blue-50 border-t border-blue-200 text-xs text-blue-700">
-                          <strong>Portal URL:</strong> https://torsor.co.uk/client
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Failed Imports */}
-                    {bulkImportResults.results?.some((r: any) => !r.success) && (
-                      <div className="bg-white rounded-lg border border-red-200 overflow-hidden">
-                        <div className="px-4 py-3 bg-red-50 border-b border-red-200">
-                          <h4 className="font-medium text-red-900">⚠️ Failed Imports</h4>
-                        </div>
-                        <div className="max-h-32 overflow-y-auto">
-                          {bulkImportResults.results?.filter((r: any) => !r.success).map((result: any, idx: number) => (
-                            <div key={idx} className="px-4 py-2 border-b border-red-100 flex items-center justify-between">
-                              <span className="text-sm text-gray-900">{result.name || result.email}</span>
-                              <span className="text-xs text-red-600">{result.error}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
-                {!bulkImportResults ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        setShowBulkImportModal(false);
-                        setBulkImportData('');
-                        setBulkSendEmails(false);
-                      }}
-                      className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleBulkImport}
-                      disabled={bulkImporting || !bulkImportData.trim()}
-                      className={`inline-flex items-center gap-2 px-6 py-2 rounded-lg text-white font-medium transition-colors ${
-                        bulkImporting || !bulkImportData.trim()
-                          ? 'bg-gray-300 cursor-not-allowed'
-                          : 'bg-emerald-600 hover:bg-emerald-700'
-                      }`}
-                    >
-                      {bulkImporting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Importing...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4" />
-                          Import Clients
-                        </>
-                      )}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setShowBulkImportModal(false);
-                      setBulkImportData('');
-                      setBulkImportResults(null);
-                      setBulkSendEmails(false);
-                    }}
-                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-                  >
-                    Done
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Service Edit Modal */}
-        {editingService && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold">Edit Service</h2>
-                  <button 
-                    onClick={() => setEditingService(null)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
-                  <input
-                    type="text"
-                    value={editingService.name || ''}
-                    onChange={(e) => setEditingService({ ...editingService, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Short Description</label>
-                  <input
-                    type="text"
-                    value={editingService.short_description || ''}
-                    onChange={(e) => setEditingService({ ...editingService, short_description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
-                  <textarea
-                    rows={3}
-                    value={editingService.description || ''}
-                    onChange={(e) => setEditingService({ ...editingService, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (£)</label>
-                    <input
-                      type="number"
-                      value={editingService.price_amount || ''}
-                      onChange={(e) => setEditingService({ ...editingService, price_amount: parseFloat(e.target.value) || null })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price Period</label>
-                    <select
-                      value={editingService.price_period || 'one-off'}
-                      onChange={(e) => setEditingService({ ...editingService, price_period: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      <option value="one-off">One-off</option>
-                      <option value="month">Monthly</option>
-                      <option value="year">Annual</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select
-                    value={editingService.status || 'active'}
-                    onChange={(e) => setEditingService({ ...editingService, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="active">Active</option>
-                    <option value="draft">Draft</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="p-6 border-t border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      // Archive instead of delete (safer)
-                      handleSaveService({ ...editingService, status: 'archived' });
-                    }}
-                    disabled={savingService}
-                    className="px-4 py-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors flex items-center gap-2"
-                    title="Archive service (keeps data but hides from list)"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Archive
-                  </button>
-                  <button
-                    onClick={() => handleDeleteService(editingService.id)}
-                    disabled={savingService}
-                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
-                    title="Permanently delete (may fail if in use)"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setEditingService(null)}
-                    className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleSaveService(editingService)}
-                    disabled={savingService}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                  >
-                    {savingService ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4" />
-                        Save Changes
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+  return (
+    <AdminLayout
+      title="Client Services"
+      subtitle="Manage clients across all service lines"
+      headerActions={
+        <>
+          <button
+            onClick={() => setShowBulkImportModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </button>
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            Invite Client
+          </button>
+        </>
+      }
+    >
+      <div className="max-w-7xl mx-auto">
+        {mainContent}
+      </div>
+    </AdminLayout>
   );
 }
 
@@ -7232,7 +6273,7 @@ function DiscoveryClientModal({
 }
 
 // Enhanced Client Detail Modal with full functionality
-function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: { clientId: string; serviceLineCode: string; onClose: () => void; onNavigate: (page: Page) => void }) {
+function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: { clientId: string; serviceLineCode: string; onClose: () => void; onNavigate: (page: PageId) => void }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [client, setClient] = useState<any>(null);
@@ -11798,7 +10839,6 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* Sprint Editor Modal — outside tab content so it opens from any tab */}
               {showSprintEditor && sprintStageRaw && (
                 <SprintEditorModal
-                  isOpen={showSprintEditor}
                   onClose={() => setShowSprintEditor(false)}
                   onSave={() => { fetchClientDetail(); }}
                   clientId={client?.id || clientId || ''}
@@ -13796,8 +12836,8 @@ function SystemsAuditClientModal({
         });
       };
 
-      // ── Phase 1: Extract core facts and system inventory ──
-      console.log('[SA Report] Starting Phase 1/5: Extracting facts...', { engagementId: engagement.id });
+      // ── Phase 1: Extract core facts ──
+      console.log('[SA Report] Starting Phase 1/8: Extracting facts...', { engagementId: engagement.id });
       firePhase(1);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13805,8 +12845,8 @@ function SystemsAuditClientModal({
       }, 'Phase 1');
       console.log('[SA Report] Phase 1 complete');
 
-      // ── Phase 2: Analyse processes, scores, costs ──
-      console.log('[SA Report] Starting Phase 2/5: Analysing processes...');
+      // ── Phase 2: Analyse processes ──
+      console.log('[SA Report] Starting Phase 2/8: Analysing processes...');
       firePhase(2);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13814,8 +12854,8 @@ function SystemsAuditClientModal({
       }, 'Phase 2');
       console.log('[SA Report] Phase 2 complete');
 
-      // ── Phase 3: Generate findings and quick wins ──
-      console.log('[SA Report] Starting Phase 3/5: Generating findings...');
+      // ── Phase 3: Critical + High findings ──
+      console.log('[SA Report] Starting Phase 3/8: Identifying critical findings...');
       firePhase(3);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
@@ -13823,23 +12863,50 @@ function SystemsAuditClientModal({
       }, 'Phase 3');
       console.log('[SA Report] Phase 3 complete');
 
-      // ── Phase 4: Build recommendations, then systems maps (two steps in one invoke) ──
-      console.log('[SA Report] Starting Phase 4/5: Building recommendations, then systems maps...');
+      // ── Phase 4: Medium/Low findings + Quick wins ──
+      console.log('[SA Report] Starting Phase 4/8: Completing findings and quick wins...');
       firePhase(4);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
         return !!data?.pass1_data?.phase4;
-      }, 'Phase 4 (recommendations + systems maps)');
+      }, 'Phase 4');
       console.log('[SA Report] Phase 4 complete');
 
-      // ── Phase 5: Admin guidance and client presentation ──
-      console.log('[SA Report] Starting Phase 5/5: Generating admin guidance...');
+      // ── Phase 5: Recommendations ──
+      console.log('[SA Report] Starting Phase 5/8: Building recommendations...');
       firePhase(5);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase5;
+      }, 'Phase 5');
+      console.log('[SA Report] Phase 5 complete');
+
+      // ── Phase 6: Systems maps ──
+      console.log('[SA Report] Starting Phase 6/8: Generating technology roadmap...');
+      firePhase(6);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase6;
+      }, 'Phase 6');
+      console.log('[SA Report] Phase 6 complete');
+
+      // ── Phase 7: Admin guidance ──
+      console.log('[SA Report] Starting Phase 7/8: Preparing practice team guidance...');
+      firePhase(7);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        return !!data?.pass1_data?.phase7;
+      }, 'Phase 7');
+      console.log('[SA Report] Phase 7 complete');
+
+      // ── Phase 8: Client presentation + assembly ──
+      console.log('[SA Report] Starting Phase 8/8: Finalising report...');
+      firePhase(8);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
         return data?.status === 'pass1_complete';
-      }, 'Phase 5');
-      console.log('[SA Report] All 5 phases complete. Starting narrative generation (Pass 2)...');
+      }, 'Phase 8');
+      console.log('[SA Report] All 8 phases complete. Starting narrative generation (Pass 2)...');
 
       // ── Pass 2: Narrative generation (Opus) ──
       const { data: reportRow } = await supabase
@@ -13883,9 +12950,12 @@ function SystemsAuditClientModal({
       const phasesComplete = [
         partialReport?.pass1_data?.phase1 ? '1 (Extract)' : null,
         partialReport?.pass1_data?.phase2 ? '2 (Analyse)' : null,
-        partialReport?.pass1_data?.phase3 ? '3 (Diagnose)' : null,
-        partialReport?.pass1_data?.phase4 ? '4 (Recommend)' : null,
-        partialReport?.status === 'pass1_complete' ? '5 (Guide)' : null,
+        partialReport?.pass1_data?.phase3 ? '3 (Critical Findings)' : null,
+        partialReport?.pass1_data?.phase4 ? '4 (All Findings)' : null,
+        partialReport?.pass1_data?.phase5 ? '5 (Recommend)' : null,
+        partialReport?.pass1_data?.phase6 ? '6 (Maps)' : null,
+        partialReport?.pass1_data?.phase7 ? '7 (Guidance)' : null,
+        partialReport?.status === 'pass1_complete' ? '8 (Presentation)' : null,
       ].filter(Boolean).join(', ');
 
       if (phasesComplete) {

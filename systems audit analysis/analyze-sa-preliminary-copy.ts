@@ -66,7 +66,10 @@ function buildPreliminaryPrompt(
     .join('\n\n');
 
   const totalQuestions = 32;
-  const answered = stage1Entries.filter(([, v]) => v != null && String(v).trim() !== '').length;
+  const answered = Math.min(
+    stage1Entries.filter(([, v]) => v != null && String(v).trim() !== '').length,
+    totalQuestions,
+  );
   const totalChains = 7;
   const chainsDone = deepSlice.length;
 

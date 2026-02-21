@@ -6,7 +6,6 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import InvitationPage from './pages/InvitationPage';
-import DashboardPage from './pages/DashboardPage';
 import UnifiedDashboardPage from './pages/UnifiedDashboardPage';
 import DiscoveryCompletePage from './pages/DiscoveryCompletePage';
 import AssessmentsPage from './pages/assessments/AssessmentsPage';
@@ -55,9 +54,6 @@ function App() {
             
             {/* Legacy portal for backward compatibility */}
             <Route path="/portal" element={<Navigate to="/dashboard" replace />} />
-            
-            {/* Old dashboard kept for reference */}
-            <Route path="/dashboard-old" element={<DashboardPage />} />
             
             {/* Assessments */}
             <Route path="/assessments" element={<AssessmentsPage />} />

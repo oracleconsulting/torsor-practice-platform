@@ -51,6 +51,7 @@ cp "$ROOT/apps/client-portal/src/pages/services/ServiceAssessmentPage.tsx" "$DES
 cp "$ROOT/apps/client-portal/src/pages/services/SystemInventoryPage.tsx" "$DEST/frontend-client-SystemInventoryPage.tsx" 2>/dev/null && echo "  frontend-client-SystemInventoryPage.tsx" || true
 cp "$ROOT/apps/client-portal/src/pages/services/ProcessDeepDivesPage.tsx" "$DEST/frontend-client-ProcessDeepDivesPage.tsx" 2>/dev/null && echo "  frontend-client-ProcessDeepDivesPage.tsx" || true
 cp "$ROOT/apps/client-portal/src/pages/services/SAReportPage.tsx" "$DEST/frontend-client-SAReportPage.tsx" 2>/dev/null && echo "  frontend-client-SAReportPage.tsx" || true
+cp "$ROOT/apps/client-portal/src/components/SystemsMapSection.tsx" "$DEST/frontend-client-SystemsMapSection.tsx" 2>/dev/null && echo "  frontend-client-SystemsMapSection.tsx" || true
 cp "$ROOT/apps/client-portal/src/pages/UnifiedDashboardPage.tsx" "$DEST/frontend-client-UnifiedDashboardPage.tsx" 2>/dev/null && echo "  frontend-client-UnifiedDashboardPage.tsx" || true
 cp "$ROOT/apps/client-portal/src/App.tsx" "$DEST/frontend-client-App.tsx" 2>/dev/null && echo "  frontend-client-App.tsx" || true
 cp "$ROOT/apps/client-portal/src/config/serviceLineAssessments.ts" "$DEST/frontend-client-serviceLineAssessments.ts" 2>/dev/null && echo "  frontend-client-serviceLineAssessments.ts" || true

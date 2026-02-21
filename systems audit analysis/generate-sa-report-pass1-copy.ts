@@ -9,14 +9,34 @@ const corsHeaders: Record<string, string> = {
 };
 
 // =============================================================================
-// PASS 1: 5-PHASE EXTRACTION & ANALYSIS (each phase ~130s, under ~200s wall limit)
+// PASS 1: 8-PHASE EXTRACTION & ANALYSIS (each phase: 1 AI call, <120s target)
 // Phase 1: EXTRACT CORE — company facts, system inventory, metrics, quotes
 // Phase 2: ANALYSE PROCESSES — process deep dives, scores, uniquenessBrief, costs
-// Phase 3: DIAGNOSE — findings with evidence + quick wins
-// Phase 4: RECOMMEND — recommendations with ROI and freedom mapping
-// Phase 5: GUIDE & PRESENT — admin guidance + client presentation
-// Then assemble final pass1_data and set status='pass1_complete'
+// Phase 3: FINDINGS (Critical+High) — critical and high severity findings
+// Phase 4: FINDINGS (Medium+Low) + QUICK WINS — remaining findings + quick wins
+// Phase 5: RECOMMENDATIONS — implementation roadmap with ROI analysis
+// Phase 6: SYSTEMS MAPS — 4-level integration maturity maps from tech DB
+// Phase 7: ADMIN GUIDANCE — talking points, questions, tasks, risk flags
+// Phase 8: CLIENT PRESENTATION + ASSEMBLY — exec brief, ROI, status update
+// Then Pass 2 (separate function) generates narratives.
 // =============================================================================
+
+const DESIRED_OUTCOME_LABELS: Record<string, string> = {
+  client_profitability: 'Know which clients or jobs are actually profitable',
+  cash_visibility: 'See our cash position and forecast without asking anyone',
+  fast_month_end: 'Close month-end in under a week',
+  fast_quoting: 'Get quotes and proposals out within 48 hours',
+  pipeline_confidence: 'Track pipeline and forecast revenue with confidence',
+  free_key_people: 'Free key people from manual admin and data entry',
+  useful_mi: 'Get management information I actually use for decisions',
+  smooth_onboarding: 'Onboard new team members without things falling apart',
+  scale_without_admin: 'Scale the team without scaling the admin',
+  proper_controls: 'Have proper controls so mistakes don\'t slip through',
+};
+
+function mapDesiredOutcomes(slugs: string[]): string[] {
+  return (slugs || []).map(slug => DESIRED_OUTCOME_LABELS[slug] || slug);
+}
 
 const TRUNCATE = (s: string | undefined | null, maxLen: number) =>
   (s == null ? '' : String(s)).length <= maxLen ? (s ?? '') : (s ?? '').slice(0, maxLen) + '…';
@@ -189,6 +209,7 @@ interface SystemNode {
   y: number;
   status?: 'new' | 'reconfigure';
   replaces?: string[];
+  advancesGoals?: string[];
 }
 interface MapEdge {
   from: string;
@@ -206,6 +227,9 @@ interface SystemsMap {
   nodes: Record<string, SystemNode>;
   edges: MapEdge[];
   middlewareHub: { name: string; x: number; y: number; cost: number } | null;
+  goalsCoverage?: Record<string, string[]>;
+  implementationStages?: { stage: number; title: string; description: string; tools: string[] }[];
+  consolidations?: { newTool: string; replaces: string[]; hoursSavedByConsolidation: number }[];
   metrics: {
     monthlySoftware: number;
     manualHours: number;
@@ -314,15 +338,24 @@ function buildEdgesMap2(map1Edges: MapEdge[], recommendations: any[]): MapEdge[]
     const phase = rec.implementationPhase || '';
     if (cost === 0 && (phase === 'immediate' || phase === 'quick_win' || phase === 'short_term')) {
       const title = (rec.title || '').toLowerCase();
-      if (title.includes('auto-publish') || title.includes('dext')) nativeFixes.add('dext');
-      if (title.includes('stripe') || title.includes('duplicate')) nativeFixes.add('stripe');
-      if (title.includes('slack') || title.includes('notification')) nativeFixes.add('slack');
-      if (title.includes('timesheet') || title.includes('deadline')) nativeFixes.add('harvest');
+      const desc = (rec.description || '').toLowerCase();
+      const combined = title + ' ' + desc;
+      if (combined.includes('auto-publish') || combined.includes('dext')) nativeFixes.add('dext');
+      if (combined.includes('stripe') || combined.includes('duplicate')) nativeFixes.add('stripe');
+      if (combined.includes('slack') || combined.includes('notification')) nativeFixes.add('slack');
+      if (combined.includes('timesheet') || combined.includes('harvest') || combined.includes('reminder')) nativeFixes.add('harvest');
+      if (combined.includes('monday') || combined.includes('pipeline') || combined.includes('master tracker')) nativeFixes.add('monday_com');
+      if (combined.includes('xero') || combined.includes('chart of accounts') || combined.includes('cost centre')) nativeFixes.add('xero');
+      if (combined.includes('notion') || combined.includes('template') || combined.includes('proposal')) nativeFixes.add('notion');
+      if (combined.includes('budget') || combined.includes('profitability')) nativeFixes.add('monday_com');
     }
   });
   return map1Edges.map((edge) => {
     if (edge.status === 'amber' && (nativeFixes.has(edge.from) || nativeFixes.has(edge.to))) {
       return { ...edge, status: 'green' as const, label: edge.label?.replace('OFF', 'ON') || 'Fixed', changed: true };
+    }
+    if (edge.status === 'red' && (nativeFixes.has(edge.from) || nativeFixes.has(edge.to))) {
+      return { ...edge, status: 'amber' as const, label: 'Improved', changed: true };
     }
     return { ...edge };
   });
@@ -374,12 +407,53 @@ function calculateMetrics(
         investment += r.estimatedCost || 0;
       }
     });
-    investment += 50 * 12;
   }
-  if (mapLevel >= 4) investment += 4000;
-  const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved);
-  const annualWaste = Math.round(manualHours * rate * 52);
-  const annualSavings = map1Metrics.annualWaste - annualWaste;
+
+  // Map 4 bonus: tool consolidation reduces context-switching and manual reconciliation.
+  if (mapLevel === 4) {
+    const map1NodeCount = Object.keys(map1Metrics.map1Nodes || {}).length || map1Metrics.systemCount || 0;
+    const map4NodeCount = Object.keys(nodes).length;
+    const toolsConsolidated = Math.max(0, map1NodeCount - map4NodeCount);
+    const consolidationHoursSaved = toolsConsolidated * 1.5;
+    hoursSaved += consolidationHoursSaved;
+
+    const map1SoftwareCost = map1Metrics.monthlySoftwareCost || 0;
+    const map4SoftwareCost = Object.values(nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
+    const monthlySoftwareSaving = Math.max(0, map1SoftwareCost - map4SoftwareCost);
+    (map1Metrics as any)._map4SoftwareSavingAnnual = monthlySoftwareSaving * 12;
+    (map1Metrics as any)._map4ConsolidationHours = consolidationHoursSaved;
+  }
+
+  // Map 4 bonuses: consolidation removes context-switching, native integrations remove middleware overhead
+  let map4Bonus = 0;
+  if (mapLevel === 4) {
+    const map4Nodes = nodes as Record<string, any>;
+    let toolsReplaced = 0;
+    Object.values(map4Nodes).forEach((node: any) => {
+      if (node.replaces && Array.isArray(node.replaces)) {
+        toolsReplaced += node.replaces.length;
+      }
+    });
+    const consolidationBonus = toolsReplaced * 1.5;
+
+    const allGreen = edges.every((e) => e.status === 'green');
+    const nativeBonus = allGreen ? 2.0 : 1.0;
+
+    const integrationDensity = edges.filter((e) => e.status === 'green').length;
+    const densityBonus = integrationDensity > 20 ? 2.0 : integrationDensity > 15 ? 1.5 : integrationDensity > 10 ? 1.0 : 0;
+
+    map4Bonus = consolidationBonus + nativeBonus + densityBonus;
+    console.log(`[SA Pass 1] Map 4 bonuses: ${toolsReplaced} tools replaced (${consolidationBonus}h), native=${allGreen} (${nativeBonus}h), density=${integrationDensity} (${densityBonus}h), total bonus=${map4Bonus}h`);
+  }
+
+  const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved - map4Bonus);
+  const annualWaste = mapLevel === 1 ? map1Metrics.annualWaste : Math.round(manualHours * rate * 52);
+  let annualSavings = mapLevel === 1 ? 0 : map1Metrics.annualWaste - annualWaste;
+
+  if (mapLevel === 4 && (map1Metrics as any)._map4SoftwareSavingAnnual > 0) {
+    annualSavings += (map1Metrics as any)._map4SoftwareSavingAnnual;
+  }
+
   let payback = '—';
   if (investment > 0 && annualSavings > 0) {
     const months = investment / (annualSavings / 12);
@@ -388,7 +462,43 @@ function calculateMetrics(
     else if (months < 2) payback = `${Math.round(months * 4)} weeks`;
     else payback = `${Math.round(months)} months`;
   } else if (investment === 0 && mapLevel > 1) payback = 'Instant';
-  const risk = manualHours > 40 ? 'Critical' : manualHours > 20 ? 'High' : manualHours > 10 ? 'Low' : 'Minimal';
+  const spofFindings = (recommendations || []).filter((r: any) => {
+    const title = (r.title || '').toLowerCase();
+    const desc = (r.description || '').toLowerCase();
+    const combined = title + ' ' + desc;
+    return combined.includes('backup') || combined.includes('documentation') || combined.includes('single point')
+      || combined.includes('cross-train') || combined.includes('knowledge transfer') || combined.includes('bus factor')
+      || combined.includes('sole owner') || combined.includes('only person') || combined.includes('key person')
+      || combined.includes('delegate') || combined.includes('handover') || combined.includes('train ')
+      || combined.includes('redundancy') || combined.includes('runbook') || combined.includes('procedure');
+  });
+  const hasSpofFix = spofFindings.length > 0;
+
+  // Risk progression: Map 1 & 2 = Critical, Map 3 = High, Map 4 = Moderate
+  let risk: string;
+  if (mapLevel <= 2) {
+    if (manualHours > 60) risk = 'Critical';
+    else if (manualHours > 40) risk = 'Critical';
+    else if (manualHours > 25) risk = 'High';
+    else if (manualHours > 10) risk = 'Moderate';
+    else risk = 'Low';
+  } else if (mapLevel === 3) {
+    if (manualHours > 60) risk = 'Critical';
+    else if (manualHours > 40) risk = 'High';
+    else if (manualHours > 20) risk = 'High';
+    else risk = 'Moderate';
+  } else {
+    if (manualHours > 50) risk = 'High';
+    else if (manualHours > 30) risk = 'Moderate';
+    else if (manualHours > 15) risk = 'Low';
+    else risk = 'Minimal';
+  }
+
+  const connectedEdges = edges.filter((e) => e.status === 'green' || e.status === 'blue').length;
+  const partialEdges = edges.filter((e) => e.status === 'amber' && (e as any).changed).length;
+  const totalEdges = edges.length;
+  const integrationsStr = totalEdges > 0 ? `${connectedEdges + partialEdges} / ${totalEdges}` : `${greenEdges} / ${totalNodes}`;
+
   return {
     monthlySoftware: totalSoftware,
     manualHours: Math.round(manualHours),
@@ -396,7 +506,7 @@ function calculateMetrics(
     annualSavings,
     investment: Math.round(investment),
     payback,
-    integrations: `${greenEdges} / ${totalNodes}`,
+    integrations: integrationsStr,
     risk,
   };
 }
@@ -407,6 +517,7 @@ function buildSystemsMaps(
   recommendations: any[],
   aiMap4?: any,
   blendedHourlyRate?: number,
+  pass1DataFallback?: any,
 ): SystemsMap[] {
   const systems = facts?.systems || [];
   if (systems.length === 0) return [];
@@ -416,6 +527,9 @@ function buildSystemsMaps(
     manualHours: facts.hoursWastedWeekly || 0,
     annualWaste: facts.annualCostOfChaos || 0,
     blendedHourlyRate: blendedHourlyRate ?? facts?.blendedHourlyRate ?? 45,
+    map1Nodes: nodes,
+    systemCount: systems.length,
+    monthlySoftwareCost: Object.values(nodes).reduce((s, n) => s + n.cost, 0),
   };
   const rate = map1Metrics.blendedHourlyRate;
   const map1: SystemsMap = {
@@ -449,40 +563,150 @@ function buildSystemsMaps(
   };
   const maps: SystemsMap[] = [map1, map2, map3];
   if (aiMap4?.nodes && aiMap4.edges) {
+    const map4Nodes = { ...aiMap4.nodes };
+    Object.keys(map4Nodes).forEach((key) => {
+      if (map4Nodes[key].replaces) {
+        map4Nodes[key] = { ...map4Nodes[key] };
+      }
+    });
+
+    const map4Metrics = calculateMetrics(map4Nodes, aiMap4.edges, map1Metrics, recommendations, 4, rate);
+
+    const map4Software = Object.values(map4Nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
+    const map1Software = map1Metrics.monthlySoftwareCost || Object.values(nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
+    const softwareDelta = map4Software - map1Software;
+    const subtitleCost = softwareDelta > 0 ? `+£${softwareDelta}/mo` : softwareDelta < 0 ? `saves £${Math.abs(softwareDelta)}/mo` : 'same cost';
+
     const map4: SystemsMap = {
       title: 'Optimal Stack',
-      subtitle: 'Best-in-class replacements',
+      subtitle: `Best-in-class replacements · ${subtitleCost}`,
       recommended: false,
-      nodes: aiMap4.nodes,
+      nodes: map4Nodes,
       edges: aiMap4.edges,
       middlewareHub: null,
-      metrics: calculateMetrics(aiMap4.nodes, aiMap4.edges, map1Metrics, recommendations, 4, rate),
+      metrics: map4Metrics,
+      goalsCoverage: aiMap4.goalsCoverage || undefined,
+      implementationStages: aiMap4.implementationStages || undefined,
+      consolidations: aiMap4.consolidations || undefined,
     };
     maps.push(map4);
+  } else if (pass1DataFallback?.systemsMaps) {
+    const aiMaps = Array.isArray(pass1DataFallback.systemsMaps) ? pass1DataFallback.systemsMaps : [];
+    const aiMap4Entry = aiMaps.find((m: any) => m.level === 4) || aiMaps[3];
+    if (aiMap4Entry?.nodes && aiMap4Entry.edges) {
+      const aiNodes: Record<string, SystemNode> = {};
+      (Array.isArray(aiMap4Entry.nodes) ? aiMap4Entry.nodes : Object.values(aiMap4Entry.nodes)).forEach((n: any) => {
+        const id = (n.id ?? n.name ?? '').toString().toLowerCase().replace(/[\s.]+/g, '_');
+        aiNodes[id] = {
+          name: n.name ?? id,
+          category: n.category ?? 'other',
+          cost: n.monthlyCost ?? n.cost ?? 0,
+          x: n.x ?? 400,
+          y: n.y ?? 300,
+        };
+      });
+      const map4Edges = (aiMap4Entry.edges || []).map((e: any) => ({
+        from: e.from,
+        to: e.to,
+        status: (e.colour === 'green' || e.status === 'active') ? 'green' : (e.status || 'green'),
+        label: e.label || 'Native',
+        changed: true,
+      }));
+      const map4: SystemsMap = {
+        title: aiMap4Entry.title || 'Optimal Stack',
+        subtitle: aiMap4Entry.description || 'Best-in-class replacements',
+        recommended: false,
+        nodes: aiNodes,
+        edges: map4Edges,
+        middlewareHub: null,
+        metrics: calculateMetrics(aiNodes, map4Edges, map1Metrics, recommendations, 4, rate),
+      };
+      maps.push(map4);
+      console.log('[SA Pass 1] Map 4 built from AI-generated data (Phase 4.5 fallback)');
+    } else {
+      console.warn('[SA Pass 1] No valid Map 4 data from either phase4b or AI systemsMaps');
+    }
+  } else {
+    console.warn('[SA Pass 1] phase4b missing or invalid — checking for AI-generated Map 4');
   }
   return maps;
 }
 
-function buildPhase4bPrompt(facts: any, recommendations: any[]): string {
+function buildPhase4bPrompt(
+  facts: any,
+  recommendations: any[],
+  phase2: any,
+  discovery: any
+): string {
   const systems = facts?.systems || [];
   const sysStr = systems.map((s: any) =>
-    `${s.name} (${s.category}, £${s.monthlyCost || 0}/mo, satisfaction: ${s.userSatisfaction ?? s.user_satisfaction ?? '?'}/5)`
+    `- ${s.name} (${s.category}): £${s.monthlyCost || 0}/mo, satisfaction ${s.userSatisfaction ?? s.user_satisfaction ?? '?'}/5, integration: ${s.integrationMethod || 'none'}`
   ).join('\n');
-  return `You are designing the "Optimal Stack" for a UK SMB. Given their current systems, suggest replacements that would give native integrations across the entire stack.
+
+  const desiredOutcomes = (facts.desiredOutcomes || []).map((o: string, i: number) => `${i + 1}. ${o}`).join('\n');
+  const aspirationGap = phase2?.aspirationGap || 'Not available';
+
+  const growthVision = discovery?.growth_vision || '';
+  const hiringBlockers = discovery?.hiring_blockers || '';
+  const growthType = discovery?.growth_type || '';
+  const capacityCeiling = discovery?.capacity_ceiling || '';
+  const failedTools = discovery?.failed_tools || '';
+  const nonNegotiables = discovery?.non_negotiables || '';
+
+  return `You are designing the "Optimal Stack" for a UK SMB. This must be the PERFECT technology setup that delivers every one of their stated goals. This is the aspirational end-state — what their business looks like when systems are no longer a constraint.
 
 CURRENT SYSTEMS:
 ${sysStr}
 
 CURRENT ISSUES (from findings):
-${(recommendations || []).slice(0, 5).map((r: any) => `- ${r.title}`).join('\n')}
+${(recommendations || []).slice(0, 8).map((r: any) => `- ${r.title} (saves ${r.hoursSavedWeekly || '?'}h/wk, £${r.annualBenefit || '?'}/yr)`).join('\n')}
+
+═══════════════════════════════════════════════════════════
+CLIENT GOALS — The optimal stack MUST deliver ALL of these
+═══════════════════════════════════════════════════════════
+
+DESIRED OUTCOMES (they picked these as their top priorities):
+${desiredOutcomes || 'Not specified'}
+
+MONDAY MORNING VISION:
+"${facts.mondayMorningVision || 'Not specified'}"
+
+ASPIRATION GAP:
+${aspirationGap}
+
+GROWTH VISION (12-18 months):
+"${growthVision}"
+
+NEXT HIRES & BLOCKERS:
+"${hiringBlockers}"
+
+GROWTH TYPE: ${growthType}
+
+CAPACITY CEILING (what breaks first with 3 new clients):
+"${capacityCeiling}"
+
+═══════════════════════════════════════════════════════════
+CONSTRAINTS
+═══════════════════════════════════════════════════════════
+
+TOOLS THEY TRIED AND ABANDONED:
+"${failedTools}"
+
+NON-NEGOTIABLES (must keep):
+"${nonNegotiables}"
+
+KEEP these systems (satisfaction 4+): ${systems.filter((s: any) => (s.userSatisfaction ?? s.user_satisfaction ?? 0) >= 4).map((s: any) => s.name).join(', ') || 'none'}
 
 RULES:
-- Keep systems the team loves (satisfaction 4+): ${systems.filter((s: any) => (s.userSatisfaction ?? s.user_satisfaction ?? 0) >= 4).map((s: any) => s.name).join(', ') || 'none'}
 - Replace underperformers (satisfaction ≤2) with best-in-class alternatives
+- DO NOT recommend tools they've already tried and abandoned
 - Prefer UK-market products with native Xero integration
 - Every system must have native integration with at least 2 others
-- Maximise native connections, eliminate need for middleware
+- Maximise native connections, eliminate ALL need for middleware
 - Include pricing in GBP monthly
+- If a single tool can REPLACE 2+ existing tools (e.g. a PSA replacing project management + time tracking), recommend it — this is the key differentiator from Map 3
+- Consider tools for UNMET needs revealed by their goals (e.g. if they need a dashboard but have no BI tool, add one; if dev team needs version control, add it)
+- Think about what tools would make their Monday morning vision REAL
 
 Return ONLY a JSON object:
 {
@@ -494,11 +718,39 @@ Return ONLY a JSON object:
       "x": 400,
       "y": 120,
       "status": "new",
-      "replaces": ["Old System 1", "Old System 2"]
+      "replaces": ["Old System 1", "Old System 2"],
+      "advancesGoals": ["Which desired outcome(s) this tool helps deliver"]
     }
   },
   "edges": [
     { "from": "system_a", "to": "system_b", "status": "green", "label": "Native deep", "changed": true }
+  ],
+  "goalsCoverage": {
+    "goal_text_1": ["tool_id_1", "tool_id_2"],
+    "goal_text_2": ["tool_id_3"]
+  },
+  "implementationStages": [
+    {
+      "stage": 1,
+      "title": "Foundation (Month 1-2)",
+      "description": "What to implement first and why",
+      "tools": ["tool_id_1", "tool_id_2"]
+    },
+    {
+      "stage": 2,
+      "title": "Core Integrations (Month 3-4)",
+      "description": "Major tool changes",
+      "tools": ["tool_id_3"]
+    },
+    {
+      "stage": 3,
+      "title": "Optimisation (Month 5-6)",
+      "description": "Dashboard, automation, polish",
+      "tools": ["tool_id_4"]
+    }
+  ],
+  "consolidations": [
+    { "newTool": "tool_id", "replaces": ["old_tool_1", "old_tool_2"], "hoursSavedByConsolidation": 2.0 }
   ]
 }
 
@@ -512,6 +764,8 @@ POSITION GUIDE (800x580 viewBox):
 Systems with status "new" get a green + badge. Status "reconfigure" gets amber ⟳.
 Include "replaces" array only on new systems that replace existing ones.
 All edges should be "green" with "Native" or "Native deep" labels.
+
+CRITICAL: Every desired outcome MUST appear in goalsCoverage with at least one tool addressing it. If no existing or replacement tool addresses a goal, ADD a new tool that does.
 
 JSON only, no markdown.`;
 }
@@ -601,7 +855,7 @@ WHERE YOU'RE GOING / YOUR BUSINESS:
 - Key person dependency: "${TRUNCATE(discovery.key_person_dependency || '', MAX_TEXT)}"
 
 TARGET STATE:
-- Desired outcomes: ${(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
+- Desired outcomes: ${mapDesiredOutcomes(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
 - Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
 - Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_TEXT)}"
 - Magic fix (Focus Areas): "${TRUNCATE(discovery.magic_process_fix || 'Not specified', MAX_TEXT)}"
@@ -622,14 +876,15 @@ YOUR TASK — Return ONLY this JSON
     "teamSize": number,
     "projectedTeamSize": number,
     "growthMultiplier": number,
-    "revenueBand": "string",
+    "revenueBand": "string (the band from discovery, e.g. '1m_2m')",
+    "confirmedRevenue": "string or null — if follow-up/additional context confirmed a SPECIFIC revenue figure (e.g. '£1.65m'), put it here. If only the band is known, set to null",
     "industry": "string",
     "breakingPoint": "EXACT verbatim quote",
     "monthEndShame": "EXACT verbatim quote",
     "expensiveMistake": "EXACT verbatim quote",
     "magicFix": "EXACT verbatim quote",
     "fears": ["fear1", "fear2"],
-    "desiredOutcomes": ["exact text of outcome 1", "outcome 2", "outcome 3"],
+    "desiredOutcomes": ["human-readable outcome text — use the full labels provided above, not slugs"],
     "mondayMorningVision": "EXACT verbatim quote",
     "timeFreedomPriority": "What they said they'd do with reclaimed time",
     "systems": [
@@ -745,7 +1000,7 @@ Disconnected systems: ${(phase1Facts.disconnectedSystems || []).join(', ')}
 Integration gaps: ${(phase1Facts.integrationGaps || []).join('; ')}
 
 TARGET STATE:
-- Desired outcomes: ${(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
+- Desired outcomes: ${mapDesiredOutcomes(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
 - Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
 - Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_TEXT)}"
 - Magic fix: "${TRUNCATE(discovery.magic_process_fix || 'Not specified', MAX_TEXT)}"
@@ -822,7 +1077,7 @@ async function runPhase1(
     {
       engagement_id: engagementId,
       status: 'generating',
-      executive_summary: 'Phase 1/5: Extracting facts and analysing systems...',
+      executive_summary: 'Phase 1/6: Extracting facts and analysing systems...',
       pass1_data: { phase1: data },
       systems_count: (data.facts?.systems || []).length,
       llm_model: 'claude-sonnet-4.5',
@@ -888,13 +1143,13 @@ async function runPhase2Analyse(
 
   const existingPass1 = report.pass1_data as any;
 
-  // Phase 2: write to pass1_data ONLY. Columns updated in Phase 5 assembly.
-  console.log('[SA Pass 1] Phase 2: Writing to DB (pass1_data only, columns deferred to Phase 5)...');
+  // Phase 2: write to pass1_data ONLY. Columns updated in Phase 8 assembly.
+  console.log('[SA Pass 1] Phase 2: Writing to DB (pass1_data only, columns deferred to Phase 8)...');
   await supabaseClient
     .from('sa_audit_reports')
     .update({
       pass1_data: { ...existingPass1, phase2: data },
-      executive_summary: 'Phase 2/5: Analysing processes and calculating scores...',
+      executive_summary: 'Phase 2/8: Analysing processes...',
       executive_summary_sentiment: sentiment,
     })
     .eq('engagement_id', engagementId);
@@ -970,11 +1225,134 @@ Return JSON:
 }
 
 Generate AT LEAST 6 findings (mix of critical, high, medium). Generate AT LEAST 4 quick wins.
+
+CRITICAL RULES FOR FINDINGS:
+- SINGLE POINT OF FAILURE findings MUST have a non-zero annualCostImpact. Calculate as:
+  Risk exposure = probability_of_absence × days_disrupted × daily_cost_of_disruption.
+  Example: If a key person is the SPOF for invoicing, month-end, payroll, and expenses — and there is a material chance they will be unavailable for 2+ weeks in any 12-month period — the risk exposure is at least the annualised cost of all processes they solely own, multiplied by disruption probability. Assign a minimum of 30% of the total process cost they control.
+- hoursWastedWeekly for SPOF findings should reflect documentation/cross-training time needed (typically 2-4h/wk for 8 weeks), NOT zero.
+
 ${SPECIFICITY_RULES}
 `;
 }
 
-async function runPhase3Diagnose(
+function buildPhase3CriticalHighPrompt(phase1: any, phase2: any, clientName: string, hourlyRate: number): string {
+  const allFacts = {
+    ...phase1.facts,
+    processes: phase2.processes,
+    hoursWastedWeekly: phase2.hoursWastedWeekly,
+    annualCostOfChaos: phase2.annualCostOfChaos,
+    projectedCostAtScale: phase2.projectedCostAtScale,
+    aspirationGap: phase2.aspirationGap,
+  };
+  const factsStr = JSON.stringify(allFacts, null, 2);
+  const scoresStr = JSON.stringify(phase2.scores, null, 2);
+  return `
+Given these extracted facts about ${clientName}, generate ONLY critical and high severity findings. Use EXACT verbatim quotes where relevant. Every finding must be tied to specific systems, specific processes, and specific numbers from the data.
+
+uniquenessBrief: ${phase2.uniquenessBrief}
+
+facts (extracted from Phase 1 + Phase 2):
+${factsStr}
+
+scores:
+${scoresStr}
+
+Return JSON:
+{
+  "findings": [
+    {
+      "severity": "critical|high",
+      "category": "integration_gap|manual_process|data_silo|single_point_failure|scalability_risk",
+      "title": "Specific title with system names and numbers",
+      "description": "What's broken and why, using their words.",
+      "evidence": ["Specific data point 1 with number", "Data point 2 with system name"],
+      "clientQuote": "Their exact words that prove this finding",
+      "affectedSystems": ["Xero", "Asana"],
+      "affectedProcesses": ["quote_to_cash", "record_to_report"],
+      "hoursWastedWeekly": number,
+      "annualCostImpact": number,
+      "scalabilityImpact": "What specifically happens at growth — name the breaking point",
+      "recommendation": "Specific fix — name the integration, tool, or setting change",
+      "blocksGoal": "Which desired_outcome this blocks — use their exact text from desiredOutcomes"
+    }
+  ]
+}
+
+Generate ALL critical and high severity findings. Focus on the most impactful issues: integration gaps causing manual workarounds, single points of failure, and processes that will break at growth. Generate 4-6 findings, all critical or high severity only. Do NOT generate medium or low severity findings — those come in the next phase.
+
+CRITICAL RULES FOR FINDINGS:
+- SINGLE POINT OF FAILURE findings MUST have a non-zero annualCostImpact.
+- hoursWastedWeekly for SPOF findings should reflect documentation/cross-training time needed (typically 2-4h/wk for 8 weeks), NOT zero.
+
+${SPECIFICITY_RULES}
+Return ONLY valid JSON.`;
+}
+
+function buildPhase4MediumLowQuickWinsPrompt(phase1: any, phase2: any, phase3: any, clientName: string): string {
+  const existingTitles = (phase3.findings || []).map((f: any) => f.title).filter(Boolean);
+  const allFacts = {
+    ...phase1.facts,
+    processes: phase2.processes,
+    hoursWastedWeekly: phase2.hoursWastedWeekly,
+    annualCostOfChaos: phase2.annualCostOfChaos,
+    projectedCostAtScale: phase2.projectedCostAtScale,
+    aspirationGap: phase2.aspirationGap,
+  };
+  const factsStr = JSON.stringify(allFacts, null, 2);
+  const scoresStr = JSON.stringify(phase2.scores, null, 2);
+  return `
+Phase 3 already identified these critical/high findings: ${existingTitles.length ? existingTitles.map((t: string) => `"${t}"`).join(', ') : 'none'}.
+
+Now generate medium and low severity findings for REMAINING issues (do not duplicate the above), plus actionable quick wins. Use exact verbatim quotes where relevant.
+
+uniquenessBrief: ${phase2.uniquenessBrief}
+
+facts:
+${factsStr}
+
+scores:
+${scoresStr}
+
+Return JSON:
+{
+  "findings": [
+    {
+      "severity": "medium|low",
+      "category": "integration_gap|manual_process|data_silo|single_point_failure|scalability_risk",
+      "title": "Specific title with system names and numbers",
+      "description": "What's broken and why.",
+      "evidence": ["Data point 1", "Data point 2"],
+      "clientQuote": "Exact words",
+      "affectedSystems": ["Xero"],
+      "affectedProcesses": ["quote_to_cash"],
+      "hoursWastedWeekly": number,
+      "annualCostImpact": number,
+      "scalabilityImpact": "What happens at growth",
+      "recommendation": "Specific fix",
+      "blocksGoal": "Which desired_outcome this blocks"
+    }
+  ],
+  "quickWins": [
+    {
+      "title": "Action with specific system name and person",
+      "action": "Step 1: [action], Step 2: [action], Step 3: [action]",
+      "systems": ["Xero", "Asana"],
+      "timeToImplement": "X hours",
+      "hoursSavedWeekly": number,
+      "annualBenefit": number,
+      "impact": "Specific outcome — what changes for the team on Monday morning"
+    }
+  ]
+}
+
+Generate 2-4 medium/low findings (do not repeat critical/high). Generate AT LEAST 4 quick wins.
+
+${SPECIFICITY_RULES}
+Return ONLY valid JSON.`;
+}
+
+async function runPhase3CriticalHigh(
   supabaseClient: any,
   engagementId: string,
   engagement: any,
@@ -992,16 +1370,16 @@ async function runPhase3Diagnose(
   const phase1 = report.pass1_data.phase1;
   const phase2 = report.pass1_data.phase2;
   const clientName = phase1.facts.companyName || 'the business';
-  const prompt = buildPhase3DiagnosePrompt(phase1, phase2, clientName, hourlyRate);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 3, openRouterKey);
+  const prompt = buildPhase3CriticalHighPrompt(phase1, phase2, clientName, hourlyRate);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 3, openRouterKey);
 
   const existingPass1 = report.pass1_data as any;
-  console.log('[SA Pass 1] Phase 3: Writing to DB...');
+  console.log('[SA Pass 1] Phase 3: Writing to DB (critical+high findings only)...');
   await supabaseClient
     .from('sa_audit_reports')
     .update({
-      pass1_data: { ...existingPass1, phase3: data },
-      executive_summary: 'Phase 3/5: Generating detailed findings and quick wins...',
+      pass1_data: { ...existingPass1, phase3: { findings: data.findings || [], quickWins: [] } },
+      executive_summary: 'Phase 3/8: Identifying critical findings...',
     })
     .eq('engagement_id', engagementId);
   console.log('[SA Pass 1] Phase 3: DB write complete');
@@ -1027,6 +1405,72 @@ async function runPhase3Diagnose(
   }
 
   return { success: true, phase: 3 };
+}
+
+async function runPhase4MediumLowQuickWins(
+  supabaseClient: any,
+  engagementId: string,
+  engagement: any,
+  hourlyRate: number,
+  openRouterKey: string
+): Promise<{ success: boolean; phase: number }> {
+  const { data: report } = await supabaseClient
+    .from('sa_audit_reports')
+    .select('pass1_data')
+    .eq('engagement_id', engagementId)
+    .single();
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase2 || !report.pass1_data.phase3) {
+    throw new Error('Phase 1, 2, or 3 data not found');
+  }
+  const phase1 = report.pass1_data.phase1;
+  const phase2 = report.pass1_data.phase2;
+  const phase3 = report.pass1_data.phase3;
+  const clientName = phase1.facts.companyName || 'the business';
+  const prompt = buildPhase4MediumLowQuickWinsPrompt(phase1, phase2, phase3, clientName);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 4, openRouterKey);
+
+  const existingPass1 = report.pass1_data as any;
+  const combinedFindings = [...(existingPass1.phase3?.findings || []), ...(data.findings || [])];
+  const combinedPhase3 = {
+    ...existingPass1.phase3,
+    findings: combinedFindings,
+    quickWins: data.quickWins || [],
+  };
+
+  console.log('[SA Pass 1] Phase 4: Merging findings and quick wins, writing to DB...');
+  await supabaseClient
+    .from('sa_audit_reports')
+    .update({
+      pass1_data: {
+        ...existingPass1,
+        phase3: combinedPhase3,
+        phase4: { findings: data.findings || [], quickWins: data.quickWins || [] },
+      },
+      executive_summary: 'Phase 4/8: Completing findings and quick wins...',
+    })
+    .eq('engagement_id', engagementId);
+
+  if (data.findings?.length) {
+    const findingRows = data.findings.map((finding: any) => ({
+      engagement_id: engagementId,
+      finding_code: `F-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      source_stage: 'ai_generated',
+      category: finding.category,
+      severity: finding.severity,
+      title: finding.title,
+      description: `${finding.description}${finding.blocksGoal ? `\n\nBlocks goal: ${finding.blocksGoal}` : ''}\n\nSystems: ${(finding.affectedSystems || []).join(', ')}\nProcesses: ${(finding.affectedProcesses || []).join(', ')}`,
+      evidence: finding.evidence || [],
+      client_quote: finding.clientQuote,
+      hours_wasted_weekly: finding.hoursWastedWeekly,
+      annual_cost_impact: finding.annualCostImpact,
+      scalability_impact: finding.scalabilityImpact,
+      recommendation: finding.recommendation,
+    }));
+    await supabaseClient.from('sa_findings').insert(findingRows);
+  }
+  console.log('[SA Pass 1] Phase 4: DB write complete');
+
+  return { success: true, phase: 4 };
 }
 
 // ---------- Tech stack intelligence context (Stage 2) ----------
@@ -1252,15 +1696,15 @@ Return ONLY valid JSON.
 `;
 }
 
-async function runPhase4(
+async function runPhase5Recommendations(
   supabaseClient: any,
   engagementId: string,
   openRouterKey: string
 ): Promise<{ success: boolean; phase: number }> {
   const { data: report } = await supabaseClient
     .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
-  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase2 || !report.pass1_data.phase3) {
-    throw new Error('Phase 1, 2, or 3 data not found');
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase2 || !report.pass1_data.phase3 || !report.pass1_data.phase4) {
+    throw new Error('Phase 1, 2, 3, or 4 data not found');
   }
 
   const phase1 = report.pass1_data.phase1;
@@ -1268,14 +1712,13 @@ async function runPhase4(
   const phase3 = report.pass1_data.phase3;
   const clientName = phase1.facts.companyName || 'the business';
 
-  // ---------- Phase 4a: Recommendations only ----------
   const prompt = buildPhase4Prompt(phase1, phase2, phase3, clientName);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 4, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 5, openRouterKey);
 
-  console.log('[SA Pass 1] Phase 4: Writing recommendations to DB...');
+  console.log('[SA Pass 1] Phase 5: Writing recommendations to DB...');
   await supabaseClient.from('sa_audit_reports').update({
-    pass1_data: { ...report.pass1_data, phase4: data },
-    executive_summary: 'Phase 4/5: Building recommendations with ROI analysis...',
+    pass1_data: { ...report.pass1_data, phase5: data },
+    executive_summary: 'Phase 5/8: Building recommendations...',
   }).eq('engagement_id', engagementId);
 
   await supabaseClient.from('sa_recommendations').delete().eq('engagement_id', engagementId);
@@ -1296,20 +1739,41 @@ async function runPhase4(
     }));
     await supabaseClient.from('sa_recommendations').insert(recRows);
   }
-  console.log('[SA Pass 1] Phase 4: Recommendations complete');
+  console.log('[SA Pass 1] Phase 5: Recommendations complete');
 
-  // ---------- Phase 4b: Optional Map 4 (Optimal Stack) AI call — non-blocking ----------
-  let phase4bResult: any = null;
+  return { success: true, phase: 5 };
+}
+
+async function runPhase6SystemsMaps(
+  supabaseClient: any,
+  engagementId: string,
+  openRouterKey: string
+): Promise<{ success: boolean; phase: number }> {
+  const { data: report } = await supabaseClient
+    .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase5) {
+    throw new Error('Phase 1 or 5 (recommendations) data not found');
+  }
+  const phase1 = report.pass1_data.phase1;
+  const phase5 = report.pass1_data.phase5;
+
+  let optimalStack: any = null;
   try {
-    console.log('[SA Pass 1] Phase 4b: Generating optimal stack...');
-    const phase4bPrompt = buildPhase4bPrompt(phase1.facts, data.recommendations || []);
+    console.log('[SA Pass 1] Phase 6: Generating optimal stack hint...');
+    const { data: discoveryRow } = await supabaseClient
+      .from('sa_discovery_responses')
+      .select('growth_vision, hiring_blockers, growth_type, capacity_ceiling, failed_tools, non_negotiables')
+      .eq('engagement_id', engagementId)
+      .single();
+    const phase2 = report.pass1_data.phase2 || {};
+    const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow);
     const phase4bResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': 'https://torsor.co.uk',
-        'X-Title': 'Torsor SA Pass 1 Phase 4b',
+        'X-Title': 'Torsor SA Pass 1 Phase 6 Optimal Stack',
       },
       body: JSON.stringify({
         model: 'anthropic/claude-sonnet-4',
@@ -1323,56 +1787,32 @@ async function runPhase4(
       const phase4bJson = await phase4bResponse.json();
       let content = (phase4bJson.choices?.[0]?.message?.content ?? '').trim();
       content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
-      phase4bResult = JSON.parse(content);
-      console.log('[SA Pass 1] Phase 4b: Optimal stack generated:', Object.keys(phase4bResult?.nodes || {}).length, 'systems,', (phase4bResult?.edges || []).length, 'edges');
+      optimalStack = JSON.parse(content);
+      console.log('[SA Pass 1] Phase 6: Optimal stack generated:', Object.keys(optimalStack?.nodes || {}).length, 'systems,', (optimalStack?.edges || []).length, 'edges');
     }
   } catch (e: any) {
-    console.warn('[SA Pass 1] Phase 4b: Optimal stack generation failed (non-blocking):', e?.message ?? e);
+    console.warn('[SA Pass 1] Phase 6: Optimal stack generation failed (non-blocking):', e?.message ?? e);
   }
-  // Preserve phase4 (written earlier in this handler); do not overwrite pass1_data with stale report.pass1_data
-  const pass1WithPhase4And4b = { ...report.pass1_data, phase4: data, phase4b: phase4bResult } as any;
+
+  let phase6Data: any = { systemsMaps: null, techStackSummary: null, hoursBreakdown: null, optimalStack };
+  try {
+    const mapsResult = await runPhase4SystemsMaps(supabaseClient, engagementId, openRouterKey);
+    phase6Data = { ...mapsResult, optimalStack };
+    console.log(`[SA Pass 1] Phase 6: Systems maps: ${mapsResult.systemsMaps?.length || 0} levels`);
+  } catch (mapsErr: any) {
+    console.warn('[SA Pass 1] Phase 6: Systems maps generation failed:', mapsErr?.message ?? mapsErr);
+  }
+
+  const existingPass1 = report.pass1_data as any;
   await supabaseClient
     .from('sa_audit_reports')
     .update({
-      pass1_data: pass1WithPhase4And4b,
-      executive_summary: 'Phase 4b/5: Building technology roadmap...',
+      pass1_data: { ...existingPass1, phase6: phase6Data },
+      executive_summary: 'Phase 6/8: Generating technology roadmap...',
     })
     .eq('engagement_id', engagementId);
 
-  // ---------- Phase 4b (legacy): Systems maps AI call — graceful degradation ----------
-  await supabaseClient
-    .from('sa_audit_reports')
-    .update({ executive_summary: 'Phase 4/5: Generating systems maps...' })
-    .eq('engagement_id', engagementId);
-
-  try {
-    const mapsResult = await runPhase4SystemsMaps(supabaseClient, engagementId, openRouterKey);
-    const { data: reportAfter } = await supabaseClient
-      .from('sa_audit_reports')
-      .select('pass1_data')
-      .eq('engagement_id', engagementId)
-      .single();
-    const pass1Data = { ...(reportAfter?.pass1_data || report.pass1_data), ...mapsResult };
-    await supabaseClient
-      .from('sa_audit_reports')
-      .update({ pass1_data: pass1Data })
-      .eq('engagement_id', engagementId);
-    console.log(`[SA Pass 1] Systems maps: ${mapsResult.systemsMaps?.length || 0} levels; techStackSummary: ${mapsResult.techStackSummary ? 'present' : 'missing'}`);
-  } catch (mapsErr) {
-    console.warn('[SA Pass 1] Systems maps generation failed (continuing without maps):', (mapsErr as Error).message);
-    const { data: reportAfter } = await supabaseClient
-      .from('sa_audit_reports')
-      .select('pass1_data')
-      .eq('engagement_id', engagementId)
-      .single();
-    const pass1Data = { ...(reportAfter?.pass1_data || report.pass1_data), systemsMaps: null, techStackSummary: null, hoursBreakdown: null };
-    await supabaseClient
-      .from('sa_audit_reports')
-      .update({ pass1_data: pass1Data })
-      .eq('engagement_id', engagementId);
-  }
-
-  return { success: true, phase: 4 };
+  return { success: true, phase: 6 };
 }
 
 async function runPhase4SystemsMaps(
@@ -1382,13 +1822,13 @@ async function runPhase4SystemsMaps(
 ): Promise<{ systemsMaps: any; techStackSummary: any; hoursBreakdown: any }> {
   const { data: report } = await supabaseClient
     .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
-  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase4) {
-    throw new Error('Phase 1 or 4 data not found');
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase5) {
+    throw new Error('Phase 1 or 5 (recommendations) data not found');
   }
   const phase1 = report.pass1_data.phase1;
   const phase2 = report.pass1_data.phase2;
   const phase3 = report.pass1_data.phase3;
-  const phase4 = report.pass1_data.phase4;
+  const phase4 = report.pass1_data.phase5;
   const clientName = phase1.facts?.companyName || 'the business';
 
   console.log('[SA Pass 1] Querying tech stack for systems maps...');
@@ -1436,7 +1876,7 @@ async function runPhase4SystemsMaps(
   const techContextStr = buildTechContext(matchedProducts, relevantIntegrations, alternativeProducts, relevantMiddleware, discoveryRes);
   const mapsPrompt = buildPhase4SystemsMapsPrompt(phase1, phase2, phase3, phase4, techContextStr, clientName);
 
-  const { data: mapsData, tokensUsed, cost, generationTime } = await callSonnet(mapsPrompt, 32000, 4.5, openRouterKey);
+  const { data: mapsData, tokensUsed, cost, generationTime } = await callSonnet(mapsPrompt, 12000, 6, openRouterKey);
 
   const wasTruncated = typeof mapsData?.systemsMaps === 'undefined' || (Array.isArray(mapsData.systemsMaps) && mapsData.systemsMaps.length < 4);
   if (wasTruncated) {
@@ -1450,24 +1890,20 @@ async function runPhase4SystemsMaps(
   };
 }
 
-// ---------- Phase 5: GUIDE & PRESENT (admin guidance + client presentation + final assembly) ----------
-function buildPhase5Prompt(phase1: any, phase2: any, phase3: any, phase4: any, clientName: string): string {
+// ---------- Phase 7: ADMIN GUIDANCE (talking points, questions, tasks, risk flags) ----------
+function buildPhase7AdminGuidancePrompt(phase1: any, phase2: any, phase3: any, phase5: any, clientName: string): string {
   const topFindings = (phase3.findings || []).slice(0, 5).map((f: any) => ({
     title: f.title, severity: f.severity, hoursWastedWeekly: f.hoursWastedWeekly,
     annualCostImpact: f.annualCostImpact, clientQuote: f.clientQuote, blocksGoal: f.blocksGoal,
   }));
-  const topRecs = (phase4.recommendations || []).slice(0, 5).map((r: any) => ({
+  const topRecs = (phase5.recommendations || []).slice(0, 5).map((r: any) => ({
     title: r.title, priorityRank: r.priorityRank, estimatedCost: r.estimatedCost,
     annualBenefit: r.annualBenefit, hoursSavedWeekly: r.hoursSavedWeekly, freedomUnlocked: r.freedomUnlocked,
   }));
-
   return `
-Given the full analysis for ${clientName}, generate admin guidance for the practice team's client meeting AND a client-facing presentation summary.
+Given the full analysis for ${clientName}, generate admin guidance for the practice team's client meeting. Return ONLY the adminGuidance object (no client presentation).
 
-═══════════════════════════════════════════════════════════════════════════════
-CONTEXT
-═══════════════════════════════════════════════════════════════════════════════
-
+CONTEXT:
 uniquenessBrief: ${phase2.uniquenessBrief}
 aspirationGap: ${phase2.aspirationGap}
 desiredOutcomes: ${JSON.stringify(phase1.facts.desiredOutcomes)}
@@ -1479,63 +1915,74 @@ fears: ${JSON.stringify(phase1.facts.fears)}
 hoursWastedWeekly: ${phase2.hoursWastedWeekly}
 annualCostOfChaos: £${phase2.annualCostOfChaos}
 
-Top findings:
-${JSON.stringify(topFindings, null, 2)}
-
-Top recommendations:
-${JSON.stringify(topRecs, null, 2)}
-
+Top findings: ${JSON.stringify(topFindings, null, 2)}
+Top recommendations: ${JSON.stringify(topRecs, null, 2)}
 Quick wins: ${JSON.stringify((phase3.quickWins || []).map((q: any) => ({ title: q.title, impact: q.impact })))}
 
-═══════════════════════════════════════════════════════════════════════════════
-YOUR TASK — Return ONLY this JSON
-═══════════════════════════════════════════════════════════════════════════════
-
+Return ONLY this JSON (no other keys):
 {
   "adminGuidance": {
-    "talkingPoints": [
-      {
-        "topic": "Short topic name — e.g. 'The invoice lag problem'",
-        "point": "What to say about this topic — be specific, actionable, reference their data. Write it as if coaching the practice team member before the meeting.",
-        "clientQuote": "Exact quote from their responses to reference in conversation",
-        "importance": "critical|high|medium"
-      }
-    ],
-    "questionsToAsk": [
-      {
-        "question": "Specific probing question to ask in the client meeting",
-        "purpose": "Why this question matters — what business insight it unlocks",
-        "expectedInsight": "What you expect to learn and how it affects the recommendation",
-        "followUp": "Natural follow-up question based on the likely answer"
-      }
-    ],
-    "nextSteps": [
-      {
-        "action": "Specific action to take — name systems, people, deliverables",
-        "owner": "Practice team|Client|Joint",
-        "timing": "Within X days/weeks",
-        "outcome": "What this achieves — be concrete",
-        "priority": 1
-      }
-    ],
-    "tasks": [
-      {
-        "task": "Specific task description — what exactly needs doing",
-        "assignTo": "Role who should do this",
-        "dueDate": "Before next meeting|Within 1 week|etc",
-        "deliverable": "What output is expected — be specific"
-      }
-    ],
-    "riskFlags": [
-      {
-        "flag": "What to watch out for — be specific to THIS client",
-        "mitigation": "How to address this concern — practical steps",
-        "severity": "high|medium|low"
-      }
-    ]
-  },
+    "talkingPoints": [ { "topic": "string", "point": "string", "clientQuote": "string", "importance": "critical|high|medium" } ],
+    "questionsToAsk": [ { "question": "string", "purpose": "string", "expectedInsight": "string", "followUp": "string" } ],
+    "nextSteps": [ { "action": "string", "owner": "string", "timing": "string", "outcome": "string", "priority": number } ],
+    "tasks": [ { "task": "string", "assignTo": "string", "dueDate": "string", "deliverable": "string" } ],
+    "riskFlags": [ { "flag": "string", "mitigation": "string", "severity": "high|medium|low" } ]
+  }
+}
+
+RULES: AT LEAST 6 talking points, AT LEAST 5 questions, AT LEAST 4 next steps, AT LEAST 4 tasks. Flag ALL risks.
+${SPECIFICITY_RULES}
+Return ONLY valid JSON.`;
+}
+
+async function runPhase7AdminGuidance(
+  supabaseClient: any,
+  engagementId: string,
+  openRouterKey: string
+): Promise<{ success: boolean; phase: number }> {
+  const { data: report } = await supabaseClient
+    .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
+  if (!report?.pass1_data?.phase1 || !report.pass1_data.phase2 || !report.pass1_data.phase3 || !report.pass1_data.phase5) {
+    throw new Error('Phase 1, 2, 3, or 5 data not found');
+  }
+  const phase1 = report.pass1_data.phase1;
+  const phase2 = report.pass1_data.phase2;
+  const phase3 = report.pass1_data.phase3;
+  const phase5 = report.pass1_data.phase5;
+  const clientName = phase1.facts.companyName || 'the business';
+  const prompt = buildPhase7AdminGuidancePrompt(phase1, phase2, phase3, phase5, clientName);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 7, openRouterKey);
+
+  const existingPass1 = report.pass1_data as any;
+  await supabaseClient
+    .from('sa_audit_reports')
+    .update({
+      pass1_data: { ...existingPass1, phase7: data || { adminGuidance: null } },
+      executive_summary: 'Phase 7/8: Preparing practice team guidance...',
+    })
+    .eq('engagement_id', engagementId);
+  return { success: true, phase: 7 };
+}
+
+// ---------- Phase 8: CLIENT PRESENTATION + FINAL ASSEMBLY ----------
+function buildPhase8ClientPresentationPrompt(phase1: any, phase2: any, phase3: any, phase5: any, clientName: string): string {
+  const topFindings = (phase3.findings || []).slice(0, 5).map((f: any) => ({ title: f.title, severity: f.severity, annualCostImpact: f.annualCostImpact }));
+  const topRecs = (phase5.recommendations || []).slice(0, 5).map((r: any) => ({ title: r.title, estimatedCost: r.estimatedCost, annualBenefit: r.annualBenefit }));
+  return `
+Given the full analysis for ${clientName}, generate the client-facing presentation summary only. Jargon-free for an MD.
+
+CONTEXT:
+uniquenessBrief: ${phase2.uniquenessBrief}
+aspirationGap: ${phase2.aspirationGap}
+hoursWastedWeekly: ${phase2.hoursWastedWeekly}
+annualCostOfChaos: £${phase2.annualCostOfChaos}
+Top findings: ${JSON.stringify(topFindings)}
+Top recommendations: ${JSON.stringify(topRecs)}
+
+Return ONLY this JSON:
+{
   "clientPresentation": {
-    "executiveBrief": "One paragraph (under 100 words) for a busy MD — lead with the cost, name their goal, show the path. No jargon. This should be quotable in a proposal.",
+    "executiveBrief": "One paragraph (under 100 words) for a busy MD — lead with the cost, name their goal, show the path. No jargon.",
     "roiSummary": {
       "currentAnnualCost": number,
       "projectedSavings": number,
@@ -1545,46 +1992,39 @@ YOUR TASK — Return ONLY this JSON
       "timeReclaimed": "X hours/week"
     },
     "topThreeIssues": [
-      {
-        "issue": "Clear issue title a non-technical MD would understand",
-        "impact": "£X annual impact or Y hours/week — use the number",
-        "solution": "Specific solution in plain language — name the systems",
-        "timeToFix": "X days/weeks"
-      }
+      { "issue": "string", "impact": "string", "solution": "string", "timeToFix": "string" }
     ]
   }
 }
-
-ADMIN GUIDANCE RULES:
-- Generate AT LEAST 6 talking points — prioritise their expensive mistake, magic fix, and biggest findings
-- Generate AT LEAST 5 probing questions that uncover hidden costs or expand engagement scope
-- Generate AT LEAST 4 next steps with clear owners and timing
-- Generate AT LEAST 4 tasks for the practice team to prepare before the client meeting
-- Flag ALL risks: change appetite concerns, budget constraints, key person dependencies, data migration risks
-- Client presentation must be completely jargon-free — an MD who doesn't know what an API is should understand every word
-
-${SPECIFICITY_RULES}
-`;
+Return ONLY valid JSON.`;
 }
 
-async function runPhase5(
+async function runPhase8Presentation(
   supabaseClient: any,
   engagementId: string,
   openRouterKey: string
 ): Promise<{ success: boolean; phase: number; reportId: string }> {
   const { data: reportRow } = await supabaseClient
     .from('sa_audit_reports').select('id, pass1_data').eq('engagement_id', engagementId).single();
-  if (!reportRow?.pass1_data?.phase1 || !reportRow.pass1_data.phase2 || !reportRow.pass1_data.phase3 || !reportRow.pass1_data.phase4) {
-    throw new Error('Phase 1, 2, 3, or 4 data not found');
+  if (!reportRow?.pass1_data?.phase1 || !reportRow.pass1_data.phase2 || !reportRow.pass1_data.phase3 || !reportRow.pass1_data.phase5 || !reportRow.pass1_data.phase7) {
+    throw new Error('Phase 1, 2, 3, 5, or 7 data not found');
   }
 
   const phase1 = reportRow.pass1_data.phase1;
   const phase2 = reportRow.pass1_data.phase2;
   const phase3 = reportRow.pass1_data.phase3;
-  const phase4 = reportRow.pass1_data.phase4;
+  const phase5Recs = reportRow.pass1_data.phase5;
+  const phase6 = reportRow.pass1_data.phase6;
+  const phase7 = reportRow.pass1_data.phase7;
   const clientName = phase1.facts.companyName || 'the business';
-  const prompt = buildPhase5Prompt(phase1, phase2, phase3, phase4, clientName);
-  const { data: phase5, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 5, openRouterKey);
+
+  const prompt = buildPhase8ClientPresentationPrompt(phase1, phase2, phase3, phase5Recs, clientName);
+  let phase8Result = await callSonnet(prompt, 8000, 8, openRouterKey);
+  let { data: phase8, tokensUsed, cost, generationTime } = phase8Result;
+  if (!phase8) {
+    console.error('[SA Pass 1] Phase 8: Response did not parse');
+    phase8 = { clientPresentation: null };
+  }
 
   const allQuotes = [
     ...(phase1.facts.allClientQuotes || []),
@@ -1593,7 +2033,6 @@ async function runPhase5(
 
   const pass1Data = reportRow.pass1_data as any;
 
-  // Staff roster for per-person cost and narrative (legacy engagements: no roster → fallback to blended rate)
   const { data: staffMembers } = await supabaseClient
     .from('sa_staff_members')
     .select('id, name, role_title, department, hourly_rate, hours_per_week')
@@ -1611,9 +2050,9 @@ async function runPhase5(
     facts: {
       ...phase1.facts,
       processes: phase2.processes,
-      hoursWastedWeekly: phase2.hoursWastedWeekly,
-      annualCostOfChaos: phase2.annualCostOfChaos,
-      projectedCostAtScale: phase2.projectedCostAtScale,
+      hoursWastedWeekly: typeof phase2.hoursWastedWeekly === 'number' ? phase2.hoursWastedWeekly : parseFloat(String(phase2.hoursWastedWeekly).replace(/[£,]/g, '')) || 0,
+      annualCostOfChaos: typeof phase2.annualCostOfChaos === 'number' ? phase2.annualCostOfChaos : parseFloat(String(phase2.annualCostOfChaos).replace(/[£,]/g, '')) || 0,
+      projectedCostAtScale: typeof phase2.projectedCostAtScale === 'number' ? phase2.projectedCostAtScale : parseFloat(String(phase2.projectedCostAtScale).replace(/[£,]/g, '')) || 0,
       aspirationGap: phase2.aspirationGap,
       allClientQuotes: allQuotes,
       staffMembers: staffForFacts,
@@ -1621,35 +2060,35 @@ async function runPhase5(
     scores: phase2.scores,
     findings: phase3.findings,
     quickWins: phase3.quickWins,
-    recommendations: phase4.recommendations,
-    systemsMaps: null as any,
-    techStackSummary: pass1Data.techStackSummary ?? phase4.techStackSummary ?? null,
-    hoursBreakdown: pass1Data.hoursBreakdown ?? phase4.hoursBreakdown ?? null,
-    adminGuidance: phase5.adminGuidance,
-    clientPresentation: phase5.clientPresentation,
+    recommendations: phase5Recs.recommendations,
+    systemsMaps: null as any, // Always rebuilt by deterministic builder below
+    techStackSummary: phase6?.techStackSummary ?? pass1Data.techStackSummary ?? null,
+    hoursBreakdown: phase6?.hoursBreakdown ?? pass1Data.hoursBreakdown ?? null,
+    adminGuidance: phase7?.adminGuidance ?? null,
+    clientPresentation: phase8?.clientPresentation ?? null,
   };
 
-  // ─── McKinsey: resolve hourly rate for cost calculations (used in maps + reconciliation) ─────
   const { data: engRow } = await supabaseClient.from('sa_engagements').select('hourly_rate').eq('id', engagementId).single();
   const hourlyRate = engRow?.hourly_rate != null ? Number(engRow.hourly_rate) : 45;
 
-  // ─── Build Systems Maps (deterministic Maps 1–3 + optional Map 4 from Phase 4b) ─────
-  const phase4b = pass1Data.phase4b ?? null;
+  // ALWAYS run deterministic builder for Maps 1-3 (correct metrics format).
+  // AI-generated optimal stack (phase4b) provides Map 4 nodes/edges only.
+  const phase4b = phase6?.optimalStack ?? pass1Data.phase4b ?? null;
+  console.log('[SA Pass 1] Phase 8: Building deterministic systems maps...');
   const systemsMaps = buildSystemsMaps(
     finalPass1Data.facts,
     finalPass1Data.findings || [],
     finalPass1Data.recommendations || [],
     phase4b,
     hourlyRate,
+    { ...pass1Data, systemsMaps: phase6?.systemsMaps },
   );
   if (systemsMaps.length > 0) {
     finalPass1Data.systemsMaps = systemsMaps;
-    console.log(`[SA Pass 1] Phase 5: Built ${systemsMaps.length} systems maps${systemsMaps.length === 4 ? ' (including AI optimal stack)' : ''}`);
+    console.log(`[SA Pass 1] Phase 8: Built ${systemsMaps.length} systems maps (deterministic)`);
   } else {
-    finalPass1Data.systemsMaps = pass1Data.systemsMaps ?? phase4.systemsMaps ?? null;
-    if (!finalPass1Data.systemsMaps) {
-      console.warn('[SA Pass 1] Phase 5: No systems to map — systemsMaps will be null');
-    }
+    console.warn('[SA Pass 1] Phase 8: Deterministic builder returned 0 maps — falling back to AI maps');
+    finalPass1Data.systemsMaps = (phase6?.systemsMaps ?? pass1Data.systemsMaps) || null;
   }
 
   // ─── McKinsey Number Reconciliation Layer ──────────────────────────
@@ -1669,8 +2108,8 @@ async function runPhase5(
   const roiRatio = totalInvestment > 0 ? `${Math.round(totalBenefit / totalInvestment)}:1` : 'Infinite';
 
   const expectedAnnualCost = Math.round((f.hoursWastedWeekly || 0) * hourlyRate * 52);
-  if (f.annualCostOfChaos && Math.abs(f.annualCostOfChaos - expectedAnnualCost) > expectedAnnualCost * 0.05) {
-    console.warn(`[SA McKinsey] annualCostOfChaos mismatch: pass1=${f.annualCostOfChaos}, expected=${expectedAnnualCost}. Overriding.`);
+  if (f.annualCostOfChaos !== expectedAnnualCost) {
+    console.log(`[SA McKinsey] Aligning annualCostOfChaos: AI=${f.annualCostOfChaos}, calc=${expectedAnnualCost}. Using calculated.`);
     f.annualCostOfChaos = expectedAnnualCost;
     finalPass1Data.facts.annualCostOfChaos = expectedAnnualCost;
   }
@@ -1697,17 +2136,18 @@ async function runPhase5(
     low: (finalPass1Data.findings || []).filter((x: any) => x.severity === 'low').length,
   };
 
+  const fmt = (v: any) => String(v ?? 0).replace(/£/g, '');
   console.log(`[SA McKinsey] Reconciliation complete:
-    annualCostOfChaos: £${f.annualCostOfChaos} (${f.hoursWastedWeekly}h × £${hourlyRate} × 52)
-    projectedCostAtScale: £${f.projectedCostAtScale} (${f.growthMultiplier}x growth)
-    totalBenefit: £${totalBenefit} (${recs.length} recs)
-    totalInvestment: £${totalInvestment}
+    annualCostOfChaos: £${fmt(f.annualCostOfChaos)} (${f.hoursWastedWeekly}h × £${hourlyRate} × 52)
+    projectedCostAtScale: £${fmt(f.projectedCostAtScale)} (${f.growthMultiplier}x growth)
+    totalBenefit: £${fmt(totalBenefit)} (${recs.length} recs)
+    totalInvestment: £${fmt(totalInvestment)}
     hoursReclaimable: ${hoursReclaimable}h/wk
     payback: ${paybackMonths} months | ROI: ${roiRatio}
     findings: ${findingCounts.critical}C/${findingCounts.high}H/${findingCounts.medium}M/${findingCounts.low}L
     quickWins: ${qwins.length}`);
 
-  console.log('[SA Pass 1] Phase 5: Writing final report to DB...');
+  console.log('[SA Pass 1] Phase 8: Writing final report to DB...');
   const updatePayload: any = {
     pass1_data: finalPass1Data,
     status: 'pass1_complete',
@@ -1757,12 +2197,12 @@ async function runPhase5(
   const { error: updateError } = await supabaseClient
     .from('sa_audit_reports').update(updatePayload).eq('engagement_id', engagementId);
   if (updateError) {
-    console.error('[SA Pass 1] Phase 5 update error:', updateError);
+    console.error('[SA Pass 1] Phase 8 update error:', updateError);
     throw updateError;
   }
-  console.log('[SA Pass 1] Phase 5: DB write complete. Status set to pass1_complete.');
+  console.log('[SA Pass 1] Phase 8: DB write complete. Status set to pass1_complete.');
 
-  return { success: true, phase: 5, reportId: reportRow.id };
+  return { success: true, phase: 8, reportId: reportRow.id };
 }
 
 // ---------- Entry: route by phase ----------
@@ -1821,7 +2261,7 @@ serve(async (req) => {
     switch (phase) {
       case 1: {
         await supabaseClient.from('sa_audit_reports').upsert(
-          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/5: Extracting facts and analysing systems...' },
+          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/8: Extracting facts...' },
           { onConflict: 'engagement_id' }
         );
         const [discoveryRes, systemsRes] = await Promise.all([
@@ -1850,7 +2290,7 @@ serve(async (req) => {
       case 2: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 2/5: Analysing processes and calculating scores...' })
+          .update({ executive_summary: 'Phase 2/8: Analysing processes...' })
           .eq('engagement_id', engagementId);
         result = await runPhase2Analyse(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
         break;
@@ -1858,25 +2298,49 @@ serve(async (req) => {
       case 3: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 3/5: Generating detailed findings and quick wins...' })
+          .update({ executive_summary: 'Phase 3/8: Identifying critical findings...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase3Diagnose(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
+        result = await runPhase3CriticalHigh(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
         break;
       }
       case 4: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 4/5: Building recommendations with ROI analysis...' })
+          .update({ executive_summary: 'Phase 4/8: Completing findings and quick wins...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase4(supabaseClient, engagementId, openRouterKey);
+        result = await runPhase4MediumLowQuickWins(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
         break;
       }
       case 5: {
         await supabaseClient
           .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 5/5: Generating admin guidance and client presentation...' })
+          .update({ executive_summary: 'Phase 5/8: Building recommendations...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase5(supabaseClient, engagementId, openRouterKey);
+        result = await runPhase5Recommendations(supabaseClient, engagementId, openRouterKey);
+        break;
+      }
+      case 6: {
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({ executive_summary: 'Phase 6/8: Generating technology roadmap...' })
+          .eq('engagement_id', engagementId);
+        result = await runPhase6SystemsMaps(supabaseClient, engagementId, openRouterKey);
+        break;
+      }
+      case 7: {
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({ executive_summary: 'Phase 7/8: Preparing practice team guidance...' })
+          .eq('engagement_id', engagementId);
+        result = await runPhase7AdminGuidance(supabaseClient, engagementId, openRouterKey);
+        break;
+      }
+      case 8: {
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({ executive_summary: 'Phase 8/8: Finalising report...' })
+          .eq('engagement_id', engagementId);
+        result = await runPhase8Presentation(supabaseClient, engagementId, openRouterKey);
         break;
       }
       default:
@@ -1888,7 +2352,7 @@ serve(async (req) => {
         success: true,
         phase: result.phase,
         reportId: (result as any).reportId,
-        nextPhase: phase < 5 ? phase + 1 : null,
+        nextPhase: phase < 8 ? phase + 1 : null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

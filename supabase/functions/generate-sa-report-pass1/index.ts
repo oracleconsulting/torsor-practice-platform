@@ -2061,7 +2061,7 @@ async function runPhase8Presentation(
     findings: phase3.findings,
     quickWins: phase3.quickWins,
     recommendations: phase5Recs.recommendations,
-    systemsMaps: (phase6?.systemsMaps ?? pass1Data.systemsMaps) as any,
+    systemsMaps: null as any, // Always rebuilt by deterministic builder below
     techStackSummary: phase6?.techStackSummary ?? pass1Data.techStackSummary ?? null,
     hoursBreakdown: phase6?.hoursBreakdown ?? pass1Data.hoursBreakdown ?? null,
     adminGuidance: phase7?.adminGuidance ?? null,
@@ -2071,21 +2071,24 @@ async function runPhase8Presentation(
   const { data: engRow } = await supabaseClient.from('sa_engagements').select('hourly_rate').eq('id', engagementId).single();
   const hourlyRate = engRow?.hourly_rate != null ? Number(engRow.hourly_rate) : 45;
 
+  // ALWAYS run deterministic builder for Maps 1-3 (correct metrics format).
+  // AI-generated optimal stack (phase4b) provides Map 4 nodes/edges only.
   const phase4b = phase6?.optimalStack ?? pass1Data.phase4b ?? null;
-  if (!finalPass1Data.systemsMaps && (phase4b || phase6?.systemsMaps)) {
-    console.log('[SA Pass 1] Phase 8: Building deterministic systems maps from phase6 data...');
-    const systemsMaps = buildSystemsMaps(
-      finalPass1Data.facts,
-      finalPass1Data.findings || [],
-      finalPass1Data.recommendations || [],
-      phase4b,
-      hourlyRate,
-      { ...pass1Data, systemsMaps: phase6?.systemsMaps },
-    );
-    if (systemsMaps.length > 0) {
-      finalPass1Data.systemsMaps = systemsMaps;
-      console.log(`[SA Pass 1] Phase 8: Built ${systemsMaps.length} systems maps`);
-    }
+  console.log('[SA Pass 1] Phase 8: Building deterministic systems maps...');
+  const systemsMaps = buildSystemsMaps(
+    finalPass1Data.facts,
+    finalPass1Data.findings || [],
+    finalPass1Data.recommendations || [],
+    phase4b,
+    hourlyRate,
+    { ...pass1Data, systemsMaps: phase6?.systemsMaps },
+  );
+  if (systemsMaps.length > 0) {
+    finalPass1Data.systemsMaps = systemsMaps;
+    console.log(`[SA Pass 1] Phase 8: Built ${systemsMaps.length} systems maps (deterministic)`);
+  } else {
+    console.warn('[SA Pass 1] Phase 8: Deterministic builder returned 0 maps — falling back to AI maps');
+    finalPass1Data.systemsMaps = (phase6?.systemsMaps ?? pass1Data.systemsMaps) || null;
   }
 
   // ─── McKinsey Number Reconciliation Layer ──────────────────────────
