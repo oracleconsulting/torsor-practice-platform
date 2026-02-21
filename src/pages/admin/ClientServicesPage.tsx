@@ -61,7 +61,7 @@ import { calculateFounderRisk } from '../../lib/services/benchmarking/founder-ri
 import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-mapper';
 
 // Management Accounts Report Components (Two-Pass Architecture)
-import { MAAdminReportView, MAClientReportView } from '../../components/management-accounts';
+import { MAAdminReportView, MAClientReportView } from '../../components/business-intelligence';
 
 // Test Client Panel for testing workflows
 import { TestClientPanel as _TestClientPanel } from '../../components/admin/TestClientPanel';
@@ -12881,13 +12881,13 @@ function SystemsAuditClientModal({
       }, 'Phase 5');
       console.log('[SA Report] Phase 5 complete');
 
-      // ── Phase 6: Systems maps ──
+      // ── Phase 6: Systems maps (optimal stack only; maps 1-3 built in Phase 8) ──
       console.log('[SA Report] Starting Phase 6/8: Generating technology roadmap...');
       firePhase(6);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
         return !!data?.pass1_data?.phase6;
-      }, 'Phase 6');
+      }, 'Phase 6', 120); // 120 × 5s = 600s — safety margin for AI generation
       console.log('[SA Report] Phase 6 complete');
 
       // ── Phase 7: Admin guidance ──

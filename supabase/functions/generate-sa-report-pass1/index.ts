@@ -1879,9 +1879,10 @@ async function runPhase6SystemsMaps(
   const phase1 = report.pass1_data.phase1;
   const phase5 = report.pass1_data.phase5;
 
+  // Generate optimal stack (Map 4 data) via Phase 4b — no AI maps call (fixes timeout)
   let optimalStack: any = null;
   try {
-    console.log('[SA Pass 1] Phase 6: Generating optimal stack hint...');
+    console.log('[SA Pass 1] Phase 6: Generating optimal stack for Map 4...');
     const { data: discoveryRow } = await supabaseClient
       .from('sa_discovery_responses')
       .select('growth_vision, hiring_blockers, growth_type, capacity_ceiling, failed_tools, non_negotiables')
@@ -1890,34 +1891,37 @@ async function runPhase6SystemsMaps(
     const phase2 = report.pass1_data.phase2 || {};
     const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow);
 
-    const { data: phase4bData } = await callSonnet(phase4bPrompt, 4000, 6.1, openRouterKey);
+    const { data: phase4bData, tokensUsed, generationTime } = await callSonnet(phase4bPrompt, 4000, 6, openRouterKey);
     if (phase4bData?.nodes) {
       optimalStack = phase4bData;
-      console.log('[SA Pass 1] Phase 6: Optimal stack generated:', Object.keys(optimalStack.nodes || {}).length, 'systems,', (optimalStack.edges || []).length, 'edges');
+      console.log(`[SA Pass 1] Phase 6: Optimal stack generated in ${Math.round(generationTime / 1000)}s:`,
+        Object.keys(optimalStack.nodes || {}).length, 'systems,',
+        (optimalStack.edges || []).length, 'edges,',
+        tokensUsed, 'tokens');
     } else {
-      console.warn('[SA Pass 1] Phase 6: Optimal stack response missing nodes');
+      console.warn('[SA Pass 1] Phase 6: Optimal stack response parsed but missing nodes — Map 4 will be unavailable');
     }
   } catch (e: any) {
     console.warn('[SA Pass 1] Phase 6: Optimal stack generation failed (non-blocking):', e?.message ?? e);
+    console.warn('[SA Pass 1] Phase 6: Map 4 (Optimal Stack) will not be available in this report');
   }
 
-  let phase6Data: any = { systemsMaps: null, techStackSummary: null, hoursBreakdown: null, optimalStack };
-  try {
-    const mapsResult = await runPhase4SystemsMaps(supabaseClient, engagementId, openRouterKey);
-    phase6Data = { ...mapsResult, optimalStack };
-    console.log(`[SA Pass 1] Phase 6: Systems maps: ${mapsResult.systemsMaps?.length || 0} levels`);
-  } catch (mapsErr: any) {
-    console.warn('[SA Pass 1] Phase 6: Systems maps generation failed:', mapsErr?.message ?? mapsErr);
-  }
-
-  console.log(`[SA Pass 1] Phase 6: Summary — optimalStack: ${optimalStack ? Object.keys(optimalStack.nodes || {}).length + ' nodes' : 'FAILED'}, aiMaps: ${phase6Data.systemsMaps ? (Array.isArray(phase6Data.systemsMaps) ? phase6Data.systemsMaps.length + ' levels' : 'present') : 'FAILED'}`);
-
+  // Store Phase 6 result — Maps 1-3 are built deterministically in Phase 8
   const existingPass1 = report.pass1_data as any;
+  const phase6Data = {
+    systemsMaps: null,
+    techStackSummary: null,
+    hoursBreakdown: null,
+    optimalStack,
+  };
+
+  console.log(`[SA Pass 1] Phase 6: Summary — optimalStack: ${optimalStack ? Object.keys(optimalStack.nodes || {}).length + ' nodes' : 'FAILED (Map 4 unavailable)'}`);
+
   await supabaseClient
     .from('sa_audit_reports')
     .update({
       pass1_data: { ...existingPass1, phase6: phase6Data },
-      executive_summary: 'Phase 6/8: Generating technology roadmap...',
+      executive_summary: 'Phase 6/8: Technology roadmap complete.',
     })
     .eq('engagement_id', engagementId);
 
