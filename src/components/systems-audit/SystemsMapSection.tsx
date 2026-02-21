@@ -26,6 +26,15 @@ const MAP_LABELS = ['Today', 'Native Fixes', 'Connected', 'Optimal'];
 
 const getCategoryColor = (cat: string) => CATEGORY_COLORS[cat] || '#64748b';
 
+/** Normalize edge status so IntegrationEdge gets red/amber/green/blue for correct colours and dash. */
+function normalizeEdgeStatus(edge: { status?: string; colour?: string }): 'red' | 'amber' | 'green' | 'blue' {
+  const s = (edge.status || edge.colour || '').toLowerCase();
+  if (s === 'red' || s === 'amber' || s === 'green' || s === 'blue') return s as 'red' | 'amber' | 'green' | 'blue';
+  if (s === 'active' || s === 'native_new' || s === 'middleware') return 'green';
+  if (s === 'broken' || s === 'none' || s === 'off' || s === 'manual') return 'red';
+  return 'amber';
+}
+
 const num = (v: unknown, fallback: number): number => {
   const n = Number(v);
   return Number.isFinite(n) ? n : fallback;
@@ -134,7 +143,9 @@ function IntegrationEdge({ x1, y1, x2, y2, status, label, changed, person }: {
         <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={color} strokeWidth="6" opacity="0.15" strokeLinecap="round" />
       )}
       <line x1={sx} y1={sy} x2={ex} y2={ey} stroke={color} strokeWidth={changed ? 2.5 : 1.5}
-        strokeDasharray={isDashed ? '6,4' : 'none'} opacity={status === 'red' ? 0.6 : 0.9} strokeLinecap="round" />
+        strokeDasharray={isDashed ? '6,4' : 'none'} opacity={status === 'red' ? 0.6 : 0.9} strokeLinecap="round">
+        {isDashed && <animate attributeName="stroke-dashoffset" values="0;20" dur="1.5s" repeatCount="indefinite" />}
+      </line>
       {showParticles && (
         <>
           <Particle x1={sx} y1={sy} x2={ex} y2={ey} color={color} delay={0} />
@@ -310,8 +321,9 @@ export default function SystemsMapSection({ systemsMaps, facts }: { systemsMaps:
             const from = nodesObj[edge.from];
             const to = nodesObj[edge.to];
             if (!from || !to) return null;
+            const status = normalizeEdgeStatus(edge);
             return (
-              <IntegrationEdge key={`${edge.from}-${edge.to}-${activeMap}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} status={edge.status} label={edge.label} changed={edge.changed} person={edge.person} />
+              <IntegrationEdge key={`${edge.from}-${edge.to}-${activeMap}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} status={status} label={edge.label} changed={edge.changed} person={edge.person} />
             );
           })}
           {Object.entries(nodesObj).map(([id, sys]: [string, any]) => (

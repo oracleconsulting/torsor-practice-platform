@@ -51,6 +51,15 @@ const MAP_LABELS = ['Today', 'Native Fixes', 'Connected', 'Optimal'];
 
 const getCategoryColor = (cat: string) => CATEGORY_COLORS[cat] || '#64748b';
 
+/** Normalize edge status so IntegrationEdge gets red/amber/green/blue for correct colours, dash and particles. */
+function normalizeEdgeStatus(edge: { status?: string; colour?: string }): 'red' | 'amber' | 'green' | 'blue' {
+  const s = (edge.status || edge.colour || '').toLowerCase();
+  if (s === 'red' || s === 'amber' || s === 'green' || s === 'blue') return s as 'red' | 'amber' | 'green' | 'blue';
+  if (s === 'active' || s === 'native_new' || s === 'middleware') return 'green';
+  if (s === 'broken' || s === 'none' || s === 'off' || s === 'manual') return 'red';
+  return 'amber';
+}
+
 /** Coerce to number for SVG attributes; avoids NaN/undefined. */
 const num = (v: unknown, fallback: number): number => {
   const n = Number(v);
@@ -592,12 +601,13 @@ export default function SystemsMapSection({ systemsMaps, facts }: {
             const from = nodesObj[edge.from];
             const to = nodesObj[edge.to];
             if (!from || !to) return null;
+            const status = normalizeEdgeStatus(edge);
             return (
               <IntegrationEdge
                 key={`${edge.from}-${edge.to}-${activeMap}`}
                 x1={from.x} y1={from.y}
                 x2={to.x} y2={to.y}
-                status={edge.status}
+                status={status}
                 label={edge.label}
                 changed={edge.changed}
                 middleware={edge.middleware}
