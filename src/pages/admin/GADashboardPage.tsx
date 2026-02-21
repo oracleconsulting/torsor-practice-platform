@@ -5,7 +5,8 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Page } from '../../types/navigation';
+import { useNavigate } from 'react-router-dom';
+import { ADMIN_ROUTES } from '../../config/routes';
 import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
@@ -710,12 +711,8 @@ function ClientList({
 // Page
 // ----------------------------------------------------------------------------
 
-interface GADashboardPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
-
-export function GADashboardPage({ currentPage, onNavigate }: GADashboardPageProps) {
+export function GADashboardPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [clients, setClients] = useState<GAClientSummary[]>([]);
@@ -769,12 +766,12 @@ export function GADashboardPage({ currentPage, onNavigate }: GADashboardPageProp
         JSON.stringify({ clientId, serviceLineCode: '365_method' }),
       );
     } catch (_) {}
-    onNavigate('clients');
+    navigate(ADMIN_ROUTES.clients);
   };
 
   if (loading) {
     return (
-      <AdminLayout title="Goal Alignment" currentPage={currentPage} onNavigate={onNavigate}>
+      <AdminLayout title="Goal Alignment">
         <div className="flex items-center justify-center py-24">
           <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
         </div>
@@ -784,7 +781,7 @@ export function GADashboardPage({ currentPage, onNavigate }: GADashboardPageProp
 
   if (clients.length === 0) {
     return (
-      <AdminLayout title="Goal Alignment" currentPage={currentPage} onNavigate={onNavigate}>
+      <AdminLayout title="Goal Alignment">
         <div className="max-w-6xl mx-auto">
           <div className="text-center py-16">
             <Target className="w-16 h-16 text-slate-300 mx-auto mb-4" />
@@ -805,8 +802,6 @@ export function GADashboardPage({ currentPage, onNavigate }: GADashboardPageProp
     <AdminLayout
       title="Goal Alignment Dashboard"
       subtitle={`${clients.length} client${clients.length !== 1 ? 's' : ''} enrolled`}
-      currentPage={currentPage}
-      onNavigate={onNavigate}
       headerActions={
         <>
           <span className="text-xs text-slate-400">

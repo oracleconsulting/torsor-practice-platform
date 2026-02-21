@@ -1,5 +1,4 @@
 // ============================================================================
-import type { Page } from '../../types/navigation';
 // TRAINING PLANS PAGE
 // ============================================================================
 // Create and manage skill development training plans for team members
@@ -14,11 +13,6 @@ import {
   CheckCircle, Circle, Play, Pause, Calendar
 } from 'lucide-react';
 
-
-interface TrainingPlansPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
 
 interface TrainingPlan {
   id: string;
@@ -43,7 +37,7 @@ interface TrainingModule {
   completed_date?: string;
 }
 
-export function TrainingPlansPage({ currentPage, onNavigate }: TrainingPlansPageProps) {
+export function TrainingPlansPage() {
   const { user } = useAuth();
   const { data: _currentMember } = useCurrentMember(user?.id);
   
@@ -150,8 +144,6 @@ export function TrainingPlansPage({ currentPage, onNavigate }: TrainingPlansPage
     <AdminLayout
       title="Training Plans"
       subtitle="Develop team skills with structured learning"
-      currentPage={currentPage}
-      onNavigate={onNavigate}
       headerActions={
         <button className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
           <Plus className="w-4 h-4" />

@@ -1,5 +1,4 @@
 // ============================================================================
-import type { Page } from '../../types/navigation';
 // ASSESSMENT PREVIEW PAGE
 // ============================================================================
 // Preview and edit service line assessment questions
@@ -64,11 +63,6 @@ const SYSTEMS_AUDIT_STAGE1_QUESTIONS = [
 ];
 
 
-interface AssessmentPreviewPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
-
 interface DbQuestion {
   id: string;
   service_line_code: string;
@@ -123,7 +117,7 @@ const ASSESSMENT_GROUPS = [
 // Flattened for lookup
 const SERVICE_LINE_INFO = ASSESSMENT_GROUPS.flatMap(g => g.assessments);
 
-export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPreviewPageProps) {
+export function AssessmentPreviewPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [selectedService, setSelectedService] = useState<string | null>(null);
@@ -361,8 +355,6 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
       <AdminLayout
         title="Assessment Preview & Editor"
         subtitle="Edit assessment questions - changes are saved to the database and used for AI value propositions"
-        currentPage={currentPage}
-        onNavigate={onNavigate}
         headerActions={
           <button
             onClick={() => setShowShareModal(true)}
@@ -582,8 +574,6 @@ export function AssessmentPreviewPage({ currentPage, onNavigate }: AssessmentPre
     <AdminLayout
       title={serviceInfo?.name ?? 'Assessment'}
       subtitle={serviceInfo?.title}
-      currentPage={currentPage}
-      onNavigate={onNavigate}
       headerActions={
         <>
           <button

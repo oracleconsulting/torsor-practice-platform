@@ -3,7 +3,9 @@
  * Separate file to keep ClientServicesClientList.tsx under parse-safe size.
  */
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { CheckCircle, Loader2, Mail, Save, Send, Target, Trash2, Upload, X, XCircle } from 'lucide-react';
+import { ADMIN_ROUTES } from '../../config/routes';
 import type { ClientServicesClientListProps, InviteFormState } from './ClientServicesClientListTypes';
 
 const DEFAULT_INVITE_FORM: InviteFormState = {
@@ -16,10 +18,12 @@ const DEFAULT_INVITE_FORM: InviteFormState = {
 };
 
 export function ClientServicesClientListModals(props: ClientServicesClientListProps): React.ReactElement {
+  const navigate = useNavigate();
   const DiscoveryClientModal = props.DiscoveryClientModal;
   const SystemsAuditClientModal = props.SystemsAuditClientModal;
   const BenchmarkingClientModal = props.BenchmarkingClientModal;
   const ClientDetailModal = props.ClientDetailModal;
+  const onNavigate = (pageId: keyof typeof ADMIN_ROUTES) => navigate(ADMIN_ROUTES[pageId]);
 
   const inviteForm = props.inviteForm ?? DEFAULT_INVITE_FORM;
   const setInviteForm = props.setInviteForm ?? (() => {});
@@ -59,7 +63,7 @@ export function ClientServicesClientListModals(props: ClientServicesClientListPr
           clientId={props.selectedClient}
           serviceLineCode={props.selectedServiceLine}
           onClose={() => props.setSelectedClient(null)}
-          onNavigate={props.onNavigate}
+          onNavigate={onNavigate}
         />
       )}
 

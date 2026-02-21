@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { Page } from '../../types/navigation';
+import type { PageId } from '../../types/navigation';
 import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
@@ -79,11 +79,6 @@ import { getAssessmentByCode } from '../../config/serviceLineAssessments';
 import type { AssessmentQuestion } from '../../config/serviceLineAssessments';
 import { ClientServicesClientList } from './ClientServicesClientList';
 import type { ClientRow } from './ClientServicesClientListTypes';
-
-interface ClientServicesPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
 
 // All Service Lines - BSG Complete Offering
 const SERVICE_LINES = [
@@ -217,7 +212,7 @@ interface StaffMember {
 
 const GA_DASHBOARD_STORAGE_KEY = 'gaDashboardSelected';
 
-export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPageProps) {
+export function ClientServicesPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [selectedServiceLine, setSelectedServiceLine] = useState<string | null>(null);
@@ -1319,8 +1314,6 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         savingService={_savingService}
         deletingService={deletingService}
         currentMember={currentMember ?? null}
-        currentPage={currentPage}
-        onNavigate={onNavigate}
         getStatusColor={getStatusColor}
         handleSaveService={_handleSaveService}
         staffMembers={staffMembers}
@@ -1352,8 +1345,6 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     <AdminLayout
       title="Client Services"
       subtitle="Manage clients across all service lines"
-      currentPage={currentPage}
-      onNavigate={onNavigate}
       headerActions={
         <>
           <button
@@ -6282,7 +6273,7 @@ function DiscoveryClientModal({
 }
 
 // Enhanced Client Detail Modal with full functionality
-function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: { clientId: string; serviceLineCode: string; onClose: () => void; onNavigate: (page: Page) => void }) {
+function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: { clientId: string; serviceLineCode: string; onClose: () => void; onNavigate: (page: PageId) => void }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [client, setClient] = useState<any>(null);

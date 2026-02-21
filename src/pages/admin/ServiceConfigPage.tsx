@@ -1,5 +1,6 @@
 // ============================================================================
-import type { Page } from '../../types/navigation';
+import { useNavigate } from 'react-router-dom';
+import { ADMIN_ROUTES } from '../../config/routes';
 // SERVICE CONFIGURATION PAGE
 // ============================================================================
 // Define workflow phases with activities, match to skills, find best fit people
@@ -18,11 +19,6 @@ import {
   BarChart3, Shield, Trash2, Users, Check, X, DollarSign
 } from 'lucide-react';
 
-
-interface ServiceConfigPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
 
 interface WorkflowPhase {
   id: string;
@@ -69,7 +65,8 @@ const SERVICE_LINES = [
   { code: 'benchmarking', name: 'Benchmarking', icon: BarChart3, color: 'teal' },
 ];
 
-export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPageProps) {
+export function ServiceConfigPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   
@@ -262,11 +259,9 @@ export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPage
       <AdminLayout
         title="Service Configuration"
         subtitle="Configure workflows, pricing, and team assignments for your services"
-        currentPage={currentPage}
-        onNavigate={onNavigate}
         headerActions={
           <button
-            onClick={() => onNavigate('delivery')}
+            onClick={() => navigate(ADMIN_ROUTES.delivery)}
             className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -340,8 +335,6 @@ export function ServiceConfigPage({ currentPage, onNavigate }: ServiceConfigPage
     <AdminLayout
       title={serviceInfo?.name ?? 'Service'}
       subtitle="Workflow Configuration"
-      currentPage={currentPage}
-      onNavigate={onNavigate}
       headerActions={
         <button
           onClick={() => setSelectedService(null)}

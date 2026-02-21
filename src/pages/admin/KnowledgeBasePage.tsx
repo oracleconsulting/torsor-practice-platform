@@ -1,5 +1,4 @@
 // ============================================================================
-import type { Page } from '../../types/navigation';
 // KNOWLEDGE BASE PAGE
 // ============================================================================
 // Manage practice methodology, examples, and AI guidance
@@ -14,12 +13,6 @@ import {
   AlertTriangle, CheckCircle, Edit2, Trash2, Eye,
   Tag, Clock, User, Sparkles, ChevronRight
 } from 'lucide-react';
-
-
-interface KnowledgeBasePageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
 
 interface KnowledgeEntry {
   id: string;
@@ -42,7 +35,7 @@ const CATEGORIES = [
   { id: 'template', name: 'Templates', icon: FileText, color: 'purple', description: 'Reusable templates' },
 ];
 
-export function KnowledgeBasePage({ currentPage, onNavigate }: KnowledgeBasePageProps) {
+export function KnowledgeBasePage() {
   const { user } = useAuth();
   const { data: _currentMember } = useCurrentMember(user?.id);
   
@@ -209,8 +202,6 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
     <AdminLayout
       title="Knowledge Base"
       subtitle="AI guidance, methodology, and best practices"
-      currentPage={currentPage}
-      onNavigate={onNavigate}
       headerActions={
         <button
           onClick={() => setShowAddModal(true)}

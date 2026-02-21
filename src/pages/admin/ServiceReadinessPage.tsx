@@ -1,23 +1,16 @@
 import { useAuth } from '../../hooks/useAuth';
-import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useServiceReadiness } from '../../hooks/useServiceReadiness';
 import { AdminLayout } from '../../components/AdminLayout';
 
-
-interface ServiceReadinessPageProps {
-  onNavigate: (page: Page) => void;
-  currentPage: Page;
-}
-
-export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadinessPageProps) {
+export function ServiceReadinessPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const { data: readiness, isLoading } = useServiceReadiness(currentMember?.practice_id ?? null);
 
   if (isLoading) {
     return (
-      <AdminLayout title="Service Readiness" currentPage={currentPage} onNavigate={onNavigate}>
+      <AdminLayout title="Service Readiness">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -38,8 +31,6 @@ export function ServiceReadinessPage({ onNavigate, currentPage }: ServiceReadine
     <AdminLayout
       title={`Service Launch Readiness: ${Math.round(averageReadiness)}% Average`}
       subtitle="Capability matrix for advisory services go-to-market decisions"
-      currentPage={currentPage}
-      onNavigate={onNavigate}
     >
         {/* Summary Stats */}
         <div className="bg-white border border-gray-200 rounded-lg mb-6 p-6">

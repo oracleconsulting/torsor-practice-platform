@@ -9,7 +9,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { ServiceLineBuilderModal } from '../../components/admin/ServiceLineBuilderModal';
 import { AdminLayout } from '../../components/AdminLayout';
-import type { NavigationProps } from '../../types/navigation';
 
 const STATUS_COLOURS: Record<string, string> = {
   generating: 'bg-amber-100 text-amber-800',
@@ -20,7 +19,7 @@ const STATUS_COLOURS: Record<string, string> = {
   archived: 'bg-gray-100 text-gray-500',
 };
 
-export function ServiceLineBuilderPage({ currentPage, onNavigate }: NavigationProps) {
+export function ServiceLineBuilderPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const practiceId = currentMember?.practice_id;
@@ -79,8 +78,6 @@ export function ServiceLineBuilderPage({ currentPage, onNavigate }: NavigationPr
     <AdminLayout
       title="Service Line Builder"
       subtitle="Generate full service line blueprints from concepts, opportunities, or scratch. Review and promote to live."
-      currentPage={currentPage}
-      onNavigate={onNavigate}
       headerActions={
         <button
             onClick={openNewManual}

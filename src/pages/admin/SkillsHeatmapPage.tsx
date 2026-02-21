@@ -1,5 +1,4 @@
 import { useSkills } from '../../hooks/useSkills';
-import type { Page } from '../../types/navigation';
 import { useTeamMembers } from '../../hooks/useTeamMembers';
 import { useSkillAssessments } from '../../hooks/useSkillAssessments';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
@@ -7,12 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { SkillsHeatmapGrid } from '../../components/SkillsHeatmapGrid';
 import { AdminLayout } from '../../components/AdminLayout';
 
-interface SkillsHeatmapPageProps {
-  onNavigate: (page: Page) => void;
-  currentPage: Page;
-}
-
-export function SkillsHeatmapPage({ onNavigate, currentPage }: SkillsHeatmapPageProps) {
+export function SkillsHeatmapPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const { data: skills, isLoading: skillsLoading } = useSkills();
@@ -26,8 +20,6 @@ export function SkillsHeatmapPage({ onNavigate, currentPage }: SkillsHeatmapPage
     <AdminLayout
       title="Skills Heatmap"
       subtitle={currentMember ? `${currentMember.name} • ${currentMember.role}` : undefined}
-      currentPage={currentPage}
-      onNavigate={onNavigate}
     >
       {isLoading ? (
         <div className="flex items-center justify-center h-64">

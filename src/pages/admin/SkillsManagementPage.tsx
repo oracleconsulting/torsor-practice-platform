@@ -1,25 +1,18 @@
 import { useAuth } from '../../hooks/useAuth';
-import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useSkillsByCategory } from '../../hooks/useSkillsByCategory';
 import { SkillCategoryCard } from '../../components/SkillCategoryCard';
 import { AdminLayout } from '../../components/AdminLayout';
 import { Plus, Download } from 'lucide-react';
 
-
-interface SkillsManagementPageProps {
-  onNavigate: (page: Page) => void;
-  currentPage: Page;
-}
-
-export function SkillsManagementPage({ onNavigate, currentPage }: SkillsManagementPageProps) {
+export function SkillsManagementPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const { categories, isLoading } = useSkillsByCategory(currentMember?.practice_id ?? null);
 
   if (isLoading) {
     return (
-      <AdminLayout title="Skills Management" currentPage={currentPage} onNavigate={onNavigate}>
+      <AdminLayout title="Skills Management">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
@@ -38,8 +31,6 @@ export function SkillsManagementPage({ onNavigate, currentPage }: SkillsManageme
     <AdminLayout
       title="Skills Management"
       subtitle="Comprehensive view of all skills across your firm"
-      currentPage={currentPage}
-      onNavigate={onNavigate}
       headerActions={
         <>
           <button className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center gap-2">

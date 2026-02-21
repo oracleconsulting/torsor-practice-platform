@@ -1,14 +1,8 @@
 import { useState, useEffect, Fragment, useMemo } from 'react';
 import { AdminLayout } from '../../components/AdminLayout';
 import { supabase } from '../../lib/supabase';
-import type { Page } from '../../types/navigation';
 import type { LiveTechProduct } from '../../types/tech-stack';
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
-
-interface TechDatabasePageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
 
 interface IntegrationRow {
   product_a_slug: string;
@@ -32,7 +26,7 @@ interface CategoryRow {
   parent_category: string | null;
 }
 
-export function TechDatabasePage({ currentPage, onNavigate }: TechDatabasePageProps) {
+export function TechDatabasePage() {
   const [products, setProducts] = useState<LiveTechProduct[]>([]);
   const [integrations, setIntegrations] = useState<IntegrationRow[]>([]);
   const [middleware, setMiddleware] = useState<MiddlewareRow[]>([]);
@@ -136,8 +130,6 @@ export function TechDatabasePage({ currentPage, onNavigate }: TechDatabasePagePr
     <AdminLayout
       title="Tech Database"
       subtitle={`${stats.products} products · ${stats.integrations} integrations · ${stats.middleware} middleware capabilities · ${stats.categoryCount} categories`}
-      currentPage={currentPage}
-      onNavigate={onNavigate}
     >
       <div className="max-w-7xl mx-auto">
         <p className="text-sm text-gray-600 mb-6">

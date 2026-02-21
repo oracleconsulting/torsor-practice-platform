@@ -1,10 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { LoginPage } from './pages/LoginPage';
 import { SkillsHeatmapPage } from './pages/admin/SkillsHeatmapPage';
-// Load debug utilities into window for console access
-import './lib/export-benchmarking-data';
 import { SkillsManagementPage } from './pages/admin/SkillsManagementPage';
 import { ServiceReadinessPage } from './pages/admin/ServiceReadinessPage';
 import { TeamAnalyticsPage } from './pages/admin/TeamAnalyticsPage';
@@ -20,7 +18,8 @@ import { ServiceLineBuilderPage } from './pages/admin/ServiceLineBuilderPage';
 import { TechDatabasePage } from './pages/admin/TechDatabasePage';
 import { GADashboardPage } from './pages/admin/GADashboardPage';
 import { AssessmentReviewPage } from './pages/public/AssessmentReviewPage';
-import type { Page } from './types/navigation';
+// Load debug utilities into window for console access
+import './lib/export-benchmarking-data';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -32,15 +31,14 @@ const queryClient = new QueryClient({
   },
 });
 
-function AppContent() {
+function AppRoutes() {
   const { user, loading } = useAuth();
-  const [currentPage, setCurrentPage] = useState<Page>('management'); // Default to management page
 
-  // Check if this is a public review page (no auth required)
-  const isPublicReviewPage = window.location.pathname === '/review' || 
-                              window.location.pathname.startsWith('/review/');
+  // Public review page — no auth required
+  const isPublicReviewPage =
+    window.location.pathname === '/review' ||
+    window.location.pathname.startsWith('/review/');
 
-  // Public review page - no auth required
   if (isPublicReviewPage) {
     return <AssessmentReviewPage />;
   }
@@ -60,75 +58,46 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  // Pass navigation props to each page
-  const navProps = {
-    onNavigate: setCurrentPage,
-    currentPage,
-  };
+  return (
+    <Routes>
+      {/* Default redirect */}
+      <Route path="/" element={<Navigate to="/clients" replace />} />
 
-  if (currentPage === 'clients') {
-    return <ClientServicesPage {...navProps} />;
-  }
+      {/* CLIENT section */}
+      <Route path="/clients" element={<ClientServicesPage />} />
+      <Route path="/goal-alignment" element={<GADashboardPage />} />
+      <Route path="/bi-portal" element={<MAPortalPage />} />
+      <Route path="/delivery" element={<DeliveryManagementPage />} />
 
-  if (currentPage === 'ga-dashboard') {
-    return <GADashboardPage {...navProps} />;
-  }
+      {/* TEAM section */}
+      <Route path="/skills/heatmap" element={<SkillsHeatmapPage />} />
+      <Route path="/skills/management" element={<SkillsManagementPage />} />
+      <Route path="/team/analytics" element={<TeamAnalyticsPage />} />
+      <Route path="/team/cpd" element={<CPDTrackerPage />} />
+      <Route path="/team/training" element={<TrainingPlansPage />} />
 
-  if (currentPage === 'assessments') {
-    return <AssessmentPreviewPage {...navProps} />;
-  }
+      {/* PRACTICE section */}
+      <Route path="/practice/readiness" element={<ServiceReadinessPage />} />
+      <Route path="/practice/assessments" element={<AssessmentPreviewPage />} />
 
-  if (currentPage === 'delivery') {
-    return <DeliveryManagementPage {...navProps} />;
-  }
+      {/* CONFIGURATION section */}
+      <Route path="/config/services" element={<ServiceConfigPage />} />
+      <Route path="/config/service-builder" element={<ServiceLineBuilderPage />} />
+      <Route path="/config/tech-database" element={<TechDatabasePage />} />
+      <Route path="/config/knowledge-base" element={<KnowledgeBasePage />} />
 
-  if (currentPage === 'config') {
-    return <ServiceConfigPage {...navProps} />;
-  }
-
-  if (currentPage === 'cpd') {
-    return <CPDTrackerPage {...navProps} />;
-  }
-
-  if (currentPage === 'training') {
-    return <TrainingPlansPage {...navProps} />;
-  }
-
-  if (currentPage === 'knowledge') {
-    return <KnowledgeBasePage {...navProps} />;
-  }
-
-  if (currentPage === 'ma-portal') {
-    return <MAPortalPage {...navProps} />;
-  }
-
-  if (currentPage === 'service-builder') {
-    return <ServiceLineBuilderPage {...navProps} />;
-  }
-
-  if (currentPage === 'tech-database') {
-    return <TechDatabasePage {...navProps} />;
-  }
-
-  if (currentPage === 'management') {
-    return <SkillsManagementPage {...navProps} />;
-  }
-  
-  if (currentPage === 'readiness') {
-    return <ServiceReadinessPage {...navProps} />;
-  }
-
-  if (currentPage === 'analytics') {
-    return <TeamAnalyticsPage {...navProps} />;
-  }
-
-  return <SkillsHeatmapPage {...navProps} />;
+      {/* Catch-all */}
+      <Route path="*" element={<Navigate to="/clients" replace />} />
+    </Routes>
+  );
 }
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }

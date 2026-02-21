@@ -1,5 +1,4 @@
 // ============================================================================
-import type { Page } from '../../types/navigation';
 // CPD TRACKER PAGE
 // ============================================================================
 // Track Continuing Professional Development for team members
@@ -14,11 +13,6 @@ import {
   BookOpen, Video, Users, Filter, Target, AlertCircle
 } from 'lucide-react';
 
-
-interface CPDTrackerPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
 
 interface CPDRecord {
   id: string;
@@ -58,7 +52,7 @@ const ACTIVITY_TYPES = [
   { id: 'mentoring', name: 'Mentoring (Given)', icon: Users },
 ];
 
-export function CPDTrackerPage({ currentPage, onNavigate }: CPDTrackerPageProps) {
+export function CPDTrackerPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   
@@ -163,8 +157,6 @@ export function CPDTrackerPage({ currentPage, onNavigate }: CPDTrackerPageProps)
     <AdminLayout
       title="CPD Tracker"
       subtitle="Track continuing professional development"
-      currentPage={currentPage}
-      onNavigate={onNavigate}
     >
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">

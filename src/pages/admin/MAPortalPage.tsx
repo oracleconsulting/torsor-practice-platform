@@ -46,7 +46,8 @@ import type {
   MAKPIValue,
   TierType 
 } from '../../types/ma';
-import type { NavigationProps } from '../../types/navigation';
+import { useNavigate } from 'react-router-dom';
+import { ADMIN_ROUTES } from '../../config/routes';
 import { AdminLayout } from '../../components/AdminLayout';
 
 // ============================================================================
@@ -145,7 +146,8 @@ const WORKFLOW_STEPS: { tab: WorkflowTab; label: string; icon: React.ReactNode }
 // MAIN COMPONENT
 // ============================================================================
 
-export function MAPortalPage({ onNavigate, currentPage: _currentPage }: NavigationProps) {
+export function MAPortalPage() {
+  const navigate = useNavigate();
   // Navigation state
   const [view, setView] = useState<PortalView>('list');
   const [selectedEngagementId, setSelectedEngagementId] = useState<string | null>(null);
@@ -574,7 +576,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
 
   if (loading) {
     return (
-      <AdminLayout title="BI Portal" currentPage={_currentPage} onNavigate={onNavigate}>
+      <AdminLayout title="BI Portal">
         <div className="flex items-center justify-center py-24">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
@@ -594,11 +596,9 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       <AdminLayout
         title="Business Intelligence Portal"
         subtitle="Manage client engagements and deliverables"
-        currentPage={_currentPage}
-        onNavigate={onNavigate}
         headerActions={
           <button
-            onClick={() => onNavigate('clients')}
+            onClick={() => navigate(ADMIN_ROUTES.clients)}
             className="px-4 py-2 text-slate-600 hover:text-slate-800 flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -694,7 +694,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
                 {searchQuery ? 'Try adjusting your search' : 'Start by creating an engagement from the Client Services page'}
               </p>
               <button
-                onClick={() => onNavigate('clients')}
+                onClick={() => navigate(ADMIN_ROUTES.clients)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Go to Client Services
@@ -778,8 +778,6 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
     return (
       <AdminLayout
         title={engagement.client?.client_company || engagement.client?.name || 'Engagement'}
-        currentPage={_currentPage}
-        onNavigate={onNavigate}
         headerActions={
           <button
             onClick={navigateBack}
@@ -1073,8 +1071,6 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
       <AdminLayout
         title={period.period_label ?? 'Period'}
         subtitle={`${engagement.client?.client_company || engagement.client?.name} → ${period.period_label ?? ''}`}
-        currentPage={_currentPage}
-        onNavigate={onNavigate}
         headerActions={
           <>
             <button
@@ -1382,7 +1378,7 @@ export function MAPortalPage({ onNavigate, currentPage: _currentPage }: Navigati
   // ============================================================================
 
   return (
-    <AdminLayout title="BI Portal" currentPage={_currentPage} onNavigate={onNavigate}>
+    <AdminLayout title="BI Portal">
       <div className="flex items-center justify-center py-24">
         <div className="text-center">
           <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-4" />

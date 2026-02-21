@@ -2,7 +2,6 @@
  * Shared props type for ClientServicesClientList and ClientServicesClientListModals.
  */
 import type React from 'react';
-import type { Page } from '../../types/navigation';
 
 export interface InviteFormState {
   email: string;
@@ -86,8 +85,6 @@ export interface ClientServicesClientListProps {
   savingService: boolean;
   deletingService: string | null;
   currentMember: { practice_id?: string } | null;
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
   getStatusColor: (status: string) => string;
   handleSaveService?: (service: unknown) => Promise<void>;
   staffMembers?: Array<{ id: string; name: string }>;

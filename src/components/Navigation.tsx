@@ -17,10 +17,18 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useState } from 'react';
-import type { NavigationProps, NavSection } from '../types/navigation';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { ADMIN_ROUTES, type PageId } from '../config/routes';
 
-interface SidebarNavigationProps extends NavigationProps {
-  mobile?: boolean;
+interface NavItem {
+  id: PageId;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
 }
 
 const sections: NavSection[] = [
@@ -61,8 +69,25 @@ const sections: NavSection[] = [
   },
 ];
 
-export function Navigation({ currentPage, onNavigate, mobile }: SidebarNavigationProps) {
+interface SidebarProps {
+  mobile?: boolean;
+  onMobileClose?: () => void;
+}
+
+export function Navigation({ mobile, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleNav = (id: PageId) => {
+    navigate(ADMIN_ROUTES[id]);
+    onMobileClose?.();
+  };
+
+  const isActive = (id: PageId): boolean => {
+    const path = ADMIN_ROUTES[id];
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
 
   return (
     <aside
@@ -74,31 +99,32 @@ export function Navigation({ currentPage, onNavigate, mobile }: SidebarNavigatio
             }`
       } flex flex-col`}
     >
+      {/* Logo / Brand — hidden on mobile */}
       {!mobile && (
         <div className="flex items-center justify-between h-16 px-4 border-b border-[#243044]">
           {!collapsed && (
-            <span className="text-lg font-bold text-white tracking-tight">
-              Torsor
-            </span>
+            <span className="text-lg font-bold text-white tracking-tight">Torsor</span>
           )}
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-[#243044] transition-colors"
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            {collapsed ? (
-              <ChevronRight className="w-4 h-4" />
-            ) : (
-              <ChevronLeft className="w-4 h-4" />
-            )}
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
       )}
 
+      {/* Scrollable nav sections */}
       <nav className={`flex-1 overflow-y-auto py-4 px-3 space-y-6 ${mobile ? 'max-h-[70vh]' : ''}`}>
         {sections.map((section) => (
           <div key={section.title}>
-            {!collapsed && (
+            {!collapsed && !mobile && (
+              <p className="px-3 mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
+                {section.title}
+              </p>
+            )}
+            {mobile && (
               <p className="px-3 mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
                 {section.title}
               </p>
@@ -106,22 +132,22 @@ export function Navigation({ currentPage, onNavigate, mobile }: SidebarNavigatio
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const Icon = item.icon;
-                const isActive = currentPage === item.id;
+                const active = isActive(item.id);
                 return (
                   <button
                     key={item.id}
-                    onClick={() => onNavigate(item.id)}
+                    onClick={() => handleNav(item.id)}
                     title={collapsed && !mobile ? item.label : undefined}
                     className={`flex items-center gap-3 w-full rounded-lg transition-colors text-sm font-medium ${
                       collapsed && !mobile ? 'justify-center px-2 py-2.5' : 'px-3 py-2'
                     } ${
-                      isActive
+                      active
                         ? 'bg-[#4a90d9]/15 text-[#6bb3f0]'
                         : 'text-slate-400 hover:bg-[#243044] hover:text-slate-200'
                     }`}
                   >
                     <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-                    {(!collapsed || mobile) && <span>{item.label}</span>}
+                    {((!collapsed && !mobile) || mobile) && <span>{item.label}</span>}
                   </button>
                 );
               })}

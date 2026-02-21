@@ -1,16 +1,14 @@
 import type { ReactNode } from 'react';
+import { useState } from 'react';
 import { Navigation } from './Navigation';
 import { useAuth } from '../hooks/useAuth';
 import { useCurrentMember } from '../hooks/useCurrentMember';
 import { LogOut, Menu, X } from 'lucide-react';
-import { useState } from 'react';
-import type { NavigationProps } from '../types/navigation';
 
-interface AdminLayoutProps extends NavigationProps {
+interface AdminLayoutProps {
   children: ReactNode;
   title: string;
   subtitle?: string;
-  /** Optional right-side header content (buttons, search, etc.) */
   headerActions?: ReactNode;
 }
 
@@ -19,8 +17,6 @@ export function AdminLayout({
   title,
   subtitle,
   headerActions,
-  currentPage,
-  onNavigate,
 }: AdminLayoutProps) {
   const { user, signOut } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
@@ -30,7 +26,7 @@ export function AdminLayout({
     <div className="min-h-screen bg-gray-50">
       {/* Desktop sidebar */}
       <div className="hidden lg:block">
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
+        <Navigation />
       </div>
 
       {/* Mobile header */}
@@ -45,41 +41,26 @@ export function AdminLayout({
           </button>
         </div>
         {mobileMenuOpen && (
-          <div className="border-t border-gray-200 bg-white pb-4">
-            <Navigation
-              currentPage={currentPage}
-              onNavigate={(page) => {
-                onNavigate(page);
-                setMobileMenuOpen(false);
-              }}
-              mobile
-            />
+          <div className="border-t border-gray-200 bg-white">
+            <Navigation mobile onMobileClose={() => setMobileMenuOpen(false)} />
           </div>
         )}
       </div>
 
-      {/* Main content area — offset by sidebar width on desktop */}
+      {/* Main content */}
       <div className="lg:pl-[240px]">
-        {/* Top bar with title + actions */}
         <header className="sticky top-0 z-30 bg-white border-b border-gray-200">
           <div className="flex items-center justify-between px-6 py-4">
             <div>
               <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
-              {subtitle && (
-                <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
-              )}
+              {subtitle && <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>}
             </div>
             <div className="flex items-center gap-3">
               {headerActions}
-              {/* User info + sign out */}
               <div className="flex items-center gap-3 pl-3 border-l border-gray-200">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-gray-900">
-                    {currentMember?.name || 'Loading...'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {currentMember?.role || ''}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900">{currentMember?.name || 'Loading...'}</p>
+                  <p className="text-xs text-gray-500">{currentMember?.role || ''}</p>
                 </div>
                 <button
                   onClick={() => signOut()}
@@ -92,11 +73,7 @@ export function AdminLayout({
             </div>
           </div>
         </header>
-
-        {/* Page content */}
-        <main className="p-6">
-          {children}
-        </main>
+        <main className="p-6">{children}</main>
       </div>
     </div>
   );

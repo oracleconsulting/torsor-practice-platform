@@ -1,24 +1,17 @@
 import { useAuth } from '../../hooks/useAuth';
-import type { Page } from '../../types/navigation';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useTeamAnalytics } from '../../hooks/useTeamAnalytics';
 import { AdminLayout } from '../../components/AdminLayout';
 import { Brain, TrendingUp, AlertTriangle, Award, Users, Target } from 'lucide-react';
 
-
-interface TeamAnalyticsPageProps {
-  onNavigate: (page: Page) => void;
-  currentPage: Page;
-}
-
-export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPageProps) {
+export function TeamAnalyticsPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const { data: analytics, isLoading } = useTeamAnalytics(currentMember?.practice_id ?? null);
 
   if (isLoading) {
     return (
-      <AdminLayout title="Team Analytics" currentPage={currentPage} onNavigate={onNavigate}>
+      <AdminLayout title="Team Analytics">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -41,8 +34,6 @@ export function TeamAnalyticsPage({ onNavigate, currentPage }: TeamAnalyticsPage
     <AdminLayout
       title="Team Analytics & Insights"
       subtitle="Advanced predictive analytics and cross-assessment correlations"
-      currentPage={currentPage}
-      onNavigate={onNavigate}
     >
         {/* Overview Stats */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

@@ -1,11 +1,12 @@
 // ============================================================================
-import type { Page } from '../../types/navigation';
 // DELIVERY MANAGEMENT PAGE
 // ============================================================================
 // Manage service delivery teams, capacity, and client assignments
 // ============================================================================
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ADMIN_ROUTES } from '../../config/routes';
 import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
@@ -17,11 +18,6 @@ import {
   UserPlus, Trash2, Workflow, FileSearch
 } from 'lucide-react';
 
-
-interface DeliveryManagementPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
 
 interface ServiceLine {
   code: string;
@@ -92,7 +88,8 @@ const SERVICE_LINES: ServiceLine[] = [
   { code: 'benchmarking', name: 'Benchmarking', icon: BarChart3, color: 'teal' },
 ];
 
-export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryManagementPageProps) {
+export function DeliveryManagementPage() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   
@@ -386,11 +383,9 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
       <AdminLayout
         title="Delivery Management"
         subtitle="Create delivery teams, assign team members, and manage capacity"
-        currentPage={currentPage}
-        onNavigate={onNavigate}
         headerActions={
           <button
-            onClick={() => onNavigate('clients')}
+            onClick={() => navigate(ADMIN_ROUTES.clients)}
             className="inline-flex items-center gap-2 text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -486,8 +481,6 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
     <AdminLayout
       title={serviceInfo?.name ?? 'Delivery'}
       subtitle="Delivery Teams"
-      currentPage={currentPage}
-      onNavigate={onNavigate}
       headerActions={
         <>
           <button
@@ -536,7 +529,7 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
               <h3 className="font-semibold text-gray-900">Delivery Phases</h3>
             </div>
             <button
-              onClick={() => onNavigate('config')}
+              onClick={() => navigate(ADMIN_ROUTES.config)}
               className="text-sm text-indigo-600 hover:text-indigo-700"
             >
               Configure phases →
@@ -549,7 +542,7 @@ export function DeliveryManagementPage({ currentPage, onNavigate }: DeliveryMana
             </div>
           ) : phases.length === 0 ? (
             <p className="text-gray-500 text-sm py-4 text-center">
-              No workflow phases configured. <button onClick={() => onNavigate('config')} className="text-indigo-600 hover:underline">Set up phases</button>
+              No workflow phases configured. <button onClick={() => navigate(ADMIN_ROUTES.config)} className="text-indigo-600 hover:underline">Set up phases</button>
             </p>
           ) : (
             <div className="grid grid-cols-4 gap-4">
