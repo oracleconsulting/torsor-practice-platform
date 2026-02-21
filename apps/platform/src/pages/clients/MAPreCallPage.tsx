@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { useEffect, useState } from 'react';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { supabase } from '@/lib/supabase';
 import { 
@@ -104,8 +105,8 @@ const TIER_PRICES = {
 };
 
 export default function MAPreCallPage() {
-  const clientId = window.location.pathname.split('/').filter(Boolean).pop() || null;
-  
+  const { clientId } = useParams<{ clientId: string }>();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [client, setClient] = useState<ClientData | null>(null);
   const [engagement, setEngagement] = useState<MAEngagement | null>(null);
@@ -113,7 +114,6 @@ export default function MAPreCallPage() {
   const [gaps, setGaps] = useState<PrecallGap[]>([]);
   const [talkingPoints, setTalkingPoints] = useState<TalkingPoint[]>([]);
   const [clientProfile, setClientProfile] = useState<ClientProfile | null>(null);
-  
   const [generatingAnalysis, setGeneratingAnalysis] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     profile: true,
@@ -129,6 +129,10 @@ export default function MAPreCallPage() {
       loadData();
     }
   }, [clientId]);
+
+  if (!clientId) {
+    return <Navigate to="/clients" replace />;
+  }
 
   const loadData = async () => {
     setLoading(true);

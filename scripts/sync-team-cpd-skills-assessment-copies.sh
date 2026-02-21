@@ -20,14 +20,18 @@ for c in SkillsHeatmapGrid.tsx ServiceReadinessCard.tsx; do
   [ -f "$ROOT/src/components/$c" ] && cp "$ROOT/src/components/$c" "$DEST/admin-components-$c" && echo "  admin-components-$c"
 done
 
-# --- Lib: service readiness calculations, advisory services (required skills) ---
+# --- Lib: service readiness calculations, advisory services (required skills), team analytics (Belbin etc.) ---
 cp "$ROOT/src/lib/service-calculations.ts" "$DEST/lib-service-calculations.ts" 2>/dev/null && echo "  lib-service-calculations.ts" || true
 cp "$ROOT/src/lib/advisory-services.ts" "$DEST/lib-advisory-services.ts" 2>/dev/null && echo "  lib-advisory-services.ts" || true
+cp "$ROOT/src/lib/analytics-engine.ts" "$DEST/lib-analytics-engine.ts" 2>/dev/null && echo "  lib-analytics-engine.ts" || true
 [ -f "$ROOT/src/lib/types.ts" ] && cp "$ROOT/src/lib/types.ts" "$DEST/lib-types.ts" && echo "  lib-types.ts"
 
-# --- Hooks: service readiness, team members ---
+# --- Hooks: service readiness, team members, team analytics (Belbin, VARK, OCEAN, EQ, motivation, conflict, working prefs), skills ---
 cp "$ROOT/src/hooks/useServiceReadiness.ts" "$DEST/hooks-useServiceReadiness.ts" 2>/dev/null && echo "  hooks-useServiceReadiness.ts" || true
 cp "$ROOT/src/hooks/useTeamMembers.ts" "$DEST/hooks-useTeamMembers.ts" 2>/dev/null && echo "  hooks-useTeamMembers.ts" || true
+cp "$ROOT/src/hooks/useTeamAnalytics.ts" "$DEST/hooks-useTeamAnalytics.ts" 2>/dev/null && echo "  hooks-useTeamAnalytics.ts" || true
+cp "$ROOT/src/hooks/useSkillAssessments.ts" "$DEST/hooks-useSkillAssessments.ts" 2>/dev/null && echo "  hooks-useSkillAssessments.ts" || true
+cp "$ROOT/src/hooks/useSkillsByCategory.ts" "$DEST/hooks-useSkillsByCategory.ts" 2>/dev/null && echo "  hooks-useSkillsByCategory.ts" || true
 
 # --- Types used by skills/team (from types/) ---
 for t in navigation.ts; do
@@ -48,11 +52,11 @@ for m in "${MIGRATIONS[@]}"; do
   [ -f "$ROOT/supabase/migrations/${m}.sql" ] && cp "$ROOT/supabase/migrations/${m}.sql" "$DEST/migrations-${m}.sql" && echo "  migrations-${m}.sql"
 done
 
-# --- Any migration that references skills, skill_assessments, practice_members (team/staff) ---
+# --- Any migration that references skills, skill_assessments, practice_members (team/staff), or team assessments (Belbin, VARK, OCEAN, EQ, etc.) ---
 for m in "$ROOT/supabase/migrations/"*.sql; do
   [ -f "$m" ] || continue
   name=$(basename "$m" .sql)
-  if grep -q -E 'skills|skill_assessments|service_line_interests|service_skill_requirements|practice_members|client_owner' "$m" 2>/dev/null; then
+  if grep -q -E 'skills|skill_assessments|service_line_interests|service_skill_requirements|practice_members|client_owner|belbin|learning_preferences|personality_assessments|eq_assessments|motivational_drivers|conflict_style|working_preferences' "$m" 2>/dev/null; then
     cp "$m" "$DEST/migrations-$name.sql" 2>/dev/null && echo "  migrations-$name.sql" || true
   fi
 done

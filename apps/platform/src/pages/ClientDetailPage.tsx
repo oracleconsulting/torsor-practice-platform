@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useParams, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
 import { useClientDetail } from '@/hooks/useClients';
 import SystemsAuditView from '@/components/systems-audit/SystemsAuditView';
@@ -27,12 +28,12 @@ import {
 } from 'lucide-react';
 
 export default function ClientDetailPage() {
-  // Get client ID from URL
-  const clientId = window.location.pathname.split('/').pop() || null;
-  // Check URL params for service context
-  const urlParams = new URLSearchParams(window.location.search);
-  const serviceFromUrl = urlParams.get('service') || window.location.pathname.includes('systems_audit') ? 'systems_audit' : null;
-  
+  const { clientId: clientIdParam } = useParams<{ clientId: string }>();
+  const clientId = clientIdParam ?? null;
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const serviceFromUrl = searchParams.get('service') || (location.pathname.includes('systems_audit') ? 'systems_audit' : null);
+
   const { client, fetchClient, loading, error, addContext, regenerateRoadmap } = useClientDetail(clientId);
   const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'assessments'>('overview');
   const [showAddContext, setShowAddContext] = useState(false);
@@ -70,6 +71,10 @@ export default function ClientDetailPage() {
       return () => clearTimeout(saTimer);
     }
   }, [clientId]);
+
+  if (!clientId) {
+    return <Navigate to="/clients" replace />;
+  }
 
   const checkSystemsAuditEnrollment = async () => {
     if (!clientId) {

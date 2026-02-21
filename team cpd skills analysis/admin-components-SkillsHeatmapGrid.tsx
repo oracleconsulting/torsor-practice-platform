@@ -36,7 +36,7 @@ export function SkillsHeatmapGrid({ skills, members, assessments }: SkillsHeatma
       {Object.entries(skillsByCategory).map(([category, categorySkills]) => (
         <div key={category} className="bg-white rounded-lg shadow overflow-hidden">
           <div className="bg-gray-800 text-white px-6 py-4">
-            <h3 className="text-lg font-semibold">{category}</h3>
+            <h3 className="text-lg font-semibold font-display">{category}</h3>
             <p className="text-sm text-gray-300 mt-1">{categorySkills.length} skills</p>
           </div>
 
@@ -66,24 +66,36 @@ export function SkillsHeatmapGrid({ skills, members, assessments }: SkillsHeatma
                       className={`hover:bg-gray-50 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}
                     >
                       <td className="sticky left-0 z-10 bg-inherit px-6 py-4 text-sm border-r border-gray-200">
-                        <div className="font-medium text-gray-900">{member.name}</div>
-                        <div className="text-xs text-gray-500 mt-0.5">{member.role}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                            {member.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium text-gray-900 truncate block">{member.name}</span>
+                            <span className="text-xs text-gray-500">{member.role}</span>
+                          </div>
+                        </div>
                       </td>
                       {categorySkills.map((skill) => {
                         const assessment = getAssessment(member.id, skill.id);
-                        const level = assessment?.current_level ?? 0;
-                        const colorClass = LEVEL_COLORS[level as keyof typeof LEVEL_COLORS];
+                        const score = assessment?.current_level ?? 0;
+                        const colorClass = LEVEL_COLORS[score as keyof typeof LEVEL_COLORS];
 
                         return (
-                          <td 
-                            key={skill.id} 
-                            className="px-4 py-4 text-center border-r border-gray-200"
+                          <td
+                            key={skill.id}
+                            className="relative group px-4 py-4 text-center border-r border-gray-200"
+                            title={`${skill.name}: ${score}/5`}
                           >
                             <div
-                              className={`inline-flex items-center justify-center w-12 h-12 rounded-lg font-bold text-base ${colorClass}`}
-                              title={`${member.name} - ${skill.name}: Level ${level || 'Not Assessed'}`}
+                              className={`w-full min-h-[3rem] flex items-center justify-center text-sm font-medium rounded transition-all ${colorClass} group-hover:ring-2 group-hover:ring-brand-blue/30`}
                             >
-                              {level || '-'}
+                              {score || '-'}
+                            </div>
+                            <div className="absolute z-10 hidden group-hover:block bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg whitespace-nowrap pointer-events-none">
+                              <p className="font-semibold">{skill.name}</p>
+                              <p className="text-gray-300">Score: {score}/5</p>
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-gray-900" />
                             </div>
                           </td>
                         );
