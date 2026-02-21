@@ -116,7 +116,7 @@ export function Navigation({ mobile, onMobileClose }: SidebarProps) {
       )}
 
       {/* Scrollable nav sections */}
-      <nav className={`flex-1 overflow-y-auto py-4 px-3 space-y-6 ${mobile ? 'max-h-[70vh]' : ''}`}>
+      <nav className={`flex-1 overflow-y-auto sidebar-scroll py-4 px-3 space-y-6 ${mobile ? 'max-h-[70vh]' : ''}`}>
         {sections.map((section) => (
           <div key={section.title}>
             {!collapsed && !mobile && (
