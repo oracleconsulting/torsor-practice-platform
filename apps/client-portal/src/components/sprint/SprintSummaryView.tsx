@@ -121,7 +121,7 @@ export function SprintSummaryView({
                 </div>
                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
                   <div
-                    className="h-full bg-indigo-500 rounded-full"
+                    className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-teal transition-all duration-700 ease-out"
                     style={{ width: `${phase.completionRate ?? 0}%` }}
                   />
                 </div>

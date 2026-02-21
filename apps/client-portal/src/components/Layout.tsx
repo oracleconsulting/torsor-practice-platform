@@ -63,18 +63,18 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
     <div className="min-h-screen bg-slate-50">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex flex-col flex-grow bg-white border-r border-slate-200">
+        <div className="flex flex-col flex-grow bg-[#1a2332]">
           {/* Logo */}
-          <div className="flex items-center h-16 px-6 border-b border-slate-200">
-            <Logo className="h-8" />
+          <div className="flex items-center h-16 px-6 border-b border-[#243044]">
+            <Logo className="h-8" variant="dark" />
           </div>
 
           {/* Client Info */}
-          <div className="px-4 py-4 border-b border-slate-200">
-            <p className="text-sm font-medium text-slate-900 truncate">
+          <div className="px-4 py-4 border-b border-[#243044]">
+            <p className="text-sm font-medium text-white truncate">
               {clientSession?.name}
             </p>
-            <p className="text-xs text-slate-500 truncate">
+            <p className="text-xs text-slate-400 truncate">
               {clientSession?.company}
             </p>
           </div>
@@ -82,8 +82,7 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
           {/* Navigation */}
           <nav className="flex-1 px-3 py-4 space-y-1">
             {navigation.map((item) => {
-              // Special case for assessments - match both /assessments and /assessment/*
-              const isActive = item.href === '/assessments' 
+              const isActive = item.href === '/assessments'
                 ? location.pathname.startsWith('/assessment')
                 : location.pathname.startsWith(item.href);
               return (
@@ -92,8 +91,8 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
                   to={item.href}
                   className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                     isActive
-                      ? 'bg-indigo-50 text-indigo-600'
-                      : 'text-slate-600 hover:bg-slate-100'
+                      ? 'bg-[#4a90d9]/15 text-[#6bb3f0]'
+                      : 'text-slate-400 hover:bg-[#243044] hover:text-slate-200'
                   }`}
                 >
                   <item.icon className="w-5 h-5" />
@@ -104,10 +103,10 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
           </nav>
 
           {/* Sign Out */}
-          <div className="p-4 border-t border-slate-200">
+          <div className="p-4 border-t border-[#243044]">
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-slate-400 hover:bg-[#243044] hover:text-slate-200 rounded-lg transition-colors"
             >
               <LogOut className="w-5 h-5" />
               Sign Out
@@ -169,7 +168,7 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
         {(title || subtitle) && (
           <header className="bg-white border-b border-slate-200 px-4 lg:px-8 py-6">
             {title && (
-              <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+              <h1 className="text-xl font-semibold text-slate-900 font-display">{title}</h1>
             )}
             {subtitle && (
               <p className="text-slate-600 mt-1">{subtitle}</p>

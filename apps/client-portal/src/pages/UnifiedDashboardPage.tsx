@@ -27,6 +27,7 @@ import {
   BarChart3,
   Users,
 } from 'lucide-react';
+import { PageSkeleton, StatusBadge } from '@/components/ui';
 
 interface ServiceEnrollment {
   id: string;
@@ -1141,13 +1142,8 @@ export default function UnifiedDashboardPage() {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your dashboard...</p>
-          </div>
-        </div>
+      <Layout title="Dashboard">
+        <PageSkeleton />
       </Layout>
     );
   }
@@ -1198,7 +1194,7 @@ export default function UnifiedDashboardPage() {
             return (
               <div
                 key={service.id}
-                className={`bg-white rounded-xl border ${colors.border} overflow-hidden hover:shadow-lg transition-shadow`}
+                className={`bg-white rounded-xl border ${colors.border} overflow-hidden transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer`}
               >
                 {/* Card Header */}
                 <div className={`${colors.bg} px-6 py-4 border-b ${colors.border}`}>
@@ -1207,12 +1203,9 @@ export default function UnifiedDashboardPage() {
                       <div className={`p-2 bg-white rounded-lg shadow-sm`}>
                         <Icon className={`w-5 h-5 ${colors.text}`} />
                       </div>
-                      <h3 className="font-semibold text-gray-900">{service.serviceName}</h3>
+                      <h3 className="font-semibold text-gray-900 font-display">{service.serviceName}</h3>
                     </div>
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeClasses(status.color)}`}>
-                      <StatusIcon className="w-3.5 h-3.5" />
-                      {status.label}
-                    </span>
+                    <StatusBadge status={service.status} label={status.label} />
                   </div>
                 </div>
 
@@ -1241,7 +1234,7 @@ export default function UnifiedDashboardPage() {
                             </div>
                             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-indigo-500 rounded-full transition-all"
+                                className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-teal transition-all duration-700 ease-out"
                                 style={{ width: `${gaSprintData.completionRate}%` }}
                               />
                             </div>
@@ -1303,7 +1296,7 @@ export default function UnifiedDashboardPage() {
                           </div>
                           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-indigo-500 rounded-full transition-all"
+                              className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-teal transition-all duration-700 ease-out"
                               style={{ width: `${assessmentProgress.overall}%` }}
                             />
                           </div>

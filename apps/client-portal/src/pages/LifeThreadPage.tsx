@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLifeAlignment, type LifePulseEntry, type LifeAlignmentScoreRow } from '@/hooks/useLifeAlignment';
 import { Heart, TrendingUp, TrendingDown, Minus, Loader2 } from 'lucide-react';
+import { PageSkeleton } from '@/components/ui';
 
 const CATEGORY_DISPLAY: Record<string, string> = {
   life_time: 'Time',
@@ -127,10 +128,8 @@ export default function LifeThreadPage() {
 
   if (!clientId) {
     return (
-      <Layout title="Life Thread" subtitle="Life alignment over time">
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-rose-500" />
-        </div>
+      <Layout title="Life Thread">
+        <PageSkeleton />
       </Layout>
     );
   }
