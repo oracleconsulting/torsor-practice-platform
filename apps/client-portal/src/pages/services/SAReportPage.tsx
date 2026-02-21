@@ -286,12 +286,6 @@ export default function SAReportPage() {
   const [expandedQW, setExpandedQW] = useState<number | null>(null);
   const [mondayExpanded, setMondayExpanded] = useState(false);
   const [expandedFreedom, setExpandedFreedom] = useState<number | null>(null);
-  const [execSummaryExpanded, setExecSummaryExpanded] = useState(false);
-  const [systemsExpanded, setSystemsExpanded] = useState(false);
-  const [chaosExpanded, setChaosExpanded] = useState(false);
-  const [expandedQW, setExpandedQW] = useState<number | null>(null);
-  const [mondayExpanded, setMondayExpanded] = useState(false);
-  const [expandedFreedom, setExpandedFreedom] = useState<number | null>(null);
 
   // Section refs
   const sectionRefs: Record<string, React.RefObject<HTMLDivElement | null>> = {
@@ -408,43 +402,6 @@ export default function SAReportPage() {
     setActiveSection(section);
     sectionRefs[section]?.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-
-  // Track scroll position for nav active state and progress bar
-  const [scrollProgress, setScrollProgress] = useState(0);
-  useEffect(() => {
-    const sectionIds = navItems.map((item) => item.id);
-    const observers: IntersectionObserver[] = [];
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.3) {
-            const id = entry.target.getAttribute('data-section-id');
-            if (id) setActiveSection(id);
-            break;
-          }
-        }
-      },
-      { threshold: 0.3, rootMargin: '-80px 0px -50% 0px' }
-    );
-    sectionIds.forEach((id) => {
-      const el = sectionRefs[id]?.current;
-      if (el) {
-        el.setAttribute('data-section-id', id);
-        observer.observe(el);
-      }
-    });
-    const onScroll = () => {
-      const winScroll = document.documentElement.scrollTop;
-      const height = document.documentElement.scrollHeight - window.innerHeight;
-      setScrollProgress(height > 0 ? Math.min(1, winScroll / height) : 0);
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => {
-      observer.disconnect();
-      window.removeEventListener('scroll', onScroll);
-    };
-  }, [report]);
 
   if (loading) {
     return (
