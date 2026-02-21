@@ -51,6 +51,12 @@ const MAP_LABELS = ['Today', 'Native Fixes', 'Connected', 'Optimal'];
 
 const getCategoryColor = (cat: string) => CATEGORY_COLORS[cat] || '#64748b';
 
+/** Coerce to number for SVG attributes; avoids NaN/undefined. */
+const num = (v: unknown, fallback: number): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
 // ─── AnimatedNumber ──────────────────────────────────────────────────────────
 
 function AnimatedNumber({ value, prefix = '', suffix = '', duration = 800 }: {
@@ -108,10 +114,12 @@ function SystemNode({ id, name, category, cost, x, y, status, replaces, isActive
 }) {
   const color = getCategoryColor(category);
   const r = 32;
+  const x_ = num(x, 0);
+  const y_ = num(y, 0);
 
   return (
     <g
-      transform={`translate(${x}, ${y})`}
+      transform={`translate(${x_}, ${y_})`}
       onClick={() => onClick(id)}
       style={{ cursor: 'pointer', transition: 'all 0.6s cubic-bezier(0.22, 1, 0.36, 1)' }}
     >
@@ -176,24 +184,28 @@ function IntegrationEdge({ x1, y1, x2, y2, status, label, changed, middleware, p
   x1: number; y1: number; x2: number; y2: number;
   status: string; label?: string; changed?: boolean; middleware?: boolean; person?: string;
 }) {
+  const x1_ = num(x1, 0);
+  const y1_ = num(y1, 0);
+  const x2_ = num(x2, 0);
+  const y2_ = num(y2, 0);
   const color = STATUS_COLORS[status] || '#475569';
   const isDashed = status === 'red' || status === 'amber';
   const showParticles = status === 'green' || status === 'blue';
-  const midX = (x1 + x2) / 2;
-  const midY = (y1 + y2) / 2;
+  const midX = (x1_ + x2_) / 2;
+  const midY = (y1_ + y2_) / 2;
 
   // Offset to avoid overlapping node circles
-  const dx = x2 - x1;
-  const dy = y2 - y1;
+  const dx = x2_ - x1_;
+  const dy = y2_ - y1_;
   const len = Math.sqrt(dx * dx + dy * dy);
   if (len === 0) return null;
   const nx = dx / len;
   const ny = dy / len;
   const offset = 36;
-  const sx = x1 + nx * offset;
-  const sy = y1 + ny * offset;
-  const ex = x2 - nx * offset;
-  const ey = y2 - ny * offset;
+  const sx = x1_ + nx * offset;
+  const sy = y1_ + ny * offset;
+  const ex = x2_ - nx * offset;
+  const ey = y2_ - ny * offset;
 
   const labelLen = label?.length || 0;
 
@@ -271,8 +283,10 @@ function IntegrationEdge({ x1, y1, x2, y2, status, label, changed, middleware, p
 function MiddlewareHub({ name, x, y, cost }: {
   name: string; x: number; y: number; cost: number;
 }) {
+  const x_ = num(x, 400);
+  const y_ = num(y, 340);
   return (
-    <g transform={`translate(${x}, ${y})`}>
+    <g transform={`translate(${x_}, ${y_})`}>
       <circle r="22" fill="#facc1510" stroke="#facc15" strokeWidth="1" strokeDasharray="3,3">
         <animate attributeName="r" values="18;24;18" dur="4s" repeatCount="indefinite" />
       </circle>
@@ -558,8 +572,8 @@ export default function SystemsMapSection({ systemsMaps, facts }: {
             return (
               <IntegrationEdge
                 key={`${edge.from}-${edge.to}-${activeMap}`}
-                x1={from.x} y1={from.y}
-                x2={to.x} y2={to.y}
+                x1={num(from.x, 0)} y1={num(from.y, 0)}
+                x2={num(to.x, 0)} y2={num(to.y, 0)}
                 status={edge.status}
                 label={edge.label}
                 changed={edge.changed}
@@ -577,8 +591,8 @@ export default function SystemsMapSection({ systemsMaps, facts }: {
               name={sys.name}
               category={sys.category}
               cost={sys.cost || 0}
-              x={sys.x}
-              y={sys.y}
+              x={num(sys.x, 0)}
+              y={num(sys.y, 0)}
               status={sys.status}
               replaces={sys.replaces}
               isActive={hoveredNode === id}
