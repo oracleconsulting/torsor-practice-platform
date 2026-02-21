@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
-import { useTeamAnalytics } from '../../hooks/useTeamAnalytics';
+import { useTeamAnalytics, type TeamMemberAnalytics } from '../../hooks/useTeamAnalytics';
 import { AdminLayout } from '../../components/AdminLayout';
 import { PageSkeleton, StatCard } from '../../components/ui';
 import { Brain, TrendingUp, AlertTriangle, Award, Users, Target, ChevronDown, BarChart3, Rocket } from 'lucide-react';
@@ -36,7 +36,7 @@ export function TeamAnalyticsPage() {
     analytics?.flatMap(a => a.serviceCapability?.services.filter(s => s.canDeliver).map(s => s.serviceId) ?? []) ?? []
   ).size;
 
-  const hasPsychometric = (m: (typeof analytics)[0]) =>
+  const hasPsychometric = (m: TeamMemberAnalytics) =>
     m.personalityPerformance ?? m.learningEffectiveness ?? m.eqConflictSynergy ?? m.belbinMotivation;
 
   return (
@@ -151,7 +151,7 @@ export function TeamAnalyticsPage() {
   );
 }
 
-function SkillProfileTab({ m }: { m: import('../../hooks/useTeamAnalytics').TeamMemberAnalytics }) {
+function SkillProfileTab({ m }: { m: TeamMemberAnalytics }) {
   const profile = m.skillProfile;
   if (!profile) {
     return <p className="text-sm text-gray-500">No skill assessment data yet.</p>;
@@ -197,7 +197,7 @@ function SkillProfileTab({ m }: { m: import('../../hooks/useTeamAnalytics').Team
         <div>
           <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Top 5 skills</h5>
           <div className="flex flex-wrap gap-2">
-            {profile.topSkills.map((s, i) => (
+            {profile.topSkills.map((s) => (
               <span
                 key={s.name}
                 className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded text-xs"
@@ -224,7 +224,7 @@ function SkillProfileTab({ m }: { m: import('../../hooks/useTeamAnalytics').Team
   );
 }
 
-function ServiceFitTab({ m }: { m: import('../../hooks/useTeamAnalytics').TeamMemberAnalytics }) {
+function ServiceFitTab({ m }: { m: TeamMemberAnalytics }) {
   const cap = m.serviceCapability;
   if (!cap) {
     return <p className="text-sm text-gray-500">No service capability data yet.</p>;
@@ -274,7 +274,7 @@ function ServiceFitTab({ m }: { m: import('../../hooks/useTeamAnalytics').TeamMe
 function InsightsTab({
   m,
   hasPsychometric
-}: { m: import('../../hooks/useTeamAnalytics').TeamMemberAnalytics; hasPsychometric: boolean }) {
+}: { m: TeamMemberAnalytics; hasPsychometric: boolean }) {
   if (!hasPsychometric) {
     return (
       <p className="text-sm text-gray-500">No psychometric assessment data available. Skill and service data are in the other tabs.</p>

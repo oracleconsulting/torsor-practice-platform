@@ -78,12 +78,17 @@ async function callSonnet(
   prompt: string,
   maxTokens: number,
   phase: number,
-  openRouterKey: string
+  openRouterKey: string,
+  retries: number = 1
 ): Promise<{ data: any; tokensUsed: number; cost: number; generationTime: number }> {
-  const startTime = Date.now();
-  console.log(`[SA Pass 1] Phase ${phase}: Calling Sonnet (streaming, max_tokens=${maxTokens})...`);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const startTime = Date.now();
+    if (attempt > 0) {
+      console.warn(`[SA Pass 1] Phase ${phase}: Retry attempt ${attempt}/${retries}...`);
+    }
+    console.log(`[SA Pass 1] Phase ${phase}: Calling Sonnet (streaming, max_tokens=${maxTokens})...`);
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${openRouterKey}`,
@@ -171,6 +176,22 @@ async function callSonnet(
     let repaired = cleanContent;
     repaired = repaired.replace(/,\s*"[^"]*"?\s*:\s*("[^"]*)?$/, '');
     repaired = repaired.replace(/,\s*"[^"]*"?\s*:\s*\[?\s*(\{[^}]*)?$/, '');
+    // Handle unterminated strings (LLM cut mid-string)
+    let inStr = false, escChar = false;
+    for (let ci = 0; ci < repaired.length; ci++) {
+      if (escChar) { escChar = false; continue; }
+      if (repaired[ci] === '\\') { escChar = true; continue; }
+      if (repaired[ci] === '"') inStr = !inStr;
+    }
+    if (inStr) {
+      const lastQuote = repaired.lastIndexOf('"');
+      let cutAt = lastQuote;
+      while (cutAt > 0 && repaired[cutAt] !== ',') cutAt--;
+      if (cutAt > 0) {
+        repaired = repaired.substring(0, cutAt);
+        console.log(`[SA Pass 1] Phase ${phase}: Truncated unterminated string at pos ${lastQuote}, cut to ${cutAt}`);
+      }
+    }
     let openBraces = 0, openBrackets = 0, inString = false, escape = false;
     for (let i = 0; i < repaired.length; i++) {
       if (escape) { escape = false; continue; }
@@ -189,15 +210,24 @@ async function callSonnet(
     try {
       data = JSON.parse(repaired);
       console.log(`[SA Pass 1] Phase ${phase}: Repaired JSON parsed successfully`);
+      const cost = (tokensUsed / 1000000) * 3;
+      return { data, tokensUsed, cost, generationTime: elapsed };
     } catch (repairErr) {
-      console.error(`[SA Pass 1] Phase ${phase}: JSON repair failed. First 500 chars: ${cleanContent.substring(0, 500)}`);
+      if (attempt < retries) {
+        console.warn(`[SA Pass 1] Phase ${phase}: Repair failed, will retry (attempt ${attempt + 1}/${retries})`);
+        continue;
+      }
+      console.error(`[SA Pass 1] Phase ${phase}: JSON repair failed after ${retries + 1} attempts`);
+      console.error(`[SA Pass 1] Phase ${phase}: First 500 chars: ${cleanContent.substring(0, 500)}`);
       console.error(`[SA Pass 1] Phase ${phase}: Last 500 chars: ${cleanContent.substring(cleanContent.length - 500)}`);
-      throw new Error(`Phase ${phase} JSON parse failed: ${(parseErr as Error).message}`);
+      throw new Error(`Phase ${phase} JSON parse failed after ${retries + 1} attempts: ${(parseErr as Error).message}`);
     }
   }
 
   const cost = (tokensUsed / 1000000) * 3;
   return { data, tokensUsed, cost, generationTime: elapsed };
+  }
+  throw new Error(`Phase ${phase}: exhausted retries`);
 }
 
 // ---------- Phase 4b: Systems map deterministic builder + optional Map 4 AI ----------
@@ -691,19 +721,7 @@ function buildSystemsMaps(
         });
       }
     });
-    if (aiMap4.consolidations) {
-      aiMap4.consolidations.forEach((c: any) => {
-        const existingChange = map4Changes.find(ch => ch.system.toLowerCase() === (c.newTool || '').toLowerCase());
-        if (!existingChange) {
-          map4Changes.push({
-            system: c.newTool,
-            action: 'added',
-            description: `Consolidates ${(c.replaces || []).join(', ')} into one tool.`,
-            impact: c.hoursSavedByConsolidation ? `Saves ${c.hoursSavedByConsolidation}h/wk from reduced context-switching` : undefined,
-          });
-        }
-      });
-    }
+    // Nodes are the authoritative source for changes; consolidations are redundant (same replacements).
     map4.changes = map4Changes;
     maps.push(map4);
   } else if (pass1DataFallback?.systemsMaps) {
@@ -1197,21 +1215,46 @@ async function runPhase1(
   const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 1, openRouterKey);
 
   console.log('[SA Pass 1] Phase 1: Writing to DB...');
-  await supabaseClient.from('sa_audit_reports').upsert(
-    {
-      engagement_id: engagementId,
-      status: 'generating',
-      executive_summary: 'Phase 1/6: Extracting facts and analysing systems...',
-      pass1_data: { phase1: data },
-      systems_count: (data.facts?.systems || []).length,
-      llm_model: 'claude-sonnet-4.5',
-      llm_tokens_used: tokensUsed,
-      llm_cost: cost,
-      generation_time_ms: generationTime,
-      prompt_version: 'v7-5phase',
-    },
-    { onConflict: 'engagement_id' }
-  );
+
+  const { data: existingReport } = await supabaseClient
+    .from('sa_audit_reports')
+    .select('pass1_data, status')
+    .eq('engagement_id', engagementId)
+    .maybeSingle();
+
+  const isRegenerating = existingReport?.pass1_data?.facts && existingReport?.pass1_data?.findings;
+
+  if (isRegenerating && existingReport?.pass1_data && typeof existingReport.pass1_data === 'object') {
+    console.log('[SA Pass 1] Phase 1: Regenerating — preserving existing top-level assembly');
+    await supabaseClient.from('sa_audit_reports')
+      .update({
+        status: 'regenerating',
+        pass1_data: { ...existingReport.pass1_data, phase1: data },
+        systems_count: (data.facts?.systems || []).length,
+        llm_model: 'claude-sonnet-4.5',
+        llm_tokens_used: tokensUsed,
+        llm_cost: cost,
+        generation_time_ms: generationTime,
+        prompt_version: 'v7-5phase',
+      })
+      .eq('engagement_id', engagementId);
+  } else {
+    await supabaseClient.from('sa_audit_reports').upsert(
+      {
+        engagement_id: engagementId,
+        status: 'generating',
+        executive_summary: 'Phase 1/8: Extracting facts and analysing systems...',
+        pass1_data: { phase1: data },
+        systems_count: (data.facts?.systems || []).length,
+        llm_model: 'claude-sonnet-4.5',
+        llm_tokens_used: tokensUsed,
+        llm_cost: cost,
+        generation_time_ms: generationTime,
+        prompt_version: 'v7-5phase',
+      },
+      { onConflict: 'engagement_id' }
+    );
+  }
   console.log('[SA Pass 1] Phase 1: DB write complete');
 
   return { success: true, phase: 1 };
@@ -2133,12 +2176,18 @@ async function runPhase8Presentation(
   const phase7 = reportRow.pass1_data.phase7;
   const clientName = phase1.facts.companyName || 'the business';
 
-  const prompt = buildPhase8ClientPresentationPrompt(phase1, phase2, phase3, phase5Recs, clientName);
-  let phase8Result = await callSonnet(prompt, 12000, 8, openRouterKey);
-  let { data: phase8, tokensUsed, cost, generationTime } = phase8Result;
-  if (!phase8) {
-    console.error('[SA Pass 1] Phase 8: Response did not parse');
-    phase8 = { clientPresentation: null };
+  let phase8: any = { clientPresentation: null };
+  let tokensUsed = 0, cost = 0, generationTime = 0;
+  try {
+    const prompt = buildPhase8ClientPresentationPrompt(phase1, phase2, phase3, phase5Recs, clientName);
+    const phase8Result = await callSonnet(prompt, 8000, 8, openRouterKey, 0);
+    phase8 = phase8Result.data || { clientPresentation: null };
+    tokensUsed = phase8Result.tokensUsed;
+    cost = phase8Result.cost;
+    generationTime = phase8Result.generationTime;
+  } catch (aiErr: any) {
+    console.warn(`[SA Pass 1] Phase 8: AI call failed (non-blocking): ${aiErr?.message ?? aiErr}`);
+    console.warn('[SA Pass 1] Phase 8: Continuing with deterministic assembly — clientPresentation will be null');
   }
 
   const allQuotes = [
@@ -2376,28 +2425,25 @@ serve(async (req) => {
 
     switch (phase) {
       case 1: {
-        const { data: existingReport } = await supabaseClient
+        const { data: existingRow } = await supabaseClient
           .from('sa_audit_reports')
           .select('status')
           .eq('engagement_id', engagementId)
           .maybeSingle();
 
-        if (!existingReport) {
-          await supabaseClient.from('sa_audit_reports').insert({
-            engagement_id: engagementId,
-            status: 'generating',
-            executive_summary: 'Phase 1/8: Extracting facts...',
-          });
-        } else {
-          const isComplete = ['generated', 'approved', 'published', 'delivered'].includes(existingReport.status);
-          const updatePayload: Record<string, unknown> = { status: 'regenerating' };
-          if (!isComplete) {
-            updatePayload.executive_summary = 'Phase 1/8: Extracting facts...';
-          }
+        const isRegen = existingRow && ['generated', 'regenerating', 'approved', 'published', 'delivered'].includes(existingRow.status);
+
+        if (!existingRow) {
+          await supabaseClient.from('sa_audit_reports').upsert(
+            { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/8: Extracting facts...' },
+            { onConflict: 'engagement_id' }
+          );
+        } else if (!isRegen) {
           await supabaseClient.from('sa_audit_reports')
-            .update(updatePayload)
+            .update({ status: 'generating', executive_summary: 'Phase 1/8: Extracting facts...' })
             .eq('engagement_id', engagementId);
         }
+        // If regenerating, runPhase1() handles status and preserves executive_summary / pass1_data assembly
 
         const [discoveryRes, systemsRes] = await Promise.all([
           supabaseClient.from('sa_discovery_responses').select('*').eq('engagement_id', engagementId).single(),
