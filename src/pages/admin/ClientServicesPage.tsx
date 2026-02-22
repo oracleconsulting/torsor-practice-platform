@@ -12446,6 +12446,8 @@ function SystemsAuditClientModal({
   const [serviceLineAssessmentResponses, setServiceLineAssessmentResponses] = useState<Record<string, unknown> | null>(null);
   const [stage2Inventory, setStage2Inventory] = useState<any[]>([]);
   const [stage3DeepDives, setStage3DeepDives] = useState<any[]>([]);
+  const [saCustomChains, setSaCustomChains] = useState<any[]>([]);
+  const [suggestChainsLoading, setSuggestChainsLoading] = useState(false);
   const [report, setReport] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
   const [saReportPollingAfterError, setSaReportPollingAfterError] = useState(false);
@@ -13902,7 +13904,7 @@ function SystemsAuditClientModal({
                                       onClick={async () => {
                                         const { error } = await supabase.from('sa_process_chains').update({ chain_status: 'active' }).eq('id', chain.id);
                                         if (error) alert(error.message);
-                                        else setSaCustomChains((prev) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'active' } : c));
+                                        else setSaCustomChains((prev: any[]) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'active' } : c));
                                       }}
                                       className="px-3 py-1 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700"
                                     >
@@ -13913,7 +13915,7 @@ function SystemsAuditClientModal({
                                       onClick={async () => {
                                         const { error } = await supabase.from('sa_process_chains').update({ chain_status: 'rejected' }).eq('id', chain.id);
                                         if (error) alert(error.message);
-                                        else setSaCustomChains((prev) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'rejected' } : c));
+                                        else setSaCustomChains((prev: any[]) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'rejected' } : c));
                                       }}
                                       className="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
                                     >
