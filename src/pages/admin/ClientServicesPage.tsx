@@ -12647,6 +12647,13 @@ function SystemsAuditClientModal({
           setStage3DeepDives(stage3Data || []);
         }
 
+        // Fetch engagement-specific process chains (for custom/suggested chains management)
+        const { data: customChainsData } = await supabase
+          .from('sa_process_chains')
+          .select('*')
+          .eq('engagement_id', engagementData.id);
+        setSaCustomChains(customChainsData || []);
+
         // Fetch report
         const { data: reportData, error: reportError } = await supabase
           .from('sa_audit_reports')
@@ -12850,77 +12857,65 @@ function SystemsAuditClientModal({
         });
       };
 
-      // ── Phase 1: Extract core facts ──
-      console.log('[SA Report] Starting Phase 1/8: Extracting facts...', { engagementId: engagement.id });
+      // ── Fire once: edge function creates job, Railway worker runs all 8 phases ──
+      console.log('[SA Report] Starting report generation...', { engagementId: engagement.id });
       firePhase(1);
+
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase1;
-      }, 'Phase 1');
+      }, 'Phase 1', 120, 5000);
       console.log('[SA Report] Phase 1 complete');
 
-      // ── Phase 2: Analyse processes ──
-      console.log('[SA Report] Starting Phase 2/8: Analysing processes...');
-      firePhase(2);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase2;
-      }, 'Phase 2');
+      }, 'Phase 2', 120, 5000);
       console.log('[SA Report] Phase 2 complete');
 
-      // ── Phase 3: Critical + High findings ──
-      console.log('[SA Report] Starting Phase 3/8: Identifying critical findings...');
-      firePhase(3);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase3;
-      }, 'Phase 3');
+      }, 'Phase 3', 60, 5000);
       console.log('[SA Report] Phase 3 complete');
 
-      // ── Phase 4: Medium/Low findings + Quick wins ──
-      console.log('[SA Report] Starting Phase 4/8: Completing findings and quick wins...');
-      firePhase(4);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase4;
-      }, 'Phase 4');
+      }, 'Phase 4', 60, 5000);
       console.log('[SA Report] Phase 4 complete');
 
-      // ── Phase 5: Recommendations ──
-      console.log('[SA Report] Starting Phase 5/8: Building recommendations...');
-      firePhase(5);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase5;
-      }, 'Phase 5');
+      }, 'Phase 5', 60, 5000);
       console.log('[SA Report] Phase 5 complete');
 
-      // ── Phase 6: Systems maps (optimal stack only; maps 1-3 built in Phase 8) ──
-      console.log('[SA Report] Starting Phase 6/8: Generating technology roadmap...');
-      firePhase(6);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase6;
-      }, 'Phase 6', 120); // 120 × 5s = 600s — safety margin for AI generation
+      }, 'Phase 6', 60, 5000);
       console.log('[SA Report] Phase 6 complete');
 
-      // ── Phase 7: Admin guidance ──
-      console.log('[SA Report] Starting Phase 7/8: Preparing practice team guidance...');
-      firePhase(7);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase7;
-      }, 'Phase 7');
+      }, 'Phase 7', 60, 5000);
       console.log('[SA Report] Phase 7 complete');
 
-      // ── Phase 8: Client presentation + assembly ──
-      console.log('[SA Report] Starting Phase 8/8: Finalising report...');
-      firePhase(8);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
-        return data?.status === 'pass1_complete';
-      }, 'Phase 8');
-      console.log('[SA Report] All 8 phases complete. Starting narrative generation (Pass 2)...');
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
+        return data?.status === 'pass1_complete' || data?.status === 'generated';
+      }, 'Phase 8 (assembly)', 60, 5000);
+      console.log('[SA Report] Pass 1 complete. Starting narrative generation (Pass 2)...');
 
       // ── Pass 2: Narrative generation (Opus) ──
       const { data: reportRow } = await supabase
@@ -13849,6 +13844,90 @@ function SystemsAuditClientModal({
                       )}
                     </div>
                   </div>
+
+                  {/* Process chains (custom / suggested) — after Stage 1 */}
+                  {(engagement?.stage_1_completed_at || stage1Responses?.length > 0) && (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <div className="bg-purple-50 px-6 py-4 border-b border-gray-200">
+                        <h3 className="font-semibold text-gray-900">Process Chains</h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {engagement?.chain_suggestions_generated_at
+                            ? `Suggested at ${new Date(engagement.chain_suggestions_generated_at).toLocaleString()}`
+                            : 'AI can suggest industry-specific chains from Stage 1.'}
+                        </p>
+                      </div>
+                      <div className="p-6">
+                        {!engagement?.chain_suggestions_generated_at ? (
+                          <button
+                            type="button"
+                            disabled={suggestChainsLoading}
+                            onClick={async () => {
+                              if (!engagement?.id) return;
+                              setSuggestChainsLoading(true);
+                              try {
+                                const { data, error } = await supabase.functions.invoke('suggest-sa-process-chains', {
+                                  body: { engagementId: engagement.id },
+                                });
+                                if (error) throw new Error(error.message || 'Suggest chains failed');
+                                const count = (data?.suggestedChains ?? 0);
+                                alert(count > 0 ? `${count} chain(s) suggested. Accept or reject below.` : 'No industry-specific chains suggested.');
+                                const { data: eng } = await supabase.from('sa_engagements').select('suggested_chains, chain_suggestions_generated_at').eq('id', engagement.id).single();
+                                if (eng) setEngagement((prev: any) => ({ ...prev, ...eng }));
+                                const { data: chains } = await supabase.from('sa_process_chains').select('*').eq('engagement_id', engagement.id);
+                                setSaCustomChains(chains || []);
+                              } catch (e: any) {
+                                alert(e?.message || 'Failed to suggest chains');
+                              } finally {
+                                setSuggestChainsLoading(false);
+                              }
+                            }}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium"
+                          >
+                            {suggestChainsLoading ? 'Suggesting…' : 'Suggest chains'}
+                          </button>
+                        ) : (
+                          <div className="space-y-3">
+                            {saCustomChains.filter((c: any) => c.chain_status === 'suggested').length === 0 ? (
+                              <p className="text-gray-500 text-sm">No suggested chains pending, or all have been accepted/rejected.</p>
+                            ) : (
+                              saCustomChains.filter((c: any) => c.chain_status === 'suggested').map((chain: any) => (
+                                <div key={chain.id} className="flex items-center justify-between gap-4 py-2 px-4 bg-gray-50 rounded-lg border border-gray-200">
+                                  <div>
+                                    <p className="font-medium text-gray-900">{chain.chain_name}</p>
+                                    <p className="text-xs text-gray-600">{chain.description}</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const { error } = await supabase.from('sa_process_chains').update({ chain_status: 'active' }).eq('id', chain.id);
+                                        if (error) alert(error.message);
+                                        else setSaCustomChains((prev) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'active' } : c));
+                                      }}
+                                      className="px-3 py-1 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const { error } = await supabase.from('sa_process_chains').update({ chain_status: 'rejected' }).eq('id', chain.id);
+                                        if (error) alert(error.message);
+                                        else setSaCustomChains((prev) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'rejected' } : c));
+                                      }}
+                                      className="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Stage 3 */}
                   <div className="border border-gray-200 rounded-xl overflow-hidden">

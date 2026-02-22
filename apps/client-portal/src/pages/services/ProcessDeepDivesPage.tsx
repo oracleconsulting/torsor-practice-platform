@@ -26,6 +26,9 @@ interface ProcessChain {
   description: string;
   estimated_duration_mins: number;
   display_order: number;
+  question_config?: ProcessChainConfig | null;
+  chain_status?: string;
+  engagement_id?: string | null;
 }
 
 function DeepDiveContextField({
@@ -159,10 +162,11 @@ export default function ProcessDeepDivesPage() {
         }
       }
 
-      // Fetch process chains from database
+      // Fetch process chains: core (global) + engagement-specific active custom chains
       const { data: chains, error: chainsError } = await supabase
         .from('sa_process_chains')
         .select('*')
+        .or(`is_core.eq.true,and(engagement_id.eq.${engagement.id},chain_status.eq.active)`)
         .order('display_order', { ascending: true });
 
       if (chainsError) {
@@ -219,7 +223,8 @@ export default function ProcessDeepDivesPage() {
 
     setSaving(true);
     try {
-      const config = processChainConfigs[selectedChain];
+      const chain = processChains.find(c => c.chain_code === selectedChain);
+      const config = chain?.question_config ?? processChainConfigs[selectedChain];
       if (!config) {
         throw new Error('Process chain config not found');
       }
@@ -576,13 +581,15 @@ export default function ProcessDeepDivesPage() {
 
   // If a chain is selected, show the form
   if (selectedChain) {
-    const config = processChainConfigs[selectedChain];
+    const selectedChainObj = processChains.find(c => c.chain_code === selectedChain);
+    const config = selectedChainObj?.question_config ?? processChainConfigs[selectedChain];
     if (!config) {
       return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl border border-gray-200 p-8 text-center max-w-md">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-bold text-gray-900 mb-2">Process Chain Not Found</h2>
+            <p className="text-sm text-gray-500 mb-4">Configuration may be pending for this custom chain.</p>
             <button
               onClick={() => setSelectedChain(null)}
               className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
@@ -821,7 +828,7 @@ export default function ProcessDeepDivesPage() {
         {/* Process Chains Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {processChains.map((chain) => {
-            const config = processChainConfigs[chain.chain_code];
+            const config = chain.question_config ?? processChainConfigs[chain.chain_code];
             const deepDive = deepDives[chain.chain_code];
             const isCompleted = !!deepDive?.completed_at;
 
@@ -847,8 +854,10 @@ export default function ProcessDeepDivesPage() {
                         <Clock className="w-3 h-3" />
                         <span>~{chain.estimated_duration_mins} mins</span>
                       </div>
-                      {config && (
-                        <span>{config.sections.length} sections</span>
+                      {config ? (
+                        <span>{config.sections?.length ?? 0} sections</span>
+                      ) : (
+                        <span className="text-amber-600">Configuration pending</span>
                       )}
                     </div>
                   </div>

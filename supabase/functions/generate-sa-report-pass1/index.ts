@@ -1212,7 +1212,7 @@ async function runPhase1(
   preliminaryAnalysis?: { confidenceScores?: { area: string; confidence: string; reason: string }[] }
 ): Promise<{ success: boolean; phase: number }> {
   const prompt = buildPhase1Prompt(discovery, systems || [], clientName, hourlyRate, additionalContext, preliminaryAnalysis);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 1, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 1, openRouterKey);
 
   console.log('[SA Pass 1] Phase 1: Writing to DB...');
 
@@ -1288,7 +1288,7 @@ async function runPhase2Analyse(
 
   const clientName = phase1Facts.companyName || 'the business';
   const prompt = buildPhase2AnalysePrompt(phase1Facts, discoveryRes.data, deepDivesRes.data || [], clientName, hourlyRate);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 2, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 2, openRouterKey);
 
   const expectedAnnual = Math.round(data.hoursWastedWeekly * hourlyRate * 52);
   const expectedScale = Math.round(expectedAnnual * phase1Facts.growthMultiplier * 1.3);
@@ -1594,7 +1594,7 @@ async function runPhase4MediumLowQuickWins(
   const phase3 = report.pass1_data.phase3;
   const clientName = phase1.facts.companyName || 'the business';
   const prompt = buildPhase4MediumLowQuickWinsPrompt(phase1, phase2, phase3, clientName);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 4, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 4, openRouterKey);
 
   const existingPass1 = report.pass1_data as any;
   const combinedFindings = [...(existingPass1.phase3?.findings || []), ...(data.findings || [])];
@@ -1880,7 +1880,7 @@ async function runPhase5Recommendations(
   const clientName = phase1.facts.companyName || 'the business';
 
   const prompt = buildPhase4Prompt(phase1, phase2, phase3, clientName);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 5, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 5, openRouterKey);
 
   console.log('[SA Pass 1] Phase 5: Writing recommendations to DB...');
   await supabaseClient.from('sa_audit_reports').update({
@@ -2109,7 +2109,7 @@ async function runPhase7AdminGuidance(
   const phase5 = report.pass1_data.phase5;
   const clientName = phase1.facts.companyName || 'the business';
   const prompt = buildPhase7AdminGuidancePrompt(phase1, phase2, phase3, phase5, clientName);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 7, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 7, openRouterKey);
 
   const existingPass1 = report.pass1_data as any;
   await supabaseClient
@@ -2421,117 +2421,85 @@ serve(async (req) => {
 
     console.log(`[SA Pass 1] Phase ${phase} starting for: ${engagementId}`);
 
-    let result: { success: boolean; phase: number; reportId?: string };
+    let result: { success: boolean; phase: number; reportId?: string; jobId?: string };
 
-    switch (phase) {
-      case 1: {
-        const { data: existingRow } = await supabaseClient
-          .from('sa_audit_reports')
-          .select('status')
-          .eq('engagement_id', engagementId)
-          .maybeSingle();
+    // ─── Create report job for Railway worker ───────────────
+    if (phase === 1) {
+      const { data: existingReport } = await supabaseClient
+        .from('sa_audit_reports')
+        .select('status')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
 
-        const isRegen = existingRow && ['generated', 'regenerating', 'approved', 'published', 'delivered'].includes(existingRow.status);
-
-        if (!existingRow) {
-          await supabaseClient.from('sa_audit_reports').upsert(
-            { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/8: Extracting facts...' },
-            { onConflict: 'engagement_id' }
-          );
-        } else if (!isRegen) {
-          await supabaseClient.from('sa_audit_reports')
-            .update({ status: 'generating', executive_summary: 'Phase 1/8: Extracting facts...' })
-            .eq('engagement_id', engagementId);
-        }
-        // If regenerating, runPhase1() handles status and preserves executive_summary / pass1_data assembly
-
-        const [discoveryRes, systemsRes] = await Promise.all([
-          supabaseClient.from('sa_discovery_responses').select('*').eq('engagement_id', engagementId).single(),
-          supabaseClient.from('sa_system_inventory').select('*').eq('engagement_id', engagementId),
-        ]);
-        if (discoveryRes.error || !discoveryRes.data) {
-          throw new Error(`Discovery not found: ${discoveryRes.error?.message}`);
-        }
-        const additionalContext = Array.isArray(body.additionalContext) ? body.additionalContext : undefined;
-        const preliminaryAnalysis = body.preliminaryAnalysis && typeof body.preliminaryAnalysis === 'object' ? body.preliminaryAnalysis : undefined;
-        result = await runPhase1(
-          supabaseClient,
-          engagementId,
-          engagement,
-          discoveryRes.data,
-          systemsRes.data || [],
-          clientName,
-          hourlyRate,
-          openRouterKey,
-          additionalContext,
-          preliminaryAnalysis
+      if (!existingReport) {
+        await supabaseClient.from('sa_audit_reports').upsert(
+          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/8: Queued for processing...' },
+          { onConflict: 'engagement_id' }
         );
-        break;
-      }
-      case 2: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 2/8: Analysing processes...' })
+      } else {
+        const isRegen = ['generated', 'pass1_complete', 'approved', 'published', 'delivered'].includes(existingReport.status);
+        const newStatus = isRegen ? 'regenerating' : 'generating';
+        await supabaseClient.from('sa_audit_reports')
+          .update({ status: newStatus, executive_summary: 'Phase 1/8: Queued for processing...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase2Analyse(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
-        break;
       }
-      case 3: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 3/8: Identifying critical findings...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase3CriticalHigh(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
-        break;
+
+      await supabaseClient.from('sa_report_jobs')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('engagement_id', engagementId)
+        .in('status', ['pending', 'claimed', 'processing']);
+
+      const jobConfig: Record<string, unknown> = {};
+      if (Array.isArray(body.additionalContext) && body.additionalContext.length > 0) jobConfig.additionalContext = body.additionalContext;
+      if (body.preliminaryAnalysis && typeof body.preliminaryAnalysis === 'object') jobConfig.preliminaryAnalysis = body.preliminaryAnalysis;
+
+      const { data: newJob, error: jobError } = await supabaseClient
+        .from('sa_report_jobs')
+        .insert({
+          engagement_id: engagementId,
+          job_type: 'pass1_full',
+          start_phase: phase,
+          config: jobConfig,
+          status: 'pending',
+        })
+        .select('id')
+        .single();
+
+      if (jobError) {
+        throw new Error(`Failed to create report job: ${jobError.message}`);
       }
-      case 4: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 4/8: Completing findings and quick wins...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase4MediumLowQuickWins(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
-        break;
-      }
-      case 5: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 5/8: Building recommendations...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase5Recommendations(supabaseClient, engagementId, openRouterKey);
-        break;
-      }
-      case 6: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 6/8: Generating technology roadmap...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase6SystemsMaps(supabaseClient, engagementId, openRouterKey);
-        break;
-      }
-      case 7: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 7/8: Preparing practice team guidance...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase7AdminGuidance(supabaseClient, engagementId, openRouterKey);
-        break;
-      }
-      case 8: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 8/8: Finalising report...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase8Presentation(supabaseClient, engagementId, openRouterKey);
-        break;
-      }
-      default:
-        throw new Error(`Invalid phase: ${phase}`);
+
+      console.log(`[SA Pass 1] Created job ${newJob.id} for engagement ${engagementId}`);
+      result = { success: true, phase: 1, jobId: newJob.id };
+    } else {
+      await supabaseClient.from('sa_report_jobs')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('engagement_id', engagementId)
+        .in('status', ['pending', 'claimed', 'processing']);
+
+      const { data: retryJob, error: retryError } = await supabaseClient
+        .from('sa_report_jobs')
+        .insert({
+          engagement_id: engagementId,
+          job_type: 'pass1_from_phase',
+          start_phase: phase,
+          config: {},
+          status: 'pending',
+        })
+        .select('id')
+        .single();
+
+      if (retryError) throw new Error(`Failed to create retry job: ${retryError.message}`);
+
+      console.log(`[SA Pass 1] Created retry job ${retryJob.id} from phase ${phase}`);
+      result = { success: true, phase, jobId: retryJob.id };
     }
 
     return new Response(
       JSON.stringify({
         success: true,
         phase: result.phase,
+        jobId: result.jobId,
         reportId: (result as any).reportId,
         nextPhase: phase < 8 ? phase + 1 : null,
       }),
