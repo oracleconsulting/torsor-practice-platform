@@ -409,8 +409,8 @@ function buildMapsFromFacts(facts: any): any[] {
 // MAIN SECTION COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function SystemsMapSection({ systemsMaps, facts }: {
-  systemsMaps: any; facts: any;
+export default function SystemsMapSection({ systemsMaps, facts, layout = 'stacked' }: {
+  systemsMaps: any; facts: any; layout?: 'stacked' | 'split';
 }) {
   const [activeMap, setActiveMap] = useState(0);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
@@ -468,23 +468,302 @@ export default function SystemsMapSection({ systemsMaps, facts }: {
   const metrics = current.metrics || {};
   const hub = current.middlewareHub || null;
 
+  const hasChanges = current.changes && current.changes.length > 0;
+  const isSplit = layout === 'split';
+
+  const titleBar = (
+    <div style={{
+      textAlign: 'center', marginBottom: '8px', padding: '8px',
+      background: `${MAP_COLORS[activeMap] || '#64748b'}08`,
+      borderRadius: '8px',
+      border: `1px solid ${MAP_COLORS[activeMap] || '#64748b'}20`,
+    }}>
+      <h3 style={{
+        fontSize: '18px', fontWeight: 700, margin: 0,
+        color: MAP_COLORS[activeMap] || '#64748b',
+      }}>
+        {current.title || MAP_LABELS[activeMap] || 'Systems Map'}
+      </h3>
+      {current.subtitle && (
+        <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>
+          {current.subtitle}
+        </p>
+      )}
+    </div>
+  );
+
+  const svgGraph = (
+    <div style={{
+      background: '#0f172a', borderRadius: '12px',
+      border: '1px solid #1e293b', overflow: 'hidden',
+      position: 'relative', marginBottom: '16px',
+    }}>
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'radial-gradient(circle at 1px 1px, #1e293b40 1px, transparent 0)',
+        backgroundSize: '32px 32px',
+      }} />
+      <svg viewBox="0 0 800 580" style={{
+        width: '100%', height: 'auto',
+        opacity: isTransitioning ? 0.3 : 1,
+        transition: 'opacity 0.2s ease',
+      }}>
+        {hub && (
+          <MiddlewareHub
+            name={hub.name || 'Zapier'}
+            x={hub.x || 400}
+            y={hub.y || 340}
+            cost={hub.cost || 50}
+          />
+        )}
+        {edges.map((edge: any, i: number) => {
+          const from = nodesObj[edge.from];
+          const to = nodesObj[edge.to];
+          if (!from || !to) return null;
+          const status = normalizeEdgeStatus(edge);
+          return (
+            <IntegrationEdge
+              key={`${edge.from}-${edge.to}-${activeMap}`}
+              x1={from.x} y1={from.y}
+              x2={to.x} y2={to.y}
+              status={status}
+              label={edge.label}
+              changed={edge.changed}
+              middleware={edge.middleware}
+              person={edge.person}
+            />
+          );
+        })}
+        {Object.entries(nodesObj).map(([id, sys]: [string, any]) => (
+          <SystemNode
+            key={`${id}-${activeMap}`}
+            id={id}
+            name={sys.name}
+            category={sys.category}
+            cost={sys.cost || 0}
+            x={sys.x}
+            y={sys.y}
+            status={sys.status}
+            replaces={sys.replaces}
+            isActive={hoveredNode === id}
+            onClick={setHoveredNode}
+          />
+        ))}
+      </svg>
+    </div>
+  );
+
+  const metricsBar = (cols: number) => (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '8px', marginBottom: '16px' }}>
+      {[
+        { label: 'Software/mo', value: metrics.monthlySoftware || 0, prefix: '£' },
+        { label: 'Manual hrs/wk', value: metrics.manualHours || 0, highlight: true },
+        { label: 'Annual waste', value: metrics.annualWaste || 0, prefix: '£' },
+        { label: 'Annual savings', value: metrics.annualSavingsVsMap1 ?? metrics.annualSavings ?? 0, prefix: '£', accent: true },
+      ].map((item, i) => (
+        <div key={i} style={{
+          background: item.accent ? `${MAP_COLORS[activeMap]}10` : '#0f172a',
+          border: `1px solid ${item.accent ? MAP_COLORS[activeMap] + '40' : '#1e293b'}`,
+          borderRadius: '8px', padding: '12px', textAlign: 'center',
+        }}>
+          <div style={{
+            fontSize: '9px', color: '#64748b', textTransform: 'uppercase',
+            letterSpacing: '1px', marginBottom: '4px',
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>{item.label}</div>
+          <div style={{
+            fontSize: '20px', fontWeight: 700,
+            fontFamily: "'JetBrains Mono', monospace",
+            color: item.accent
+              ? MAP_COLORS[activeMap]
+              : (item.highlight && (item.value as number) > 20 ? '#ef4444' : '#e2e8f0'),
+          }}>
+            <AnimatedNumber value={item.value as number} prefix={item.prefix || ''} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const bottomStats = (cols: number) => (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: '8px' }}>
+      {[
+        { label: 'Investment', value: (metrics.investment || 0) === 0 ? '£0' : `£${(metrics.investment || 0).toLocaleString()}` },
+        { label: 'Payback', value: metrics.payback || '—' },
+        { label: 'Integrations', value: metrics.integrations || '—' },
+        {
+          label: 'Key person risk', value: metrics.risk || '—',
+          color: metrics.risk === 'Critical' ? '#ef4444'
+            : metrics.risk === 'High' ? '#f59e0b'
+            : metrics.risk === 'Moderate' ? '#eab308'
+            : metrics.risk === 'Low' ? '#3b82f6' : '#22c55e',
+        },
+      ].map((item, i) => (
+        <div key={i} style={{
+          background: '#0f172a', border: '1px solid #1e293b',
+          borderRadius: '8px', padding: '10px', textAlign: 'center',
+        }}>
+          <div style={{
+            fontSize: '9px', color: '#64748b', textTransform: 'uppercase',
+            letterSpacing: '1px', marginBottom: '4px',
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>{item.label}</div>
+          <div style={{
+            fontSize: '15px', fontWeight: 600,
+            fontFamily: "'JetBrains Mono', monospace",
+            color: (item as any).color || '#e2e8f0',
+          }}>{item.value}</div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const legend = (
+    <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '16px', flexWrap: 'wrap' }}>
+      {[
+        { color: '#ef4444', label: 'No connection', dash: true },
+        { color: '#f59e0b', label: 'Partial / broken', dash: true },
+        { color: '#22c55e', label: 'Active integration', dash: false },
+        { color: '#3b82f6', label: 'New at this level', dash: false },
+      ].map((item, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <svg width="24" height="2">
+            <line x1="0" y1="1" x2="24" y2="1" stroke={item.color} strokeWidth="2"
+              strokeDasharray={item.dash ? '4,3' : 'none'} />
+          </svg>
+          <span style={{
+            fontSize: '10px', color: '#94a3b8',
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+
+  const changesPanel = hasChanges ? (
+    <div style={{
+      background: '#0f172a',
+      border: '1px solid #1e293b',
+      borderRadius: '12px',
+      overflow: 'hidden',
+    }}>
+      <div style={{
+        padding: '14px 20px',
+        borderBottom: '1px solid #1e293b',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        position: 'sticky',
+        top: 0,
+        background: '#0f172a',
+        zIndex: 2,
+      }}>
+        <span style={{ fontSize: '14px' }}>
+          {activeMap === 0 ? '🔍' : activeMap === 1 ? '🔧' : activeMap === 2 ? '🔗' : '🚀'}
+        </span>
+        <span style={{
+          fontSize: '13px', fontWeight: 600, color: MAP_COLORS[activeMap] || '#e2e8f0',
+          fontFamily: "'DM Sans', sans-serif",
+        }}>
+          {activeMap === 0 ? "What's broken and why"
+            : activeMap === 1 ? "What we fix for free"
+            : activeMap === 2 ? "What middleware bridges"
+            : "Why these replacements"}
+        </span>
+        <span style={{
+          fontSize: '11px', color: '#64748b', marginLeft: 'auto',
+          fontFamily: "'JetBrains Mono', monospace",
+        }}>
+          {current.changes.length} {current.changes.length === 1 ? 'change' : 'changes'}
+        </span>
+      </div>
+      {current.changes.map((change: any, i: number) => {
+        const actionColors: Record<string, string> = {
+          broken: '#ef4444', fixed: '#22c55e', connected: '#3b82f6',
+          added: '#22c55e', reconfigured: '#f59e0b', kept: '#64748b',
+        };
+        const actionLabels: Record<string, string> = {
+          broken: 'Issue', fixed: 'Fixed', connected: 'Connected',
+          added: 'New', reconfigured: 'Reconfigured', kept: 'Unchanged',
+        };
+        const color = actionColors[change.action] || '#64748b';
+        const label = actionLabels[change.action] || change.action;
+        return (
+          <div key={i} style={{
+            padding: '14px 20px',
+            borderBottom: i < current.changes.length - 1 ? '1px solid #1e293b' : 'none',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <span style={{
+                fontSize: '9px', fontWeight: 700, color, textTransform: 'uppercase',
+                letterSpacing: '0.5px', padding: '2px 8px', borderRadius: '4px',
+                background: `${color}15`, border: `1px solid ${color}30`,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}>{label}</span>
+              <span style={{
+                fontSize: '13px', fontWeight: 600, color: '#e2e8f0',
+                fontFamily: "'DM Sans', sans-serif",
+              }}>{change.system}</span>
+            </div>
+            <p style={{
+              fontSize: '12px', color: '#94a3b8', lineHeight: '1.6', margin: '0 0 8px 0',
+              fontFamily: "'DM Sans', sans-serif",
+            }}>{change.description}</p>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              {change.impact && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
+                    IMPACT
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#cbd5e1', fontFamily: "'DM Sans', sans-serif" }}>
+                    {change.impact}
+                  </span>
+                </div>
+              )}
+              {change.cost && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '10px', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
+                    COST
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#cbd5e1', fontFamily: "'DM Sans', sans-serif" }}>
+                    {change.cost}
+                  </span>
+                </div>
+              )}
+            </div>
+            {change.why && (
+              <div style={{
+                marginTop: '8px', padding: '8px 12px',
+                background: '#22c55e08', borderLeft: '2px solid #22c55e40',
+                borderRadius: '0 6px 6px 0',
+              }}>
+                <span style={{
+                  fontSize: '11px', color: '#86efac', fontStyle: 'italic',
+                  fontFamily: "'DM Sans', sans-serif", lineHeight: '1.5',
+                }}>{change.why}</span>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
+
   return (
     <div
       style={{
         background: 'linear-gradient(145deg, #020617 0%, #0f172a 40%, #1e1b4b08 100%)',
         fontFamily: "'DM Sans', sans-serif",
         color: '#e2e8f0',
-        padding: '24px',
-        borderRadius: '16px',
+        padding: isSplit ? '32px 40px' : '24px',
+        borderRadius: isSplit ? 0 : 16,
       }}
     >
-      {/* Google Fonts */}
       <link
         href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
         rel="stylesheet"
       />
 
-      {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '20px' }}>
         <div style={{
           fontSize: '11px', letterSpacing: '3px', color: '#64748b',
@@ -494,7 +773,7 @@ export default function SystemsMapSection({ systemsMaps, facts }: {
           Systems Audit · Technology Roadmap
         </div>
         <h2 style={{
-          fontSize: '28px', fontWeight: 700, margin: 0,
+          fontSize: isSplit ? '32px' : '28px', fontWeight: 700, margin: 0,
           background: 'linear-gradient(135deg, #e2e8f0, #94a3b8)',
           WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
         }}>
@@ -507,9 +786,8 @@ export default function SystemsMapSection({ systemsMaps, facts }: {
         </p>
       </div>
 
-      {/* Map Selector Tabs */}
       {maps.length > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', marginBottom: '24px' }}>
           {maps.map((_: any, i: number) => {
             const mapColor = MAP_COLORS[i] || '#64748b';
             const label = MAP_LABELS[i] || `Level ${i + 1}`;
@@ -548,282 +826,40 @@ export default function SystemsMapSection({ systemsMaps, facts }: {
         </div>
       )}
 
-      {/* Title Bar */}
-      <div style={{
-        textAlign: 'center', marginBottom: '8px', padding: '8px',
-        background: `${MAP_COLORS[activeMap] || '#64748b'}08`,
-        borderRadius: '8px',
-        border: `1px solid ${MAP_COLORS[activeMap] || '#64748b'}20`,
-      }}>
-        <h3 style={{
-          fontSize: '18px', fontWeight: 700, margin: 0,
-          color: MAP_COLORS[activeMap] || '#64748b',
-        }}>
-          {current.title || MAP_LABELS[activeMap] || 'Systems Map'}
-        </h3>
-        {current.subtitle && (
-          <p style={{ fontSize: '12px', color: '#94a3b8', margin: '2px 0 0 0' }}>
-            {current.subtitle}
-          </p>
-        )}
-      </div>
-
-      {/* Graph */}
-      <div style={{
-        background: '#0f172a', borderRadius: '12px',
-        border: '1px solid #1e293b', overflow: 'hidden',
-        position: 'relative', marginBottom: '16px',
-      }}>
-        {/* Grid background */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          backgroundImage: 'radial-gradient(circle at 1px 1px, #1e293b40 1px, transparent 0)',
-          backgroundSize: '32px 32px',
-        }} />
-
-        <svg viewBox="0 0 800 580" style={{
-          width: '100%', height: 'auto',
-          opacity: isTransitioning ? 0.3 : 1,
-          transition: 'opacity 0.2s ease',
-        }}>
-          {/* Middleware hub (Zapier/Make) */}
-          {hub && (
-            <MiddlewareHub
-              name={hub.name || 'Zapier'}
-              x={hub.x || 400}
-              y={hub.y || 340}
-              cost={hub.cost || 50}
-            />
-          )}
-
-          {/* Edges */}
-          {edges.map((edge: any, i: number) => {
-            const from = nodesObj[edge.from];
-            const to = nodesObj[edge.to];
-            if (!from || !to) return null;
-            const status = normalizeEdgeStatus(edge);
-            return (
-              <IntegrationEdge
-                key={`${edge.from}-${edge.to}-${activeMap}`}
-                x1={from.x} y1={from.y}
-                x2={to.x} y2={to.y}
-                status={status}
-                label={edge.label}
-                changed={edge.changed}
-                middleware={edge.middleware}
-                person={edge.person}
-              />
-            );
-          })}
-
-          {/* Nodes */}
-          {Object.entries(nodesObj).map(([id, sys]: [string, any]) => (
-            <SystemNode
-              key={`${id}-${activeMap}`}
-              id={id}
-              name={sys.name}
-              category={sys.category}
-              cost={sys.cost || 0}
-              x={sys.x}
-              y={sys.y}
-              status={sys.status}
-              replaces={sys.replaces}
-              isActive={hoveredNode === id}
-              onClick={setHoveredNode}
-            />
-          ))}
-        </svg>
-      </div>
-
-      {/* Metrics Bar */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '16px' }}>
-        {[
-          { label: 'Software/mo', value: metrics.monthlySoftware || 0, prefix: '£' },
-          { label: 'Manual hrs/wk', value: metrics.manualHours || 0, highlight: true },
-          { label: 'Annual waste', value: metrics.annualWaste || 0, prefix: '£' },
-          { label: 'Annual savings', value: metrics.annualSavings ?? metrics.annualSavingsVsMap1 ?? 0, prefix: '£', accent: true },
-        ].map((item, i) => (
-          <div key={i} style={{
-            background: item.accent ? `${MAP_COLORS[activeMap]}10` : '#0f172a',
-            border: `1px solid ${item.accent ? MAP_COLORS[activeMap] + '40' : '#1e293b'}`,
-            borderRadius: '8px', padding: '12px', textAlign: 'center',
-          }}>
-            <div style={{
-              fontSize: '9px', color: '#64748b', textTransform: 'uppercase',
-              letterSpacing: '1px', marginBottom: '4px',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>{item.label}</div>
-            <div style={{
-              fontSize: '20px', fontWeight: 700,
-              fontFamily: "'JetBrains Mono', monospace",
-              color: item.accent
-                ? MAP_COLORS[activeMap]
-                : (item.highlight && item.value > 20 ? '#ef4444' : '#e2e8f0'),
-            }}>
-              <AnimatedNumber value={item.value} prefix={item.prefix || ''} />
+      {isSplit && hasChanges ? (
+        <>
+          <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+            <div style={{ flex: '0 0 58%', minWidth: 0 }}>
+              {titleBar}
+              {svgGraph}
+              {metricsBar(2)}
+              {bottomStats(2)}
+              {legend}
+            </div>
+            <div
+              style={{
+                flex: '1 1 auto', minWidth: 0,
+                position: 'sticky', top: '60px',
+                maxHeight: 'calc(100vh - 80px)',
+                overflowY: 'auto',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              }}
+              className="scrollbar-hide"
+            >
+              {changesPanel}
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Bottom Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-        {[
-          { label: 'Investment', value: (metrics.investment || 0) === 0 ? '£0' : `£${(metrics.investment || 0).toLocaleString()}` },
-          { label: 'Payback', value: metrics.payback || '—' },
-          { label: 'Integrations', value: metrics.integrations || '—' },
-          {
-            label: 'Key person risk', value: metrics.risk || '—',
-            color: metrics.risk === 'Critical' ? '#ef4444'
-              : metrics.risk === 'High' ? '#f59e0b'
-              : metrics.risk === 'Moderate' ? '#eab308'
-              : metrics.risk === 'Low' ? '#3b82f6' : '#22c55e',
-          },
-        ].map((item, i) => (
-          <div key={i} style={{
-            background: '#0f172a', border: '1px solid #1e293b',
-            borderRadius: '8px', padding: '10px', textAlign: 'center',
-          }}>
-            <div style={{
-              fontSize: '9px', color: '#64748b', textTransform: 'uppercase',
-              letterSpacing: '1px', marginBottom: '4px',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>{item.label}</div>
-            <div style={{
-              fontSize: '15px', fontWeight: 600,
-              fontFamily: "'JetBrains Mono', monospace",
-              color: (item as any).color || '#e2e8f0',
-            }}>{item.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Legend */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '16px', flexWrap: 'wrap' }}>
-        {[
-          { color: '#ef4444', label: 'No connection', dash: true },
-          { color: '#f59e0b', label: 'Partial / broken', dash: true },
-          { color: '#22c55e', label: 'Active integration', dash: false },
-          { color: '#3b82f6', label: 'New at this level', dash: false },
-        ].map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg width="24" height="2">
-              <line x1="0" y1="1" x2="24" y2="1" stroke={item.color} strokeWidth="2"
-                strokeDasharray={item.dash ? '4,3' : 'none'} />
-            </svg>
-            <span style={{
-              fontSize: '10px', color: '#94a3b8',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>{item.label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Stack Explanation */}
-      {current.changes && current.changes.length > 0 && (
-        <div style={{
-          marginTop: '20px',
-          background: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: '12px',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            padding: '14px 20px',
-            borderBottom: '1px solid #1e293b',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}>
-            <span style={{ fontSize: '14px' }}>
-              {activeMap === 0 ? '🔍' : activeMap === 1 ? '🔧' : activeMap === 2 ? '🔗' : '🚀'}
-            </span>
-            <span style={{
-              fontSize: '13px', fontWeight: 600, color: MAP_COLORS[activeMap] || '#e2e8f0',
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              {activeMap === 0 ? "What's broken and why"
-                : activeMap === 1 ? "What we fix for free"
-                : activeMap === 2 ? "What middleware bridges"
-                : "Why these replacements"}
-            </span>
-            <span style={{
-              fontSize: '11px', color: '#64748b', marginLeft: 'auto',
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>
-              {current.changes.length} {current.changes.length === 1 ? 'change' : 'changes'}
-            </span>
-          </div>
-          {current.changes.map((change: any, i: number) => {
-            const actionColors: Record<string, string> = {
-              broken: '#ef4444', fixed: '#22c55e', connected: '#3b82f6',
-              added: '#22c55e', reconfigured: '#f59e0b', kept: '#64748b',
-            };
-            const actionLabels: Record<string, string> = {
-              broken: 'Issue', fixed: 'Fixed', connected: 'Connected',
-              added: 'New', reconfigured: 'Reconfigured', kept: 'Unchanged',
-            };
-            const color = actionColors[change.action] || '#64748b';
-            const label = actionLabels[change.action] || change.action;
-            return (
-              <div key={i} style={{
-                padding: '14px 20px',
-                borderBottom: i < current.changes.length - 1 ? '1px solid #1e293b' : 'none',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                  <span style={{
-                    fontSize: '9px', fontWeight: 700, color, textTransform: 'uppercase',
-                    letterSpacing: '0.5px', padding: '2px 8px', borderRadius: '4px',
-                    background: `${color}15`, border: `1px solid ${color}30`,
-                    fontFamily: "'JetBrains Mono', monospace",
-                  }}>{label}</span>
-                  <span style={{
-                    fontSize: '13px', fontWeight: 600, color: '#e2e8f0',
-                    fontFamily: "'DM Sans', sans-serif",
-                  }}>{change.system}</span>
-                </div>
-                <p style={{
-                  fontSize: '12px', color: '#94a3b8', lineHeight: '1.6', margin: '0 0 8px 0',
-                  fontFamily: "'DM Sans', sans-serif",
-                }}>{change.description}</p>
-                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                  {change.impact && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '10px', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
-                        IMPACT
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#cbd5e1', fontFamily: "'DM Sans', sans-serif" }}>
-                        {change.impact}
-                      </span>
-                    </div>
-                  )}
-                  {change.cost && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '10px', color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>
-                        COST
-                      </span>
-                      <span style={{ fontSize: '11px', color: '#cbd5e1', fontFamily: "'DM Sans', sans-serif" }}>
-                        {change.cost}
-                      </span>
-                    </div>
-                  )}
-                </div>
-                {change.why && (
-                  <div style={{
-                    marginTop: '8px', padding: '8px 12px',
-                    background: '#22c55e08', borderLeft: '2px solid #22c55e40',
-                    borderRadius: '0 6px 6px 0',
-                  }}>
-                    <span style={{
-                      fontSize: '11px', color: '#86efac', fontStyle: 'italic',
-                      fontFamily: "'DM Sans', sans-serif", lineHeight: '1.5',
-                    }}>{change.why}</span>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+        </>
+      ) : (
+        <>
+          {titleBar}
+          {svgGraph}
+          {metricsBar(4)}
+          {bottomStats(4)}
+          {legend}
+          {changesPanel && <div style={{ marginTop: '20px' }}>{changesPanel}</div>}
+        </>
       )}
     </div>
   );
