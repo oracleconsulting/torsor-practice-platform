@@ -1,17 +1,21 @@
 // ============================================================================
-// SYSTEMS AUDIT CLIENT REPORT PAGE — DASHBOARD v2
+// SYSTEMS AUDIT CLIENT REPORT PAGE — DASHBOARD v3
 // ============================================================================
 // Client-facing report: Proof → Pattern → Price → Path → Plan → Future
 //
-// GOLDEN RULE: pass1_data is the single source of truth for all metrics.
-// Column values are convenience copies. When they conflict, pass1_data wins.
+// v3 CHANGES:
+// - Light theme #F0F2F7 enforced everywhere
+// - All content constrained within page bounds (no horizontal overflow)
+// - Green ticks persist via localStorage (survive refresh/logout)
+// - Systems cards open in isolated overlay (don't affect siblings)
+// - Health page redesigned with dramatic visual treatment
+// - Quick Wins redesigned with urgency and impact
+// - Vision page is the showstopper finale
+// - All expandable sections contained (no layout-breaking scroll)
+// - Roadmap/ROI/Processes all respect boundaries
+// - Tech Map contained with internal scroll
 //
-// Data sources (priority order):
-//   1. pass1_data JSONB → facts, scores, findings, quickWins, recommendations,
-//                          adminGuidance, systemsMaps, clientPresentation
-//   2. sa_findings table → fallback for findings if pass1_data.findings empty
-//   3. sa_audit_reports columns → fallback for scores/metrics
-//   4. sa_engagements → status, sharing gate
+// GOLDEN RULE: pass1_data is the single source of truth for all metrics.
 // ============================================================================
 
 import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
@@ -26,7 +30,8 @@ import {
   Shield, Activity, Database, Link2, Workflow, Eye,
   CalendarClock, PoundSterling, Monitor, Coffee,
   ChevronRight, Minus, Plus, ExternalLink, Layers,
-  Play, FileText, Gauge, Timer
+  Play, FileText, Gauge, Timer, X, Rocket, Star,
+  TrendingDown, CircleDot, Flame
 } from 'lucide-react';
 import SystemsMapSection from '@/components/SystemsMapSection';
 
@@ -72,7 +77,7 @@ const C = {
   emerald: '#10B981',
   purple: '#8b5cf6',
   bg: '#F0F2F7',
-  cardBg: 'rgba(255,255,255,0.82)',
+  cardBg: 'rgba(255,255,255,0.85)',
   cardBorder: 'rgba(0,0,0,0.06)',
   cardShadow: '0 1px 3px rgba(22,35,64,0.06), 0 8px 32px rgba(22,35,64,0.04)',
   text: '#162340',
@@ -81,9 +86,9 @@ const C = {
   textLight: '#94a3b8',
 };
 
-// Glass card base (light theme: subtle dark border)
+// Glass card base (light theme)
 const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
-  background: 'rgba(255, 255, 255, 0.82)',
+  background: 'rgba(255, 255, 255, 0.85)',
   backdropFilter: 'blur(20px) saturate(180%)',
   WebkitBackdropFilter: 'blur(20px) saturate(180%)',
   border: '1px solid rgba(0, 0, 0, 0.06)',
@@ -100,22 +105,17 @@ const accentCard = (color: string, extra?: React.CSSProperties): React.CSSProper
   ...extra,
 });
 
-// Stat card for big numbers
-const statStyle: React.CSSProperties = {
-  ...glass(),
-  padding: '20px 16px',
-  textAlign: 'center' as const,
-  display: 'flex',
-  flexDirection: 'column' as const,
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 4,
-};
-
 // Mono font helper
 const mono: React.CSSProperties = { fontFamily: "'JetBrains Mono', monospace" };
 const label: React.CSSProperties = { fontSize: 10, color: C.textMuted, textTransform: 'uppercase' as const, letterSpacing: 1, ...mono };
-const bigNum = (color: string): React.CSSProperties => ({ fontSize: 28, fontWeight: 700, color, ...mono, lineHeight: 1.2 });
+
+// ─── Content constraint wrapper ──────────────────────────────────────────────
+// Every section gets this to prevent horizontal overflow
+const sectionWrap: React.CSSProperties = {
+  maxWidth: '100%',
+  overflow: 'hidden',
+  wordBreak: 'break-word' as const,
+};
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -340,7 +340,7 @@ function SeverityDotGrid({ findings, displayOutcomeFn }: { findings: any[]; disp
   const [active, setActive] = useState<number | null>(null);
   const colors: Record<string, string> = { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#3b82f6' };
   return (
-    <div>
+    <div style={sectionWrap}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24, justifyContent: 'center' }}>
         {findings.map((f: any, i: number) => {
           const c = colors[f.severity] || '#64748b';
@@ -370,7 +370,7 @@ function SeverityDotGrid({ findings, displayOutcomeFn }: { findings: any[]; disp
         {Object.entries(colors).map(([sev, c]) => (
           <div key={sev} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 8, height: 8, borderRadius: 4, background: c }} />
-            <span style={{ fontSize: 11, color: C.textMuted, textTransform: 'capitalize', fontFamily: "'JetBrains Mono', monospace" }}>{sev}</span>
+            <span style={{ fontSize: 11, color: C.textMuted, textTransform: 'capitalize', ...mono }}>{sev}</span>
           </div>
         ))}
       </div>
@@ -381,16 +381,17 @@ function SeverityDotGrid({ findings, displayOutcomeFn }: { findings: any[]; disp
         const costVal = f.annual_cost_impact ?? f.annualCostImpact ?? f.annualCost ?? 0;
         const affected = f.affected_systems ?? f.affectedSystems ?? [];
         return (
-          <div style={{ ...glass(), border: `1px solid ${c}40`, padding: 24 }}>
+          <div style={{ ...glass(), border: `1px solid ${c}40`, padding: 24, maxHeight: 500, overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: c, padding: '3px 10px', borderRadius: 6, background: `${c}15`, border: `1px solid ${c}30`, fontFamily: "'JetBrains Mono', monospace" }}>{f.severity}</span>
-              {f.category && <span style={{ fontSize: 10, color: C.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{(f.category || '').replace(/_/g, ' ')}</span>}
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: c, padding: '3px 10px', borderRadius: 6, background: `${c}15`, border: `1px solid ${c}30`, ...mono }}>{f.severity}</span>
+              {f.category && <span style={{ fontSize: 10, color: C.textMuted, ...mono }}>{(f.category || '').replace(/_/g, ' ')}</span>}
+              <button onClick={() => setActive(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, padding: 4 }}><X style={{ width: 16, height: 16 }} /></button>
             </div>
             <h4 style={{ color: C.text, fontSize: 15, fontWeight: 600, marginBottom: 8 }}>{f.title}</h4>
             <p style={{ color: C.textMuted, fontSize: 13, lineHeight: 1.7, marginBottom: 16 }}>{f.description}</p>
             {(f.evidence && f.evidence.length > 0) && (
               <div style={{ marginBottom: 16 }}>
-                <span style={{ fontSize: 9, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace" }}>Evidence</span>
+                <span style={{ fontSize: 9, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 1, ...mono }}>Evidence</span>
                 {f.evidence.map((e: string, j: number) => (
                   <p key={j} style={{ color: C.textMuted, fontSize: 12, marginTop: 4, paddingLeft: 12, borderLeft: `2px solid ${C.textLight}` }}>{e}</p>
                 ))}
@@ -404,26 +405,26 @@ function SeverityDotGrid({ findings, displayOutcomeFn }: { findings: any[]; disp
             <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
               {hoursVal > 0 && (
                 <div>
-                  <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace" }}>Hours/week</span>
-                  <p style={{ fontSize: 20, fontWeight: 700, color: '#ef4444', margin: '4px 0 0', fontFamily: "'JetBrains Mono', monospace" }}>{hoursVal}</p>
+                  <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, ...mono }}>Hours/week</span>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: '#ef4444', margin: '4px 0 0', ...mono }}>{hoursVal}</p>
                 </div>
               )}
               {costVal > 0 && (
                 <div>
-                  <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace" }}>Annual cost</span>
-                  <p style={{ fontSize: 20, fontWeight: 700, color: '#ef4444', margin: '4px 0 0', fontFamily: "'JetBrains Mono', monospace" }}>£{Number(costVal).toLocaleString()}</p>
+                  <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, ...mono }}>Annual cost</span>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: '#ef4444', margin: '4px 0 0', ...mono }}>£{Number(costVal).toLocaleString()}</p>
                 </div>
               )}
               {Array.isArray(affected) && affected.length > 0 && (
                 <div>
-                  <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace" }}>Affects</span>
-                  <p style={{ fontSize: 13, color: '#94a3b8', margin: '4px 0 0' }}>{affected.join(', ')}</p>
+                  <span style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, ...mono }}>Affects</span>
+                  <p style={{ fontSize: 13, color: C.textMuted, margin: '4px 0 0' }}>{affected.join(', ')}</p>
                 </div>
               )}
             </div>
             {(f.recommendation) && (
               <div style={{ marginTop: 16, padding: '10px 14px', background: '#22c55e08', borderLeft: '2px solid #22c55e40', borderRadius: '0 8px 8px 0' }}>
-                <span style={{ fontSize: 9, color: '#22c55e', textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace" }}>Recommendation</span>
+                <span style={{ fontSize: 9, color: '#22c55e', textTransform: 'uppercase', letterSpacing: 1, ...mono }}>Recommendation</span>
                 <p style={{ color: '#065f46', fontSize: 12, marginTop: 4 }}>{f.recommendation}</p>
               </div>
             )}
@@ -455,64 +456,108 @@ function ROIWaterfall({ recommendations }: { recommendations: any[] }) {
   const totalBenefit = recommendations.reduce((s, r) => s + (r.annualBenefit || r.annual_cost_savings || 0), 0);
   const totalCost = recommendations.reduce((s, r) => s + (r.estimatedCost || r.estimated_cost || 0), 0);
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 220, paddingBottom: 40, position: 'relative' }}>
+    <div style={{ ...glass({ padding: 24 }), overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 200, paddingBottom: 40, position: 'relative', overflow: 'hidden' }}>
         {recommendations.map((r: any, i: number) => {
           const benefit = r.annualBenefit || r.annual_cost_savings || 0;
           const cost = r.estimatedCost || r.estimated_cost || 0;
           const hours = parseFloat(r.hoursSavedWeekly || r.hours_saved_weekly) || 0;
-          const h = (benefit / maxBenefit) * 160;
+          const h = (benefit / maxBenefit) * 140;
           const isHovered = hovered === i;
           return (
-            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}
+            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', minWidth: 0 }}
               onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
               {isHovered && (
-                <div style={{ position: 'absolute', bottom: h + 56, left: '50%', transform: 'translateX(-50%)',
-                  ...glass(), padding: '12px 16px', minWidth: 200, zIndex: 10 }}>
-                  <p style={{ color: C.text, fontSize: 12, fontWeight: 600, marginBottom: 8, lineHeight: 1.4 }}>{r.title}</p>
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ position: 'absolute', bottom: h + 48, left: '50%', transform: 'translateX(-50%)',
+                  ...glass(), padding: '10px 14px', minWidth: 180, zIndex: 10, pointerEvents: 'none' }}>
+                  <p style={{ color: C.text, fontSize: 11, fontWeight: 600, marginBottom: 6, lineHeight: 1.4 }}>{r.title}</p>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     <div>
-                      <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>BENEFIT</span>
-                      <p style={{ color: '#22c55e', fontSize: 14, fontWeight: 700, margin: '2px 0 0', fontFamily: "'JetBrains Mono', monospace" }}>£{benefit.toLocaleString()}/yr</p>
+                      <span style={{ fontSize: 9, color: '#64748b', ...mono }}>BENEFIT</span>
+                      <p style={{ color: '#22c55e', fontSize: 13, fontWeight: 700, margin: '2px 0 0', ...mono }}>£{benefit.toLocaleString()}/yr</p>
                     </div>
                     <div>
-                      <span style={{ fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace" }}>COST</span>
-                      <p style={{ color: '#f97316', fontSize: 14, fontWeight: 700, margin: '2px 0 0', fontFamily: "'JetBrains Mono', monospace" }}>{cost > 0 ? `£${cost.toLocaleString()}` : '£0'}</p>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: 9, color: C.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>SAVES</span>
-                      <p style={{ color: C.text, fontSize: 14, fontWeight: 700, margin: '2px 0 0', fontFamily: "'JetBrains Mono', monospace" }}>{hours}hrs/wk</p>
+                      <span style={{ fontSize: 9, color: '#64748b', ...mono }}>COST</span>
+                      <p style={{ color: '#f97316', fontSize: 13, fontWeight: 700, margin: '2px 0 0', ...mono }}>{cost > 0 ? `£${cost.toLocaleString()}` : '£0'}</p>
                     </div>
                   </div>
                 </div>
               )}
               <div style={{
-                width: '100%', height: h, borderRadius: '6px 6px 0 0', cursor: 'pointer',
+                width: '100%', maxWidth: 60, height: h, borderRadius: '6px 6px 0 0', cursor: 'pointer',
                 background: isHovered ? 'linear-gradient(180deg, #22c55e, #16a34a)' : 'linear-gradient(180deg, #22c55e88, #059669aa)',
                 transition: 'all 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
                 boxShadow: isHovered ? '0 0 24px #22c55e30' : 'none',
               }} />
-              <span style={{ position: 'absolute', bottom: -32, fontSize: 9, color: '#64748b', fontFamily: "'JetBrains Mono', monospace", textAlign: 'center', width: '100%' }}>R{i + 1}</span>
+              <span style={{ position: 'absolute', bottom: -28, fontSize: 9, color: '#64748b', ...mono, textAlign: 'center', width: '100%' }}>R{i + 1}</span>
             </div>
           );
         })}
-        <div style={{ flex: 1.4, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}
+        <div style={{ flex: 1.4, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', minWidth: 0 }}
           onMouseEnter={() => setHovered('total')} onMouseLeave={() => setHovered(null)}>
-          {hovered === 'total' && (
-            <div style={{ position: 'absolute', bottom: 200, left: '50%', transform: 'translateX(-50%)',
-              ...glass(), padding: '12px 16px', minWidth: 180, zIndex: 10 }}>
-              <p style={{ color: C.text, fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Total Package</p>
-              <p style={{ color: C.blue, fontSize: 18, fontWeight: 700, fontFamily: "'JetBrains Mono', monospace" }}>£{totalBenefit.toLocaleString()}/yr</p>
-              <p style={{ color: C.textMuted, fontSize: 11, marginTop: 4 }}>Investment: £{totalCost.toLocaleString()}</p>
-            </div>
-          )}
           <div style={{
-            width: '100%', height: 180, borderRadius: '6px 6px 0 0', cursor: 'pointer',
+            width: '100%', maxWidth: 80, height: 160, borderRadius: '6px 6px 0 0', cursor: 'pointer',
             background: hovered === 'total' ? 'linear-gradient(180deg, #38bdf8, #0284c7)' : 'linear-gradient(180deg, #38bdf888, #0284c7aa)',
             transition: 'all 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
-            boxShadow: hovered === 'total' ? '0 0 24px #38bdf830' : 'none',
           }} />
-          <span style={{ position: 'absolute', bottom: -32, fontSize: 9, color: '#38bdf8', fontFamily: "'JetBrains Mono', monospace", fontWeight: 700, textAlign: 'center', width: '100%' }}>TOTAL</span>
+          <span style={{ position: 'absolute', bottom: -28, fontSize: 9, color: '#38bdf8', ...mono, fontWeight: 700, textAlign: 'center', width: '100%' }}>TOTAL</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── System Detail Overlay ───────────────────────────────────────────────────
+// Opens as a floating panel over the card, doesn't affect other cards
+function SystemDetailOverlay({ sys, borderColor, onClose }: { sys: any; borderColor: string; onClose: () => void }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(22,35,64,0.4)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 24,
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        ...glass({ padding: 0 }),
+        borderLeft: `4px solid ${borderColor}`,
+        maxWidth: 500, width: '100%', maxHeight: '80vh', overflowY: 'auto',
+        boxShadow: '0 20px 60px rgba(22,35,64,0.2)',
+        animation: 'fadeIn 0.2s ease',
+      }}>
+        <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: `${borderColor}12`, color: borderColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>
+            {(sys.name || sys.system_name || '?').charAt(0).toUpperCase()}
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontWeight: 700, color: C.text, fontSize: 16, margin: 0 }}>{sys.name || sys.system_name || 'System'}</p>
+            <div style={{ display: 'flex', gap: 12, marginTop: 2 }}>
+              {sys.cost != null && <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{fmt(sys.cost)}/mo</span>}
+              {sys.category && <span style={{ fontSize: 12, color: C.textMuted }}>{(sys.category || '').replace(/_/g, ' ')}</span>}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, padding: 4 }}><X style={{ width: 18, height: 18 }} /></button>
+        </div>
+        <div style={{ padding: '16px 24px' }}>
+          {sys.gaps?.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <span style={{ ...label, fontSize: 10, color: C.red }}>GAPS ({sys.gaps.length})</span>
+              {sys.gaps.map((g: string, j: number) => (
+                <p key={j} style={{ fontSize: 13, color: C.textSecondary, marginTop: 6, paddingLeft: 12, borderLeft: `2px solid ${C.red}40`, lineHeight: 1.6 }}>{g}</p>
+              ))}
+            </div>
+          )}
+          {sys.strengths?.length > 0 && (
+            <div>
+              <span style={{ ...label, fontSize: 10, color: C.emerald }}>STRENGTHS ({sys.strengths.length})</span>
+              {sys.strengths.map((s: string, j: number) => (
+                <p key={j} style={{ fontSize: 13, color: C.textSecondary, marginTop: 6, paddingLeft: 12, borderLeft: `2px solid ${C.emerald}40`, lineHeight: 1.6 }}>{s}</p>
+              ))}
+            </div>
+          )}
+          {(!sys.gaps?.length && !sys.strengths?.length) && (
+            <p style={{ color: C.textMuted, fontSize: 13 }}>No detailed findings for this system.</p>
+          )}
         </div>
       </div>
     </div>
@@ -653,15 +698,40 @@ export default function SAReportPage() {
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<SAReport | null>(null);
   const [findings, setFindings] = useState<SAFinding[]>([]);
-  const [expandedFinding, setExpandedFinding] = useState<string | null>(null);
   const [expandedRec, setExpandedRec] = useState<string | null>(null);
   const [expandedProcess, setExpandedProcess] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState('overview');
   const [expandedQW, setExpandedQW] = useState<number | null>(null);
-  const [expandedSys, setExpandedSys] = useState<number | null>(null);
-  const [visited, setVisited] = useState<Set<string>>(new Set(['overview']));
+  const [selectedSystem, setSelectedSystem] = useState<number | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // ─── Persistent visited sections (localStorage) ─────────────────────────
+  const storageKey = report?.id ? `sa-visited-${report.id}` : null;
+
+  const [visited, setVisited] = useState<Set<string>>(() => new Set(['overview']));
+
+  // Load visited from localStorage when report loads
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setVisited(new Set([...parsed, 'overview']));
+        }
+      }
+    } catch { /* ignore parse errors */ }
+  }, [storageKey]);
+
+  // Save visited to localStorage whenever it changes
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify([...visited]));
+    } catch { /* ignore storage errors */ }
+  }, [visited, storageKey]);
 
   const handleNavigate = useCallback((sectionId: string) => {
     if (sectionId === activeSection) return;
@@ -878,45 +948,42 @@ export default function SAReportPage() {
     switch (activeSection) {
       case 'overview':
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Hero banner */}
-            <div style={{ background: 'linear-gradient(135deg, #162340 0%, #1e3a5f 50%, #1a3352 100%)', borderRadius: 20, padding: 40, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'linear-gradient(135deg, #162340 0%, #1e3a5f 50%, #1a3352 100%)', borderRadius: 20, padding: 'clamp(24px, 4vw, 40px)', position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
               <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ fontSize: 11, letterSpacing: 3, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', marginBottom: 8, fontFamily: "'JetBrains Mono', monospace" }}>Systems Audit Report</div>
-                <h1 style={{ fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 700, color: '#fff', marginBottom: 24, lineHeight: 1.2 }}>
+                <div style={{ fontSize: 11, letterSpacing: 3, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', marginBottom: 8, ...mono }}>Systems Audit Report</div>
+                <h1 style={{ fontSize: 'clamp(20px, 2.5vw, 32px)', fontWeight: 700, color: '#fff', marginBottom: 24, lineHeight: 1.3 }}>
                   {report?.headline || `Your systems are costing you £${(m.annualCostOfChaos / 1000).toFixed(0)}k a year — and it gets worse at scale.`}
                 </h1>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '20px 16px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <p style={{ fontSize: 'clamp(20px, 2.5vw, 28px)', fontWeight: 700, color: C.red, fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}><AnimatedCounter target={m.annualCostOfChaos} prefix="£" /></p>
-                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Annual Cost</p>
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '20px 16px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <p style={{ fontSize: 'clamp(20px, 2.5vw, 28px)', fontWeight: 700, color: C.orange, fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}><AnimatedCounter target={m.hoursWastedWeekly} decimals={1} /></p>
-                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Hours Lost/Week</p>
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '20px 16px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <p style={{ fontSize: 'clamp(20px, 2.5vw, 28px)', fontWeight: 700, color: C.blue, fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}>{(facts?.systems || []).length}</p>
-                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>Systems</p>
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '20px 16px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <p style={{ fontSize: 'clamp(20px, 2.5vw, 28px)', fontWeight: 700, color: '#8b5cf6', fontFamily: "'JetBrains Mono', monospace", marginBottom: 4 }}><AnimatedCounter target={m.projectedCostAtScale} prefix="£" /></p>
-                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>At Scale</p>
-                  </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+                  {[
+                    { value: m.annualCostOfChaos, prefix: '£', color: C.red, label: 'Annual Cost' },
+                    { value: m.hoursWastedWeekly, decimals: 1, color: C.orange, label: 'Hours Lost/Week' },
+                    { value: (facts?.systems || []).length, color: C.blue, label: 'Systems', noAnimate: true },
+                    { value: m.projectedCostAtScale, prefix: '£', color: '#8b5cf6', label: 'At Scale' },
+                  ].map((stat, i) => (
+                    <div key={i} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 12px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
+                      <p style={{ fontSize: 'clamp(18px, 2vw, 26px)', fontWeight: 700, color: stat.color, ...mono, marginBottom: 4 }}>
+                        {stat.noAnimate ? stat.value : <AnimatedCounter target={stat.value} prefix={stat.prefix || ''} decimals={(stat as any).decimals || 0} />}
+                      </p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>{stat.label}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 24, alignItems: 'start' }}>
-              <div style={{ ...glass(), padding: 28, maxWidth: '62ch' }}>
-                <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 12, fontFamily: "'JetBrains Mono', monospace" }}>In Brief</div>
-                {(report?.executive_summary || '').split('\n\n').map((para: string, i: number) => (
-                  <p key={i} style={{ fontSize: 15, lineHeight: 1.8, color: C.text, marginBottom: 16 }}>{para}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 24, alignItems: 'start' }}>
+              <div style={{ ...glass(), padding: 28, minWidth: 0 }}>
+                <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 12, ...mono }}>In Brief</div>
+                {splitNarrative(report?.executive_summary || '', 4).map((para: string, i: number) => (
+                  <p key={i} style={{ fontSize: 15, lineHeight: 1.8, color: C.text, marginBottom: 16, maxWidth: '62ch' }}>{para}</p>
                 ))}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
                 <div style={{ ...glass(), padding: 20, background: 'rgba(22,35,64,0.04)' }}>
-                  <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 12, fontFamily: "'JetBrains Mono', monospace" }}>Your Business</div>
+                  <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 12, ...mono }}>Your Business</div>
                   <div style={{ display: 'grid', gap: 12 }}>
                     {facts?.teamSize && <div><span style={{ color: C.textLight, fontSize: 12 }}>Team</span><p style={{ color: C.text, fontWeight: 600 }}>{facts.teamSize}</p></div>}
                     {(facts?.confirmedRevenue ?? facts?.revenueBand) && <div><span style={{ color: C.textLight, fontSize: 12 }}>Revenue</span><p style={{ color: C.text, fontWeight: 600 }}>{typeof facts.confirmedRevenue === 'number' ? `£${(facts.confirmedRevenue / 1000).toFixed(0)}k` : facts.revenueBand || '-'}</p></div>}
@@ -926,11 +993,11 @@ export default function SAReportPage() {
                 </div>
                 {(facts?.desiredOutcomes?.length > 0) && (
                   <div style={{ ...glass(), padding: 20, background: 'rgba(16,185,129,0.06)', border: `1px solid ${C.emerald}20` }}>
-                    <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 12, fontFamily: "'JetBrains Mono', monospace" }}>Desired Outcomes</div>
+                    <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 12, ...mono }}>Desired Outcomes</div>
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                       {(facts.desiredOutcomes || []).map((o: string, i: number) => (
-                        <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, color: C.text }}>
-                          <CheckCircle2 style={{ width: 18, height: 18, color: C.emerald, flexShrink: 0 }} />
+                        <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8, color: C.text, fontSize: 14, lineHeight: 1.5 }}>
+                          <CheckCircle2 style={{ width: 18, height: 18, color: C.emerald, flexShrink: 0, marginTop: 2 }} />
                           {displayOutcome(o)}
                         </li>
                       ))}
@@ -938,7 +1005,7 @@ export default function SAReportPage() {
                   </div>
                 )}
                 <div style={{ ...glass(), padding: 20, background: 'rgba(239,68,68,0.06)', border: `1px solid ${C.red}20` }}>
-                  <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 8, fontFamily: "'JetBrains Mono', monospace" }}>Live waste</div>
+                  <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 8, ...mono }}>Live waste</div>
                   <CostClock annualCost={m.annualCostOfChaos} />
                 </div>
               </div>
@@ -946,43 +1013,30 @@ export default function SAReportPage() {
           </div>
         );
       case 'systems': {
-        const gapCounts = systemsList.map((s: any) => (s.gaps?.length || 0));
-        const totalGaps = gapCounts.reduce((a: number, b: number) => a + b, 0);
+        const totalGaps = systemsList.reduce((a: number, s: any) => a + (s.gaps?.length || 0), 0);
         const totalStrengths = systemsList.reduce((a: number, s: any) => a + (s.strengths?.length || 0), 0);
         return (
-          <div>
+          <div style={sectionWrap}>
             <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
               <div>
                 <h2 style={{ color: C.text, fontSize: 24, fontWeight: 700, margin: 0 }}>{systemsList.length} systems</h2>
                 <p style={{ color: C.textMuted, fontSize: 13, marginTop: 4 }}>Audited across your technology stack</p>
               </div>
               <div style={{ display: 'flex', gap: 16 }}>
-                <div style={{ textAlign: 'center' }}>
-                  <span style={{ fontSize: 20, fontWeight: 700, color: C.red, ...mono }}>{totalGaps}</span>
-                  <p style={{ fontSize: 10, color: C.textMuted, ...mono }}>GAPS</p>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <span style={{ fontSize: 20, fontWeight: 700, color: C.emerald, ...mono }}>{totalStrengths}</span>
-                  <p style={{ fontSize: 10, color: C.textMuted, ...mono }}>STRENGTHS</p>
-                </div>
-                {facts?.totalSystemCost != null && (
-                  <div style={{ textAlign: 'center' }}>
-                    <span style={{ fontSize: 20, fontWeight: 700, color: C.text, ...mono }}>{fmt(facts.totalSystemCost)}</span>
-                    <p style={{ fontSize: 10, color: C.textMuted, ...mono }}>MONTHLY</p>
-                  </div>
-                )}
+                <div style={{ textAlign: 'center' }}><span style={{ fontSize: 20, fontWeight: 700, color: C.red, ...mono }}>{totalGaps}</span><p style={{ fontSize: 10, color: C.textMuted, ...mono }}>GAPS</p></div>
+                <div style={{ textAlign: 'center' }}><span style={{ fontSize: 20, fontWeight: 700, color: C.emerald, ...mono }}>{totalStrengths}</span><p style={{ fontSize: 10, color: C.textMuted, ...mono }}>STRENGTHS</p></div>
+                {facts?.totalSystemCost != null && <div style={{ textAlign: 'center' }}><span style={{ fontSize: 20, fontWeight: 700, color: C.text, ...mono }}>{fmt(facts.totalSystemCost)}</span><p style={{ fontSize: 10, color: C.textMuted, ...mono }}>MONTHLY</p></div>}
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
               {systemsList.map((sys: any, i: number) => {
                 const gapCount = sys.gaps?.length || 0;
                 const borderColor = gapCount > 3 ? C.red : gapCount > 1 ? C.orange : gapCount === 1 ? '#eab308' : C.emerald;
-                const isExpanded = expandedSys === i;
                 return (
-                  <div key={i} onClick={() => setExpandedSys(isExpanded ? null : i)}
-                    style={{ ...glass({ padding: 14, borderLeft: `3px solid ${borderColor}`, cursor: 'pointer', transition: 'box-shadow 0.2s ease' }) }}
-                    onMouseEnter={(e) => (e.currentTarget.style.boxShadow = '0 4px 20px rgba(22,35,64,0.1)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.boxShadow = C.cardShadow)}>
+                  <div key={i} onClick={() => setSelectedSystem(i)}
+                    style={{ ...glass({ padding: 14, borderLeft: `3px solid ${borderColor}`, cursor: 'pointer', transition: 'box-shadow 0.2s ease, transform 0.2s ease' }) }}
+                    onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(22,35,64,0.12)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = C.cardShadow; e.currentTarget.style.transform = 'translateY(0)'; }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ width: 36, height: 36, borderRadius: 10, background: `${borderColor}12`, color: borderColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
                         {(sys.name || sys.system_name || '?').charAt(0).toUpperCase()}
@@ -994,32 +1048,19 @@ export default function SAReportPage() {
                           {gapCount > 0 && <span style={{ fontSize: 11, color: C.red, ...mono }}>{gapCount} gaps</span>}
                         </div>
                       </div>
-                      <ChevronDown style={{ width: 14, height: 14, color: C.textLight, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+                      <ChevronRight style={{ width: 14, height: 14, color: C.textLight }} />
                     </div>
-                    {isExpanded && (
-                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.cardBorder}` }}>
-                        {sys.gaps?.length > 0 && (
-                          <div style={{ marginBottom: 8 }}>
-                            <span style={{ ...label, fontSize: 9, color: C.red }}>Gaps</span>
-                            {sys.gaps.map((g: string, j: number) => (
-                              <p key={j} style={{ fontSize: 12, color: C.textSecondary, marginTop: 4, paddingLeft: 10, borderLeft: `2px solid ${C.red}40` }}>{g}</p>
-                            ))}
-                          </div>
-                        )}
-                        {sys.strengths?.length > 0 && (
-                          <div>
-                            <span style={{ ...label, fontSize: 9, color: C.emerald }}>Strengths</span>
-                            {sys.strengths.map((s: string, j: number) => (
-                              <p key={j} style={{ fontSize: 12, color: C.textSecondary, marginTop: 4, paddingLeft: 10, borderLeft: `2px solid ${C.emerald}40` }}>{s}</p>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                 );
               })}
             </div>
+            {selectedSystem !== null && systemsList[selectedSystem] && (
+              <SystemDetailOverlay
+                sys={systemsList[selectedSystem]}
+                borderColor={(() => { const gc = systemsList[selectedSystem].gaps?.length || 0; return gc > 3 ? C.red : gc > 1 ? C.orange : gc === 1 ? '#eab308' : C.emerald; })()}
+                onClose={() => setSelectedSystem(null)}
+              />
+            )}
           </div>
         );
       }
@@ -1040,15 +1081,26 @@ export default function SAReportPage() {
           (f.title || '').toLowerCase().includes('key person') ||
           (f.title || '').toLowerCase().includes('single point')
         );
+        const healthVerdict = overallScore < 30 ? 'Critical' : overallScore < 50 ? 'At Risk' : overallScore < 70 ? 'Needs Work' : 'Healthy';
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ ...glass({ padding: 28 }), display: 'flex', alignItems: 'center', gap: 32 }}>
-              <HealthRing score={overallScore} label="" size={140} />
-              <div style={{ flex: 1 }}>
-                <h2 style={{ color: C.text, fontSize: 24, fontWeight: 700, margin: '0 0 8px' }}>
-                  System Health: <span style={{ color: overallColor }}>{overallScore}/100</span>
-                </h2>
-                <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, maxWidth: '55ch', margin: 0 }}>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Dramatic health hero */}
+            <div style={{
+              background: `linear-gradient(135deg, ${overallColor}08 0%, ${overallColor}03 100%)`,
+              border: `1px solid ${overallColor}20`,
+              borderRadius: 20, padding: 32, display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap',
+            }}>
+              <HealthRing score={overallScore} label="" size={160} />
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                  <h2 style={{ color: C.text, fontSize: 28, fontWeight: 700, margin: 0 }}>
+                    System Health
+                  </h2>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: overallColor, padding: '4px 16px', borderRadius: 20, background: `${overallColor}15`, border: `1px solid ${overallColor}30`, ...mono }}>
+                    {healthVerdict}
+                  </span>
+                </div>
+                <p style={{ color: C.textSecondary, fontSize: 15, lineHeight: 1.7, maxWidth: '55ch', margin: 0 }}>
                   {overallScore < 30 ? 'Your systems are critically disconnected. Manual workarounds dominate daily operations, creating compounding errors and invisible costs.' :
                    overallScore < 50 ? 'Significant gaps exist across your technology stack. Key processes rely on manual intervention, limiting scalability.' :
                    overallScore < 70 ? 'Your systems have a reasonable foundation but key integration and automation gaps are holding you back.' :
@@ -1056,22 +1108,40 @@ export default function SAReportPage() {
                 </p>
               </div>
             </div>
+
+            {/* Score breakdown — cards with bars */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-              {healthItems.slice(1).map((item, i) => (
-                <div key={item.key} style={{ ...glass({ padding: 24 }) }}>
-                  <HealthRing score={item.score} label={item.label} delay={i * 0.15} size={100} />
-                  {item.evidence && (
-                    <p style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.6, textAlign: 'center', marginTop: 10, padding: '8px 10px', background: 'rgba(0,0,0,0.02)', borderRadius: 8 }}>{item.evidence}</p>
-                  )}
-                </div>
-              ))}
+              {healthItems.slice(1).map((item) => {
+                const scoreColor = item.score < 30 ? C.red : item.score < 50 ? C.amber : item.score < 70 ? C.orange : C.emerald;
+                return (
+                  <div key={item.key} style={{
+                    ...glass({ padding: 24 }),
+                    background: `linear-gradient(180deg, ${scoreColor}06 0%, rgba(255,255,255,0.85) 100%)`,
+                    borderTop: `3px solid ${scoreColor}`,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{item.label}</span>
+                      <span style={{ fontSize: 28, fontWeight: 700, color: scoreColor, ...mono }}>{item.score}</span>
+                    </div>
+                    <div style={{ height: 8, background: 'rgba(0,0,0,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 16 }}>
+                      <div style={{ height: '100%', width: `${item.score}%`, background: `linear-gradient(90deg, ${scoreColor}, ${scoreColor}cc)`, borderRadius: 4, transition: 'width 1.5s cubic-bezier(0.22, 1, 0.36, 1)' }} />
+                    </div>
+                    {item.evidence && (
+                      <p style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.6, margin: 0, maxHeight: 100, overflow: 'hidden' }}>{item.evidence}</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+
             {keyPersonFindings.length > 0 && (
               <div style={{ ...accentCard(C.red, { padding: 20, display: 'flex', alignItems: 'flex-start', gap: 14 }) }}>
-                <AlertTriangle style={{ width: 22, height: 22, color: C.red, flexShrink: 0, marginTop: 2 }} />
+                <div style={{ width: 40, height: 40, borderRadius: 20, background: `${C.red}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <AlertTriangle style={{ width: 20, height: 20, color: C.red }} />
+                </div>
                 <div>
-                  <p style={{ fontWeight: 600, color: C.text, fontSize: 15, margin: '0 0 4px' }}>Key Person Risk Detected</p>
-                  <p style={{ color: C.textSecondary, fontSize: 13, lineHeight: 1.6, margin: 0 }}>{keyPersonFindings[0].description || keyPersonFindings[0].title}</p>
+                  <p style={{ fontWeight: 700, color: C.text, fontSize: 16, margin: '0 0 4px' }}>Key Person Risk Detected</p>
+                  <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.6, margin: 0 }}>{keyPersonFindings[0].description || keyPersonFindings[0].title}</p>
                 </div>
               </div>
             )}
@@ -1086,35 +1156,35 @@ export default function SAReportPage() {
         const clientQuote = quoteSource?.client_quote || quoteSource?.clientQuote;
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
-              <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 16, padding: 24, textAlign: 'center' }}>
-                <p style={{ fontSize: 10, color: '#ef4444', textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace", marginBottom: 8 }}>Annual Cost of Chaos</p>
-                <p style={{ fontSize: 36, fontWeight: 700, color: '#ef4444', fontFamily: "'JetBrains Mono', monospace" }}><AnimatedCounter target={m.annualCostOfChaos} prefix="£" /></p>
-              </div>
-              <div style={{ background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: 16, padding: 24, textAlign: 'center' }}>
-                <p style={{ fontSize: 10, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace", marginBottom: 8 }}>At {m.growthMultiplier}x Scale</p>
-                <p style={{ fontSize: 36, fontWeight: 700, color: '#8b5cf6', fontFamily: "'JetBrains Mono', monospace" }}><AnimatedCounter target={m.projectedCostAtScale} prefix="£" /></p>
-              </div>
-              <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: 16, padding: 24, textAlign: 'center' }}>
-                <p style={{ fontSize: 10, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace", marginBottom: 8 }}>Hours Lost Weekly</p>
-                <p style={{ fontSize: 36, fontWeight: 700, color: '#f59e0b', fontFamily: "'JetBrains Mono', monospace" }}><AnimatedCounter target={m.hoursWastedWeekly} decimals={1} /></p>
-              </div>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              {[
+                { label: 'Annual Cost of Chaos', value: m.annualCostOfChaos, prefix: '£', color: '#ef4444', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.15)' },
+                { label: `At ${m.growthMultiplier}x Scale`, value: m.projectedCostAtScale, prefix: '£', color: '#8b5cf6', bg: 'rgba(139,92,246,0.06)', border: 'rgba(139,92,246,0.15)' },
+                { label: 'Hours Lost Weekly', value: m.hoursWastedWeekly, decimals: 1, color: '#f59e0b', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.15)' },
+              ].map((stat, i) => (
+                <div key={i} style={{ background: stat.bg, border: `1px solid ${stat.border}`, borderRadius: 16, padding: 24, textAlign: 'center' }}>
+                  <p style={{ fontSize: 10, color: stat.color, textTransform: 'uppercase', letterSpacing: 1, ...mono, marginBottom: 8 }}>{stat.label}</p>
+                  <p style={{ fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 700, color: stat.color, ...mono }}>
+                    <AnimatedCounter target={stat.value} prefix={stat.prefix || ''} decimals={(stat as any).decimals || 0} />
+                  </p>
+                </div>
+              ))}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               <div style={{ ...glass({ padding: 24 }) }}>
-                <p style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace", marginBottom: 12 }}>The Pattern</p>
-                <p style={{ fontSize: 15, lineHeight: 1.85, color: '#162340', maxWidth: '55ch', margin: 0 }}>{firstChaosPara}</p>
+                <p style={{ ...label, marginBottom: 12 }}>The Pattern</p>
+                <p style={{ fontSize: 15, lineHeight: 1.85, color: C.text, maxWidth: '55ch', margin: 0 }}>{firstChaosPara}</p>
               </div>
               {clientQuote ? (
                 <div style={{ ...glass({ padding: 24, background: 'rgba(139,92,246,0.05)', borderLeft: '3px solid #8b5cf6' }) }}>
                   <Quote style={{ width: 24, height: 24, color: '#8b5cf6', opacity: 0.5, marginBottom: 8 }} />
-                  <p style={{ fontSize: 15, fontStyle: 'italic', color: '#162340', lineHeight: 1.7, fontFamily: "'Playfair Display', serif", margin: 0 }}>&quot;{clientQuote}&quot;</p>
+                  <p style={{ fontSize: 15, fontStyle: 'italic', color: C.text, lineHeight: 1.7, fontFamily: "'Playfair Display', serif", margin: 0 }}>&quot;{clientQuote}&quot;</p>
                 </div>
               ) : restChaosParas[0] ? (
                 <div style={{ ...glass({ padding: 24 }) }}>
-                  <p style={{ fontSize: 15, lineHeight: 1.85, color: '#475569', maxWidth: '55ch', margin: 0 }}>{restChaosParas[0]}</p>
+                  <p style={{ fontSize: 15, lineHeight: 1.85, color: C.textSecondary, maxWidth: '55ch', margin: 0 }}>{restChaosParas[0]}</p>
                 </div>
               ) : null}
             </div>
@@ -1122,18 +1192,17 @@ export default function SAReportPage() {
             {restChaosParas.length > 1 && (
               <div style={{ ...glass({ padding: 24 }) }}>
                 {restChaosParas.slice(clientQuote ? 0 : 1).map((para: string, i: number) => (
-                  <p key={i} style={{ fontSize: 14, lineHeight: 1.8, color: '#475569', marginBottom: 12, maxWidth: '62ch' }}>{para}</p>
+                  <p key={i} style={{ fontSize: 14, lineHeight: 1.8, color: C.textSecondary, marginBottom: 12, maxWidth: '62ch' }}>{para}</p>
                 ))}
               </div>
             )}
 
             <div>
-              <p style={{ fontSize: 10, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1, fontFamily: "'JetBrains Mono', monospace", marginBottom: 12 }}>Where the Hours Go</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <p style={{ ...label, marginBottom: 12 }}>Where the Hours Go</p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
                 {sortedProcesses.map((proc: any, i: number) => {
                   const hours = proc.hoursWasted ?? proc.hours_wasted ?? 0;
                   const maxH = Math.max(...sortedProcesses.map((p: any) => p.hoursWasted ?? p.hours_wasted ?? 0), 1);
-                  const pct = (hours / maxH) * 100;
                   const color = hours > 60 ? '#ef4444' : hours > 30 ? '#f59e0b' : '#3B82F6';
                   return (
                     <div key={i} style={{ ...glass({ padding: '12px 16px' }), display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1141,13 +1210,8 @@ export default function SAReportPage() {
                         <ChainIcon code={proc.chainCode || proc.chain_code || ''} size={14} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: '#162340', margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.chainName || proc.chain_name || proc.chainCode}</p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ flex: 1, height: 6, background: 'rgba(0,0,0,0.04)', borderRadius: 3, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3, transition: 'width 0.6s ease' }} />
-                          </div>
-                          <span style={{ fontSize: 12, fontWeight: 600, color, fontFamily: "'JetBrains Mono', monospace", minWidth: 36, textAlign: 'right' }}>{hours}h</span>
-                        </div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.chainName || proc.chain_name || proc.chainCode}</p>
+                        <HoursBar hours={hours} maxHours={maxH} color={color} />
                       </div>
                     </div>
                   );
@@ -1169,7 +1233,7 @@ export default function SAReportPage() {
       }
       case 'processes': {
         return (
-          <div>
+          <div style={sectionWrap}>
             <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{sortedProcesses.length} process chains</h2>
             <p style={{ color: C.textMuted, marginBottom: 24 }}>Total {totalProcessHours}h wasted weekly</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1181,29 +1245,29 @@ export default function SAReportPage() {
                 return (
                   <div key={proc.chainCode || proc.chain_code} style={{ ...glass(), borderLeft: `4px solid ${borderColor}`, overflow: 'hidden' }}>
                     <button type="button" onClick={() => setExpandedProcess(isExpanded ? null : (proc.chainCode || proc.chain_code))} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 16, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: `${borderColor}06`, transition: 'width 0.6s ease', borderRadius: 16, pointerEvents: 'none' }} />
-                      <div style={{ width: 40, height: 40, borderRadius: 20, background: `${borderColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}><ChainIcon code={proc.chainCode || proc.chain_code || ''} /></div>
-                      <div style={{ flex: 1, position: 'relative' }}>
-                        <p style={{ fontWeight: 600, color: C.text }}>{proc.chainName || proc.chain_name || proc.chainCode}</p>
-                        <p style={{ fontSize: 12, color: C.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{hours}h/week</p>
+                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: `${borderColor}06`, transition: 'width 0.6s ease', pointerEvents: 'none' }} />
+                      <div style={{ width: 40, height: 40, borderRadius: 20, background: `${borderColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', flexShrink: 0 }}><ChainIcon code={proc.chainCode || proc.chain_code || ''} /></div>
+                      <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+                        <p style={{ fontWeight: 600, color: C.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.chainName || proc.chain_name || proc.chainCode}</p>
+                        <p style={{ fontSize: 12, color: C.textMuted, ...mono, margin: '2px 0 0' }}>{hours}h/week</p>
                       </div>
-                      <span style={{ position: 'relative' }}>{isExpanded ? <ChevronUp style={{ color: C.textMuted }} /> : <ChevronDown style={{ color: C.textMuted }} />}</span>
+                      <span style={{ position: 'relative', flexShrink: 0 }}>{isExpanded ? <ChevronUp style={{ color: C.textMuted }} /> : <ChevronDown style={{ color: C.textMuted }} />}</span>
                     </button>
-                    {isExpanded && (
+                    <div style={{ maxHeight: isExpanded ? 400 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
                       <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.cardBorder}` }}>
                         <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
                           {(proc.criticalGaps || proc.critical_gaps || []).length > 0 && (
                             <div>
-                              <p style={{ fontSize: 10, color: C.textMuted, marginBottom: 6, fontFamily: "'JetBrains Mono', monospace" }}>Critical gaps</p>
-                              {(proc.criticalGaps || proc.critical_gaps || []).map((g: string, j: number) => <p key={j} style={{ fontSize: 13, color: C.red, marginBottom: 4 }}>{g}</p>)}
+                              <p style={{ fontSize: 10, color: C.textMuted, marginBottom: 6, ...mono }}>Critical gaps</p>
+                              {(proc.criticalGaps || proc.critical_gaps || []).map((g: string, j: number) => <p key={j} style={{ fontSize: 13, color: C.red, marginBottom: 4, lineHeight: 1.5 }}>{g}</p>)}
                             </div>
                           )}
                           {(proc.clientQuotes || proc.client_quotes || [])?.length > 0 && (proc.clientQuotes || proc.client_quotes).map((q: string, j: number) => (
-                            <p key={j} style={{ fontSize: 13, fontStyle: 'italic', color: C.textMuted }}>&quot;{q}&quot;</p>
+                            <p key={j} style={{ fontSize: 13, fontStyle: 'italic', color: C.textMuted, lineHeight: 1.5 }}>&quot;{q}&quot;</p>
                           ))}
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
@@ -1213,61 +1277,100 @@ export default function SAReportPage() {
       }
       case 'findings':
         return (
-          <div>
+          <div style={sectionWrap}>
             <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{displayFindings.length} Findings</h2>
             <p style={{ color: C.textMuted, marginBottom: 24 }}>What We Found · Critical: {criticalCount} · High: {highCount}</p>
             <SeverityDotGrid findings={displayFindings} displayOutcomeFn={displayOutcome} />
           </div>
         );
       case 'techmap':
-        return (systemsMaps?.length > 0 || (facts?.systems && facts.systems.length > 0)) ? (
-          <div style={{ borderRadius: 20, overflow: 'hidden', boxShadow: '0 8px 40px rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.08)' }}>
-            <SystemsMapSection systemsMaps={systemsMaps} facts={facts} layout="split" />
-          </div>
-        ) : (
-          <div style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
-            <p style={{ color: '#64748b' }}>Technology map not yet generated.</p>
+        return (
+          <div style={sectionWrap}>
+            {(systemsMaps?.length > 0 || (facts?.systems && facts.systems.length > 0)) ? (
+              <div style={{
+                borderRadius: 20, overflow: 'hidden',
+                boxShadow: '0 8px 40px rgba(0,0,0,0.12)',
+                border: '1px solid rgba(0,0,0,0.08)',
+                maxHeight: 'calc(100vh - 140px)',
+                overflowY: 'auto',
+              }}>
+                <SystemsMapSection systemsMaps={systemsMaps} facts={facts} layout="split" />
+              </div>
+            ) : (
+              <div style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
+                <p style={{ color: C.textMuted }}>Technology map not yet generated.</p>
+              </div>
+            )}
           </div>
         );
       case 'quickwins': {
         const qwList = quickWins || [];
         const totalQWHours = qwList.reduce((s: number, q: any) => s + (parseFloat(q.hoursSaved || q.hours_saved || q.hoursSavedWeekly || 0) || 0), 0);
         return (
-          <div>
-            <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Start This Week</h2>
-            <p style={{ color: C.textMuted, marginBottom: 24 }}>{qwList.length} quick wins · {totalQWHours}h saved</p>
+          <div style={sectionWrap}>
+            {/* Urgency hero banner */}
+            <div style={{
+              background: `linear-gradient(135deg, ${C.emerald}15, ${C.emerald}05)`,
+              border: `2px solid ${C.emerald}30`,
+              borderRadius: 20, padding: 28, marginBottom: 24,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16,
+            }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <Zap style={{ width: 28, height: 28, color: C.emerald }} />
+                  <h2 style={{ color: C.text, fontSize: 26, fontWeight: 700, margin: 0 }}>Start This Week</h2>
+                </div>
+                <p style={{ color: C.textSecondary, fontSize: 15, margin: 0 }}>
+                  {qwList.length} wins · zero cost · <span style={{ color: C.emerald, fontWeight: 700 }}>{totalQWHours}h saved every week</span>
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div style={{ textAlign: 'center', padding: '12px 20px', background: 'rgba(255,255,255,0.7)', borderRadius: 12 }}>
+                  <p style={{ fontSize: 28, fontWeight: 700, color: C.emerald, ...mono, margin: 0 }}>£0</p>
+                  <p style={{ fontSize: 11, color: C.textMuted, margin: '4px 0 0' }}>Investment</p>
+                </div>
+                <div style={{ textAlign: 'center', padding: '12px 20px', background: 'rgba(255,255,255,0.7)', borderRadius: 12 }}>
+                  <p style={{ fontSize: 28, fontWeight: 700, color: C.emerald, ...mono, margin: 0 }}>+{totalQWHours}h</p>
+                  <p style={{ fontSize: 11, color: C.textMuted, margin: '4px 0 0' }}>Per Week</p>
+                </div>
+              </div>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {qwList.map((qw: any, i: number) => {
                 const isExpanded = expandedQW === i;
+                const hoursSaved = parseFloat(qw.hoursSaved || qw.hours_saved || qw.hoursSavedWeekly || 0) || 0;
                 return (
-                  <div key={i} style={{ ...glass(), padding: 16 }}>
-                    <button type="button" onClick={() => setExpandedQW(isExpanded ? null : i)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 18, background: `${C.emerald}20`, color: C.emerald, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontWeight: 600, color: '#162340', fontSize: 14, margin: 0, lineHeight: 1.4 }}>
-                          {qw.owner && <span style={{ color: '#3B82F6', fontWeight: 600 }}>{qw.owner}: </span>}
+                  <div key={i} style={{ ...glass(), overflow: 'hidden', borderLeft: `4px solid ${C.emerald}` }}>
+                    <button type="button" onClick={() => setExpandedQW(isExpanded ? null : i)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 18, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 20, background: `${C.emerald}20`, color: C.emerald, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>{i + 1}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontWeight: 600, color: C.text, fontSize: 15, margin: 0, lineHeight: 1.4 }}>
+                          {qw.owner && <span style={{ color: C.blue, fontWeight: 700 }}>{qw.owner}: </span>}
                           {qw.title || qw.action?.slice(0, 80) || 'Quick Win'}
                         </p>
                       </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: C.emerald, fontFamily: "'JetBrains Mono', monospace" }}>+{parseFloat(qw.hoursSaved || qw.hours_saved || qw.hoursSavedWeekly || 0) || 0}h</p>
-                        {qw.timeToImplement && <p style={{ fontSize: 11, color: C.textMuted }}>{qw.timeToImplement}</p>}
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <p style={{ fontSize: 18, fontWeight: 700, color: C.emerald, ...mono, margin: 0 }}>+{hoursSaved}h</p>
+                        {qw.timeToImplement && <p style={{ fontSize: 11, color: C.textMuted, margin: '2px 0 0' }}>{qw.timeToImplement}</p>}
                       </div>
-                      {isExpanded ? <ChevronUp /> : <ChevronDown />}
+                      <span style={{ flexShrink: 0 }}>{isExpanded ? <ChevronUp style={{ color: C.textMuted }} /> : <ChevronDown style={{ color: C.textMuted }} />}</span>
                     </button>
-                    {isExpanded && (
-                      <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.cardBorder}` }}>
-                        {qw.action && <p style={{ fontSize: 14, color: C.text, lineHeight: 1.6, marginBottom: 8 }}>{qw.action}</p>}
-                        {qw.impact && <p style={{ fontSize: 13, color: C.emerald, marginBottom: 8 }}>{qw.impact}</p>}
-                        {(qw.systems || qw.systems_affected)?.length > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {(qw.systems || qw.systems_affected).map((sys: string, j: number) => (
-                              <span key={j} style={{ fontSize: 11, background: 'rgba(0,0,0,0.06)', color: C.textMuted, padding: '4px 8px', borderRadius: 6 }}>{sys}</span>
-                            ))}
-                          </div>
-                        )}
+                    <div style={{ maxHeight: isExpanded ? 300 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
+                      <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.cardBorder}` }}>
+                        <div style={{ paddingTop: 12 }}>
+                          {qw.action && <p style={{ fontSize: 14, color: C.text, lineHeight: 1.6, marginBottom: 8 }}>{qw.action}</p>}
+                          {qw.impact && <p style={{ fontSize: 13, color: C.emerald, marginBottom: 8, lineHeight: 1.5, padding: '8px 12px', background: `${C.emerald}08`, borderRadius: 8, borderLeft: `3px solid ${C.emerald}` }}>{qw.impact}</p>}
+                          {(qw.systems || qw.systems_affected)?.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                              {(qw.systems || qw.systems_affected).map((sys: string, j: number) => (
+                                <span key={j} style={{ fontSize: 11, background: 'rgba(0,0,0,0.06)', color: C.textMuted, padding: '4px 8px', borderRadius: 6 }}>{sys}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
@@ -1279,7 +1382,7 @@ export default function SAReportPage() {
         const phaseColors: Record<string, string> = { immediate: C.emerald, quick_win: C.emerald, foundation: C.blue, short_term: C.blue, strategic: C.purple, medium_term: C.purple, optimization: '#6366f1', long_term: C.textMuted };
         const phaseLabels: Record<string, string> = { immediate: 'Quick Win', quick_win: 'Quick Win', foundation: 'Foundation', short_term: 'Short Term', strategic: 'Strategic', medium_term: 'Medium Term', optimization: 'Optimisation', long_term: 'Long Term' };
         return (
-          <div>
+          <div style={sectionWrap}>
             <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700, marginBottom: 24 }}>Roadmap</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               {phaseOrder.map((phaseKey) => {
@@ -1291,9 +1394,9 @@ export default function SAReportPage() {
                   <div key={phaseKey}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                       <div style={{ width: 10, height: 10, borderRadius: 5, background: phaseColor, boxShadow: `0 0 8px ${phaseColor}40`, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, fontWeight: 700, color: phaseColor, fontFamily: "'JetBrains Mono', monospace" }}>{phaseLabel.toUpperCase()}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: phaseColor, ...mono }}>{phaseLabel.toUpperCase()}</span>
                       <div style={{ flex: 1, height: 1, background: `${phaseColor}20` }} />
-                      <span style={{ fontSize: 11, color: '#64748b' }}>{recs.length} {recs.length === 1 ? 'item' : 'items'}</span>
+                      <span style={{ fontSize: 11, color: C.textMuted }}>{recs.length} {recs.length === 1 ? 'item' : 'items'}</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 22 }}>
                       {recs.map((rec: any) => {
@@ -1302,26 +1405,23 @@ export default function SAReportPage() {
                         return (
                           <div key={rid} style={{ ...glass(), padding: 0, borderLeft: `3px solid ${phaseColor}`, overflow: 'hidden' }}>
                             <button type="button" onClick={() => setExpandedRec(isExpanded ? null : rid)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 16, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                              <div style={{ width: 24, height: 24, borderRadius: 12, background: 'rgba(0,0,0,0.06)', color: C.blue, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{rec.priorityRank ?? '-'}</div>
-                              <span style={{ flex: 1, fontWeight: 600, color: C.text }}>{rec.title}</span>
-                              {isExpanded ? <ChevronUp /> : <ChevronDown />}
+                              <div style={{ width: 24, height: 24, borderRadius: 12, background: `${phaseColor}15`, color: phaseColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, ...mono }}>{rec.priorityRank ?? '-'}</div>
+                              <span style={{ flex: 1, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{rec.title}</span>
+                              <span style={{ flexShrink: 0 }}>{isExpanded ? <ChevronUp style={{ color: C.textMuted, width: 16, height: 16 }} /> : <ChevronDown style={{ color: C.textMuted, width: 16, height: 16 }} />}</span>
                             </button>
-                            {isExpanded && (
-                              <div style={{ paddingTop: 12, marginTop: 12, borderTop: `1px solid ${C.cardBorder}` }}>
+                            <div style={{ maxHeight: isExpanded ? 500 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
+                              <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${C.cardBorder}` }}>
                                 {rec.description && <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.6, marginBottom: 12 }}>{rec.description}</p>}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
-                                  <div><span style={{ fontSize: 10, color: C.textLight }}>Investment</span><p style={{ fontWeight: 600, color: C.text }}>{fmt(rec.estimatedCost ?? rec.estimated_cost)}</p></div>
-                                  <div><span style={{ fontSize: 10, color: C.textLight }}>Benefit</span><p style={{ fontWeight: 600, color: C.emerald }}>{fmt(rec.annualBenefit ?? rec.annual_cost_savings)}/yr</p></div>
-                                  <div><span style={{ fontSize: 10, color: C.textLight }}>Hours</span><p style={{ fontWeight: 600, color: C.text }}>{rec.hoursSavedWeekly ?? rec.hours_saved_weekly ?? 0}h/wk</p></div>
-                                  <div><span style={{ fontSize: 10, color: C.textLight }}>Payback</span><p style={{ fontWeight: 600, color: C.text }}>{(() => { const b = rec.annualBenefit ?? rec.annual_cost_savings ?? 0; const c = rec.estimatedCost ?? rec.estimated_cost ?? 0; if (c === 0) return '£0'; if (b <= 0) return '—'; const months = Math.round(c / (b / 12)); return months < 1 ? '< 1 mo' : `${months} mo`; })()}</p></div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 12, marginBottom: 12 }}>
+                                  <div><span style={{ fontSize: 10, color: C.textLight, ...mono }}>Investment</span><p style={{ fontWeight: 600, color: C.text, margin: '4px 0 0' }}>{fmt(rec.estimatedCost ?? rec.estimated_cost)}</p></div>
+                                  <div><span style={{ fontSize: 10, color: C.textLight, ...mono }}>Benefit</span><p style={{ fontWeight: 600, color: C.emerald, margin: '4px 0 0' }}>{fmt(rec.annualBenefit ?? rec.annual_cost_savings)}/yr</p></div>
+                                  <div><span style={{ fontSize: 10, color: C.textLight, ...mono }}>Hours</span><p style={{ fontWeight: 600, color: C.text, margin: '4px 0 0' }}>{rec.hoursSavedWeekly ?? rec.hours_saved_weekly ?? 0}h/wk</p></div>
+                                  <div><span style={{ fontSize: 10, color: C.textLight, ...mono }}>Payback</span><p style={{ fontWeight: 600, color: C.text, margin: '4px 0 0' }}>{(() => { const b = rec.annualBenefit ?? rec.annual_cost_savings ?? 0; const c = rec.estimatedCost ?? rec.estimated_cost ?? 0; if (c === 0) return '£0'; if (b <= 0) return '—'; const months = Math.round(c / (b / 12)); return months < 1 ? '< 1 mo' : `${months} mo`; })()}</p></div>
                                 </div>
-                                {(rec.goalsAdvanced || rec.goals_advanced)?.length > 0 && (
-                                  <div style={{ marginBottom: 8 }}><span style={{ fontSize: 10, color: C.textMuted }}>Goals advanced</span> {(rec.goalsAdvanced || rec.goals_advanced).map((g: string, j: number) => <span key={j} style={{ marginRight: 6, fontSize: 12, background: 'rgba(0,0,0,0.06)', padding: '2px 8px', borderRadius: 6 }}>{g}</span>)}</div>
-                                )}
-                                {(rec.freedomUnlocked || rec.freedom_unlocked) && <p style={{ fontSize: 13, color: C.emerald, marginTop: 8 }}>{rec.freedomUnlocked || rec.freedom_unlocked}</p>}
+                                {(rec.freedomUnlocked || rec.freedom_unlocked) && <p style={{ fontSize: 13, color: C.emerald, marginTop: 8, padding: '8px 12px', background: `${C.emerald}08`, borderRadius: 8, lineHeight: 1.5 }}>{rec.freedomUnlocked || rec.freedom_unlocked}</p>}
                                 {(rec.findingsAddressed || rec.findings_addressed)?.length > 0 && <p style={{ fontSize: 11, color: C.textMuted, marginTop: 8 }}>Addresses: {(rec.findingsAddressed || rec.findings_addressed).join(', ')}</p>}
                               </div>
-                            )}
+                            </div>
                           </div>
                         );
                       })}
@@ -1334,110 +1434,183 @@ export default function SAReportPage() {
         );
       }
       case 'investment': {
-        const roiRecs = displayRecs || [];
         const paybackMonths = totalBenefit > 0 && totalInvestment > 0 ? (totalInvestment / (totalBenefit / 12)) : 0;
         const paybackDisplay = paybackMonths <= 0 || !Number.isFinite(paybackMonths) ? '—' : paybackMonths < 1 ? '<1 mo' : `${Math.round(paybackMonths)} mo`;
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700 }}>ROI</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-              <div style={{ ...glass(), padding: 20, textAlign: 'center' }}>
-                <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontFamily: "'JetBrains Mono', monospace" }}>Investment</p>
-                <p style={{ fontSize: 24, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>{fmt(totalInvestment)}</p>
-              </div>
-              <div style={{ ...glass(), padding: 20, textAlign: 'center' }}>
-                <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontFamily: "'JetBrains Mono', monospace" }}>Benefit</p>
-                <p style={{ fontSize: 24, fontWeight: 700, color: C.emerald, fontFamily: "'JetBrains Mono', monospace" }}>£{totalBenefit.toLocaleString()}/yr</p>
-              </div>
-              <div style={{ ...glass(), padding: 20, textAlign: 'center' }}>
-                <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontFamily: "'JetBrains Mono', monospace" }}>Payback</p>
-                <p style={{ fontSize: 24, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>{paybackDisplay}</p>
-              </div>
-              <div style={{ ...glass(), padding: 20, textAlign: 'center' }}>
-                <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, fontFamily: "'JetBrains Mono', monospace" }}>ROI</p>
-                <p style={{ fontSize: 24, fontWeight: 700, color: C.blue, fontFamily: "'JetBrains Mono', monospace" }}>{totalInvestment > 0 ? `${(totalBenefit / totalInvestment).toFixed(1)}:1` : '—'}</p>
-              </div>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700 }}>Return on Investment</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16 }}>
+              {[
+                { label: 'Investment', value: fmt(totalInvestment), color: C.text },
+                { label: 'Benefit', value: `£${totalBenefit.toLocaleString()}/yr`, color: C.emerald },
+                { label: 'Payback', value: paybackDisplay, color: C.text },
+                { label: 'ROI', value: totalInvestment > 0 ? `${(totalBenefit / totalInvestment).toFixed(1)}:1` : '—', color: C.blue },
+              ].map((stat, i) => (
+                <div key={i} style={{ ...glass(), padding: 20, textAlign: 'center' }}>
+                  <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, ...mono }}>{stat.label}</p>
+                  <p style={{ fontSize: 22, fontWeight: 700, color: stat.color, ...mono }}>{stat.value}</p>
+                </div>
+              ))}
             </div>
-            <ROIWaterfall recommendations={roiRecs} />
+            <ROIWaterfall recommendations={displayRecs} />
             <div style={{ ...glass(), overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${C.cardBorder}`, background: 'rgba(0,0,0,0.02)' }}>
-                    <th style={{ textAlign: 'left', padding: 12, color: C.textMuted, fontWeight: 600 }}>Phase</th>
-                    <th style={{ textAlign: 'left', padding: 12, color: C.textMuted, fontWeight: 600 }}>Title</th>
-                    <th style={{ textAlign: 'right', padding: 12, color: C.textMuted, fontWeight: 600 }}>Cost</th>
-                    <th style={{ textAlign: 'right', padding: 12, color: C.textMuted, fontWeight: 600 }}>Benefit</th>
-                    <th style={{ textAlign: 'right', padding: 12, color: C.textMuted, fontWeight: 600 }}>Hours</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {roiRecs.map((r: any, i: number) => (
-                    <tr key={i} style={{ borderBottom: `1px solid ${C.cardBorder}` }}>
-                      <td style={{ padding: 12, color: C.text }}><PhaseBadge phase={r.implementationPhase || r.implementation_phase || 'short_term'} /></td>
-                      <td style={{ padding: 12, color: C.text }}>{r.title}</td>
-                      <td style={{ padding: 12, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: C.text }}>{fmt(r.estimatedCost ?? r.estimated_cost)}</td>
-                      <td style={{ padding: 12, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: C.emerald }}>£{(r.annualBenefit ?? r.annual_cost_savings ?? 0).toLocaleString()}</td>
-                      <td style={{ padding: 12, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: C.text }}>{r.hoursSavedWeekly ?? r.hours_saved_weekly ?? 0}h</td>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 500 }}>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${C.cardBorder}`, background: 'rgba(0,0,0,0.02)' }}>
+                      <th style={{ textAlign: 'left', padding: 12, color: C.textMuted, fontWeight: 600 }}>Phase</th>
+                      <th style={{ textAlign: 'left', padding: 12, color: C.textMuted, fontWeight: 600 }}>Title</th>
+                      <th style={{ textAlign: 'right', padding: 12, color: C.textMuted, fontWeight: 600 }}>Cost</th>
+                      <th style={{ textAlign: 'right', padding: 12, color: C.textMuted, fontWeight: 600 }}>Benefit</th>
+                      <th style={{ textAlign: 'right', padding: 12, color: C.textMuted, fontWeight: 600 }}>Hours</th>
                     </tr>
-                  ))}
-                  <tr style={{ background: 'rgba(0,0,0,0.03)', fontWeight: 600 }}>
-                    <td style={{ padding: 12, color: C.text }} colSpan={2}>Total</td>
-                    <td style={{ padding: 12, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: C.text }}>{fmt(totalInvestment)}</td>
-                    <td style={{ padding: 12, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: C.emerald }}>£{totalBenefit.toLocaleString()}</td>
-                    <td style={{ padding: 12, textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", color: C.text }}>{totalHoursSaved}h</td>
-                  </tr>
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {displayRecs.map((r: any, i: number) => (
+                      <tr key={i} style={{ borderBottom: `1px solid ${C.cardBorder}` }}>
+                        <td style={{ padding: 12 }}><PhaseBadge phase={r.implementationPhase || r.implementation_phase || 'short_term'} /></td>
+                        <td style={{ padding: 12, color: C.text, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</td>
+                        <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.text }}>{fmt(r.estimatedCost ?? r.estimated_cost)}</td>
+                        <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.emerald }}>£{(r.annualBenefit ?? r.annual_cost_savings ?? 0).toLocaleString()}</td>
+                        <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.text }}>{r.hoursSavedWeekly ?? r.hours_saved_weekly ?? 0}h</td>
+                      </tr>
+                    ))}
+                    <tr style={{ background: 'rgba(0,0,0,0.03)', fontWeight: 600 }}>
+                      <td style={{ padding: 12, color: C.text }} colSpan={2}>Total</td>
+                      <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.text }}>{fmt(totalInvestment)}</td>
+                      <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.emerald }}>£{totalBenefit.toLocaleString()}</td>
+                      <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.text }}>{totalHoursSaved}h</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         );
       }
       case 'monday': {
         const freedomRecs = displayRecs.filter((r: any) => r.freedomUnlocked || r.freedom_unlocked);
-        const visionHeadline = `Ready to Reclaim ${totalHoursSaved} Hours Every Week?`;
+        const visionParas = splitNarrative(report?.time_freedom_narrative || '', 3);
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700 }}>{visionHeadline}</h2>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+            {/* Hero — full-width gradient banner */}
+            <div style={{
+              background: 'linear-gradient(135deg, #162340 0%, #0f172a 40%, #1e3156 100%)',
+              borderRadius: 24, padding: 'clamp(32px, 5vw, 56px)', position: 'relative', overflow: 'hidden', marginBottom: 24,
+            }}>
+              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(16,185,129,0.06) 1px, transparent 0)', backgroundSize: '20px 20px' }} />
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <Rocket style={{ width: 28, height: 28, color: C.emerald }} />
+                  <span style={{ fontSize: 12, letterSpacing: 3, color: C.emerald, textTransform: 'uppercase', ...mono }}>Your Future</span>
+                </div>
+                <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 700, color: '#fff', lineHeight: 1.2, marginBottom: 24 }}>
+                  Ready to Reclaim <span style={{ color: C.emerald }}>{totalHoursSaved} Hours</span> Every Week?
+                </h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                  <div style={{ background: 'rgba(16,185,129,0.15)', borderRadius: 16, padding: 20, textAlign: 'center', border: '1px solid rgba(16,185,129,0.25)' }}>
+                    <p style={{ fontSize: 36, fontWeight: 700, color: C.emerald, ...mono }}>{totalHoursSaved}</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Hours/week reclaimed</p>
+                  </div>
+                  <div style={{ background: 'rgba(59,130,246,0.15)', borderRadius: 16, padding: 20, textAlign: 'center', border: '1px solid rgba(59,130,246,0.25)' }}>
+                    <p style={{ fontSize: 36, fontWeight: 700, color: '#60a5fa', ...mono }}>£{(totalBenefit / 1000).toFixed(0)}k</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual benefit</p>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 20, textAlign: 'center', border: '1px solid rgba(255,255,255,0.12)' }}>
+                    <p style={{ fontSize: 36, fontWeight: 700, color: '#fff', ...mono }}>
+                      {totalInvestment > 0 && totalBenefit > 0 ? (totalInvestment / (totalBenefit / 12) < 1 ? '<1' : Math.round(totalInvestment / (totalBenefit / 12))) : '—'}
+                    </p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Month payback</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Monday morning vision quote */}
             {(facts?.mondayMorningVision || facts?.monday_morning_vision) && (
-              <div style={{ ...glass(), padding: 24, background: 'rgba(22,35,64,0.04)', borderLeft: `4px solid ${C.emerald}` }}>
-                <p style={{ fontSize: 16, fontStyle: 'italic', color: C.text, lineHeight: 1.7 }}>&quot;{facts.mondayMorningVision || facts.monday_morning_vision}&quot;</p>
+              <div style={{
+                ...glass({ padding: 28 }),
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.04))',
+                borderLeft: `4px solid ${C.emerald}`,
+                marginBottom: 24,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <Quote style={{ width: 28, height: 28, color: C.emerald, opacity: 0.6, flexShrink: 0, marginTop: 2 }} />
+                  <p style={{ fontSize: 18, fontStyle: 'italic', color: C.text, lineHeight: 1.7, fontFamily: "'Playfair Display', serif", margin: 0 }}>
+                    &quot;{facts.mondayMorningVision || facts.monday_morning_vision}&quot;
+                  </p>
+                </div>
               </div>
             )}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 16, alignItems: 'start' }}>
-              <div style={{ maxWidth: '62ch' }}>
-                <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 8, fontFamily: "'JetBrains Mono', monospace" }}>How We Get There</p>
-                {splitNarrative(report?.time_freedom_narrative || '', 3).map((para: string, i: number) => (
-                  <p key={i} style={{ fontSize: 15, lineHeight: 1.8, color: C.text, marginBottom: 12 }}>{para}</p>
+
+            {/* How We Get There — narrative */}
+            {visionParas.length > 0 && (
+              <div style={{ ...glass({ padding: 28 }), marginBottom: 24 }}>
+                <p style={{ ...label, marginBottom: 16 }}>How We Get There</p>
+                {visionParas.map((para: string, i: number) => (
+                  <p key={i} style={{ fontSize: 15, lineHeight: 1.85, color: C.text, marginBottom: 16, maxWidth: '62ch' }}>{para}</p>
                 ))}
               </div>
-              <div style={{ ...glass(), padding: 20, textAlign: 'center' }}><p style={{ fontSize: 11, color: C.textMuted }}>Hours/week</p><p style={{ fontSize: 22, fontWeight: 700, color: C.emerald, fontFamily: "'JetBrains Mono', monospace" }}>{totalHoursSaved}</p></div>
-              <div style={{ ...glass(), padding: 20, textAlign: 'center' }}><p style={{ fontSize: 11, color: C.textMuted }}>Benefit/yr</p><p style={{ fontSize: 22, fontWeight: 700, color: C.emerald, fontFamily: "'JetBrains Mono', monospace" }}>£{(totalBenefit / 1000).toFixed(0)}k</p></div>
-              <div style={{ ...glass(), padding: 20, textAlign: 'center' }}><p style={{ fontSize: 11, color: C.textMuted }}>Payback</p><p style={{ fontSize: 22, fontWeight: 700, color: C.text, fontFamily: "'JetBrains Mono', monospace" }}>{totalInvestment > 0 && totalBenefit > 0 ? (totalInvestment / (totalBenefit / 12) < 1 ? '< 1 mo' : `${Math.round(totalInvestment / (totalBenefit / 12))} mo`) : '—'}</p></div>
-            </div>
+            )}
+
+            {/* Freedom stories — what each fix unlocks */}
             {freedomRecs.length > 0 && (
-              <div>
-                <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 12, fontFamily: "'JetBrains Mono', monospace" }}>Freedom stories</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ ...label, marginBottom: 12 }}>What Each Step Unlocks</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
                   {freedomRecs.map((rec: any, i: number) => (
-                    <div key={i} style={{ ...glass(), padding: 14, background: 'rgba(16,185,129,0.06)', border: `1px solid ${C.emerald}20` }}>
-                      <p style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>{rec.freedomUnlocked || rec.freedom_unlocked}</p>
+                    <div key={i} style={{
+                      ...glass({ padding: 20 }),
+                      background: 'rgba(16,185,129,0.06)',
+                      border: `1px solid ${C.emerald}20`,
+                      borderTop: `3px solid ${C.emerald}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <Star style={{ width: 14, height: 14, color: C.emerald }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: C.emerald, ...mono }}>STEP {rec.priorityRank || i + 1}</span>
+                      </div>
+                      <p style={{ fontSize: 14, color: C.text, lineHeight: 1.6, margin: 0 }}>{rec.freedomUnlocked || rec.freedom_unlocked}</p>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            <div style={{ ...glass(), padding: 24, background: `linear-gradient(135deg, ${C.emerald}18, ${C.blue}08)`, border: `1px solid ${C.emerald}30`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-              <div>
-                <h3 style={{ fontSize: 18, fontWeight: 600, color: C.text, display: 'flex', alignItems: 'center', gap: 8 }}><Phone style={{ width: 20, height: 20, color: C.emerald }} />Ready to Start?</h3>
-                <p style={{ fontSize: 14, color: C.textMuted, marginTop: 4 }}>Let&apos;s discuss these findings and build your implementation timeline.</p>
+
+            {/* CTA — Book a Call */}
+            <div style={{
+              background: 'linear-gradient(135deg, #162340, #1e3a5f)',
+              borderRadius: 20, padding: 'clamp(28px, 4vw, 40px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
+              position: 'relative', overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(16,185,129,0.05) 1px, transparent 0)', backgroundSize: '20px 20px' }} />
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <h3 style={{ fontSize: 22, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <Phone style={{ width: 22, height: 22, color: C.emerald }} />
+                  Ready to Start?
+                </h3>
+                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.7)', margin: 0 }}>Let&apos;s discuss these findings and build your implementation timeline.</p>
               </div>
-              <button type="button" onClick={() => navigate('/appointments')} style={{ padding: '14px 32px', fontSize: 16, fontWeight: 700, background: `linear-gradient(135deg, ${C.emerald}, #059669)`, color: '#fff', border: 'none', borderRadius: 12, cursor: 'pointer', boxShadow: `0 0 24px ${C.emerald}40`, fontFamily: "'DM Sans', sans-serif", display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button type="button" onClick={() => navigate('/appointments')} style={{
+                position: 'relative', zIndex: 1,
+                padding: '16px 36px', fontSize: 17, fontWeight: 700,
+                background: `linear-gradient(135deg, ${C.emerald}, #059669)`,
+                color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer',
+                boxShadow: `0 0 30px ${C.emerald}50`,
+                fontFamily: "'DM Sans', sans-serif",
+                display: 'flex', alignItems: 'center', gap: 8,
+                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 40px ${C.emerald}60`; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 0 30px ${C.emerald}50`; }}>
                 Book a Call <ArrowRight style={{ width: 18, height: 18 }} />
               </button>
             </div>
           </div>
         );
       }
+
       default: return null;
     }
   };
@@ -1448,9 +1621,10 @@ export default function SAReportPage() {
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
         .sa-report-root, .sa-report-root * { color-scheme: light; }
         .sa-report-content { background: #F0F2F7 !important; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
       <SASidebar />
       <div
@@ -1463,21 +1637,21 @@ export default function SAReportPage() {
           transition: 'opacity 0.2s ease, transform 0.2s ease',
         }}
       >
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto', overflow: 'hidden' }}>
           {/* Client header bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, paddingBottom: 24, marginBottom: 24, borderBottom: `1px solid ${C.cardBorder}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-              <button type="button" onClick={() => navigate('/dashboard')} style={{ color: C.textMuted, padding: 8, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center' }} aria-label="Back to dashboard"><ArrowLeft style={{ width: 20, height: 20 }} /></button>
-              <div>
-                <h1 style={{ fontSize: 22, fontWeight: 700, color: C.text, marginBottom: 4 }}>{facts?.clientName || report?.headline || 'Systems Audit Report'}</h1>
-                <p style={{ fontSize: 13, color: C.textMuted }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+              <button type="button" onClick={() => navigate('/dashboard')} style={{ color: C.textMuted, padding: 8, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }} aria-label="Back to dashboard"><ArrowLeft style={{ width: 20, height: 20 }} /></button>
+              <div style={{ minWidth: 0 }}>
+                <h1 style={{ fontSize: 20, fontWeight: 700, color: C.text, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{facts?.clientName || report?.headline || 'Systems Audit Report'}</h1>
+                <p style={{ fontSize: 13, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {[facts?.industry, facts?.teamSize && `Team: ${facts.teamSize}`, facts?.confirmedRevenue || facts?.revenueBand].filter(Boolean).join(' · ')}
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexShrink: 0 }}>
               <CostClock annualCost={m.annualCostOfChaos} />
-              <span style={{ fontSize: 12, color: C.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>
+              <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>
                 {report?.generated_at ? new Date(report.generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
               </span>
             </div>
