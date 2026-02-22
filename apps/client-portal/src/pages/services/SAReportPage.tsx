@@ -1,20 +1,9 @@
 // ============================================================================
-// SYSTEMS AUDIT CLIENT REPORT PAGE — DASHBOARD v3
+// SYSTEMS AUDIT CLIENT REPORT PAGE — DASHBOARD v4
 // ============================================================================
 // Client-facing report: Proof → Pattern → Price → Path → Plan → Future
-//
-// v3 CHANGES:
-// - Light theme #F0F2F7 enforced everywhere
-// - All content constrained within page bounds (no horizontal overflow)
-// - Green ticks persist via localStorage (survive refresh/logout)
-// - Systems cards open in isolated overlay (don't affect siblings)
-// - Health page redesigned with dramatic visual treatment
-// - Quick Wins redesigned with urgency and impact
-// - Vision page is the showstopper finale
-// - All expandable sections contained (no layout-breaking scroll)
-// - Roadmap/ROI/Processes all respect boundaries
-// - Tech Map contained with internal scroll
-//
+// v4: Visual-only rewrite — immersive design system, scroll-reveal, premium cards.
+// Data layer (resolveMetrics, Supabase, types, auth) UNCHANGED.
 // GOLDEN RULE: pass1_data is the single source of truth for all metrics.
 // ============================================================================
 
@@ -84,24 +73,72 @@ const C = {
   textSecondary: '#475569',
   textMuted: '#64748b',
   textLight: '#94a3b8',
+  blueLight: '#60a5fa',
+  emeraldLight: '#34d399',
+  redLight: '#f87171',
+  purpleLight: '#a78bfa',
+  surface: '#ffffff',
+  surfaceElevated: '#f8fafc',
 };
 
-// Glass card base (light theme)
+// Shadow system
+const SHADOW = {
+  sm: '0 1px 2px rgba(22,35,64,0.06), 0 1px 3px rgba(22,35,64,0.1)',
+  md: '0 4px 6px rgba(22,35,64,0.07), 0 2px 4px rgba(22,35,64,0.06), 0 10px 15px rgba(22,35,64,0.08)',
+  lg: '0 10px 25px rgba(22,35,64,0.1), 0 6px 10px rgba(22,35,64,0.08), 0 20px 40px rgba(22,35,64,0.06)',
+  glow: (color: string, intensity = 0.3) => `0 0 30px ${color}${Math.round(intensity * 255).toString(16).padStart(2, '0')}`,
+  colorMatch: (color: string) => `0 8px 24px ${color}25, 0 2px 8px ${color}15`,
+};
+
+const EASE = {
+  out: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+  smooth: 'cubic-bezier(0.4, 0.0, 0.2, 1)',
+  bounce: 'cubic-bezier(0.68, -0.55, 0.27, 1.55)',
+};
+
+const DURATION = {
+  fast: '150ms',
+  normal: '300ms',
+  slow: '500ms',
+  reveal: '600ms',
+  counter: 2000,
+  heroCounter: 2500,
+};
+
+const STAGGER = 70;
+
+const TYPE = {
+  heroMetric: { fontSize: 48, fontWeight: 800, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' as const } as React.CSSProperties,
+  sectionMetric: { fontSize: 36, fontWeight: 700, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' as const } as React.CSSProperties,
+  cardMetric: { fontSize: 28, fontWeight: 700, fontVariantNumeric: 'tabular-nums' as const } as React.CSSProperties,
+  sectionTitle: { fontSize: 24, fontWeight: 700, letterSpacing: '-0.01em', color: C.text } as React.CSSProperties,
+  cardTitle: { fontSize: 16, fontWeight: 600, color: C.text } as React.CSSProperties,
+  body: { fontSize: 15, fontWeight: 400, lineHeight: 1.7, color: C.textSecondary } as React.CSSProperties,
+  caption: { fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' as const } as React.CSSProperties,
+  label: { fontSize: 13, fontWeight: 500, color: C.textMuted } as React.CSSProperties,
+};
+
+// Glass card base (v4)
 const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
-  background: 'rgba(255, 255, 255, 0.85)',
+  background: 'rgba(255, 255, 255, 0.82)',
   backdropFilter: 'blur(20px) saturate(180%)',
   WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-  border: '1px solid rgba(0, 0, 0, 0.06)',
+  border: '1px solid rgba(255, 255, 255, 0.6)',
   borderRadius: 16,
-  boxShadow: '0 1px 3px rgba(22,35,64,0.06), 0 8px 32px rgba(22,35,64,0.04)',
+  boxShadow: SHADOW.sm,
+  transition: `transform ${DURATION.normal} ${EASE.out}, box-shadow ${DURATION.normal} ${EASE.out}`,
   ...extra,
 });
 
-// Accent card
+const glassHover: React.CSSProperties = { transform: 'translateY(-3px) scale(1.005)', boxShadow: SHADOW.md };
+const glassRest: React.CSSProperties = { transform: 'translateY(0) scale(1)', boxShadow: SHADOW.sm };
+
 const accentCard = (color: string, extra?: React.CSSProperties): React.CSSProperties => ({
   ...glass(),
-  background: `${color}08`,
-  border: `1px solid ${color}20`,
+  borderLeft: `4px solid ${color}`,
+  background: `linear-gradient(135deg, ${color}06 0%, rgba(255,255,255,0.82) 100%)`,
+  boxShadow: SHADOW.colorMatch(color),
   ...extra,
 });
 
@@ -109,8 +146,7 @@ const accentCard = (color: string, extra?: React.CSSProperties): React.CSSProper
 const mono: React.CSSProperties = { fontFamily: "'JetBrains Mono', monospace" };
 const label: React.CSSProperties = { fontSize: 10, color: C.textMuted, textTransform: 'uppercase' as const, letterSpacing: 1, ...mono };
 
-// ─── Content constraint wrapper ──────────────────────────────────────────────
-// Every section gets this to prevent horizontal overflow
+// Content constraint wrapper
 const sectionWrap: React.CSSProperties = {
   maxWidth: '100%',
   overflow: 'hidden',
@@ -507,30 +543,30 @@ function ROIWaterfall({ recommendations }: { recommendations: any[] }) {
   );
 }
 
-// ─── System Detail Overlay ───────────────────────────────────────────────────
-// Opens as a floating panel over the card, doesn't affect other cards
+// ─── System Detail Overlay (v4 enhanced) ─────────────────────────────────────
 function SystemDetailOverlay({ sys, borderColor, onClose }: { sys: any; borderColor: string; onClose: () => void }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 100,
-      background: 'rgba(22,35,64,0.4)',
-      backdropFilter: 'blur(4px)',
+      background: 'rgba(22,35,64,0.5)',
+      backdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 24,
     }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{
         ...glass({ padding: 0 }),
         borderLeft: `4px solid ${borderColor}`,
-        maxWidth: 500, width: '100%', maxHeight: '80vh', overflowY: 'auto',
-        boxShadow: '0 20px 60px rgba(22,35,64,0.2)',
-        animation: 'fadeIn 0.2s ease',
+        maxWidth: 560, width: '100%', maxHeight: '85vh', overflowY: 'auto',
+        borderRadius: 20,
+        boxShadow: SHADOW.lg,
+        animation: `fadeSlideUp 0.3s ${EASE.out}`,
       }}>
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${C.cardBorder}`, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, background: `${borderColor}12`, color: borderColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>
             {(sys.name || sys.system_name || '?').charAt(0).toUpperCase()}
           </div>
           <div style={{ flex: 1 }}>
-            <p style={{ fontWeight: 700, color: C.text, fontSize: 16, margin: 0 }}>{sys.name || sys.system_name || 'System'}</p>
+            <p style={{ fontWeight: 700, color: C.text, fontSize: 20, margin: 0 }}>{sys.name || sys.system_name || 'System'}</p>
             <div style={{ display: 'flex', gap: 12, marginTop: 2 }}>
               {sys.cost != null && <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{fmt(sys.cost)}/mo</span>}
               {sys.category && <span style={{ fontSize: 12, color: C.textMuted }}>{(sys.category || '').replace(/_/g, ' ')}</span>}
@@ -538,25 +574,31 @@ function SystemDetailOverlay({ sys, borderColor, onClose }: { sys: any; borderCo
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, padding: 4 }}><X style={{ width: 18, height: 18 }} /></button>
         </div>
-        <div style={{ padding: '16px 24px' }}>
+        <div style={{ padding: '16px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           {sys.gaps?.length > 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <span style={{ ...label, fontSize: 10, color: C.red }}>GAPS ({sys.gaps.length})</span>
+            <div>
+              <span style={{ ...TYPE.caption, fontSize: 10, color: C.red }}>GAPS ({sys.gaps.length})</span>
               {sys.gaps.map((g: string, j: number) => (
-                <p key={j} style={{ fontSize: 13, color: C.textSecondary, marginTop: 6, paddingLeft: 12, borderLeft: `2px solid ${C.red}40`, lineHeight: 1.6 }}>{g}</p>
+                <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8 }}>
+                  <AlertTriangle style={{ width: 14, height: 14, color: C.red, flexShrink: 0, marginTop: 2 }} />
+                  <p style={{ fontSize: 14, color: C.textSecondary, margin: 0, lineHeight: 1.5 }}>{g}</p>
+                </div>
               ))}
             </div>
           )}
           {sys.strengths?.length > 0 && (
             <div>
-              <span style={{ ...label, fontSize: 10, color: C.emerald }}>STRENGTHS ({sys.strengths.length})</span>
+              <span style={{ ...TYPE.caption, fontSize: 10, color: C.emerald }}>STRENGTHS ({sys.strengths.length})</span>
               {sys.strengths.map((s: string, j: number) => (
-                <p key={j} style={{ fontSize: 13, color: C.textSecondary, marginTop: 6, paddingLeft: 12, borderLeft: `2px solid ${C.emerald}40`, lineHeight: 1.6 }}>{s}</p>
+                <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 8 }}>
+                  <CheckCircle2 style={{ width: 14, height: 14, color: C.emerald, flexShrink: 0, marginTop: 2 }} />
+                  <p style={{ fontSize: 14, color: C.textSecondary, margin: 0, lineHeight: 1.5 }}>{s}</p>
+                </div>
               ))}
             </div>
           )}
           {(!sys.gaps?.length && !sys.strengths?.length) && (
-            <p style={{ color: C.textMuted, fontSize: 13 }}>No detailed findings for this system.</p>
+            <p style={{ color: C.textMuted, fontSize: 13, gridColumn: '1 / -1' }}>No detailed findings for this system.</p>
           )}
         </div>
       </div>
@@ -687,6 +729,159 @@ function HoursBar({ hours, maxHours, color }: { hours: number; maxHours: number;
   );
 }
 
+// ─── useScrollReveal ────────────────────────────────────────────────────────
+function useScrollReveal(options?: { threshold?: number; delay?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { setVisible(true); obs.unobserve(el); }
+    }, { threshold: options?.threshold ?? 0.15, rootMargin: '0px 0px -40px 0px' });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+  return { ref, visible };
+}
+
+// ─── RevealCard ─────────────────────────────────────────────────────────────
+function RevealCard({ children, delay = 0, style, hoverLift = true, className, onClick }: {
+  children: ReactNode; delay?: number; style?: React.CSSProperties; hoverLift?: boolean; className?: string; onClick?: () => void;
+}) {
+  const { ref, visible } = useScrollReveal();
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      ref={ref}
+      className={className}
+      role={onClick ? 'button' : undefined}
+      onClick={onClick}
+      onMouseEnter={() => hoverLift && setHovered(true)}
+      onMouseLeave={() => hoverLift && setHovered(false)}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible
+          ? (hovered ? 'translateY(-4px) scale(1.005)' : 'translateY(0)')
+          : 'translateY(24px)',
+        transition: `opacity ${DURATION.reveal} ${EASE.out} ${delay}ms, transform ${DURATION.reveal} ${EASE.out} ${delay}ms, box-shadow ${DURATION.normal} ${EASE.out}`,
+        boxShadow: hovered ? SHADOW.md : SHADOW.sm,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ─── SectionHeader ──────────────────────────────────────────────────────────
+function SectionHeader({ title, subtitle, badge, badgeColor }: {
+  title: string; subtitle?: string; badge?: string; badgeColor?: string;
+}) {
+  const { ref, visible } = useScrollReveal();
+  return (
+    <div ref={ref} style={{
+      opacity: visible ? 1 : 0,
+      transform: visible ? 'translateY(0)' : 'translateY(16px)',
+      transition: `all ${DURATION.reveal} ${EASE.out}`,
+      marginBottom: 24,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <h2 style={{ ...TYPE.sectionTitle, margin: 0 }}>{title}</h2>
+        {badge && (
+          <span style={{
+            ...TYPE.caption,
+            fontSize: 11,
+            color: badgeColor || C.emerald,
+            background: `${badgeColor || C.emerald}12`,
+            border: `1px solid ${(badgeColor || C.emerald)}25`,
+            padding: '3px 12px',
+            borderRadius: 20,
+          }}>{badge}</span>
+        )}
+      </div>
+      {subtitle && <p style={{ ...TYPE.label, marginTop: 6 }}>{subtitle}</p>}
+    </div>
+  );
+}
+
+// ─── DotGridOverlay ─────────────────────────────────────────────────────────
+function DotGridOverlay({ opacity = 0.04, size = 24 }: { opacity?: number; size?: number }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, pointerEvents: 'none',
+      backgroundImage: `radial-gradient(circle, rgba(22,35,64,${opacity}) 1px, transparent 1px)`,
+      backgroundSize: `${size}px ${size}px`,
+      maskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)',
+      WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%)',
+    }} />
+  );
+}
+
+// ─── NoiseOverlay ───────────────────────────────────────────────────────────
+function NoiseOverlay({ opacity = 0.35 }: { opacity?: number }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, pointerEvents: 'none', opacity,
+      mixBlendMode: 'soft-light',
+      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E")`,
+    }} />
+  );
+}
+
+// ─── ProgressRing (270° arc gauge) ──────────────────────────────────────────
+function ProgressRing({ score, size = 160, strokeWidth = 12, color, label, delay = 0 }: {
+  score: number; size?: number; strokeWidth?: number; color: string; label?: string; delay?: number;
+}) {
+  const { ref, visible } = useScrollReveal();
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const arc = circumference * 0.75;
+  const offset = arc - (score / 100) * arc;
+  const safeScore = isNaN(score) ? 0 : Math.round(score);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: size, height: size }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(135deg)' }}>
+        <defs>
+          <linearGradient id={`ring-grad-${label ?? 'default'}`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor={color} />
+            <stop offset="100%" stopColor={`${color}88`} />
+          </linearGradient>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={strokeWidth} strokeDasharray={`${arc} ${circumference}`} strokeLinecap="round" />
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={`url(#ring-grad-${label ?? 'default'})`} strokeWidth={strokeWidth} strokeDasharray={`${arc} ${circumference}`} strokeDashoffset={visible ? offset : arc} strokeLinecap="round" style={{ transition: `stroke-dashoffset 1.5s ${EASE.out} ${delay}ms` }} />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ ...TYPE.heroMetric, fontSize: size * 0.25, color } as React.CSSProperties}>
+          {visible ? <AnimatedCounter target={safeScore} duration={1800} /> : '0'}
+        </span>
+        {label && <span style={{ ...TYPE.caption, color: C.textMuted, fontSize: 10, marginTop: 2 }}>{label}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ─── MiniSparkline ──────────────────────────────────────────────────────────
+function MiniSparkline({ values, width = 80, height = 24, color = C.emerald }: {
+  values: number[]; width?: number; height?: number; color?: string;
+}) {
+  if (!values.length) return null;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+  const points = values.map((v, i) =>
+    `${(i / (values.length - 1)) * width},${height - ((v - min) / range) * (height - 4) - 2}`
+  ).join(' ');
+  const areaPoints = `0,${height} ${points} ${width},${height}`;
+  return (
+    <svg width={width} height={height} style={{ display: 'block' }}>
+      <polygon points={areaPoints} fill={`${color}15`} />
+      <polyline points={points} fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -703,6 +898,7 @@ export default function SAReportPage() {
   const [activeSection, setActiveSection] = useState('overview');
   const [expandedQW, setExpandedQW] = useState<number | null>(null);
   const [selectedSystem, setSelectedSystem] = useState<number | null>(null);
+  const [selectedFindingIndex, setSelectedFindingIndex] = useState<number | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -949,108 +1145,113 @@ export default function SAReportPage() {
       case 'overview':
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
-            {/* Hero banner */}
-            <div style={{ background: 'linear-gradient(135deg, #162340 0%, #1e3a5f 50%, #1a3352 100%)', borderRadius: 20, padding: 'clamp(24px, 4vw, 40px)', position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0)', backgroundSize: '24px 24px' }} />
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ fontSize: 11, letterSpacing: 3, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', marginBottom: 8, ...mono }}>Systems Audit Report</div>
-                <h1 style={{ fontSize: 'clamp(20px, 2.5vw, 32px)', fontWeight: 700, color: '#fff', marginBottom: 24, lineHeight: 1.3 }}>
+            {/* Hero — animated mesh gradient */}
+            <div style={{ background: 'linear-gradient(135deg, #162340 0%, #1e3a5f 40%, #0f172a 70%, #162340 100%)', backgroundSize: '300% 300%', animation: 'gradientShift 15s ease infinite', borderRadius: 20, overflow: 'hidden', position: 'relative' }}>
+              <DotGridOverlay opacity={0.06} size={20} />
+              <NoiseOverlay opacity={0.25} />
+              <div style={{ position: 'relative', zIndex: 1, padding: 'clamp(32px, 5vw, 56px)' }}>
+                <span style={{ ...TYPE.caption, color: C.emerald, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Zap style={{ width: 14, height: 14 }} /> SYSTEMS AUDIT REPORT
+                </span>
+                <h1 style={{ fontSize: 'clamp(24px, 3.5vw, 36px)', fontWeight: 800, color: '#fff', lineHeight: 1.2, maxWidth: '42ch', letterSpacing: '-0.02em', marginTop: 8, marginBottom: 8 }}>
                   {report?.headline || `Your systems are costing you £${(m.annualCostOfChaos / 1000).toFixed(0)}k a year — and it gets worse at scale.`}
                 </h1>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-                  {[
-                    { value: m.annualCostOfChaos, prefix: '£', color: C.red, label: 'Annual Cost' },
-                    { value: m.hoursWastedWeekly, decimals: 1, color: C.orange, label: 'Hours Lost/Week' },
-                    { value: (facts?.systems || []).length, color: C.blue, label: 'Systems', noAnimate: true },
-                    { value: m.projectedCostAtScale, prefix: '£', color: '#8b5cf6', label: 'At Scale' },
-                  ].map((stat, i) => (
-                    <div key={i} style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 12px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-                      <p style={{ fontSize: 'clamp(18px, 2vw, 26px)', fontWeight: 700, color: stat.color, ...mono, marginBottom: 4 }}>
-                        {stat.noAnimate ? stat.value : <AnimatedCounter target={stat.value} prefix={stat.prefix || ''} decimals={(stat as any).decimals || 0} />}
-                      </p>
-                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>{stat.label}</p>
-                    </div>
-                  ))}
-                </div>
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', marginTop: 8 }}>
+                  {(facts?.companyName || facts?.clientName || '') + (facts?.industry ? ' · ' + facts.industry : '') + (facts?.teamSize ? ' · Team: ' + facts.teamSize : '')}
+                </p>
+                {report?.generated_at && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>{new Date(report.generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>}
+              </div>
+              <div style={{ position: 'absolute', bottom: 24, right: 32, zIndex: 1, textAlign: 'right' }}>
+                <CostClock annualCost={m.annualCostOfChaos} />
+                <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Wasted since you opened this page</p>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: 24, alignItems: 'start' }}>
-              <div style={{ ...glass(), padding: 28, minWidth: 0 }}>
-                <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 12, ...mono }}>In Brief</div>
+            {/* Stat bento grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 20 }}>
+              {[
+                { label: 'ANNUAL COST OF CHAOS', value: m.annualCostOfChaos, prefix: '£', color: C.red },
+                { label: `AT ${m.growthMultiplier}X SCALE`, value: m.projectedCostAtScale, prefix: '£', color: C.amber },
+                { label: 'HOURS LOST WEEKLY', value: m.hoursWastedWeekly, decimals: 1, color: C.blue },
+              ].map((stat, i) => (
+                <RevealCard key={i} delay={i * STAGGER}>
+                  <div style={{ ...accentCard(stat.color), padding: 24 }}>
+                    <p style={{ ...TYPE.caption, color: stat.color, marginBottom: 8 }}>{stat.label}</p>
+                    <p style={{ ...TYPE.sectionMetric, color: stat.color }}>
+                      <AnimatedCounter target={stat.value} prefix={stat.prefix || ''} decimals={(stat as any).decimals || 0} duration={i === 0 ? DURATION.heroCounter : DURATION.counter} />
+                    </p>
+                  </div>
+                </RevealCard>
+              ))}
+            </div>
+            {/* Executive Summary */}
+            <RevealCard delay={300}>
+              <div style={{ ...glass({ padding: 32 }) }}>
+                <p style={{ ...TYPE.cardTitle, marginBottom: 12 }}>Executive Summary</p>
                 {splitNarrative(report?.executive_summary || '', 4).map((para: string, i: number) => (
-                  <p key={i} style={{ fontSize: 15, lineHeight: 1.8, color: C.text, marginBottom: 16, maxWidth: '62ch' }}>{para}</p>
+                  <p key={i} style={{ ...TYPE.body, maxWidth: '62ch', marginBottom: 12 }}>{para}</p>
                 ))}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-                <div style={{ ...glass(), padding: 20, background: 'rgba(22,35,64,0.04)' }}>
-                  <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 12, ...mono }}>Your Business</div>
-                  <div style={{ display: 'grid', gap: 12 }}>
-                    {facts?.teamSize && <div><span style={{ color: C.textLight, fontSize: 12 }}>Team</span><p style={{ color: C.text, fontWeight: 600 }}>{facts.teamSize}</p></div>}
-                    {(facts?.confirmedRevenue ?? facts?.revenueBand) && <div><span style={{ color: C.textLight, fontSize: 12 }}>Revenue</span><p style={{ color: C.text, fontWeight: 600 }}>{typeof facts.confirmedRevenue === 'number' ? `£${(facts.confirmedRevenue / 1000).toFixed(0)}k` : facts.revenueBand || '-'}</p></div>}
-                    {facts?.industry && <div><span style={{ color: C.textLight, fontSize: 12 }}>Industry</span><p style={{ color: C.text, fontWeight: 600 }}>{facts.industry}</p></div>}
-                    {facts?.totalSystemCost != null && <div><span style={{ color: C.textLight, fontSize: 12 }}>Software spend</span><p style={{ color: C.text, fontWeight: 600 }}>{fmt(facts.totalSystemCost)}</p></div>}
+            </RevealCard>
+            {/* Desired Outcomes */}
+            {(facts?.desiredOutcomes?.length > 0) && (
+              <RevealCard delay={400}>
+                <div style={{ ...glass({ padding: 24 }) }}>
+                  <p style={{ ...TYPE.cardTitle, marginBottom: 16 }}>What You Want to Achieve</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, marginTop: 16 }}>
+                    {(facts.desiredOutcomes || []).map((o: string, i: number) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <CheckCircle2 style={{ width: 16, height: 16, color: C.emerald, flexShrink: 0, marginTop: 2 }} />
+                        <span style={{ ...TYPE.body, fontSize: 14 }}>{displayOutcome(o)}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                {(facts?.desiredOutcomes?.length > 0) && (
-                  <div style={{ ...glass(), padding: 20, background: 'rgba(16,185,129,0.06)', border: `1px solid ${C.emerald}20` }}>
-                    <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 12, ...mono }}>Desired Outcomes</div>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                      {(facts.desiredOutcomes || []).map((o: string, i: number) => (
-                        <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8, color: C.text, fontSize: 14, lineHeight: 1.5 }}>
-                          <CheckCircle2 style={{ width: 18, height: 18, color: C.emerald, flexShrink: 0, marginTop: 2 }} />
-                          {displayOutcome(o)}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                <div style={{ ...glass(), padding: 20, background: 'rgba(239,68,68,0.06)', border: `1px solid ${C.red}20` }}>
-                  <div style={{ fontSize: 11, letterSpacing: 2, color: C.textMuted, textTransform: 'uppercase', marginBottom: 8, ...mono }}>Live waste</div>
-                  <CostClock annualCost={m.annualCostOfChaos} />
-                </div>
-              </div>
-            </div>
+              </RevealCard>
+            )}
           </div>
         );
       case 'systems': {
         const totalGaps = systemsList.reduce((a: number, s: any) => a + (s.gaps?.length || 0), 0);
-        const totalStrengths = systemsList.reduce((a: number, s: any) => a + (s.strengths?.length || 0), 0);
+        const criticalGapsCount = systemsList.filter((s: any) => (s.gaps?.length || 0) > 2).length;
+        const okCount = systemsList.filter((s: any) => { const g = s.gaps?.length || 0; return g === 1 || g === 2; }).length;
+        const strongCount = systemsList.filter((s: any) => (s.gaps?.length || 0) === 0 || (s.strengths?.length && (s.gaps?.length || 0) <= 1)).length;
         return (
-          <div style={sectionWrap}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <h2 style={{ color: C.text, fontSize: 24, fontWeight: 700, margin: 0 }}>{systemsList.length} systems</h2>
-                <p style={{ color: C.textMuted, fontSize: 13, marginTop: 4 }}>Audited across your technology stack</p>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <SectionHeader title={`${systemsList.length} systems`} subtitle="Across your technology stack" />
+            <RevealCard>
+              <div style={{ ...glass({ padding: 16 }), display: 'flex', alignItems: 'center', gap: 24, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <div>
+                  <h2 style={{ ...TYPE.sectionTitle, margin: 0 }}>{systemsList.length} systems</h2>
+                  <p style={{ ...TYPE.label, marginTop: 4 }}>Across your technology stack</p>
+                </div>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <span style={{ background: `${C.red}12`, border: `1px solid ${C.red}25`, borderRadius: 20, padding: '4px 14px', fontSize: 13, fontWeight: 600, color: C.red }}>{criticalGapsCount} critical</span>
+                  <span style={{ background: `${C.amber}12`, border: `1px solid ${C.amber}25`, borderRadius: 20, padding: '4px 14px', fontSize: 13, fontWeight: 600, color: C.amber }}>{okCount} OK</span>
+                  <span style={{ background: `${C.emerald}12`, border: `1px solid ${C.emerald}25`, borderRadius: 20, padding: '4px 14px', fontSize: 13, fontWeight: 600, color: C.emerald }}>{strongCount} strong</span>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 16 }}>
-                <div style={{ textAlign: 'center' }}><span style={{ fontSize: 20, fontWeight: 700, color: C.red, ...mono }}>{totalGaps}</span><p style={{ fontSize: 10, color: C.textMuted, ...mono }}>GAPS</p></div>
-                <div style={{ textAlign: 'center' }}><span style={{ fontSize: 20, fontWeight: 700, color: C.emerald, ...mono }}>{totalStrengths}</span><p style={{ fontSize: 10, color: C.textMuted, ...mono }}>STRENGTHS</p></div>
-                {facts?.totalSystemCost != null && <div style={{ textAlign: 'center' }}><span style={{ fontSize: 20, fontWeight: 700, color: C.text, ...mono }}>{fmt(facts.totalSystemCost)}</span><p style={{ fontSize: 10, color: C.textMuted, ...mono }}>MONTHLY</p></div>}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+            </RevealCard>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginTop: 20 }}>
               {systemsList.map((sys: any, i: number) => {
                 const gapCount = sys.gaps?.length || 0;
-                const borderColor = gapCount > 3 ? C.red : gapCount > 1 ? C.orange : gapCount === 1 ? '#eab308' : C.emerald;
+                const barColor = gapCount >= 3 ? C.red : gapCount >= 1 ? C.amber : C.emerald;
+                const healthPct = gapCount >= 3 ? 25 : gapCount >= 1 ? 60 : 100;
                 return (
-                  <div key={i} onClick={() => setSelectedSystem(i)}
-                    style={{ ...glass({ padding: 14, borderLeft: `3px solid ${borderColor}`, cursor: 'pointer', transition: 'box-shadow 0.2s ease, transform 0.2s ease' }) }}
-                    onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(22,35,64,0.12)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.boxShadow = C.cardShadow; e.currentTarget.style.transform = 'translateY(0)'; }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${borderColor}12`, color: borderColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
-                        {(sys.name || sys.system_name || '?').charAt(0).toUpperCase()}
+                  <RevealCard key={i} delay={i * STAGGER} style={{ ...glass({ padding: 20 }), cursor: 'pointer' }} onClick={() => setSelectedSystem(i)}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <p style={{ ...TYPE.cardTitle, margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sys.name || sys.system_name || 'System'}</p>
+                        {gapCount > 0 && <span style={{ fontSize: 11, fontWeight: 600, color: C.red, ...mono }}>{gapCount} gaps</span>}
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontWeight: 600, color: C.text, fontSize: 14, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sys.name || sys.system_name || 'System'}</p>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-                          {sys.cost != null && <span style={{ fontSize: 11, color: C.textMuted, ...mono }}>{fmt(sys.cost)}/mo</span>}
-                          {gapCount > 0 && <span style={{ fontSize: 11, color: C.red, ...mono }}>{gapCount} gaps</span>}
-                        </div>
+                      <p style={{ ...TYPE.caption, color: C.textMuted, fontSize: 11, marginTop: 4 }}>{(sys.category || '').replace(/_/g, ' ') || '—'}</p>
+                      <div style={{ height: 3, borderRadius: 2, background: 'rgba(0,0,0,0.06)', marginTop: 12, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${healthPct}%`, background: barColor, borderRadius: 2, transition: `width 0.6s ${EASE.spring}` }} />
                       </div>
-                      <ChevronRight style={{ width: 14, height: 14, color: C.textLight }} />
+                      {gapCount > 0 && (sys.gaps?.slice(0, 2) || []).map((g: string, j: number) => (
+                        <span key={j} style={{ display: 'inline-block', fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${C.red}08`, color: C.red, border: `1px solid ${C.red}15`, marginTop: 6, marginRight: 4 }}>{(g || '').slice(0, 20)}{(g || '').length > 20 ? '…' : ''}</span>
+                      ))}
                     </div>
-                  </div>
+                  </RevealCard>
                 );
               })}
             </div>
@@ -1083,141 +1284,153 @@ export default function SAReportPage() {
         );
         const healthVerdict = overallScore < 30 ? 'Critical' : overallScore < 50 ? 'At Risk' : overallScore < 70 ? 'Needs Work' : 'Healthy';
         return (
-          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Dramatic health hero */}
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Health hero */}
             <div style={{
-              background: `linear-gradient(135deg, ${overallColor}08 0%, ${overallColor}03 100%)`,
+              background: `linear-gradient(135deg, ${overallColor}10 0%, ${overallColor}04 50%, rgba(255,255,255,0.85) 100%)`,
               border: `1px solid ${overallColor}20`,
-              borderRadius: 20, padding: 32, display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap',
+              borderRadius: 20, padding: 40, position: 'relative', overflow: 'hidden',
             }}>
-              <HealthRing score={overallScore} label="" size={160} />
-              <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                  <h2 style={{ color: C.text, fontSize: 28, fontWeight: 700, margin: 0 }}>
-                    System Health
-                  </h2>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: overallColor, padding: '4px 16px', borderRadius: 20, background: `${overallColor}15`, border: `1px solid ${overallColor}30`, ...mono }}>
-                    {healthVerdict}
-                  </span>
+              <DotGridOverlay opacity={0.03} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 40, flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+                <ProgressRing score={overallScore} size={180} strokeWidth={14} color={overallColor} label="OVERALL" />
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                    <h2 style={{ color: C.text, fontSize: 28, fontWeight: 700, margin: 0 }}>System Health</h2>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: overallColor, padding: '4px 16px', borderRadius: 20, background: `${overallColor}15`, border: `1px solid ${overallColor}30`, ...mono }}>{healthVerdict}</span>
+                  </div>
+                  <p style={{ ...TYPE.body, fontSize: 15, maxWidth: '50ch', margin: 0 }}>
+                    {overallScore < 30 ? 'Your systems are critically disconnected. Manual workarounds dominate daily operations, creating compounding errors and invisible costs.' :
+                     overallScore < 50 ? 'Significant gaps exist across your technology stack. Key processes rely on manual intervention, limiting scalability.' :
+                     overallScore < 70 ? 'Your systems have a reasonable foundation but key integration and automation gaps are holding you back.' :
+                     'Your systems are well-connected with strong foundations. Focus on optimisation to unlock remaining value.'}
+                  </p>
                 </div>
-                <p style={{ color: C.textSecondary, fontSize: 15, lineHeight: 1.7, maxWidth: '55ch', margin: 0 }}>
-                  {overallScore < 30 ? 'Your systems are critically disconnected. Manual workarounds dominate daily operations, creating compounding errors and invisible costs.' :
-                   overallScore < 50 ? 'Significant gaps exist across your technology stack. Key processes rely on manual intervention, limiting scalability.' :
-                   overallScore < 70 ? 'Your systems have a reasonable foundation but key integration and automation gaps are holding you back.' :
-                   'Your systems are well-connected with strong foundations. Focus on optimisation to unlock remaining value.'}
-                </p>
               </div>
             </div>
-
-            {/* Score breakdown — cards with bars */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-              {healthItems.slice(1).map((item) => {
+            {/* Sub-score ring cluster */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 32, marginTop: 24, flexWrap: 'wrap' }}>
+              {healthItems.slice(1).map((item, i) => (
+                <div key={item.key} style={{ textAlign: 'center' }}>
+                  <ProgressRing score={item.score} size={100} strokeWidth={8} delay={i * 200} color={item.score < 30 ? C.red : item.score < 50 ? C.amber : item.score < 70 ? C.orange : C.emerald} label={item.label} />
+                </div>
+              ))}
+            </div>
+            {/* Score detail cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 24 }}>
+              {healthItems.slice(1).map((item, i) => {
                 const scoreColor = item.score < 30 ? C.red : item.score < 50 ? C.amber : item.score < 70 ? C.orange : C.emerald;
                 return (
-                  <div key={item.key} style={{
-                    ...glass({ padding: 24 }),
-                    background: `linear-gradient(180deg, ${scoreColor}06 0%, rgba(255,255,255,0.85) 100%)`,
-                    borderTop: `3px solid ${scoreColor}`,
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{item.label}</span>
-                      <span style={{ fontSize: 28, fontWeight: 700, color: scoreColor, ...mono }}>{item.score}</span>
+                  <RevealCard key={item.key} delay={i * STAGGER}>
+                    <div style={{ ...glass({ padding: 20 }), borderTop: `3px solid ${scoreColor}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{item.label}</span>
+                        <span style={{ ...TYPE.cardMetric, fontSize: 28, color: scoreColor }}>{item.score}</span>
+                      </div>
+                      <div style={{ height: 6, background: 'rgba(0,0,0,0.06)', borderRadius: 3, overflow: 'hidden', marginBottom: 16 }}>
+                        <div style={{ height: '100%', width: `${item.score}%`, background: `linear-gradient(90deg, ${scoreColor}, ${scoreColor}88)`, borderRadius: 3, transition: `width 1.2s ${EASE.spring}` }} />
+                      </div>
+                      {item.evidence && <p style={{ ...TYPE.body, fontSize: 12, lineHeight: 1.5, marginTop: 12, maxHeight: 80, overflow: 'hidden' }}>{item.evidence}</p>}
                     </div>
-                    <div style={{ height: 8, background: 'rgba(0,0,0,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 16 }}>
-                      <div style={{ height: '100%', width: `${item.score}%`, background: `linear-gradient(90deg, ${scoreColor}, ${scoreColor}cc)`, borderRadius: 4, transition: 'width 1.5s cubic-bezier(0.22, 1, 0.36, 1)' }} />
-                    </div>
-                    {item.evidence && (
-                      <p style={{ color: C.textMuted, fontSize: 12, lineHeight: 1.6, margin: 0, maxHeight: 100, overflow: 'hidden' }}>{item.evidence}</p>
-                    )}
-                  </div>
+                  </RevealCard>
                 );
               })}
             </div>
-
             {keyPersonFindings.length > 0 && (
-              <div style={{ ...accentCard(C.red, { padding: 20, display: 'flex', alignItems: 'flex-start', gap: 14 }) }}>
-                <div style={{ width: 40, height: 40, borderRadius: 20, background: `${C.red}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <AlertTriangle style={{ width: 20, height: 20, color: C.red }} />
+              <RevealCard delay={400}>
+                <div style={{ ...accentCard(C.red, { padding: 24, display: 'flex', gap: 16, alignItems: 'flex-start' }) }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 24, background: `${C.red}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, animation: 'pulse 2.5s ease infinite' }}>
+                    <AlertTriangle style={{ width: 22, height: 22, color: C.red }} />
+                  </div>
+                  <div>
+                    <p style={{ fontWeight: 700, color: C.text, fontSize: 16, margin: '0 0 4px' }}>Key Person Risk Detected</p>
+                    <p style={{ ...TYPE.body, fontSize: 14, lineHeight: 1.7, margin: 0 }}>{keyPersonFindings[0].description || keyPersonFindings[0].title}</p>
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontWeight: 700, color: C.text, fontSize: 16, margin: '0 0 4px' }}>Key Person Risk Detected</p>
-                  <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.6, margin: 0 }}>{keyPersonFindings[0].description || keyPersonFindings[0].title}</p>
-                </div>
-              </div>
+              </RevealCard>
             )}
           </div>
         );
       }
       case 'chaos': {
         const chaosParas = splitNarrative(report?.cost_of_chaos_narrative || '', 4);
-        const firstChaosPara = chaosParas[0] || '';
-        const restChaosParas = chaosParas.slice(1);
+        const firstTwoParas = splitNarrative(report?.cost_of_chaos_narrative || '', 2);
         const quoteSource = displayFindings.find((f: any) => f.client_quote || f.clientQuote);
         const clientQuote = quoteSource?.client_quote || quoteSource?.clientQuote;
+        const clientPresentation = p1.clientPresentation || {};
+        const firstQuote = (clientPresentation.clientQuotes && clientPresentation.clientQuotes[0]) || clientQuote;
 
         return (
-          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Running cost hero */}
+            <div style={{ background: 'linear-gradient(135deg, #1a0505 0%, #2d0a0a 50%, #0f172a 100%)', borderRadius: 20, overflow: 'hidden', position: 'relative' }}>
+              <NoiseOverlay opacity={0.3} />
+              <DotGridOverlay opacity={0.06} size={20} />
+              <div style={{ position: 'relative', zIndex: 1, padding: 48, textAlign: 'center' }}>
+                <p style={{ ...TYPE.caption, color: `${C.red}aa`, marginBottom: 8 }}>ANNUAL COST OF CHAOS</p>
+                <p style={{ fontSize: 56, fontWeight: 800, color: C.red, textShadow: '0 0 40px rgba(239,68,68,0.4)', fontVariantNumeric: 'tabular-nums', ...mono }}>
+                  <AnimatedCounter target={m.annualCostOfChaos} prefix="£" duration={2500} />
+                </p>
+                <CostClock annualCost={m.annualCostOfChaos} size="large" />
+                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>wasted since you opened this report</p>
+              </div>
+            </div>
+            {/* Impact stat tiles */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginTop: 24 }}>
               {[
-                { label: 'Annual Cost of Chaos', value: m.annualCostOfChaos, prefix: '£', color: '#ef4444', bg: 'rgba(239,68,68,0.06)', border: 'rgba(239,68,68,0.15)' },
-                { label: `At ${m.growthMultiplier}x Scale`, value: m.projectedCostAtScale, prefix: '£', color: '#8b5cf6', bg: 'rgba(139,92,246,0.06)', border: 'rgba(139,92,246,0.15)' },
-                { label: 'Hours Lost Weekly', value: m.hoursWastedWeekly, decimals: 1, color: '#f59e0b', bg: 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.15)' },
+                { label: 'ANNUAL COST OF CHAOS', value: fmtFull(m.annualCostOfChaos), color: C.red },
+                { label: `AT ${m.growthMultiplier}X SCALE`, value: fmtFull(m.projectedCostAtScale), color: C.amber },
+                { label: 'HOURS LOST WEEKLY', value: m.hoursWastedWeekly, color: C.blue, isNum: true },
               ].map((stat, i) => (
-                <div key={i} style={{ background: stat.bg, border: `1px solid ${stat.border}`, borderRadius: 16, padding: 24, textAlign: 'center' }}>
-                  <p style={{ fontSize: 10, color: stat.color, textTransform: 'uppercase', letterSpacing: 1, ...mono, marginBottom: 8 }}>{stat.label}</p>
-                  <p style={{ fontSize: 'clamp(24px, 3vw, 36px)', fontWeight: 700, color: stat.color, ...mono }}>
-                    <AnimatedCounter target={stat.value} prefix={stat.prefix || ''} decimals={(stat as any).decimals || 0} />
-                  </p>
-                </div>
+                <RevealCard key={i} delay={i * STAGGER}>
+                  <div style={{ ...glass({ padding: 24, textAlign: 'center' }) }}>
+                    <p style={{ ...TYPE.caption, color: stat.color, marginBottom: 8 }}>{stat.label}</p>
+                    <p style={{ ...TYPE.sectionMetric, color: stat.color }}>{stat.isNum ? <AnimatedCounter target={stat.value} decimals={1} /> : stat.value}</p>
+                  </div>
+                </RevealCard>
               ))}
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <div style={{ ...glass({ padding: 24 }) }}>
-                <p style={{ ...label, marginBottom: 12 }}>The Pattern</p>
-                <p style={{ fontSize: 15, lineHeight: 1.85, color: C.text, maxWidth: '55ch', margin: 0 }}>{firstChaosPara}</p>
-              </div>
-              {clientQuote ? (
-                <div style={{ ...glass({ padding: 24, background: 'rgba(139,92,246,0.05)', borderLeft: '3px solid #8b5cf6' }) }}>
-                  <Quote style={{ width: 24, height: 24, color: '#8b5cf6', opacity: 0.5, marginBottom: 8 }} />
-                  <p style={{ fontSize: 15, fontStyle: 'italic', color: C.text, lineHeight: 1.7, fontFamily: "'Playfair Display', serif", margin: 0 }}>&quot;{clientQuote}&quot;</p>
+            {/* Narrative & quote */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 24 }}>
+              <RevealCard delay={200}>
+                <div style={{ ...glass({ padding: 28 }) }}>
+                  <p style={{ ...TYPE.caption, color: C.text, marginBottom: 12 }}>THE PATTERN</p>
+                  {firstTwoParas.map((para: string, i: number) => (
+                    <p key={i} style={{ ...TYPE.body, maxWidth: '55ch', marginBottom: 12 }}>{para}</p>
+                  ))}
                 </div>
-              ) : restChaosParas[0] ? (
-                <div style={{ ...glass({ padding: 24 }) }}>
-                  <p style={{ fontSize: 15, lineHeight: 1.85, color: C.textSecondary, maxWidth: '55ch', margin: 0 }}>{restChaosParas[0]}</p>
-                </div>
-              ) : null}
+              </RevealCard>
+              {(firstQuote || chaosParas[1]) && (
+                <RevealCard delay={250}>
+                  <div style={{ ...glass({ padding: 28 }), borderLeft: '3px solid #8b5cf6', background: 'rgba(139,92,246,0.05)' }}>
+                    <Quote style={{ width: 28, height: 28, color: `${C.purple}40`, marginBottom: 12 }} />
+                    <p style={{ fontStyle: 'italic', fontSize: 16, lineHeight: 1.7, fontFamily: "'Playfair Display', serif", color: C.text, margin: 0 }}>&quot;{firstQuote || chaosParas[1]}&quot;</p>
+                    <p style={{ ...TYPE.caption, color: C.textMuted, marginTop: 12 }}>{quoteSource ? (quoteSource.client_quote ? 'Staff interview' : '') : ''}</p>
+                  </div>
+                </RevealCard>
+              )}
             </div>
-
-            {restChaosParas.length > 1 && (
+            {/* Process cost bars — top 5 */}
+            <RevealCard delay={300}>
               <div style={{ ...glass({ padding: 24 }) }}>
-                {restChaosParas.slice(clientQuote ? 0 : 1).map((para: string, i: number) => (
-                  <p key={i} style={{ fontSize: 14, lineHeight: 1.8, color: C.textSecondary, marginBottom: 12, maxWidth: '62ch' }}>{para}</p>
-                ))}
-              </div>
-            )}
-
-            <div>
-              <p style={{ ...label, marginBottom: 12 }}>Where the Hours Go</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
-                {sortedProcesses.map((proc: any, i: number) => {
+                <p style={{ ...TYPE.cardTitle, marginBottom: 16 }}>Where the Hours Go</p>
+                {(sortedProcesses.slice(0, 5) as any[]).map((proc: any, i: number) => {
                   const hours = proc.hoursWasted ?? proc.hours_wasted ?? 0;
-                  const maxH = Math.max(...sortedProcesses.map((p: any) => p.hoursWasted ?? p.hours_wasted ?? 0), 1);
-                  const color = hours > 60 ? '#ef4444' : hours > 30 ? '#f59e0b' : '#3B82F6';
+                  const maxProcessHoursVal = Math.max(...(sortedProcesses as any[]).map((p: any) => p.hoursWasted ?? p.hours_wasted ?? 0), 1);
+                  const pct = maxProcessHoursVal > 0 ? (hours / maxProcessHoursVal) * 100 : 0;
+                  const name = proc.chainName || proc.chain_name || proc.chainCode || 'Process';
                   return (
-                    <div key={i} style={{ ...glass({ padding: '12px 16px' }), display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', color, flexShrink: 0 }}>
-                        <ChainIcon code={proc.chainCode || proc.chain_code || ''} size={14} />
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: '0 0 4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.chainName || proc.chain_name || proc.chainCode}</p>
-                        <HoursBar hours={hours} maxHours={maxH} color={color} />
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                      <span style={{ fontSize: 14, fontWeight: 500, flex: '0 0 180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                      <div style={{ flex: 1, height: 28, borderRadius: 6, background: 'rgba(0,0,0,0.04)', overflow: 'hidden', position: 'relative' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${C.red}cc, ${C.red}66)`, borderRadius: 6, transition: `width 1s ${EASE.spring} ${i * 100}ms` }} />
+                        <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 12, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: pct > 50 ? '#fff' : C.text }}>{hours}h/wk</span>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </RevealCard>
 
             {m.projectedCostAtScale > m.annualCostOfChaos && (
               <div style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 16, padding: 20, display: 'flex', alignItems: 'flex-start', gap: 14 }}>
@@ -1233,73 +1446,168 @@ export default function SAReportPage() {
       }
       case 'processes': {
         return (
-          <div style={sectionWrap}>
-            <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{sortedProcesses.length} process chains</h2>
-            <p style={{ color: C.textMuted, marginBottom: 24 }}>Total {totalProcessHours}h wasted weekly</p>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <SectionHeader title={`${sortedProcesses.length} process chains`} subtitle={`Total ${totalProcessHours}h wasted weekly`} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {sortedProcesses.map((proc: any) => {
+              {(sortedProcesses as any[]).map((proc: any, i: number) => {
                 const isExpanded = expandedProcess === (proc.chainCode || proc.chain_code);
                 const hours = proc.hoursWasted ?? proc.hours_wasted ?? 0;
-                const borderColor = hours > 60 ? C.red : hours > 30 ? C.orange : C.blue;
                 const pct = maxProcessHours > 0 ? (hours / maxProcessHours) * 100 : 0;
+                const name = proc.chainName || proc.chain_name || proc.chainCode || 'Process';
+                const gaps = proc.criticalGaps || proc.critical_gaps || [];
+                const quotes = proc.clientQuotes || proc.client_quotes || [];
                 return (
-                  <div key={proc.chainCode || proc.chain_code} style={{ ...glass(), borderLeft: `4px solid ${borderColor}`, overflow: 'hidden' }}>
-                    <button type="button" onClick={() => setExpandedProcess(isExpanded ? null : (proc.chainCode || proc.chain_code))} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 16, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', position: 'relative' }}>
-                      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: `${borderColor}06`, transition: 'width 0.6s ease', pointerEvents: 'none' }} />
-                      <div style={{ width: 40, height: 40, borderRadius: 20, background: `${borderColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', flexShrink: 0 }}><ChainIcon code={proc.chainCode || proc.chain_code || ''} /></div>
-                      <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
-                        <p style={{ fontWeight: 600, color: C.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.chainName || proc.chain_name || proc.chainCode}</p>
-                        <p style={{ fontSize: 12, color: C.textMuted, ...mono, margin: '2px 0 0' }}>{hours}h/week</p>
+                  <RevealCard key={proc.chainCode || proc.chain_code} delay={i * STAGGER}>
+                    <div style={{ ...glass({ padding: 0, overflow: 'hidden' }) }}>
+                      <button type="button" onClick={() => setExpandedProcess(isExpanded ? null : (proc.chainCode || proc.chain_code))} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 16, padding: '18px 24px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 12, background: `${C.blue}10`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <ChainIcon code={proc.chainCode || proc.chain_code || ''} size={18} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ ...TYPE.cardTitle, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</p>
+                          <p style={{ ...TYPE.caption, color: C.textMuted, marginTop: 2 }}>{hours}h/week</p>
+                        </div>
+                        <span style={{ ...TYPE.cardMetric, color: C.red, flexShrink: 0 }}>{hours}h</span>
+                        {isExpanded ? <ChevronUp style={{ color: C.textMuted, flexShrink: 0 }} /> : <ChevronDown style={{ color: C.textMuted, flexShrink: 0 }} />}
+                      </button>
+                      <div style={{ width: '100%', height: 3, background: 'rgba(0,0,0,0.04)', borderRadius: 2 }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: `linear-gradient(90deg, ${C.amber}, ${C.red})`, borderRadius: 2, transition: `width 0.6s ${EASE.out}` }} />
                       </div>
-                      <span style={{ position: 'relative', flexShrink: 0 }}>{isExpanded ? <ChevronUp style={{ color: C.textMuted }} /> : <ChevronDown style={{ color: C.textMuted }} />}</span>
-                    </button>
-                    <div style={{ maxHeight: isExpanded ? 400 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
-                      <div style={{ padding: '0 16px 16px', borderTop: `1px solid ${C.cardBorder}` }}>
-                        <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                          {(proc.criticalGaps || proc.critical_gaps || []).length > 0 && (
-                            <div>
-                              <p style={{ fontSize: 10, color: C.textMuted, marginBottom: 6, ...mono }}>Critical gaps</p>
-                              {(proc.criticalGaps || proc.critical_gaps || []).map((g: string, j: number) => <p key={j} style={{ fontSize: 13, color: C.red, marginBottom: 4, lineHeight: 1.5 }}>{g}</p>)}
+                      <div style={{ maxHeight: isExpanded ? 600 : 0, overflow: 'hidden', transition: `max-height 0.4s ${EASE.out}` }}>
+                        <div style={{ padding: '0 24px 24px' }}>
+                          {gaps.length > 0 && gaps.map((g: string, j: number) => (
+                            <p key={j} style={{ borderLeft: `3px solid ${C.red}`, paddingLeft: 14, marginBottom: 8, fontSize: 14, color: C.red, lineHeight: 1.5 }}>{g}</p>
+                          ))}
+                          {quotes.map((q: string, j: number) => (
+                            <div key={j} style={{ ...glass({ padding: 16, marginTop: 12 }), borderLeft: `3px solid ${C.purple}40` }}>
+                              <p style={{ fontStyle: 'italic', fontSize: 14, lineHeight: 1.6, color: C.textSecondary, margin: 0 }}>&quot;{q}&quot;</p>
                             </div>
-                          )}
-                          {(proc.clientQuotes || proc.client_quotes || [])?.length > 0 && (proc.clientQuotes || proc.client_quotes).map((q: string, j: number) => (
-                            <p key={j} style={{ fontSize: 13, fontStyle: 'italic', color: C.textMuted, lineHeight: 1.5 }}>&quot;{q}&quot;</p>
                           ))}
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </RevealCard>
                 );
               })}
             </div>
           </div>
         );
       }
-      case 'findings':
+      case 'findings': {
+        const findingColors: Record<string, string> = { critical: C.red, high: C.amber, medium: C.orange, low: C.blue };
+        const findingSizes: Record<string, number> = { critical: 32, high: 28, medium: 24, low: 22 };
+        const selIdx = selectedFindingIndex ?? (displayFindings.length > 0 ? 0 : null);
+        const selectedFinding = selIdx !== null ? displayFindings[selIdx] : null;
         return (
-          <div style={sectionWrap}>
-            <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700, marginBottom: 8 }}>{displayFindings.length} Findings</h2>
-            <p style={{ color: C.textMuted, marginBottom: 24 }}>What We Found · Critical: {criticalCount} · High: {highCount}</p>
-            <SeverityDotGrid findings={displayFindings} displayOutcomeFn={displayOutcome} />
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <SectionHeader title={`${displayFindings.length} Findings`} subtitle={`What We Found · Critical: ${criticalCount} · High: ${highCount}`} />
+            <div style={{ overflowX: 'auto', paddingBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 'min-content' }}>
+                {(displayFindings as any[]).map((f: any, i: number) => {
+                  const c = findingColors[f.severity] || C.textMuted;
+                  const size = findingSizes[f.severity] ?? 22;
+                  const isActive = selIdx === i;
+                  return (
+                    <div
+                      key={i}
+                      onClick={() => setSelectedFindingIndex(i)}
+                      style={{
+                        width: isActive ? 'auto' : size,
+                        height: size,
+                        minWidth: size,
+                        borderRadius: size / 2,
+                        background: isActive ? `${c}15` : c,
+                        border: isActive ? '2px solid white' : '2px solid transparent',
+                        boxShadow: isActive ? SHADOW.glow(c, 0.4) : 'none',
+                        transform: isActive ? 'scale(1.3)' : 'scale(1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        padding: isActive ? '0 16px' : 0,
+                        transition: `all ${DURATION.normal} ${EASE.out}`,
+                      }}
+                    >
+                      {isActive ? (
+                        <span style={{ color: c, fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }}>
+                          {((f.title || '').length > 36 ? (f.title || '').slice(0, 34) + '…' : f.title) || 'Finding'}
+                        </span>
+                      ) : (
+                        <span style={{ width: 8, height: 8, borderRadius: 4, background: 'white', opacity: 0.9 }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+              {Object.entries(findingColors).map(([sev, c]) => (
+                <div key={sev} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 4, background: c }} />
+                  <span style={{ ...TYPE.label, fontSize: 11, textTransform: 'capitalize' }}>{sev}</span>
+                </div>
+              ))}
+            </div>
+            {selectedFinding && (
+              <RevealCard>
+                <div style={{ ...glass({ padding: 28 }) }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                    <span style={{ ...TYPE.caption, fontSize: 11, color: findingColors[selectedFinding.severity] || C.textMuted, background: `${(findingColors[selectedFinding.severity] || C.textMuted)}12`, border: `1px solid ${(findingColors[selectedFinding.severity] || C.textMuted)}25`, padding: '3px 10px', borderRadius: 20 }}>{(selectedFinding as any).severity}</span>
+                    {(selectedFinding as any).category && <span style={{ ...TYPE.caption, color: C.textMuted }}>{(selectedFinding as any).category?.replace(/_/g, ' ')}</span>}
+                  </div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: '0 0 12px' }}>{(selectedFinding as any).title}</h3>
+                  <p style={{ ...TYPE.body, lineHeight: 1.7, marginBottom: 20 }}>{(selectedFinding as any).description}</p>
+                  {((selectedFinding as any).evidence && (selectedFinding as any).evidence.length > 0) && (
+                    <div style={{ marginTop: 20 }}>
+                      <p style={{ ...TYPE.caption, color: C.textMuted, marginBottom: 8 }}>EVIDENCE</p>
+                      {((selectedFinding as any).evidence as string[]).map((e: string, j: number) => (
+                        <p key={j} style={{ borderLeft: `3px solid ${C.amber}`, paddingLeft: 14, marginBottom: 8, fontSize: 14 }}>{e}</p>
+                      ))}
+                    </div>
+                  )}
+                  {((selectedFinding as any).client_quote || (selectedFinding as any).clientQuote) && (
+                    <div style={{ ...glass({ padding: 16, marginTop: 16 }), borderLeft: `3px solid ${C.purple}40` }}>
+                      <p style={{ fontStyle: 'italic', fontFamily: "'Playfair Display', serif", fontSize: 14, lineHeight: 1.6, color: C.text, margin: 0 }}>&quot;{(selectedFinding as any).client_quote || (selectedFinding as any).clientQuote}&quot;</p>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 32, marginTop: 20, flexWrap: 'wrap' }}>
+                    <div>
+                      <p style={{ ...TYPE.caption, color: C.textMuted }}>HOURS/WEEK</p>
+                      <p style={{ ...TYPE.cardMetric, color: C.blue }}>{(selectedFinding as any).hours_wasted_weekly ?? (selectedFinding as any).hoursWastedWeekly ?? (selectedFinding as any).hoursPerWeek ?? '—'}</p>
+                    </div>
+                    <div>
+                      <p style={{ ...TYPE.caption, color: C.textMuted }}>ANNUAL COST</p>
+                      <p style={{ ...TYPE.cardMetric, color: C.red }}>{((selectedFinding as any).annual_cost_impact ?? (selectedFinding as any).annualCostImpact) != null ? `£${Number((selectedFinding as any).annual_cost_impact ?? (selectedFinding as any).annualCostImpact).toLocaleString()}` : '—'}</p>
+                    </div>
+                    <div>
+                      <p style={{ ...TYPE.caption, color: C.textMuted }}>AFFECTS</p>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                        {Array.isArray((selectedFinding as any).affected_systems ?? (selectedFinding as any).affectedSystems) ? ((selectedFinding as any).affected_systems ?? (selectedFinding as any).affectedSystems).map((s: string, j: number) => (
+                          <span key={j} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${C.blue}10`, color: C.blue }}>{s}</span>
+                        )) : '—'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </RevealCard>
+            )}
           </div>
         );
+      }
       case 'techmap':
         return (
-          <div style={sectionWrap}>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <SectionHeader title="Technology Map" subtitle="How your systems connect and where the gaps are" />
             {(systemsMaps?.length > 0 || (facts?.systems && facts.systems.length > 0)) ? (
-              <div style={{
-                borderRadius: 20, overflow: 'hidden',
-                boxShadow: '0 8px 40px rgba(0,0,0,0.12)',
-                border: '1px solid rgba(0,0,0,0.08)',
-                maxHeight: 'calc(100vh - 140px)',
-                overflowY: 'auto',
-              }}>
+              <RevealCard style={{ borderRadius: 20, overflow: 'hidden', maxHeight: 'calc(100vh - 140px)', overflowY: 'auto', ...glass({ padding: 0, borderRadius: 20 }) }}>
                 <SystemsMapSection systemsMaps={systemsMaps} facts={facts} layout="split" />
-              </div>
+              </RevealCard>
             ) : (
-              <div style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
-                <p style={{ color: C.textMuted }}>Technology map not yet generated.</p>
-              </div>
+              <RevealCard>
+                <div style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
+                  <p style={{ color: C.textMuted }}>Technology map not yet generated.</p>
+                </div>
+              </RevealCard>
             )}
           </div>
         );
@@ -1307,71 +1615,62 @@ export default function SAReportPage() {
         const qwList = quickWins || [];
         const totalQWHours = qwList.reduce((s: number, q: any) => s + (parseFloat(q.hoursSaved || q.hours_saved || q.hoursSavedWeekly || 0) || 0), 0);
         return (
-          <div style={sectionWrap}>
-            {/* Urgency hero banner */}
-            <div style={{
-              background: `linear-gradient(135deg, ${C.emerald}15, ${C.emerald}05)`,
-              border: `2px solid ${C.emerald}30`,
-              borderRadius: 20, padding: 28, marginBottom: 24,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16,
-            }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <Zap style={{ width: 28, height: 28, color: C.emerald }} />
-                  <h2 style={{ color: C.text, fontSize: 26, fontWeight: 700, margin: 0 }}>Start This Week</h2>
-                </div>
-                <p style={{ color: C.textSecondary, fontSize: 15, margin: 0 }}>
-                  {qwList.length} wins · zero cost · <span style={{ color: C.emerald, fontWeight: 700 }}>{totalQWHours}h saved every week</span>
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: 16 }}>
-                <div style={{ textAlign: 'center', padding: '12px 20px', background: 'rgba(255,255,255,0.7)', borderRadius: 12 }}>
-                  <p style={{ fontSize: 28, fontWeight: 700, color: C.emerald, ...mono, margin: 0 }}>£0</p>
-                  <p style={{ fontSize: 11, color: C.textMuted, margin: '4px 0 0' }}>Investment</p>
-                </div>
-                <div style={{ textAlign: 'center', padding: '12px 20px', background: 'rgba(255,255,255,0.7)', borderRadius: 12 }}>
-                  <p style={{ fontSize: 28, fontWeight: 700, color: C.emerald, ...mono, margin: 0 }}>+{totalQWHours}h</p>
-                  <p style={{ fontSize: 11, color: C.textMuted, margin: '4px 0 0' }}>Per Week</p>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <RevealCard>
+              <div style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: `linear-gradient(135deg, ${C.emerald} 0%, #059669 100%)` }}>
+                <NoiseOverlay opacity={0.2} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 32, position: 'relative', zIndex: 1, flexWrap: 'wrap', gap: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <Zap style={{ width: 32, height: 32, color: '#fff' }} />
+                    <div>
+                      <h2 style={{ fontSize: 28, fontWeight: 700, color: '#fff', margin: 0 }}>Start This Week</h2>
+                      <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.85)', margin: '4px 0 0' }}>{qwList.length} wins · zero cost · {totalQWHours}h saved every week</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: '12px 20px', backdropFilter: 'blur(8px)' }}>
+                      <p style={{ fontSize: 28, fontWeight: 700, color: '#fff', ...mono, margin: 0 }}>£0</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: '4px 0 0' }}>Investment</p>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 12, padding: '12px 20px', backdropFilter: 'blur(8px)' }}>
+                      <p style={{ fontSize: 28, fontWeight: 700, color: '#fff', ...mono, margin: 0 }}>+{totalQWHours}h</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: '4px 0 0' }}>Per Week</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            </RevealCard>
+            <div style={{ position: 'relative', marginTop: 24, paddingLeft: 32 }}>
+              <div style={{ position: 'absolute', left: 15, top: 0, bottom: 0, width: 3, background: `linear-gradient(180deg, ${C.emerald}, ${C.emerald}30)`, borderRadius: 2 }} />
               {qwList.map((qw: any, i: number) => {
                 const isExpanded = expandedQW === i;
                 const hoursSaved = parseFloat(qw.hoursSaved || qw.hours_saved || qw.hoursSavedWeekly || 0) || 0;
                 return (
-                  <div key={i} style={{ ...glass(), overflow: 'hidden', borderLeft: `4px solid ${C.emerald}` }}>
-                    <button type="button" onClick={() => setExpandedQW(isExpanded ? null : i)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 18, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 20, background: `${C.emerald}20`, color: C.emerald, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>{i + 1}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontWeight: 600, color: C.text, fontSize: 15, margin: 0, lineHeight: 1.4 }}>
-                          {qw.owner && <span style={{ color: C.blue, fontWeight: 700 }}>{qw.owner}: </span>}
-                          {qw.title || qw.action?.slice(0, 80) || 'Quick Win'}
-                        </p>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <p style={{ fontSize: 18, fontWeight: 700, color: C.emerald, ...mono, margin: 0 }}>+{hoursSaved}h</p>
-                        {qw.timeToImplement && <p style={{ fontSize: 11, color: C.textMuted, margin: '2px 0 0' }}>{qw.timeToImplement}</p>}
-                      </div>
-                      <span style={{ flexShrink: 0 }}>{isExpanded ? <ChevronUp style={{ color: C.textMuted }} /> : <ChevronDown style={{ color: C.textMuted }} />}</span>
-                    </button>
-                    <div style={{ maxHeight: isExpanded ? 300 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
-                      <div style={{ padding: '0 18px 18px', borderTop: `1px solid ${C.cardBorder}` }}>
+                  <RevealCard key={i} delay={i * STAGGER} style={{ position: 'relative', marginBottom: 16 }}>
+                    <div style={{ ...glass({ padding: 20 }), borderLeft: `3px solid ${C.emerald}30` }}>
+                      <div style={{ position: 'absolute', left: -32, top: 18, width: 30, height: 30, borderRadius: 15, background: C.emerald, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, boxShadow: SHADOW.glow(C.emerald, 0.3), zIndex: 2 }}>{i + 1}</div>
+                      <button type="button" onClick={() => setExpandedQW(isExpanded ? null : i)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 14, fontWeight: 600, color: C.blue, lineHeight: 1.5 }}>{qw.owner || 'Team'}: <span style={{ fontWeight: 500, color: C.text }}>{qw.title || qw.action?.slice(0, 80) || 'Quick Win'}</span></p>
+                        </div>
+                        <span style={{ ...TYPE.cardMetric, color: C.emerald, fontSize: 18, flexShrink: 0 }}>+{hoursSaved}h</span>
+                        {isExpanded ? <ChevronUp style={{ color: C.textMuted, flexShrink: 0 }} /> : <ChevronDown style={{ color: C.textMuted, flexShrink: 0 }} />}
+                      </button>
+                      <div style={{ maxHeight: isExpanded ? 300 : 0, overflow: 'hidden', transition: `max-height 0.3s ${EASE.out}` }}>
                         <div style={{ paddingTop: 12 }}>
-                          {qw.action && <p style={{ fontSize: 14, color: C.text, lineHeight: 1.6, marginBottom: 8 }}>{qw.action}</p>}
-                          {qw.impact && <p style={{ fontSize: 13, color: C.emerald, marginBottom: 8, lineHeight: 1.5, padding: '8px 12px', background: `${C.emerald}08`, borderRadius: 8, borderLeft: `3px solid ${C.emerald}` }}>{qw.impact}</p>}
+                          {qw.action && <p style={{ ...TYPE.body, fontSize: 13 }}>{qw.action}</p>}
+                          {qw.impact && <div style={{ ...glass({ padding: 12, marginTop: 8 }), borderLeft: `3px solid ${C.emerald}40` }}><p style={{ fontSize: 13, color: C.emerald, lineHeight: 1.5, fontStyle: 'italic', margin: 0 }}>{qw.impact}</p></div>}
                           {(qw.systems || qw.systems_affected)?.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                               {(qw.systems || qw.systems_affected).map((sys: string, j: number) => (
-                                <span key={j} style={{ fontSize: 11, background: 'rgba(0,0,0,0.06)', color: C.textMuted, padding: '4px 8px', borderRadius: 6 }}>{sys}</span>
+                                <span key={j} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: `${C.emerald}12`, color: C.emerald }}>{sys}</span>
                               ))}
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </RevealCard>
                 );
               })}
             </div>
@@ -1379,11 +1678,17 @@ export default function SAReportPage() {
         );
       }
       case 'roadmap': {
-        const phaseColors: Record<string, string> = { immediate: C.emerald, quick_win: C.emerald, foundation: C.blue, short_term: C.blue, strategic: C.purple, medium_term: C.purple, optimization: '#6366f1', long_term: C.textMuted };
-        const phaseLabels: Record<string, string> = { immediate: 'Quick Win', quick_win: 'Quick Win', foundation: 'Foundation', short_term: 'Short Term', strategic: 'Strategic', medium_term: 'Medium Term', optimization: 'Optimisation', long_term: 'Long Term' };
+        const phaseColors: Record<string, string> = { immediate: C.emerald, quick_win: C.emerald, foundation: C.blue, short_term: C.blue, strategic: C.purple, medium_term: C.purple, optimization: C.purple, long_term: C.textMuted };
+        const phaseLabels: Record<string, string> = { immediate: 'Quick Win', quick_win: 'Quick Win', foundation: 'Short Term', short_term: 'Short Term', strategic: 'Medium Term', medium_term: 'Medium Term', optimization: 'Medium Term', long_term: 'Long Term' };
+        const phaseDots = [{ pct: 16.5, label: '1' }, { pct: 50, label: '2' }, { pct: 83.5, label: '3' }];
         return (
-          <div style={sectionWrap}>
-            <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700, marginBottom: 24 }}>Roadmap</h2>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <SectionHeader title="Roadmap" />
+            <div style={{ height: 4, borderRadius: 2, background: `linear-gradient(90deg, ${C.emerald} 33%, ${C.blue} 33% 66%, ${C.purple} 66%)`, marginBottom: 32, position: 'relative' }}>
+              {phaseDots.map((d, i) => (
+                <div key={i} style={{ position: 'absolute', left: `${d.pct}%`, top: '50%', transform: 'translate(-50%, -50%)', width: 16, height: 16, borderRadius: 8, background: C.text, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>{d.label}</div>
+              ))}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
               {phaseOrder.map((phaseKey) => {
                 const recs = recsByPhase[phaseKey] || [];
@@ -1392,37 +1697,40 @@ export default function SAReportPage() {
                 const phaseLabel = phaseLabels[phaseKey] || phaseKey;
                 return (
                   <div key={phaseKey}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: 5, background: phaseColor, boxShadow: `0 0 8px ${phaseColor}40`, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, fontWeight: 700, color: phaseColor, ...mono }}>{phaseLabel.toUpperCase()}</span>
-                      <div style={{ flex: 1, height: 1, background: `${phaseColor}20` }} />
-                      <span style={{ fontSize: 11, color: C.textMuted }}>{recs.length} {recs.length === 1 ? 'item' : 'items'}</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 22 }}>
-                      {recs.map((rec: any) => {
+                    <RevealCard>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: phaseColor, padding: '4px 14px', borderRadius: 20, background: `${phaseColor}12`, border: `1px solid ${phaseColor}25` }}>{phaseLabel}</span>
+                        <span style={{ ...TYPE.label }}>{recs.length} {recs.length === 1 ? 'item' : 'items'}</span>
+                      </div>
+                    </RevealCard>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {recs.map((rec: any, recIdx: number) => {
                         const rid = rec.id || rec.title || String(rec.priorityRank);
                         const isExpanded = expandedRec === rid;
+                        const paybackSafe = (() => { const b = rec.annualBenefit ?? rec.annual_cost_savings ?? 0; const c = rec.estimatedCost ?? rec.estimated_cost ?? 0; if (c === 0) return '£0'; if (b <= 0 || !Number.isFinite(b)) return '—'; const months = Math.round(c / (b / 12)); return months < 1 ? '< 1 mo' : `${months} mo`; })();
                         return (
-                          <div key={rid} style={{ ...glass(), padding: 0, borderLeft: `3px solid ${phaseColor}`, overflow: 'hidden' }}>
-                            <button type="button" onClick={() => setExpandedRec(isExpanded ? null : rid)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 16, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                              <div style={{ width: 24, height: 24, borderRadius: 12, background: `${phaseColor}15`, color: phaseColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, ...mono }}>{rec.priorityRank ?? '-'}</div>
-                              <span style={{ flex: 1, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{rec.title}</span>
-                              <span style={{ flexShrink: 0 }}>{isExpanded ? <ChevronUp style={{ color: C.textMuted, width: 16, height: 16 }} /> : <ChevronDown style={{ color: C.textMuted, width: 16, height: 16 }} />}</span>
-                            </button>
-                            <div style={{ maxHeight: isExpanded ? 500 : 0, overflow: 'hidden', transition: 'max-height 0.3s ease' }}>
-                              <div style={{ padding: '12px 16px 16px', borderTop: `1px solid ${C.cardBorder}` }}>
-                                {rec.description && <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.6, marginBottom: 12 }}>{rec.description}</p>}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 12, marginBottom: 12 }}>
-                                  <div><span style={{ fontSize: 10, color: C.textLight, ...mono }}>Investment</span><p style={{ fontWeight: 600, color: C.text, margin: '4px 0 0' }}>{fmt(rec.estimatedCost ?? rec.estimated_cost)}</p></div>
-                                  <div><span style={{ fontSize: 10, color: C.textLight, ...mono }}>Benefit</span><p style={{ fontWeight: 600, color: C.emerald, margin: '4px 0 0' }}>{fmt(rec.annualBenefit ?? rec.annual_cost_savings)}/yr</p></div>
-                                  <div><span style={{ fontSize: 10, color: C.textLight, ...mono }}>Hours</span><p style={{ fontWeight: 600, color: C.text, margin: '4px 0 0' }}>{rec.hoursSavedWeekly ?? rec.hours_saved_weekly ?? 0}h/wk</p></div>
-                                  <div><span style={{ fontSize: 10, color: C.textLight, ...mono }}>Payback</span><p style={{ fontWeight: 600, color: C.text, margin: '4px 0 0' }}>{(() => { const b = rec.annualBenefit ?? rec.annual_cost_savings ?? 0; const c = rec.estimatedCost ?? rec.estimated_cost ?? 0; if (c === 0) return '£0'; if (b <= 0) return '—'; const months = Math.round(c / (b / 12)); return months < 1 ? '< 1 mo' : `${months} mo`; })()}</p></div>
+                          <RevealCard key={rid} delay={recIdx * STAGGER}>
+                            <div style={{ ...glass({ padding: 20 }), borderLeft: `3px solid ${phaseColor}`, overflow: 'hidden' }}>
+                              <button type="button" onClick={() => setExpandedRec(isExpanded ? null : rid)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 0, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                                <div style={{ width: 28, height: 28, borderRadius: 14, background: `${phaseColor}15`, color: phaseColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0, ...mono }}>{rec.priorityRank ?? '-'}</div>
+                                <span style={{ flex: 1, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, maxWidth: '70%' }}>{rec.title}</span>
+                                {isExpanded ? <ChevronUp style={{ color: C.textMuted, width: 16, height: 16, flexShrink: 0 }} /> : <ChevronDown style={{ color: C.textMuted, width: 16, height: 16, flexShrink: 0 }} />}
+                              </button>
+                              <div style={{ maxHeight: isExpanded ? 600 : 0, overflow: 'hidden', transition: `max-height 0.4s ${EASE.out}` }}>
+                                <div style={{ paddingTop: 16 }}>
+                                  {rec.description && <p style={{ ...TYPE.body, marginBottom: 16 }}>{rec.description}</p>}
+                                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginTop: 16 }}>
+                                    <div><span style={{ ...TYPE.caption, color: C.textMuted }}>Investment</span><p style={{ ...TYPE.cardMetric, margin: '4px 0 0' }}>{fmt(rec.estimatedCost ?? rec.estimated_cost ?? 0)}</p></div>
+                                    <div><span style={{ ...TYPE.caption, color: C.textMuted }}>Benefit</span><p style={{ ...TYPE.cardMetric, color: C.emerald, margin: '4px 0 0' }}>{fmt(rec.annualBenefit ?? rec.annual_cost_savings ?? 0)}/yr</p></div>
+                                    <div><span style={{ ...TYPE.caption, color: C.textMuted }}>Hours</span><p style={{ ...TYPE.cardMetric, margin: '4px 0 0' }}>{rec.hoursSavedWeekly ?? rec.hours_saved_weekly ?? 0}h/wk</p></div>
+                                    <div><span style={{ ...TYPE.caption, color: C.textMuted }}>Payback</span><p style={{ ...TYPE.cardMetric, margin: '4px 0 0' }}>{paybackSafe}</p></div>
+                                  </div>
+                                  {(rec.freedomUnlocked || rec.freedom_unlocked) && <div style={{ marginTop: 16, padding: 12, background: `${C.emerald}08`, borderRadius: 8, borderLeft: `3px solid ${C.emerald}40` }}><p style={{ fontSize: 13, color: C.emerald, lineHeight: 1.5, fontStyle: 'italic', margin: 0 }}>{rec.freedomUnlocked || rec.freedom_unlocked}</p></div>}
+                                  {(rec.findingsAddressed || rec.findings_addressed)?.length > 0 && <p style={{ ...TYPE.caption, color: C.textMuted, marginTop: 12, fontStyle: 'italic' }}>Addresses: {(rec.findingsAddressed || rec.findings_addressed).join(', ')}</p>}
                                 </div>
-                                {(rec.freedomUnlocked || rec.freedom_unlocked) && <p style={{ fontSize: 13, color: C.emerald, marginTop: 8, padding: '8px 12px', background: `${C.emerald}08`, borderRadius: 8, lineHeight: 1.5 }}>{rec.freedomUnlocked || rec.freedom_unlocked}</p>}
-                                {(rec.findingsAddressed || rec.findings_addressed)?.length > 0 && <p style={{ fontSize: 11, color: C.textMuted, marginTop: 8 }}>Addresses: {(rec.findingsAddressed || rec.findings_addressed).join(', ')}</p>}
                               </div>
                             </div>
-                          </div>
+                          </RevealCard>
                         );
                       })}
                     </div>
@@ -1434,179 +1742,165 @@ export default function SAReportPage() {
         );
       }
       case 'investment': {
-        const paybackMonths = totalBenefit > 0 && totalInvestment > 0 ? (totalInvestment / (totalBenefit / 12)) : 0;
-        const paybackDisplay = paybackMonths <= 0 || !Number.isFinite(paybackMonths) ? '—' : paybackMonths < 1 ? '<1 mo' : `${Math.round(paybackMonths)} mo`;
+        const paybackDisplay = (m.paybackMonths <= 0 || !Number.isFinite(m.paybackMonths)) ? '—' : m.paybackMonths < 1 ? '< 1 mo' : `${Math.round(m.paybackMonths)} mo`;
+        const roiDisplay = m.roiRatio || (totalInvestment > 0 ? `${(totalBenefit / totalInvestment).toFixed(1)}:1` : '—');
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <h2 style={{ color: C.text, fontSize: 22, fontWeight: 700 }}>Return on Investment</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16 }}>
+            <SectionHeader title="Return on Investment" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
               {[
-                { label: 'Investment', value: fmt(totalInvestment), color: C.text },
-                { label: 'Benefit', value: `£${totalBenefit.toLocaleString()}/yr`, color: C.emerald },
-                { label: 'Payback', value: paybackDisplay, color: C.text },
-                { label: 'ROI', value: totalInvestment > 0 ? `${(totalBenefit / totalInvestment).toFixed(1)}:1` : '—', color: C.blue },
+                { label: 'INVESTMENT', value: fmt(totalInvestment), color: C.text },
+                { label: 'BENEFIT', value: `${fmtFull(totalBenefit)}/yr`, color: C.emerald },
+                { label: 'PAYBACK', value: paybackDisplay, color: C.blue },
+                { label: 'ROI', value: roiDisplay, color: C.purple, gradient: true },
               ].map((stat, i) => (
-                <div key={i} style={{ ...glass(), padding: 20, textAlign: 'center' }}>
-                  <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, ...mono }}>{stat.label}</p>
-                  <p style={{ fontSize: 22, fontWeight: 700, color: stat.color, ...mono }}>{stat.value}</p>
-                </div>
+                <RevealCard key={i} delay={i * STAGGER}>
+                  <div style={{ ...glass({ padding: 20, textAlign: 'center' }) }}>
+                    <p style={{ ...TYPE.caption, color: C.textMuted, marginBottom: 8 }}>{stat.label}</p>
+                    <p style={{ ...TYPE.sectionMetric, color: stat.color, ...(stat.gradient ? { background: `linear-gradient(135deg, ${C.purple}, ${C.blue})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' } : {}) }}>{stat.value}</p>
+                  </div>
+                </RevealCard>
               ))}
             </div>
-            <ROIWaterfall recommendations={displayRecs} />
-            <div style={{ ...glass(), overflow: 'hidden' }}>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 500 }}>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${C.cardBorder}`, background: 'rgba(0,0,0,0.02)' }}>
-                      <th style={{ textAlign: 'left', padding: 12, color: C.textMuted, fontWeight: 600 }}>Phase</th>
-                      <th style={{ textAlign: 'left', padding: 12, color: C.textMuted, fontWeight: 600 }}>Title</th>
-                      <th style={{ textAlign: 'right', padding: 12, color: C.textMuted, fontWeight: 600 }}>Cost</th>
-                      <th style={{ textAlign: 'right', padding: 12, color: C.textMuted, fontWeight: 600 }}>Benefit</th>
-                      <th style={{ textAlign: 'right', padding: 12, color: C.textMuted, fontWeight: 600 }}>Hours</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayRecs.map((r: any, i: number) => (
-                      <tr key={i} style={{ borderBottom: `1px solid ${C.cardBorder}` }}>
-                        <td style={{ padding: 12 }}><PhaseBadge phase={r.implementationPhase || r.implementation_phase || 'short_term'} /></td>
-                        <td style={{ padding: 12, color: C.text, maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</td>
-                        <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.text }}>{fmt(r.estimatedCost ?? r.estimated_cost)}</td>
-                        <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.emerald }}>£{(r.annualBenefit ?? r.annual_cost_savings ?? 0).toLocaleString()}</td>
-                        <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.text }}>{r.hoursSavedWeekly ?? r.hours_saved_weekly ?? 0}h</td>
-                      </tr>
-                    ))}
-                    <tr style={{ background: 'rgba(0,0,0,0.03)', fontWeight: 600 }}>
-                      <td style={{ padding: 12, color: C.text }} colSpan={2}>Total</td>
-                      <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.text }}>{fmt(totalInvestment)}</td>
-                      <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.emerald }}>£{totalBenefit.toLocaleString()}</td>
-                      <td style={{ padding: 12, textAlign: 'right', ...mono, color: C.text }}>{totalHoursSaved}h</td>
-                    </tr>
-                  </tbody>
-                </table>
+            <RevealCard delay={300}>
+              <div style={{ ...glass({ padding: 24 }) }}>
+                <ROIWaterfall recommendations={displayRecs} />
               </div>
-            </div>
+            </RevealCard>
+            <RevealCard delay={400}>
+              <div style={{ ...glass({ padding: 0, overflow: 'hidden' }) }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13, minWidth: 500 }}>
+                    <thead>
+                      <tr style={{ background: C.bg, position: 'sticky', top: 0 }}>
+                        <th style={{ ...TYPE.caption, color: C.textMuted, padding: '12px 16px', textAlign: 'left', borderBottom: '2px solid rgba(0,0,0,0.06)' }}>Phase</th>
+                        <th style={{ ...TYPE.caption, color: C.textMuted, padding: '12px 16px', textAlign: 'left', borderBottom: '2px solid rgba(0,0,0,0.06)' }}>Title</th>
+                        <th style={{ ...TYPE.caption, color: C.textMuted, padding: '12px 16px', textAlign: 'right', borderBottom: '2px solid rgba(0,0,0,0.06)' }}>Cost</th>
+                        <th style={{ ...TYPE.caption, color: C.textMuted, padding: '12px 16px', textAlign: 'right', borderBottom: '2px solid rgba(0,0,0,0.06)' }}>Benefit</th>
+                        <th style={{ ...TYPE.caption, color: C.textMuted, padding: '12px 16px', textAlign: 'right', borderBottom: '2px solid rgba(0,0,0,0.06)' }}>Hours</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayRecs.map((r: any, i: number) => (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(0,0,0,0.04)' }} onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.02)'; }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
+                          <td style={{ padding: '14px 16px' }}><PhaseBadge phase={r.implementationPhase || r.implementation_phase || 'short_term'} /></td>
+                          <td style={{ padding: '14px 16px', color: C.text, maxWidth: 350, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', ...mono, color: C.text }}>{fmt(r.estimatedCost ?? r.estimated_cost ?? 0)}</td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', ...mono, color: C.emerald }}>£{Number(r.annualBenefit ?? r.annual_cost_savings ?? 0).toLocaleString()}</td>
+                          <td style={{ padding: '14px 16px', textAlign: 'right', ...mono, color: C.text }}>{r.hoursSavedWeekly ?? r.hours_saved_weekly ?? 0}h</td>
+                        </tr>
+                      ))}
+                      <tr style={{ fontWeight: 700, borderTop: '2px solid rgba(0,0,0,0.08)' }}>
+                        <td style={{ padding: '14px 16px', color: C.text }} colSpan={2}>Total</td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right', ...mono, color: C.text }}>{fmt(totalInvestment)}</td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right', ...mono, color: C.emerald }}>£{totalBenefit.toLocaleString()}</td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right', ...mono, color: C.text }}>{totalHoursSaved}h</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </RevealCard>
           </div>
         );
       }
       case 'monday': {
+        const visionParas = splitNarrative(report?.time_freedom_narrative || '', 4);
+        const clientPres = p1.clientPresentation || {};
+        const mondayQuote = (clientPres as any).mondayMorning || visionParas[0] || facts?.mondayMorningVision || facts?.monday_morning_vision || '';
+        const freedomStories = clientPres.freedomStories || (p1.adminGuidance && (p1.adminGuidance as any).freedomStories) || [];
         const freedomRecs = displayRecs.filter((r: any) => r.freedomUnlocked || r.freedom_unlocked);
-        const visionParas = splitNarrative(report?.time_freedom_narrative || '', 3);
+        const storiesToShow = freedomStories.length > 0 ? freedomStories : freedomRecs;
+        const paybackVal = totalInvestment > 0 && totalBenefit > 0 ? (totalInvestment / (totalBenefit / 12) < 1 ? '<1' : Math.round(totalInvestment / (totalBenefit / 12))) : '—';
         return (
-          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 0 }}>
-
-            {/* Hero — full-width gradient banner */}
-            <div style={{
-              background: 'linear-gradient(135deg, #162340 0%, #0f172a 40%, #1e3156 100%)',
-              borderRadius: 24, padding: 'clamp(32px, 5vw, 56px)', position: 'relative', overflow: 'hidden', marginBottom: 24,
-            }}>
-              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(16,185,129,0.06) 1px, transparent 0)', backgroundSize: '20px 20px' }} />
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                  <Rocket style={{ width: 28, height: 28, color: C.emerald }} />
-                  <span style={{ fontSize: 12, letterSpacing: 3, color: C.emerald, textTransform: 'uppercase', ...mono }}>Your Future</span>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Dark cinematic hero */}
+            <div style={{ borderRadius: 24, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #162340 0%, #0f172a 40%, #1e3156 100%)' }}>
+              <DotGridOverlay opacity={0.06} size={20} />
+              <NoiseOverlay opacity={0.25} />
+              <div style={{ position: 'absolute', top: '-20%', left: '10%', width: 300, height: 300, borderRadius: '50%', background: 'rgba(59,130,246,0.15)', filter: 'blur(80px)', animation: 'float 20s ease infinite' }} />
+              <div style={{ position: 'absolute', bottom: '-10%', right: '10%', width: 250, height: 250, borderRadius: '50%', background: 'rgba(16,185,129,0.12)', filter: 'blur(80px)', animation: 'float 15s ease infinite 5s' }} />
+              <div style={{ position: 'absolute', top: '50%', left: '50%', width: 200, height: 200, borderRadius: '50%', background: 'rgba(139,92,246,0.1)', filter: 'blur(80px)', animation: 'float 18s ease infinite 3s', transform: 'translate(-50%, -50%)' }} />
+              <div style={{ position: 'relative', zIndex: 1, padding: 'clamp(40px, 6vw, 64px)', textAlign: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
+                  <Rocket style={{ width: 16, height: 16, color: C.emerald }} />
+                  <span style={{ ...TYPE.caption, color: C.emerald }}>YOUR FUTURE</span>
                 </div>
-                <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 40px)', fontWeight: 700, color: '#fff', lineHeight: 1.2, marginBottom: 24 }}>
-                  Ready to Reclaim <span style={{ color: C.emerald }}>{totalHoursSaved} Hours</span> Every Week?
+                <h2 style={{ fontSize: 'clamp(28px, 4vw, 44px)', fontWeight: 800, color: '#fff', lineHeight: 1.15, marginBottom: 32 }}>
+                  Ready to Reclaim <span style={{ color: C.emerald }}>{totalHoursSaved}</span> Hours Every Week?
                 </h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-                  <div style={{ background: 'rgba(16,185,129,0.15)', borderRadius: 16, padding: 20, textAlign: 'center', border: '1px solid rgba(16,185,129,0.25)' }}>
-                    <p style={{ fontSize: 36, fontWeight: 700, color: C.emerald, ...mono }}>{totalHoursSaved}</p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Hours/week reclaimed</p>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 32, flexWrap: 'wrap' }}>
+                  <div style={{ borderRadius: 16, padding: '20px 32px', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)', minWidth: 140, background: 'rgba(16,185,129,0.15)' }}>
+                    <p style={{ fontSize: 36, fontWeight: 700, color: '#fff', ...mono, margin: 0 }}>{totalHoursSaved}</p>
+                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Hours/week reclaimed</p>
                   </div>
-                  <div style={{ background: 'rgba(59,130,246,0.15)', borderRadius: 16, padding: 20, textAlign: 'center', border: '1px solid rgba(59,130,246,0.25)' }}>
-                    <p style={{ fontSize: 36, fontWeight: 700, color: '#60a5fa', ...mono }}>£{(totalBenefit / 1000).toFixed(0)}k</p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual benefit</p>
+                  <div style={{ borderRadius: 16, padding: '20px 32px', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)', minWidth: 140, background: 'rgba(59,130,246,0.15)' }}>
+                    <p style={{ fontSize: 36, fontWeight: 700, color: '#fff', ...mono, margin: 0 }}>£{Math.round(totalBenefit / 1000)}k</p>
+                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Annual benefit</p>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 16, padding: 20, textAlign: 'center', border: '1px solid rgba(255,255,255,0.12)' }}>
-                    <p style={{ fontSize: 36, fontWeight: 700, color: '#fff', ...mono }}>
-                      {totalInvestment > 0 && totalBenefit > 0 ? (totalInvestment / (totalBenefit / 12) < 1 ? '<1' : Math.round(totalInvestment / (totalBenefit / 12))) : '—'}
-                    </p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Month payback</p>
+                  <div style={{ borderRadius: 16, padding: '20px 32px', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)', minWidth: 140, background: 'rgba(255,255,255,0.1)' }}>
+                    <p style={{ fontSize: 36, fontWeight: 700, color: '#fff', ...mono, margin: 0 }}>{paybackVal}</p>
+                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>Month payback</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Monday morning vision quote */}
-            {(facts?.mondayMorningVision || facts?.monday_morning_vision) && (
-              <div style={{
-                ...glass({ padding: 28 }),
-                background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(59,130,246,0.04))',
-                borderLeft: `4px solid ${C.emerald}`,
-                marginBottom: 24,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <Quote style={{ width: 28, height: 28, color: C.emerald, opacity: 0.6, flexShrink: 0, marginTop: 2 }} />
-                  <p style={{ fontSize: 18, fontStyle: 'italic', color: C.text, lineHeight: 1.7, fontFamily: "'Playfair Display', serif", margin: 0 }}>
-                    &quot;{facts.mondayMorningVision || facts.monday_morning_vision}&quot;
-                  </p>
+            {mondayQuote && (
+              <RevealCard delay={200}>
+                <div style={{ ...glass({ padding: 32 }), borderLeft: `4px solid ${C.emerald}`, background: 'linear-gradient(135deg, rgba(16,185,129,0.06), rgba(59,130,246,0.03))' }}>
+                  <Quote style={{ width: 28, height: 28, color: C.emerald, opacity: 0.5, marginBottom: 12 }} />
+                  <p style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: 18, lineHeight: 1.8, color: C.text, maxWidth: '62ch', margin: 0 }}>&quot;{mondayQuote}&quot;</p>
                 </div>
-              </div>
+              </RevealCard>
             )}
 
-            {/* How We Get There — narrative */}
             {visionParas.length > 0 && (
-              <div style={{ ...glass({ padding: 28 }), marginBottom: 24 }}>
-                <p style={{ ...label, marginBottom: 16 }}>How We Get There</p>
-                {visionParas.map((para: string, i: number) => (
-                  <p key={i} style={{ fontSize: 15, lineHeight: 1.85, color: C.text, marginBottom: 16, maxWidth: '62ch' }}>{para}</p>
-                ))}
-              </div>
-            )}
-
-            {/* Freedom stories — what each fix unlocks */}
-            {freedomRecs.length > 0 && (
-              <div style={{ marginBottom: 24 }}>
-                <p style={{ ...label, marginBottom: 12 }}>What Each Step Unlocks</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-                  {freedomRecs.map((rec: any, i: number) => (
-                    <div key={i} style={{
-                      ...glass({ padding: 20 }),
-                      background: 'rgba(16,185,129,0.06)',
-                      border: `1px solid ${C.emerald}20`,
-                      borderTop: `3px solid ${C.emerald}`,
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <Star style={{ width: 14, height: 14, color: C.emerald }} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: C.emerald, ...mono }}>STEP {rec.priorityRank || i + 1}</span>
-                      </div>
-                      <p style={{ fontSize: 14, color: C.text, lineHeight: 1.6, margin: 0 }}>{rec.freedomUnlocked || rec.freedom_unlocked}</p>
-                    </div>
+              <RevealCard delay={300}>
+                <div style={{ ...glass({ padding: 32 }) }}>
+                  <p style={{ ...TYPE.caption, color: C.text, marginBottom: 16 }}>HOW WE GET THERE</p>
+                  {visionParas.map((para: string, i: number) => (
+                    <p key={i} style={{ ...TYPE.body, maxWidth: '62ch', marginBottom: 16 }}>{para}</p>
                   ))}
                 </div>
+              </RevealCard>
+            )}
+
+            {(storiesToShow.length > 0 || freedomRecs.length > 0) && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16, marginTop: 24 }}>
+                {(storiesToShow as any[]).map((item: any, i: number) => {
+                  const text = typeof item === 'string' ? item : (item.freedomUnlocked || item.freedom_unlocked || item.text || '');
+                  if (!text) return null;
+                  return (
+                    <RevealCard key={i} delay={i * STAGGER}>
+                      <div style={{ ...glass({ padding: 20 }), borderTop: `3px solid ${C.emerald}` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <div style={{ width: 24, height: 24, borderRadius: 12, background: C.emerald, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{i + 1}</div>
+                          <Star style={{ width: 12, height: 12, color: `${C.emerald}40` }} />
+                        </div>
+                        <p style={{ ...TYPE.body, fontSize: 14, margin: 0 }}>{text}</p>
+                      </div>
+                    </RevealCard>
+                  );
+                })}
               </div>
             )}
 
-            {/* CTA — Book a Call */}
-            <div style={{
-              background: 'linear-gradient(135deg, #162340, #1e3a5f)',
-              borderRadius: 20, padding: 'clamp(28px, 4vw, 40px)',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 20,
-              position: 'relative', overflow: 'hidden',
-            }}>
-              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(16,185,129,0.05) 1px, transparent 0)', backgroundSize: '20px 20px' }} />
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <h3 style={{ fontSize: 22, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                  <Phone style={{ width: 22, height: 22, color: C.emerald }} />
-                  Ready to Start?
-                </h3>
-                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.7)', margin: 0 }}>Let&apos;s discuss these findings and build your implementation timeline.</p>
+            <RevealCard delay={500}>
+              <div style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #162340, #1e3a5f)' }}>
+                <DotGridOverlay opacity={0.04} />
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: 40, position: 'relative', zIndex: 1 }}>
+                  <Phone style={{ width: 24, height: 24, color: C.emerald }} />
+                  <h3 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: 0 }}>Ready to Start?</h3>
+                  <button type="button" onClick={() => navigate('/appointments')} style={{
+                    background: `linear-gradient(135deg, ${C.emerald}, #059669)`, color: '#fff', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 16, fontWeight: 700,
+                    boxShadow: `0 0 30px rgba(16,185,129,0.4)`, display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.3s ease',
+                  }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 0 40px rgba(16,185,129,0.6)`; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 0 30px rgba(16,185,129,0.4)`; }}>
+                    Book a Call <ArrowRight style={{ width: 18, height: 18 }} />
+                  </button>
+                </div>
               </div>
-              <button type="button" onClick={() => navigate('/appointments')} style={{
-                position: 'relative', zIndex: 1,
-                padding: '16px 36px', fontSize: 17, fontWeight: 700,
-                background: `linear-gradient(135deg, ${C.emerald}, #059669)`,
-                color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer',
-                boxShadow: `0 0 30px ${C.emerald}50`,
-                fontFamily: "'DM Sans', sans-serif",
-                display: 'flex', alignItems: 'center', gap: 8,
-                transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 40px ${C.emerald}60`; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = `0 0 30px ${C.emerald}50`; }}>
-                Book a Call <ArrowRight style={{ width: 18, height: 18 }} />
-              </button>
-            </div>
+            </RevealCard>
           </div>
         );
       }
@@ -1619,8 +1913,14 @@ export default function SAReportPage() {
     <div className="sa-report-root" style={{ background: '#F0F2F7', minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", color: '#162340', display: 'flex' }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400;1,700&display=swap" rel="stylesheet" />
       <style>{`
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        @keyframes gradientShift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes growWidth { from { width: 0%; } }
         .sa-report-root, .sa-report-root * { color-scheme: light; }
         .sa-report-content { background: #F0F2F7 !important; }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
