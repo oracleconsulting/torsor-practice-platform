@@ -445,15 +445,49 @@ export default function UnifiedDashboardPage() {
             reportApproved
           });
         } else {
-          console.log('⚠️ No Systems Audit engagement found');
-          setSaReportShared(false);
-          setSystemsAuditStage({
-            stage1Complete: false,
-            stage2Complete: false,
-            stage3Complete: false,
-            engagementId: null,
-            reportApproved: false
-          });
+          // No engagement yet. If client is enrolled in Systems Audit, create one so progress (e.g. 97% in service_line_assessments) is visible.
+          const hasSystemsAudit = enrollments?.some((e: any) => e.service_line?.code === 'systems_audit');
+          if (hasSystemsAudit && clientSession?.practiceId) {
+            const { data: newEngagement, error: createErr } = await supabase
+              .from('sa_engagements')
+              .insert({
+                client_id: clientSession.clientId,
+                practice_id: clientSession.practiceId,
+                status: 'pending',
+              })
+              .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, is_shared_with_client, status')
+              .single();
+            if (!createErr && newEngagement) {
+              console.log('✅ Created missing Systems Audit engagement for client');
+              setSystemsAuditStage({
+                stage1Complete: !!newEngagement.stage_1_completed_at,
+                stage2Complete: !!newEngagement.stage_2_completed_at,
+                stage3Complete: !!newEngagement.stage_3_completed_at,
+                engagementId: newEngagement.id,
+                reportApproved: false
+              });
+            } else {
+              console.warn('⚠️ No Systems Audit engagement found', createErr ? createErr.message : '');
+              setSaReportShared(false);
+              setSystemsAuditStage({
+                stage1Complete: false,
+                stage2Complete: false,
+                stage3Complete: false,
+                engagementId: null,
+                reportApproved: false
+              });
+            }
+          } else {
+            console.log('⚠️ No Systems Audit engagement found');
+            setSaReportShared(false);
+            setSystemsAuditStage({
+              stage1Complete: false,
+              stage2Complete: false,
+              stage3Complete: false,
+              engagementId: null,
+              reportApproved: false
+            });
+          }
         }
       }
 

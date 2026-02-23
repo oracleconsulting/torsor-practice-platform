@@ -11072,7 +11072,7 @@ function BenchmarkingClientModal({
         const { data: responsesData } = await supabase
           .from('bm_assessment_responses')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .maybeSingle();
         
         // Also check service_line_assessments as fallback (for responses JSONB)
@@ -11105,7 +11105,7 @@ function BenchmarkingClientModal({
         const { data: directReport, error: directError } = await supabase
           .from('bm_reports')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .maybeSingle();
         
         reportData = directReport;
@@ -11117,7 +11117,7 @@ function BenchmarkingClientModal({
           const { data: allReports, error: allError } = await supabase
             .from('bm_reports')
             .select('*')
-            .eq('engagement_id', engagementData.id);
+            .eq('engagement_id', engagementToUse.id);
           
           console.log('[Benchmarking Modal] Query without maybeSingle:', {
             count: allReports?.length || 0,
@@ -11163,7 +11163,7 @@ function BenchmarkingClientModal({
           const { data: allReportsForEngagement, count } = await supabase
             .from('bm_reports')
             .select('*', { count: 'exact' })
-            .eq('engagement_id', engagementData.id);
+            .eq('engagement_id', engagementToUse.id);
           
           console.log('[Benchmarking Modal] DEBUG - All reports for engagement (without maybeSingle):', {
             count: count || allReportsForEngagement?.length || 0,
@@ -12564,15 +12564,41 @@ function SystemsAuditClientModal({
         return;
       }
 
-      if (engagementData) {
-        console.log('[Systems Audit Modal] Found engagement:', engagementData.id, 'Status:', engagementData.status);
-        setEngagement(engagementData);
+      // If no engagement exists but client is in our practice, create one (e.g. client has
+      // progress in service_line_assessments but never completed the flow that creates sa_engagements)
+      let engagementToUse = engagementData;
+      if (!engagementToUse && currentMember?.practice_id) {
+        const { data: newEngagement, error: createError } = await supabase
+          .from('sa_engagements')
+          .insert({
+            client_id: clientId,
+            practice_id: currentMember.practice_id,
+            status: 'pending',
+            engagement_type: 'diagnostic', // required by schema if default not applied
+          })
+          .select('*')
+          .single();
+        if (createError) {
+          console.error('[Systems Audit Modal] Create engagement failed:', createError.code, createError.message, createError.details);
+          alert(`Could not create Systems Audit engagement: ${createError.message}. Check the console for details. This may be an RLS/permissions issue.`);
+          setLoading(false);
+          return;
+        } else if (newEngagement) {
+          engagementToUse = newEngagement;
+          setEngagement(newEngagement);
+          console.log('[Systems Audit Modal] Created new engagement for client:', newEngagement.id);
+        }
+      }
+
+      if (engagementToUse) {
+        console.log('[Systems Audit Modal] Found engagement:', engagementToUse.id, 'Status:', engagementToUse.status);
+        setEngagement(engagementToUse);
 
         // Fetch Stage 1 responses - single row per engagement (UNIQUE constraint)
         const { data: stage1Data, error: stage1Error } = await supabase
           .from('sa_discovery_responses')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .maybeSingle();
 
         console.log('[Systems Audit Modal] Stage 1 responses:', { 
@@ -12617,7 +12643,7 @@ function SystemsAuditClientModal({
         const { data: stage2Data, error: stage2Error } = await supabase
           .from('sa_system_inventory')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at');
 
         console.log('[Systems Audit Modal] Stage 2 inventory:', { count: stage2Data?.length || 0, error: stage2Error });
@@ -12638,7 +12664,7 @@ function SystemsAuditClientModal({
         const { data: stage3Data, error: stage3Error } = await supabase
           .from('sa_process_deep_dives')
           .select('*')
-          .eq('engagement_id', engagementData.id);
+          .eq('engagement_id', engagementToUse.id);
 
         console.log('[Systems Audit Modal] Stage 3 deep dives:', { count: stage3Data?.length || 0, error: stage3Error });
         if (stage3Error) {
@@ -12651,14 +12677,14 @@ function SystemsAuditClientModal({
         const { data: customChainsData } = await supabase
           .from('sa_process_chains')
           .select('*')
-          .eq('engagement_id', engagementData.id);
+          .eq('engagement_id', engagementToUse.id);
         setSaCustomChains(customChainsData || []);
 
         // Fetch report
         const { data: reportData, error: reportError } = await supabase
           .from('sa_audit_reports')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -12674,7 +12700,7 @@ function SystemsAuditClientModal({
         const { data: findingsData, error: findingsError } = await supabase
           .from('sa_findings')
           .select('*')
-          .eq('engagement_id', engagementData.id);
+          .eq('engagement_id', engagementToUse.id);
         
         // Sort findings by severity order (critical first)
         const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -12696,7 +12722,7 @@ function SystemsAuditClientModal({
         const { data: recsData, error: recsError } = await supabase
           .from('sa_recommendations')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('priority_rank');
 
         if (recsError) {
@@ -12709,7 +12735,7 @@ function SystemsAuditClientModal({
         const { data: docsData, error: docsError } = await supabase
           .from('sa_uploaded_documents')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: false });
         
         if (docsError) {
@@ -12722,7 +12748,7 @@ function SystemsAuditClientModal({
         const { data: contextData, error: contextError } = await supabase
           .from('sa_context_notes')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: false });
         
         if (contextError) {
@@ -12735,11 +12761,11 @@ function SystemsAuditClientModal({
         const { count: staffTotal } = await supabase
           .from('sa_staff_interviews')
           .select('*', { count: 'exact', head: true })
-          .eq('engagement_id', engagementData.id);
+          .eq('engagement_id', engagementToUse.id);
         const { count: staffComplete } = await supabase
           .from('sa_staff_interviews')
           .select('*', { count: 'exact', head: true })
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .eq('status', 'complete');
         setStaffInterviewCompleteCount(staffComplete ?? 0);
         setStaffInterviewTotalCount(staffTotal ?? 0);
@@ -12748,7 +12774,7 @@ function SystemsAuditClientModal({
         const { data: gapsData, error: gapsError } = await supabase
           .from('sa_engagement_gaps')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: true });
         if (!gapsError) setGaps((gapsData || []) as SAEngagementGap[]);
         const { data: tagData } = await supabase
@@ -12773,11 +12799,11 @@ function SystemsAuditClientModal({
         setGapTrends(sortedTrends);
 
         // Fetch client name
-        if (engagementData.client_id) {
+        if (engagementToUse.client_id) {
           const { data: clientData } = await supabase
             .from('practice_members')
             .select('client_company, company, name')
-            .eq('id', engagementData.client_id)
+            .eq('id', engagementToUse.client_id)
             .maybeSingle();
           
           if (clientData) {
