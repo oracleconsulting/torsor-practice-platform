@@ -12074,17 +12074,15 @@ function BenchmarkingClientModal({
                       {/* Report Content - New Components */}
                       {viewMode === 'client' ? (
                         report ? (
-                          // Match client portal styling: bg-slate-50 + max-w wrapper
-                          <div className="bg-slate-50 rounded-xl -mx-2 px-2 py-6">
-                            <div className="max-w-5xl mx-auto">
-                              <BenchmarkingClientReport 
-                                data={{
-                                  ...report,
-                                  created_at: report?.created_at
-                                }}
-                                clientName={clientName}
-                              />
-                            </div>
+                          // Dashboard has its own full-width layout with sidebar nav
+                          <div className="rounded-xl overflow-hidden -mx-2" style={{ height: '85vh' }}>
+                            <BenchmarkingClientDashboard
+                              data={{
+                                ...report,
+                                created_at: report?.created_at
+                              }}
+                              clientName={clientName}
+                            />
                           </div>
                         ) : (
                           <div className="text-center py-8 text-gray-500">
