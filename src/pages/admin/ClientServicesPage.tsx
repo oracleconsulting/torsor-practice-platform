@@ -11072,7 +11072,7 @@ function BenchmarkingClientModal({
         const { data: responsesData } = await supabase
           .from('bm_assessment_responses')
           .select('*')
-          .eq('engagement_id', engagementToUse.id)
+          .eq('engagement_id', engagementData.id)
           .maybeSingle();
         
         // Also check service_line_assessments as fallback (for responses JSONB)
@@ -11105,7 +11105,7 @@ function BenchmarkingClientModal({
         const { data: directReport, error: directError } = await supabase
           .from('bm_reports')
           .select('*')
-          .eq('engagement_id', engagementToUse.id)
+          .eq('engagement_id', engagementData.id)
           .maybeSingle();
         
         reportData = directReport;
@@ -11117,7 +11117,7 @@ function BenchmarkingClientModal({
           const { data: allReports, error: allError } = await supabase
             .from('bm_reports')
             .select('*')
-            .eq('engagement_id', engagementToUse.id);
+            .eq('engagement_id', engagementData.id);
           
           console.log('[Benchmarking Modal] Query without maybeSingle:', {
             count: allReports?.length || 0,
@@ -11163,7 +11163,7 @@ function BenchmarkingClientModal({
           const { data: allReportsForEngagement, count } = await supabase
             .from('bm_reports')
             .select('*', { count: 'exact' })
-            .eq('engagement_id', engagementToUse.id);
+            .eq('engagement_id', engagementData.id);
           
           console.log('[Benchmarking Modal] DEBUG - All reports for engagement (without maybeSingle):', {
             count: count || allReportsForEngagement?.length || 0,
