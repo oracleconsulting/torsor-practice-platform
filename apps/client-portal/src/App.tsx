@@ -30,6 +30,7 @@ const SystemInventoryPage = lazy(() => import('./pages/services/SystemInventoryP
 const ProcessDeepDivesPage = lazy(() => import('./pages/services/ProcessDeepDivesPage'));
 const SAReportPage = lazy(() => import('./pages/services/SAReportPage'));
 const BenchmarkingReportPage = lazy(() => import('./pages/services/BenchmarkingReportPage'));
+const BenchmarkingReportPreviewPage = lazy(() => import('./pages/services/BenchmarkingReportPreviewPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const LifeThreadPage = lazy(() => import('./pages/LifeThreadPage'));
 const ProgressPage = lazy(() => import('./pages/ProgressPage'));
@@ -88,6 +89,7 @@ function App() {
               <Route path="/service/systems_audit/process-deep-dives" element={<ProcessDeepDivesPage />} />
               <Route path="/service/systems_audit/report" element={<SAReportPage />} />
               <Route path="/service/benchmarking/report" element={<BenchmarkingReportPage />} />
+              <Route path="/service/benchmarking/report/preview" element={<BenchmarkingReportPreviewPage />} />
               <Route path="/discovery" element={<DestinationDiscoveryPage />} />
               <Route path="/discovery/follow-up" element={<DiscoveryFollowUpPage />} />
               <Route path="/discovery/complete" element={<DiscoveryCompletePage />} />
