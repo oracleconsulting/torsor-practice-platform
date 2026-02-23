@@ -4,13 +4,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ArrowLeft, Loader2, Lock } from 'lucide-react';
 import { Logo } from '@/components/Logo';
-// Import the FULL client report component from the main platform
-import { BenchmarkingClientReport } from '@torsor/platform/components/benchmarking/client/BenchmarkingClientReport';
+// Import the client dashboard (sidebar-nav) from the main platform
+import BenchmarkingClientDashboard from '@torsor/platform/components/benchmarking/client/BenchmarkingClientDashboard';
 
 // ============================================================================
 // BENCHMARKING REPORT PAGE - CLIENT PORTAL VIEW
 // ============================================================================
-// Uses the same full BenchmarkingClientReport component as the admin "Client View"
+// Uses BenchmarkingClientDashboard (sidebar nav, 10 sections) — same data as admin "Client View"
 // ============================================================================
 
 export default function BenchmarkingReportPage() {
@@ -177,29 +177,17 @@ export default function BenchmarkingReportPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <button 
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-2 text-slate-600 hover:text-slate-900"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Dashboard</span>
-            </button>
-            <Logo />
-          </div>
-        </div>
-      </div>
-
-      {/* Full Report Component - Same as Admin Client View */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <BenchmarkingClientReport 
-          data={reportData}
+      {/* Dashboard has its own layout and back button via onBack */}
+      <div className="rounded-xl overflow-hidden" style={{ height: '85vh' }}>
+        <BenchmarkingClientDashboard
+          data={{
+            ...reportData,
+            created_at: reportData?.created_at
+          }}
           clientName={clientCompany}
           practitionerName={practitionerInfo.name}
           practitionerEmail={practitionerInfo.email}
+          onBack={() => navigate('/dashboard')}
         />
       </div>
     </div>
