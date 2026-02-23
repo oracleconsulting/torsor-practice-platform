@@ -55,7 +55,7 @@ import {
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
-import { BenchmarkingClientReport } from '../../components/benchmarking/client/BenchmarkingClientReport';
+import BenchmarkingClientDashboard from '../../components/benchmarking/client/BenchmarkingClientDashboard';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
 import { calculateFounderRisk } from '../../lib/services/benchmarking/founder-risk-calculator';
 import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-mapper';

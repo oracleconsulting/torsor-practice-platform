@@ -11,13 +11,17 @@
 // Data layer is IDENTICAL. BenchmarkAnalysis interface is the single source of truth.
 // ============================================================================
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, type ReactNode, Fragment } from 'react';
 import {
-  ArrowLeft, ArrowRight, AlertTriangle, Zap, BarChart3, Target, ChevronDown,
-  Clock, Shield, Activity, CalendarClock, PoundSterling, Coffee, Gem,
-  Rocket, Phone
+  ArrowLeft, AlertTriangle, CheckCircle, TrendingUp, TrendingDown,
+  Zap, BarChart3, Target, ChevronDown,
+  ArrowRight, Sparkles, Phone,
+  Clock, Shield, Activity,
+  CalendarClock, PoundSterling, Coffee, Gem,
+  Rocket, Wallet,
+  X, Check
 } from 'lucide-react';
-import type { ValueAnalysis, ValueSuppressor } from '../../../types/benchmarking';
+import type { ValueAnalysis, ValueSuppressor, ValueEnhancer } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 import type {
   EnhancedValueSuppressor,
@@ -361,9 +365,9 @@ const fmtMetric = (val: number, format: string) => {
   }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DASHBOARD COMPONENT
-// ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
 
 export default function BenchmarkingClientDashboard({
   data,
@@ -380,7 +384,10 @@ export default function BenchmarkingClientDashboard({
   const [activeScenario, setActiveScenario] = useState('diversify');
   const [showSurplusDetail, setShowSurplusDetail] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  void expandedSuppressor;
+  void showSurplusDetail;
 
+  // ─── Persistent visited sections ─────────────────────────────────────────
   const [visited, setVisited] = useState<Set<string>>(() => new Set(['overview']));
 
   const handleNavigate = useCallback((sectionId: string) => {
@@ -393,6 +400,8 @@ export default function BenchmarkingClientDashboard({
       setTimeout(() => setTransitioning(false), 50);
     }, 200);
   }, [activeSection]);
+
+  // ─── Data Resolution (FROZEN from original — identical logic) ─────────
 
   const metrics = safeJsonParse<MetricComparison[]>(data.metrics_comparison, []);
   const rawRecommendations = safeJsonParse(data.recommendations, []);
@@ -408,6 +417,7 @@ export default function BenchmarkingClientDashboard({
     }
     return rawRecommendations;
   }, [rawRecommendations, heroTotal]);
+  void recommendations; // used in Position section recommendations list
 
   const getMetricValue = (code: string): number | undefined => {
     const lowerCode = code.toLowerCase();
@@ -421,7 +431,9 @@ export default function BenchmarkingClientDashboard({
     if (!metric || metric.p50 == null) return undefined;
     return { p25: metric.p25 || 0, p50: metric.p50, p75: metric.p75 || 0 };
   };
+  void getBenchmarkForMetric; // reserved for future metric benchmark display
 
+  // Baseline metrics (FROZEN)
   const baselineMetrics = useMemo((): BaselineMetrics | null => {
     const directRevenue = data.revenue || data.pass1_data?._enriched_revenue;
     const revPerEmployeeMetric = metrics.find((m: any) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
@@ -443,6 +455,7 @@ export default function BenchmarkingClientDashboard({
     return { revenue, grossMargin, grossProfit: revenue * (grossMargin / 100), netMargin, netProfit: revenue * (netMargin / 100), ebitda: revenue * (ebitdaMargin / 100), ebitdaMargin, employeeCount, revenuePerEmployee, debtorDays, creditorDays, clientConcentration };
   }, [data, metrics]);
 
+  // Service recommendations (FROZEN)
   const recommendedServices = useMemo((): RecommendedService[] => {
     const dbRecommendations = data.recommended_services || [];
     if (dbRecommendations.length > 0) {
@@ -486,6 +499,7 @@ export default function BenchmarkingClientDashboard({
     });
   }, [data.recommended_services, data.opportunities, data.not_recommended_services]);
 
+  // Derived values
   const percentile = data.overall_percentile || 0;
   const totalOpportunity = heroTotal;
   const concentration = data.client_concentration_top3 || data.client_concentration || 0;
@@ -496,13 +510,18 @@ export default function BenchmarkingClientDashboard({
   const exitBreakdown = data.pass1_data?.exit_readiness_breakdown;
   const twoPathsNarrative = data.pass1_data?.two_paths_narrative;
   const surplusCashBreakdown = data.pass1_data?.surplus_cash_breakdown;
+  void enhancedSuppressors;
+  void surplusCashBreakdown;
 
+  // Filtered metrics (no concentration, must have valid p50)
   const displayMetrics = metrics
     .filter((m: any) => { const code = (m.metricCode || m.metric_code || '').toLowerCase(); return !code.includes('concentration'); })
     .filter((m: any) => m.p50 != null && m.p50 !== 0);
 
   const strengthMetrics = displayMetrics.filter((m: any) => (m.percentile || 0) >= 50);
   const gapMetrics = displayMetrics.filter((m: any) => (m.percentile || 0) < 50);
+
+  // ─── Navigation Config ─────────────────────────────────────────────────
 
   const NAV_ITEMS = [
     { id: 'overview', label: 'Overview', icon: BarChart3, section: 'overview' },
@@ -517,6 +536,8 @@ export default function BenchmarkingClientDashboard({
     { id: 'vision', label: 'Vision', icon: Coffee, section: 'action' },
   ];
   const SECTION_GROUPS: Record<string, string> = { overview: 'Overview', analysis: 'Analysis', value: 'Value', action: 'Action' };
+
+  // ─── Sidebar ─────────────────────────────────────────────────────────────
 
   function Sidebar() {
     let lastGroup = '';
@@ -563,51 +584,94 @@ export default function BenchmarkingClientDashboard({
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SECTION RENDERERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const renderSection = () => {
     switch (activeSection) {
+
+      // ─── OVERVIEW ────────────────────────────────────────────────────────
       case 'overview':
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            {/* Cinematic hero */}
             <RevealCard style={{ background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 40%, #162340 100%)', borderRadius: 20, padding: 'clamp(32px, 5vw, 48px)', position: 'relative', overflow: 'hidden', border: 'none', boxShadow: SHADOW.lg }}>
               <DotGrid opacity={0.06} /><NoiseOverlay opacity={0.15} />
+              <div style={{ position: 'absolute', top: '-20%', right: '10%', width: 280, height: 280, borderRadius: '50%', background: `radial-gradient(circle, ${C.blue}15 0%, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
               <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
-                <p style={{ fontSize: 'clamp(36px, 5vw, 56px)', fontWeight: 800, color: '#fff', margin: '0 0 12px', ...mono }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 12 }}>
+                  <BarChart3 style={{ width: 14, height: 14, color: C.emeraldLight }} />
+                  <span style={{ fontSize: 11, letterSpacing: '0.12em', color: C.emeraldLight, textTransform: 'uppercase', fontWeight: 600, ...mono }}>Annual Opportunity Identified</span>
+                </div>
+                <p style={{ fontSize: 'clamp(36px, 5vw, 56px)', fontWeight: 800, color: '#fff', margin: '0 0 12px', ...mono, fontVariantNumeric: 'tabular-nums' }}>
                   <AnimatedCounter target={totalOpportunity} prefix="£" duration={2500} />
                 </p>
                 <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.75)', maxWidth: '48ch', margin: '0 auto 24px', lineHeight: 1.6 }}>{data.headline}</p>
+                {/* Percentile gauge */}
                 <div style={{ maxWidth: 480, margin: '0 auto' }}>
                   <div style={{ position: 'relative', height: 10, background: 'rgba(255,255,255,0.1)', borderRadius: 5, overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex' }}>
+                      <div style={{ width: '25%', borderRight: '1px solid rgba(255,255,255,0.1)' }} />
+                      <div style={{ width: '25%', borderRight: '1px solid rgba(255,255,255,0.1)' }} />
+                      <div style={{ width: '25%', borderRight: '1px solid rgba(255,255,255,0.1)' }} />
+                      <div style={{ width: '25%' }} />
+                    </div>
                     <div style={{ position: 'absolute', inset: '0 auto 0 0', width: `${percentile}%`, background: `linear-gradient(90deg, ${C.red}, ${C.amber}, ${C.emerald})`, borderRadius: 5, transition: 'width 1.5s ease' }} />
+                    <div style={{ position: 'absolute', top: '50%', left: `${percentile}%`, transform: 'translate(-50%, -50%)', width: 16, height: 16, borderRadius: 8, background: '#fff', border: '2px solid #0F172A', boxShadow: '0 0 12px rgba(255,255,255,0.4)' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10, color: 'rgba(255,255,255,0.4)', ...mono }}>
+                    <span>0</span><span>25th</span><span>50th</span><span>75th</span><span>100</span>
                   </div>
                   <p style={{ textAlign: 'center', marginTop: 10, fontSize: 14, color: percentile >= 75 ? C.emeraldLight : percentile >= 50 ? C.blue : percentile >= 25 ? '#FBBF24' : C.red, fontWeight: 600 }}>
-                    {getOrdinalSuffix(percentile)} Percentile
+                    {getOrdinalSuffix(percentile)} Percentile · {percentile >= 75 ? 'Top Quartile' : percentile >= 50 ? 'Above Median' : percentile >= 25 ? 'Below Median' : 'Bottom Quartile'}
                   </p>
                 </div>
               </div>
             </RevealCard>
+
+            {/* Stat tiles */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-              {[{ label: 'ANNUAL OPPORTUNITY', value: totalOpportunity, prefix: '£', color: C.emerald }, { label: 'GAPS FOUND', value: data.gap_count || gapMetrics.length, prefix: '', color: C.red }, { label: 'STRENGTHS', value: data.strength_count || strengthMetrics.length, prefix: '', color: C.blue }].map((stat, i) => (
+              {[
+                { label: 'ANNUAL OPPORTUNITY', value: totalOpportunity, prefix: '£', color: C.emerald },
+                { label: 'GAPS FOUND', value: data.gap_count || gapMetrics.length, prefix: '', color: C.red },
+                { label: 'STRENGTHS', value: data.strength_count || strengthMetrics.length, prefix: '', color: C.blue },
+              ].map((stat, i) => (
                 <RevealCard key={i} delay={i * 70} style={{ ...accentCard(stat.color, { padding: 24 }) }}>
                   <span style={{ ...label, color: stat.color }}>{stat.label}</span>
-                  <p style={{ fontSize: 32, fontWeight: 800, color: stat.color, margin: '8px 0 0', ...mono }}><AnimatedCounter target={stat.value} prefix={stat.prefix} duration={2200} /></p>
+                  <p style={{ fontSize: 32, fontWeight: 800, color: stat.color, margin: '8px 0 0', ...mono, fontVariantNumeric: 'tabular-nums' }}>
+                    <AnimatedCounter target={stat.value} prefix={stat.prefix} duration={2200} />
+                  </p>
                 </RevealCard>
               ))}
             </div>
+
+            {/* Executive Summary */}
             <RevealCard delay={250} style={{ ...glass({ padding: '28px 32px' }) }}>
               <h3 style={{ color: C.text, fontSize: 18, fontWeight: 700, marginBottom: 14 }}>Executive Summary</h3>
               {splitNarrative(data.executive_summary, 6).map((para, i) => (
-                <p key={i} style={{ color: C.textSecondary, fontSize: 15, lineHeight: 1.75, marginBottom: 12 }}>{para}</p>
+                <p key={i} style={{ color: C.textSecondary, fontSize: 15, lineHeight: 1.75, marginBottom: 12, overflowWrap: 'break-word' }}>{para}</p>
               ))}
             </RevealCard>
           </div>
         );
+
+      // ─── METRICS ─────────────────────────────────────────────────────────
       case 'metrics':
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <RevealCard style={{ ...glass({ padding: 24 }) }}>
-              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Key Metrics</h2>
-              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>{displayMetrics.length} metrics benchmarked</p>
+            <RevealCard style={{ ...glass({ padding: 24 }), display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Key Metrics</h2>
+                <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>{displayMetrics.length} metrics benchmarked against your sector peers</p>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.emerald}12`, color: C.emerald, border: `1px solid ${C.emerald}25` }}>{strengthMetrics.length} strengths</span>
+                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.red}12`, color: C.red, border: `1px solid ${C.red}25` }}>{gapMetrics.length} gaps</span>
+              </div>
             </RevealCard>
+
+            {/* Metric cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
               {displayMetrics.map((metric: any, i: number) => {
                 const code = (metric.metricCode || metric.metric_code || '').toLowerCase();
@@ -617,98 +681,414 @@ export default function BenchmarkingClientDashboard({
                 const format = getMetricFormat(code);
                 const isStrength = pct >= 50;
                 const barColor = pct >= 75 ? C.emerald : pct >= 50 ? C.blue : pct >= 25 ? C.amber : C.red;
+                const impact = metric.annualImpact ?? metric.annual_impact;
+
                 return (
                   <RevealCard key={i} delay={i * 40} style={{ ...glass({ padding: 20 }), borderLeft: `4px solid ${barColor}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                       <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{name}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12, background: isStrength ? `${C.emerald}12` : `${C.red}12`, color: isStrength ? C.emerald : C.red, ...mono }}>{isStrength ? 'STRENGTH' : 'GAP'}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12, background: isStrength ? `${C.emerald}12` : `${C.red}12`, color: isStrength ? C.emerald : C.red, ...mono }}>
+                        {isStrength ? 'STRENGTH' : 'GAP'}
+                      </span>
                     </div>
-                    <span style={{ fontSize: 26, fontWeight: 800, color: barColor, ...mono }}>{fmtMetric(clientVal, format)}</span>
-                    <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{getOrdinalSuffix(pct)} percentile</span>
+                    {/* Value + percentile */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+                      <span style={{ fontSize: 26, fontWeight: 800, color: barColor, ...mono, fontVariantNumeric: 'tabular-nums' }}>{fmtMetric(clientVal, format)}</span>
+                      <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{getOrdinalSuffix(pct)} percentile</span>
+                    </div>
+                    {/* Percentile bar */}
+                    <div style={{ position: 'relative', height: 8, background: 'rgba(0,0,0,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                      <div style={{ position: 'absolute', inset: '0 auto 0 0', width: `${pct}%`, background: `linear-gradient(90deg, ${barColor}, ${barColor}88)`, borderRadius: 4, transition: `width 1s ${EASE.spring}` }} />
+                    </div>
+                    {/* Benchmarks */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, ...mono }}>
+                      <span>P25: {fmtMetric(metric.p25 || 0, format)}</span>
+                      <span>P50: {fmtMetric(metric.p50 || 0, format)}</span>
+                      <span>P75: {fmtMetric(metric.p75 || 0, format)}</span>
+                    </div>
+                    {/* Annual impact */}
+                    {impact != null && impact !== 0 && (
+                      <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, background: impact > 0 ? `${C.red}06` : `${C.emerald}06`, borderLeft: `3px solid ${impact > 0 ? C.red : C.emerald}40` }}>
+                        <span style={{ fontSize: 12, color: impact > 0 ? C.red : C.emerald, fontWeight: 600 }}>
+                          {impact > 0 ? '−' : '+'}£{Math.abs(impact).toLocaleString()}/yr impact
+                        </span>
+                      </div>
+                    )}
                   </RevealCard>
                 );
               })}
             </div>
           </div>
         );
+
+      // ─── POSITION (Narratives) ───────────────────────────────────────────
       case 'position':
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <RevealCard style={{ ...glass({ padding: 24 }) }}><h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Your Position</h2></RevealCard>
+            <RevealCard style={{ ...glass({ padding: 24 }) }}>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Your Position</h2>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>How your business compares to sector peers</p>
+            </RevealCard>
+
+            {/* 2×2 narrative grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
-              {[{ title: 'Where You Stand', content: data.position_narrative, color: C.blue }, { title: 'Your Strengths', content: data.strength_narrative, color: C.emerald }, { title: 'Performance Gaps', content: data.gap_narrative, color: C.red }, { title: 'The Opportunity', content: data.opportunity_narrative, color: C.purple }].map((section, i) => (
-                <RevealCard key={i} delay={i * 80} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${section.color}` }}>
-                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: '0 0 14px' }}>{section.title}</h3>
-                  {splitNarrative(section.content, 4).map((para, j) => <p key={j} style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 10 }}>{para}</p>)}
-                </RevealCard>
-              ))}
+              {[
+                { title: 'Where You Stand', content: data.position_narrative, color: C.blue, icon: Target, highlight: `${getOrdinalSuffix(percentile)} percentile` },
+                { title: 'Your Strengths', content: data.strength_narrative, color: C.emerald, icon: CheckCircle },
+                { title: 'Performance Gaps', content: data.gap_narrative, color: C.red, icon: AlertTriangle, highlight: `${data.gap_count || gapMetrics.length} gaps identified` },
+                { title: 'The Opportunity', content: data.opportunity_narrative, color: C.purple, icon: Sparkles, highlight: `£${totalOpportunity.toLocaleString()} potential` },
+              ].map((section, i) => {
+                const Icon = section.icon;
+                return (
+                  <RevealCard key={i} delay={i * 80} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${section.color}` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                      <Icon style={{ width: 20, height: 20, color: section.color }} />
+                      <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>{section.title}</h3>
+                    </div>
+                    {section.highlight && (
+                      <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, padding: '3px 12px', borderRadius: 12, background: `${section.color}10`, color: section.color, marginBottom: 12, ...mono }}>{section.highlight}</span>
+                    )}
+                    {splitNarrative(section.content, 4).map((para, j) => (
+                      <p key={j} style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 10 }}>{para}</p>
+                    ))}
+                  </RevealCard>
+                );
+              })}
             </div>
+
+            {/* Recommendations */}
+            {recommendations.length > 0 && (
+              <RevealCard delay={350} style={{ ...glass({ padding: 24 }) }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Recommendations</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {recommendations.map((rec: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px', borderRadius: 12, background: 'rgba(0,0,0,0.02)', borderLeft: `3px solid ${C.blue}40` }}>
+                      <div style={{ width: 24, height: 24, borderRadius: 12, background: `${C.blue}15`, color: C.blue, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{i + 1}</div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: '0 0 4px' }}>{rec.title || rec.recommendation}</p>
+                        {rec.annualValue > 0 && <span style={{ fontSize: 12, color: C.emerald, fontWeight: 600, ...mono }}>£{rec.annualValue.toLocaleString()}/yr</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </RevealCard>
+            )}
+
+            {/* Competitive Moat */}
+            {data.hva_data?.competitive_moat && data.hva_data.competitive_moat.length > 0 && (
+              <RevealCard delay={400} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <Shield style={{ width: 20, height: 20, color: C.blue }} />
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Your Competitive Moat</h3>
+                </div>
+                <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 14 }}>Barriers that protect your business from competitors:</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+                  {data.hva_data.competitive_moat.map((moat, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: `${C.blue}06`, border: `1px solid ${C.blue}15` }}>
+                      <CheckCircle style={{ width: 14, height: 14, color: C.blue, flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: C.text }}>{moat}</span>
+                    </div>
+                  ))}
+                </div>
+                {data.hva_data.unique_methods && (
+                  <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
+                    <span style={{ ...label, color: C.purple }}>Your Unique Advantage</span>
+                    <p style={{ fontSize: 14, fontStyle: 'italic', color: C.text, marginTop: 6, lineHeight: 1.6 }}>"{data.hva_data.unique_methods}"</p>
+                    {data.hva_data.reputation_build_time && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>Time to replicate: {data.hva_data.reputation_build_time}</p>}
+                  </div>
+                )}
+              </RevealCard>
+            )}
           </div>
         );
+
+      // ─── HIDDEN VALUE ────────────────────────────────────────────────────
       case 'hidden': {
         const hasSurplus = surplusCash > 0;
         const hasProperty = (data.balance_sheet?.freehold_property || 0) > 0;
         const hasInvestments = (data.balance_sheet?.investments || 0) > 0;
         const hasHiddenValue = hasSurplus || hasProperty || hasInvestments;
+
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Hidden Value Hero */}
             {hasHiddenValue && (
               <>
                 <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><Gem style={{ width: 22, height: 22, color: C.emerald }} /><h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Hidden Value Identified</h2></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                    <Gem style={{ width: 22, height: 22, color: C.emerald }} />
+                    <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Hidden Value Identified</h2>
+                  </div>
+                  <p style={{ color: C.textSecondary, fontSize: 14, marginTop: 8 }}>Assets that sit outside normal earnings-based valuations</p>
                 </RevealCard>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
-                  {hasSurplus && <RevealCard delay={60} style={{ ...accentCard(C.emerald, { padding: 24 }) }}><span style={{ ...label, color: C.emerald }}>Surplus Cash</span><p style={{ fontSize: 28, fontWeight: 800, color: C.emerald, margin: '8px 0 4px', ...mono }}>{fmt(surplusCash)}</p></RevealCard>}
-                  {hasProperty && <RevealCard delay={120} style={{ ...accentCard(C.blue, { padding: 24 }) }}><span style={{ ...label, color: C.blue }}>Property Value</span><p style={{ fontSize: 28, fontWeight: 800, color: C.blue, margin: '8px 0 4px', ...mono }}>{fmt(data.balance_sheet!.freehold_property!)}</p></RevealCard>}
-                  {hasInvestments && <RevealCard delay={180} style={{ ...accentCard(C.purple, { padding: 24 }) }}><span style={{ ...label, color: C.purple }}>Investments</span><p style={{ fontSize: 28, fontWeight: 800, color: C.purple, margin: '8px 0 4px', ...mono }}>{fmt(data.balance_sheet!.investments!)}</p></RevealCard>}
+                  {hasSurplus && (
+                    <RevealCard delay={60} style={{ ...accentCard(C.emerald, { padding: 24 }) }}>
+                      <span style={{ ...label, color: C.emerald }}>Surplus Cash</span>
+                      <p style={{ fontSize: 28, fontWeight: 800, color: C.emerald, margin: '8px 0 4px', ...mono }}>{fmt(surplusCash)}</p>
+                      <p style={{ fontSize: 12, color: C.textMuted }}>Above operating requirements</p>
+                    </RevealCard>
+                  )}
+                  {hasProperty && (
+                    <RevealCard delay={120} style={{ ...accentCard(C.blue, { padding: 24 }) }}>
+                      <span style={{ ...label, color: C.blue }}>Property Value</span>
+                      <p style={{ fontSize: 28, fontWeight: 800, color: C.blue, margin: '8px 0 4px', ...mono }}>{fmt(data.balance_sheet!.freehold_property!)}</p>
+                      <p style={{ fontSize: 12, color: C.textMuted }}>At book value (market may be higher)</p>
+                    </RevealCard>
+                  )}
+                  {hasInvestments && (
+                    <RevealCard delay={180} style={{ ...accentCard(C.purple, { padding: 24 }) }}>
+                      <span style={{ ...label, color: C.purple }}>Investments</span>
+                      <p style={{ fontSize: 28, fontWeight: 800, color: C.purple, margin: '8px 0 4px', ...mono }}>{fmt(data.balance_sheet!.investments!)}</p>
+                      <p style={{ fontSize: 12, color: C.textMuted }}>Fixed asset investments</p>
+                    </RevealCard>
+                  )}
                 </div>
+
+                {/* Free working capital bonus */}
+                {data.surplus_cash?.components?.netWorkingCapital && data.surplus_cash.components.netWorkingCapital < 0 && (
+                  <RevealCard delay={240} style={{ ...glass({ padding: '14px 20px' }), borderLeft: `4px solid ${C.emerald}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <TrendingUp style={{ width: 18, height: 18, color: C.emerald, flexShrink: 0 }} />
+                    <p style={{ fontSize: 14, color: C.textSecondary, margin: 0 }}>
+                      <strong style={{ color: C.emerald }}>Bonus:</strong> Your supplier payment terms mean you operate with £{(Math.abs(data.surplus_cash.components.netWorkingCapital) / 1000000).toFixed(1)}M of free working capital.
+                    </p>
+                  </RevealCard>
+                )}
+
+                {/* Surplus cash breakdown (expandable) */}
+                {surplusCashBreakdown && (
+                  <RevealCard delay={300} style={{ ...glass({ padding: 0, overflow: 'hidden' }), borderTop: `3px solid ${C.emerald}` }}>
+                    <div style={{ padding: '18px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Wallet style={{ width: 20, height: 20, color: C.emerald }} />
+                        <div>
+                          <p style={{ fontWeight: 700, color: C.text, fontSize: 15, margin: 0 }}>Surplus Cash: {fmt(surplusCashBreakdown.surplusCash)}</p>
+                          <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{surplusCashBreakdown.surplusAsPercentOfRevenue?.toFixed(1)}% of revenue</p>
+                        </div>
+                      </div>
+                      <button onClick={() => setShowSurplusDetail(!showSurplusDetail)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 500 }}>
+                        {showSurplusDetail ? 'Hide' : 'See'} breakdown <ChevronDown style={{ width: 14, height: 14, transform: showSurplusDetail ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }} />
+                      </button>
+                    </div>
+                    {showSurplusDetail && (
+                      <div style={{ padding: '0 24px 20px' }}>
+                        <table style={{ width: '100%', fontSize: 13, borderCollapse: 'separate', borderSpacing: 0 }}>
+                          <tbody>
+                            {[
+                              { lbl: 'Cash at bank', val: fmt(surplusCashBreakdown.actualCash), color: C.text },
+                              { lbl: 'Less: 3-month operating buffer', val: `(${fmt(surplusCashBreakdown.components.operatingBuffer)})`, color: C.red },
+                              { lbl: 'Less: Working capital requirement', val: `(${fmt(Math.max(0, surplusCashBreakdown.components.workingCapitalRequirement))})`, color: C.red },
+                            ].map((row, i) => (
+                              <tr key={i}><td style={{ padding: '8px 0', color: C.textSecondary, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>{row.lbl}</td><td style={{ padding: '8px 0', textAlign: 'right', fontWeight: 600, color: row.color, ...mono, borderBottom: '1px solid rgba(0,0,0,0.06)' }}>{row.val}</td></tr>
+                            ))}
+                            <tr style={{ fontWeight: 700 }}><td style={{ padding: '10px 0', color: C.emerald }}>Surplus available</td><td style={{ padding: '10px 0', textAlign: 'right', color: C.emerald, ...mono }}>{fmt(surplusCashBreakdown.surplusCash)}</td></tr>
+                          </tbody>
+                        </table>
+                        <p style={{ fontSize: 11, color: C.textMuted, marginTop: 12 }}><strong>Methodology:</strong> {surplusCashBreakdown.methodology}</p>
+                      </div>
+                    )}
+                  </RevealCard>
+                )}
               </>
             )}
+
+            {/* Concentration Risk */}
             {hasConcentrationRisk && (
-              <RevealCard style={{ ...glass({ padding: 24 }), border: `1px solid ${C.red}25` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}><AlertTriangle style={{ width: 20, height: 20, color: C.red }} /><span style={{ fontWeight: 700, fontSize: 15, color: C.red }}>Customer Concentration Risk</span></div>
-                <p style={{ fontSize: 14, color: C.textSecondary, marginTop: 12 }}>{concentration}% of revenue from top 3 customers.</p>
+              <RevealCard delay={hasHiddenValue ? 350 : 0} style={{ ...glass({ padding: 0, overflow: 'hidden' }), border: `1px solid ${C.red}25`, boxShadow: SHADOW.colorLift(C.red) }}>
+                <div style={{ background: `linear-gradient(90deg, ${C.red}, #991b1b)`, padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <AlertTriangle style={{ width: 20, height: 20, color: '#fff' }} />
+                  <span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>Customer Concentration Risk</span>
+                </div>
+                <div style={{ padding: '20px 24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                    <span style={{ fontSize: 48, fontWeight: 800, color: C.red, ...mono }}>{concentration}%</span>
+                    <span style={{ fontSize: 15, color: C.textSecondary }}>of your revenue comes from just 3 customers</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                    <div style={{ padding: '14px 18px', borderRadius: 12, background: `${C.red}06`, borderLeft: `3px solid ${C.red}40` }}>
+                      <p style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>If you lost your largest customer:</p>
+                      <p style={{ fontSize: 20, fontWeight: 700, color: C.red, margin: 0, ...mono }}>{fmt(((data.revenue || 0) * concentration / 100) / 3)}+ at risk</p>
+                    </div>
+                    <div style={{ padding: '14px 18px', borderRadius: 12, background: 'rgba(0,0,0,0.02)' }}>
+                      <p style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>Industry benchmark:</p>
+                      <p style={{ fontSize: 20, fontWeight: 700, color: C.text, margin: 0 }}>Top 3 &lt; 40%</p>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.7 }}>
+                    Acquirers typically apply a 20-30% valuation discount for this level of concentration. Your business is vulnerable to decisions made by people outside your control.
+                  </p>
+                </div>
               </RevealCard>
             )}
-            {!hasHiddenValue && !hasConcentrationRisk && <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted, fontSize: 14 }}>No hidden value or concentration risk data available.</p></RevealCard>}
+
+            {!hasHiddenValue && !hasConcentrationRisk && (
+              <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
+                <p style={{ color: C.textMuted, fontSize: 14 }}>No hidden value or concentration risk data available for this engagement.</p>
+              </RevealCard>
+            )}
           </div>
         );
       }
-      case 'value':
-        if (!valueAnalysis) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Value analysis not available.</p></RevealCard>;
-        const { baseline, suppressors, currentMarketValue, valueGap, pathToValue } = valueAnalysis;
+
+      // ─── VALUATION ───────────────────────────────────────────────────────
+      case 'value': {
+        if (!valueAnalysis) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Value analysis not available for this engagement.</p></RevealCard>;
+        const { baseline, suppressors, currentMarketValue, valueGap, pathToValue, enhancers } = valueAnalysis;
+        void valueAnalysis.exitReadiness;
+        const gapPercent = valueAnalysis.valueGapPercent || 0;
+
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 40%, #1e3a5f 100%)', padding: '36px 40px', border: 'none', boxShadow: SHADOW.lg }}>
-              <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 24 }}>Business Valuation Analysis</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
-                <div style={{ textAlign: 'center' }}><p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 6, ...mono }}>Baseline Value</p><p style={{ fontSize: 28, fontWeight: 800, color: '#60A5FA', ...mono }}>{fmt(baseline.enterpriseValue.mid)}</p></div>
-                <div style={{ textAlign: 'center' }}><p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 6, ...mono }}>Current Value</p><p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', ...mono }}>{fmt(currentMarketValue.mid)}</p></div>
-                <div style={{ textAlign: 'center' }}><p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginBottom: 6, ...mono }}>Value Gap</p><p style={{ fontSize: 28, fontWeight: 800, color: C.red, ...mono }}>{fmt(valueGap.mid)}</p></div>
+            {/* Dark valuation hero */}
+            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 40%, #1e3a5f 100%)', padding: '36px 40px', border: 'none', boxShadow: SHADOW.lg }}>
+              <DotGrid opacity={0.05} /><NoiseOverlay opacity={0.15} />
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 6 }}>Business Valuation Analysis</h2>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>What {clientName} could be worth, and what's holding back the value</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+                  {[
+                    { lbl: 'Baseline Value', val: fmt(baseline.enterpriseValue.mid), sub: `${baseline.multipleRange.mid}x EBITDA`, color: '#60A5FA' },
+                    { lbl: 'Current Value', val: fmt(currentMarketValue.mid), sub: 'After structural discounts', color: '#FBBF24' },
+                    { lbl: 'Value Gap', val: fmt(valueGap.mid), sub: `${gapPercent.toFixed(0)}% trapped`, color: C.red },
+                  ].map((s, i) => (
+                    <div key={i} style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, ...mono }}>{s.lbl}</p>
+                      <p style={{ fontSize: 28, fontWeight: 800, color: s.color, margin: '0 0 4px', ...mono }}>{s.val}</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{s.sub}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </RevealCard>
+
+            {/* Value Bridge Waterfall */}
             <RevealCard delay={100} style={{ ...glass({ padding: 24 }) }}>
               <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Where Your Value Is Going</h3>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 12, background: `${C.blue}08`, marginBottom: 8 }}>
-                <span style={{ fontWeight: 600, color: C.text }}>Baseline Enterprise Value</span><span style={{ fontSize: 20, fontWeight: 800, color: C.blue, ...mono }}>{fmt(baseline.enterpriseValue.mid)}</span>
+              {/* Starting point */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 12, background: `${C.blue}08`, border: `1px solid ${C.blue}20`, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <TrendingUp style={{ width: 18, height: 18, color: C.blue }} />
+                  <div><span style={{ fontWeight: 600, color: C.text }}>Baseline Enterprise Value</span><p style={{ fontSize: 12, color: C.textMuted, margin: '2px 0 0' }}>{baseline.multipleJustification}</p></div>
+                </div>
+                <span style={{ fontSize: 20, fontWeight: 800, color: C.blue, ...mono }}>{fmt(baseline.enterpriseValue.mid)}</span>
               </div>
+              {/* Surplus cash */}
+              {baseline.surplusCash > 100000 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 18px', borderRadius: 10, background: `${C.emerald}06`, border: `1px solid ${C.emerald}15`, marginLeft: 20, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Sparkles style={{ width: 14, height: 14, color: C.emerald }} /><span style={{ fontSize: 13, color: C.emerald }}>Including surplus cash</span></div>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: C.emerald, ...mono }}>+{fmt(baseline.surplusCash)}</span>
+                </div>
+              )}
+              {/* Suppressors */}
               {suppressors.map((s: ValueSuppressor) => {
                 const avgImpact = (s.impactAmount.low + s.impactAmount.high) / 2;
-                const sevColor = s.severity === 'critical' ? C.red : s.severity === 'high' ? C.orange : C.amber;
+                const sevColor = s.severity === 'critical' ? C.red : s.severity === 'high' ? C.orange : s.severity === 'medium' ? C.amber : C.textMuted;
                 return (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderRadius: 10, background: `${sevColor}06`, marginLeft: 20, marginBottom: 6 }}>
-                    <div><span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{s.name}</span><p style={{ fontSize: 11, color: C.textMuted, margin: '2px 0 0' }}>{s.evidence}</p></div>
+                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderRadius: 10, background: `${sevColor}06`, border: `1px solid ${sevColor}15`, marginLeft: 20, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <TrendingDown style={{ width: 16, height: 16, color: sevColor }} />
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{s.name}</span>
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: sevColor, color: '#fff', ...mono }}>{s.severity.toUpperCase()}</span>
+                        </div>
+                        <p style={{ fontSize: 11, color: C.textMuted, margin: '2px 0 0' }}>{s.evidence}</p>
+                      </div>
+                    </div>
                     <span style={{ fontSize: 16, fontWeight: 700, color: sevColor, ...mono }}>-{fmt(avgImpact)}</span>
                   </div>
                 );
               })}
+              {/* Current market value */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderRadius: 12, background: `${C.amber}08`, border: `2px solid ${C.amber}`, marginTop: 12 }}>
-                <span style={{ fontWeight: 700, color: C.text }}>Current Market Value</span><span style={{ fontSize: 24, fontWeight: 800, color: '#B45309', ...mono }}>{fmt(currentMarketValue.mid)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Target style={{ width: 18, height: 18, color: C.amber }} />
+                  <div><span style={{ fontWeight: 700, color: C.text }}>Current Market Value</span><p style={{ fontSize: 12, color: C.textMuted, margin: '2px 0 0' }}>What a buyer would likely pay today</p></div>
+                </div>
+                <span style={{ fontSize: 24, fontWeight: 800, color: '#B45309', ...mono }}>{fmt(currentMarketValue.mid)}</span>
               </div>
             </RevealCard>
-            <RevealCard delay={200} style={{ ...glass({ padding: 24 }) }}>
+
+            {/* Enhanced Suppressors — expandable cards */}
+            {enhancedSuppressors.length > 0 && (
+              <RevealCard delay={200} style={{ ...glass({ padding: 24 }) }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Value Suppressors: Current vs Target</h3>
+                <p style={{ color: C.textMuted, fontSize: 13, marginBottom: 16 }}>Each factor below is reducing what buyers would pay. See the discount, target state, and recoverable value.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+                  {enhancedSuppressors.map((sup) => {
+                    const sevColor = sup.severity === 'CRITICAL' ? C.red : sup.severity === 'HIGH' ? C.orange : sup.severity === 'MEDIUM' ? C.amber : C.textMuted;
+                    const isExpanded = expandedSuppressor === sup.code;
+                    return (
+                      <div key={sup.code} style={{ ...glass({ padding: 0, overflow: 'hidden' }), borderTop: `3px solid ${sevColor}` }}>
+                        <div style={{ padding: 18 }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <div><p style={{ fontWeight: 700, color: C.text, fontSize: 14, margin: '0 0 4px' }}>{sup.name}</p><span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: sevColor, color: '#fff', ...mono }}>{sup.severity}</span></div>
+                            <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.red, margin: 0, ...mono }}>-{sup.current.discountPercent}%</p><p style={{ fontSize: 12, color: C.textMuted, ...mono }}>-{fmt(sup.current.discountValue)}</p></div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+                            <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.02)' }}><span style={{ fontSize: 10, color: C.textMuted, textTransform: 'uppercase', fontWeight: 600 }}>Current</span><p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: '4px 0 0' }}>{sup.current.value}</p><p style={{ fontSize: 11, color: C.textMuted }}>{sup.current.metric}</p></div>
+                            <div style={{ padding: '10px 12px', borderRadius: 10, background: `${C.emerald}06`, border: `1px solid ${C.emerald}20` }}><span style={{ fontSize: 10, color: C.emerald, textTransform: 'uppercase', fontWeight: 600 }}>Target</span><p style={{ fontSize: 16, fontWeight: 700, color: C.emerald, margin: '4px 0 0' }}>{sup.target.value}</p><p style={{ fontSize: 11, color: C.emerald }}>{sup.target.metric}</p></div>
+                          </div>
+                          <div style={{ padding: '10px 14px', borderRadius: 10, background: `${C.emerald}08`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><TrendingUp style={{ width: 16, height: 16, color: C.emerald }} /><span style={{ fontWeight: 600, color: C.emerald, fontSize: 13 }}>Value Recoverable</span></div>
+                            <div style={{ textAlign: 'right' }}><span style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(sup.recovery.valueRecoverable)}</span><p style={{ fontSize: 10, color: C.emerald, ...mono, marginTop: 2 }}>{sup.recovery.timeframe}</p></div>
+                          </div>
+                        </div>
+                        <button onClick={() => setExpandedSuppressor(isExpanded ? null : sup.code)} style={{ width: '100%', padding: '10px 18px', borderTop: '1px solid rgba(0,0,0,0.06)', background: 'none', border: 'none', borderTopStyle: 'solid', borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, color: C.textMuted }}>
+                          <span>Why this discount & how to fix</span>
+                          <ChevronDown style={{ width: 14, height: 14, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }} />
+                        </button>
+                        {isExpanded && (
+                          <div style={{ padding: '0 18px 18px', animation: 'fadeIn 0.25s ease' }}>
+                            <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 10 }}>{sup.evidence}</p>
+                            <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(0,0,0,0.02)', marginBottom: 10 }}>
+                              <p style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 4 }}>Why this discount?</p>
+                              <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6 }}>{sup.whyThisDiscount}</p>
+                              <p style={{ fontSize: 11, fontStyle: 'italic', color: C.textMuted, marginTop: 6 }}>{sup.industryContext}</p>
+                            </div>
+                            <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                              <p style={{ fontSize: 12, fontWeight: 600, color: C.emerald, marginBottom: 6 }}>Path to fix</p>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 }}>{sup.pathToFix.summary}</p>
+                              <ol style={{ paddingLeft: 18, margin: 0 }}>
+                                {sup.pathToFix.steps.map((step: string, i: number) => <li key={i} style={{ fontSize: 12, color: C.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>{step}</li>)}
+                              </ol>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.emerald}20`, fontSize: 12, color: C.emerald }}>
+                                <span>Investment: {fmt(sup.pathToFix.investment)}</span>
+                                <span>ROI: {Math.round(sup.recovery.valueRecoverable / sup.pathToFix.investment)}x</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </RevealCard>
+            )}
+
+            {/* Value enhancers */}
+            {enhancers && enhancers.length > 0 && (
+              <RevealCard delay={300} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}><Sparkles style={{ width: 18, height: 18, color: C.emerald }} /><h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Value Protectors</h3></div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+                  {enhancers.map((e: ValueEnhancer) => (
+                    <div key={e.id} style={{ padding: '14px 16px', borderRadius: 12, background: `${C.emerald}05`, border: `1px solid ${C.emerald}15` }}>
+                      <p style={{ fontWeight: 600, color: C.emerald, fontSize: 13 }}>{e.name}</p>
+                      <p style={{ fontSize: 12, color: C.textSecondary, marginTop: 4 }}>{e.evidence}</p>
+                      {e.value && <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginTop: 6, ...mono }}>+{fmt(e.value)} to value</p>}
+                    </div>
+                  ))}
+                </div>
+              </RevealCard>
+            )}
+
+            {/* Path to value */}
+            <RevealCard delay={350} style={{ borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}08, ${C.purple}06, rgba(255,255,255,0.97))`, border: `1px solid ${C.blue}15`, padding: 24, boxShadow: SHADOW.sm }}>
               <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Path to Full Value</h3>
-              <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 16 }}>Over the next {pathToValue.timeframeMonths} months, addressing structural issues could unlock <strong style={{ color: C.blue }}>{fmt(pathToValue.recoverableValue.mid)}</strong>.</p>
+              <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 16 }}>
+                Over the next {pathToValue.timeframeMonths} months, addressing structural issues could unlock <strong style={{ color: C.blue }}>{fmt(pathToValue.recoverableValue.mid)}</strong> in hidden value.
+              </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {pathToValue.keyActions.map((action: string, i: number) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.7)', border: `1px solid ${C.blue}12` }}>
@@ -717,81 +1097,251 @@ export default function BenchmarkingClientDashboard({
                   </div>
                 ))}
               </div>
+              <div style={{ marginTop: 16, padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.8)', border: `1px solid ${C.blue}20`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div><p style={{ fontSize: 12, color: C.blue }}>Potential Future Value</p><p style={{ fontSize: 10, color: C.textMuted }}>After addressing key issues</p></div>
+                <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.blue, margin: 0, ...mono }}>{fmt(valueAnalysis.potentialValue.mid)}</p><p style={{ fontSize: 12, color: C.emerald, marginTop: 2 }}>+{fmt(valueAnalysis.potentialValue.mid - currentMarketValue.mid)} uplift</p></div>
+              </div>
             </RevealCard>
           </div>
         );
-      case 'exit':
+      }
+
+      // ─── EXIT READINESS ──────────────────────────────────────────────────
+      case 'exit': {
         if (!exitBreakdown) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Exit readiness data not available.</p></RevealCard>;
         const score = exitBreakdown.totalScore;
         const scoreColor = score >= 65 ? C.emerald : score >= 50 ? C.amber : score >= 35 ? C.orange : C.red;
+
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '36px 40px', border: 'none', boxShadow: SHADOW.lg }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
+            {/* Exit readiness hero */}
+            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '36px 40px', border: 'none', boxShadow: SHADOW.lg }}>
+              <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
                 <ProgressRing score={score} size={180} strokeWidth={14} color={scoreColor} ringLabel="Exit Score" />
-                <div><h2 style={{ color: '#fff', fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>Exit Readiness</h2><p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }}>{exitBreakdown.levelLabel}</p></div>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>Exit Readiness</h2>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 14 }}>How prepared is your business for a sale or transition?</p>
+                  <span style={{ fontSize: 13, fontWeight: 700, padding: '6px 18px', borderRadius: 20, background: `${scoreColor}25`, color: scoreColor, ...mono }}>{exitBreakdown.levelLabel}</span>
+                  <div style={{ marginTop: 16, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(score / exitBreakdown.maxScore) * 100}%`, background: scoreColor, borderRadius: 3, transition: `width 1.2s ${EASE.spring}` }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 9, color: 'rgba(255,255,255,0.4)', ...mono }}>
+                    <span>Not Ready</span><span>Needs Work</span><span>Progressing</span><span>Credibly Ready</span><span>Exit Ready</span>
+                  </div>
+                </div>
               </div>
             </RevealCard>
+
+            {/* Component breakdown */}
             <RevealCard delay={100} style={{ ...glass({ padding: 24 }) }}>
               <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Score Breakdown</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {exitBreakdown.components.map((comp) => {
+                {exitBreakdown.components.map((comp: { id: string; name: string; currentScore: number; targetScore: number; maxScore: number; gap?: string }) => {
                   const compColor = comp.currentScore >= comp.targetScore ? C.emerald : comp.currentScore >= comp.maxScore * 0.5 ? C.amber : C.red;
                   return (
                     <div key={comp.id} style={{ padding: '14px 18px', borderRadius: 12, border: '1px solid rgba(0,0,0,0.06)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{comp.name}</span>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: compColor, ...mono }}>{comp.currentScore}/{comp.maxScore}</span>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: compColor, ...mono }}>{comp.currentScore}<span style={{ color: C.textMuted, fontWeight: 400 }}>/{comp.maxScore}</span></span>
                       </div>
-                      <div style={{ height: 6, background: 'rgba(0,0,0,0.06)', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${(comp.currentScore / comp.maxScore) * 100}%`, background: compColor, borderRadius: 3 }} />
+                      <div style={{ height: 6, background: 'rgba(0,0,0,0.06)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
+                        <div style={{ height: '100%', width: `${(comp.currentScore / comp.maxScore) * 100}%`, background: compColor, borderRadius: 3, transition: `width 1s ${EASE.spring}` }} />
                       </div>
+                      {comp.currentScore < comp.targetScore && comp.gap && (
+                        <p style={{ fontSize: 12, color: C.orange, fontWeight: 500, marginTop: 4 }}>{comp.gap}</p>
+                      )}
                     </div>
                   );
                 })}
               </div>
             </RevealCard>
+
+            {/* Path to 70 */}
+            {score < 70 && exitBreakdown.pathTo70 && (
+              <RevealCard delay={200} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <Target style={{ width: 18, height: 18, color: C.emerald }} />
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Path to Credibly Exit Ready (70/100)</h3>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                  {exitBreakdown.pathTo70.actions.map((action: string, i: number) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', borderRadius: 8, background: `${C.emerald}05` }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 11, background: `${C.emerald}15`, color: C.emerald, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                      <span style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.5 }}>{action}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+                  {[
+                    { icon: Clock, val: exitBreakdown.pathTo70.timeframe, sub: 'Timeline' },
+                    { icon: Wallet, val: fmt(exitBreakdown.pathTo70.investment), sub: 'Investment' },
+                    { icon: TrendingUp, val: fmt(exitBreakdown.pathTo70.valueUnlocked), sub: 'Value Unlocked' },
+                  ].map((s, i) => (
+                    <div key={i} style={{ textAlign: 'center', padding: '12px', borderRadius: 10, background: `${C.emerald}06` }}>
+                      <s.icon style={{ width: 18, height: 18, color: C.emerald, margin: '0 auto 6px' }} />
+                      <p style={{ fontSize: 14, fontWeight: 700, color: C.emerald, margin: 0 }}>{s.val}</p>
+                      <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{s.sub}</p>
+                    </div>
+                  ))}
+                </div>
+              </RevealCard>
+            )}
           </div>
         );
-      case 'scenarios':
+      }
+
+      // ─── SCENARIOS ───────────────────────────────────────────────────────
+      case 'scenarios': {
         if (!baselineMetrics) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Scenario data requires baseline financial metrics.</p></RevealCard>;
+        const revenue = baselineMetrics.revenue;
+        const currentValue = valueAnalysis?.currentMarketValue?.mid || 0;
+        const baselineValue = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
+        const exitScore = valueAnalysis?.exitReadiness?.score || exitBreakdown?.totalScore || 0;
+        const prefersExternal = data.client_preferences?.avoidsInternalHires || data.client_preferences?.prefersExternalSupport;
+
         const scenarios = [
-          { id: 'do_nothing', title: 'If You Do Nothing', color: C.red },
-          { id: 'diversify', title: 'If You Diversify', color: C.blue },
-          { id: 'exit_prep', title: 'If You Prepare for Exit', color: C.emerald },
+          { id: 'do_nothing', title: 'If You Do Nothing', color: C.red, outcomes: [
+            { metric: 'Client Concentration', current: `${concentration}%`, projected: `${concentration}%`, change: 'Unchanged', positive: false },
+            { metric: 'Business Value', current: fmt(currentValue), projected: fmt(currentValue), change: 'Discount persists', positive: false },
+            { metric: 'Owner Freedom', current: 'Trapped', projected: 'Still trapped', change: 'No successor path', positive: false },
+          ], risks: ['Loss of major client = existential crisis', 'Owner health issue = business crisis', 'Business remains unsellable at fair value'] },
+          { id: 'diversify', title: 'If You Diversify', color: C.blue, outcomes: [
+            { metric: 'Concentration', current: `${concentration}%`, projected: '60-70%', change: '-30+ points', positive: true },
+            { metric: 'Revenue', current: fmt(revenue), projected: fmt(revenue * 1.15), change: '+15% new clients', positive: true },
+            { metric: 'Business Value', current: fmt(currentValue), projected: fmt(baselineValue * 0.8), change: `+${fmt(baselineValue * 0.8 - currentValue)}`, positive: true },
+          ], risks: ['Takes 12-18 months to show results', 'Requires management attention', 'New clients may have different margins'] },
+          { id: 'exit_prep', title: 'If You Prepare for Exit', color: C.emerald, outcomes: [
+            { metric: 'Exit Readiness', current: `${exitScore}/100`, projected: '70+/100', change: 'Attractive to buyers', positive: true },
+            { metric: 'Owner Dependency', current: '70-80%', projected: '<40%', change: 'Successor in place', positive: true },
+            { metric: 'Business Value', current: fmt(currentValue), projected: fmt(baselineValue * 0.75), change: `+${fmt(baselineValue * 0.75 - currentValue)}`, positive: true },
+          ], risks: ['Concentration still impacts valuation', prefersExternal ? 'Internal succession pathway requires right candidate' : 'Successor recruitment is challenging', 'Requires 2-3 years commitment'] },
         ];
         const active = scenarios.find(s => s.id === activeScenario) || scenarios[1];
+
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <RevealCard style={{ ...glass({ padding: 24 }) }}><h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Scenario Planning</h2><p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>What happens depending on the path you choose</p></RevealCard>
+            <RevealCard style={{ ...glass({ padding: 24 }) }}>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Scenario Planning</h2>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>What happens depending on the path you choose</p>
+            </RevealCard>
+
+            {/* Scenario tabs */}
             <div style={{ display: 'flex', gap: 8 }}>
               {scenarios.map(s => (
-                <button key={s.id} onClick={() => setActiveScenario(s.id)} style={{ flex: 1, padding: '14px 16px', borderRadius: 12, border: `2px solid ${activeScenario === s.id ? s.color : 'rgba(0,0,0,0.06)'}`, background: activeScenario === s.id ? `${s.color}08` : 'rgba(255,255,255,0.97)', cursor: 'pointer', color: activeScenario === s.id ? s.color : C.textMuted, fontSize: 13, fontWeight: 600, textAlign: 'center' }}>{s.title}</button>
+                <button key={s.id} onClick={() => setActiveScenario(s.id)} style={{
+                  flex: 1, padding: '14px 16px', borderRadius: 12, border: `2px solid ${activeScenario === s.id ? s.color : 'rgba(0,0,0,0.06)'}`,
+                  background: activeScenario === s.id ? `${s.color}08` : 'rgba(255,255,255,0.97)', cursor: 'pointer',
+                  color: activeScenario === s.id ? s.color : C.textMuted, fontSize: 13, fontWeight: 600, textAlign: 'center', transition: 'all 0.2s ease',
+                }}>{s.title}</button>
               ))}
             </div>
-            <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${active.color}` }}><p style={{ color: C.textSecondary, fontSize: 14 }}>Scenario details for {active.title}.</p></RevealCard>
+
+            {/* Active scenario content */}
+            <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${active.color}` }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(240,242,247,0.8)' }}>
+                      {['Metric', 'Today', 'Projected', 'Impact'].map(h => (
+                        <th key={h} style={{ ...label, fontSize: 10, padding: '10px 14px', textAlign: 'left', borderBottom: '2px solid rgba(0,0,0,0.06)' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {active.outcomes.map((o, i) => (
+                      <tr key={i} style={{ background: o.positive ? 'transparent' : `${C.red}04` }}>
+                        <td style={{ padding: '12px 14px', fontWeight: 600, color: C.text, borderBottom: '1px solid rgba(0,0,0,0.04)' }}>{o.metric}</td>
+                        <td style={{ padding: '12px 14px', color: C.textMuted, borderBottom: '1px solid rgba(0,0,0,0.04)', ...mono }}>{o.current}</td>
+                        <td style={{ padding: '12px 14px', color: C.text, fontWeight: 500, borderBottom: '1px solid rgba(0,0,0,0.04)', ...mono }}>{o.projected}</td>
+                        <td style={{ padding: '12px 14px', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: o.positive ? C.emerald : C.red, fontWeight: 500 }}>
+                            {o.positive ? <Check style={{ width: 14, height: 14 }} /> : <X style={{ width: 14, height: 14 }} />} {o.change}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {active.risks.length > 0 && (
+                <div style={{ marginTop: 16, padding: '14px 18px', borderRadius: 12, background: active.id === 'do_nothing' ? `${C.red}06` : `${C.amber}06`, borderLeft: `3px solid ${active.id === 'do_nothing' ? C.red : C.amber}40` }}>
+                  <span style={{ ...label, color: active.id === 'do_nothing' ? C.red : C.amber, marginBottom: 8, display: 'block' }}>{active.id === 'do_nothing' ? 'What You Risk' : 'Considerations'}</span>
+                  {active.risks.map((r, i) => (
+                    <p key={i} style={{ fontSize: 13, color: C.textSecondary, marginBottom: 6, paddingLeft: 12, borderLeft: `2px solid ${active.id === 'do_nothing' ? C.red : C.amber}30`, lineHeight: 1.5 }}>{r}</p>
+                  ))}
+                </div>
+              )}
+            </RevealCard>
           </div>
         );
+      }
+
+      // ─── SERVICES ────────────────────────────────────────────────────────
       case 'services':
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <RevealCard style={{ ...glass({ padding: 24 }) }}><h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>How We Can Help</h2><p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>{recommendedServices.length} services recommended</p></RevealCard>
-            {recommendedServices.length === 0 && <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>No services have been recommended yet.</p></RevealCard>}
+            <RevealCard style={{ ...glass({ padding: 24 }) }}>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>How We Can Help</h2>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>{recommendedServices.length} services recommended based on your analysis</p>
+            </RevealCard>
+
+            {recommendedServices.length === 0 && (
+              <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>No services have been recommended yet.</p></RevealCard>
+            )}
+
             {recommendedServices.map((svc, i) => {
               const isExpanded = expandedService === svc.serviceCode;
-              const accentColor = svc.priority === 'primary' ? C.blue : C.purple;
+              const isPrimary = svc.priority === 'primary';
+              const accentColor = isPrimary ? C.blue : C.purple;
               return (
                 <RevealCard key={svc.serviceCode} delay={i * 60} style={{ ...glass({ padding: 0, overflow: 'hidden' }), borderLeft: `4px solid ${accentColor}` }}>
                   <div onClick={() => setExpandedService(isExpanded ? null : svc.serviceCode)} style={{ padding: '18px 24px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}>
-                    <div style={{ flex: 1 }}><p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{svc.serviceName}</p><p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>{svc.headline || svc.description}</p></div>
-                    {(svc.priceRange || (svc.priceFrom && svc.priceTo)) && <span style={{ fontSize: 14, fontWeight: 700, color: accentColor, ...mono }}>{svc.priceRange || `£${svc.priceFrom?.toLocaleString()}-£${svc.priceTo?.toLocaleString()}`}</span>}
-                    <ChevronDown style={{ width: 16, height: 16, color: C.textMuted, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                        <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{svc.serviceName}</p>
+                        {isPrimary && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: C.blue, color: '#fff', ...mono }}>PRIORITY</span>}
+                      </div>
+                      <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>{svc.headline || svc.description}</p>
+                    </div>
+                    {(svc.priceRange || (svc.priceFrom && svc.priceTo)) && (
+                      <span style={{ fontSize: 14, fontWeight: 700, color: accentColor, ...mono, flexShrink: 0 }}>
+                        {svc.priceRange || `£${svc.priceFrom?.toLocaleString()}-£${svc.priceTo?.toLocaleString()}`}
+                      </span>
+                    )}
+                    <ChevronDown style={{ width: 16, height: 16, color: C.textMuted, flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }} />
                   </div>
                   {isExpanded && (
-                    <div style={{ padding: '0 24px 20px', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
-                      <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.7, marginBottom: 14 }}>{svc.whyThisMatters}</p>
-                      {svc.expectedOutcome && <div style={{ padding: '10px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40`, marginBottom: 10 }}><span style={{ ...label, color: C.emerald }}>Expected Outcome</span><p style={{ fontSize: 13, color: C.text, marginTop: 4 }}>{svc.expectedOutcome}</p></div>}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMuted }}><Clock style={{ width: 14, height: 14 }} /> Time to value: {svc.timeToValue}</div>
+                    <div style={{ padding: '0 24px 20px', borderTop: '1px solid rgba(0,0,0,0.04)', animation: 'fadeIn 0.25s ease' }}>
+                      <div style={{ paddingTop: 16 }}>
+                        <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.7, marginBottom: 14 }}>{svc.whyThisMatters}</p>
+                        {svc.whatYouGet && svc.whatYouGet.length > 0 && (
+                          <div style={{ marginBottom: 14 }}>
+                            <span style={{ ...label, marginBottom: 8, display: 'block' }}>What You Get</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {svc.whatYouGet.map((item: string, j: number) => (
+                                <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                  <CheckCircle style={{ width: 14, height: 14, color: C.emerald, flexShrink: 0, marginTop: 2 }} />
+                                  <span style={{ fontSize: 13, color: C.textSecondary }}>{item}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {svc.expectedOutcome && (
+                          <div style={{ padding: '10px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40`, marginBottom: 10 }}>
+                            <span style={{ ...label, color: C.emerald }}>Expected Outcome</span>
+                            <p style={{ fontSize: 13, color: C.text, marginTop: 4, lineHeight: 1.5 }}>{svc.expectedOutcome}</p>
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMuted }}>
+                            <Clock style={{ width: 14, height: 14 }} /> Time to value: {svc.timeToValue}
+                          </div>
+                          {svc.totalValueAtStake && svc.totalValueAtStake > 0 && (
+                            <span style={{ fontSize: 12, fontWeight: 600, color: C.emerald, ...mono }}>£{svc.totalValueAtStake.toLocaleString()} at stake</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </RevealCard>
@@ -799,28 +1349,69 @@ export default function BenchmarkingClientDashboard({
             })}
           </div>
         );
-      case 'path':
+
+      // ─── YOUR PATH (Two Paths) ───────────────────────────────────────────
+      case 'path': {
         if (!twoPathsNarrative || !baselineMetrics) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Path narrative not available.</p></RevealCard>;
+        const marginOpp = totalOpportunity;
+        const valueGapMid = valueAnalysis?.valueGap?.mid || 0;
+
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', background: 'linear-gradient(135deg, #1e3a5f 0%, #312e81 100%)', padding: '36px 40px', border: 'none', boxShadow: SHADOW.lg }}>
-              <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 16 }}>{twoPathsNarrative.headline}</h2>
-              <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 1.7 }}>{twoPathsNarrative.explanation}</p>
+            {/* Dark hero */}
+            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #1e3a5f 0%, #312e81 100%)', padding: '36px 40px', border: 'none', boxShadow: SHADOW.lg }}>
+              <NoiseOverlay opacity={0.12} /><DotGrid opacity={0.04} />
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 16 }}>{twoPathsNarrative.headline}</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                  <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                    <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual margin opportunity</p>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                    <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped value</p>
+                  </div>
+                </div>
+                {/* Connection flow */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20, fontSize: 12 }}>
+                  {['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value'].map((step, i) => (
+                    <Fragment key={i}>
+                      {i > 0 && <ArrowRight style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)' }} />}
+                      <span style={{ padding: '4px 14px', borderRadius: 6, background: `rgba(255,255,255,0.12)`, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>{step}</span>
+                    </Fragment>
+                  ))}
+                </div>
+                <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 1.7 }}>{twoPathsNarrative.explanation}</p>
+              </div>
             </RevealCard>
+
+            {/* Owner journey */}
             <RevealCard delay={150} style={{ ...glass({ padding: 24 }) }}>
               <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{clientName}'s Path to Optionality</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {[{ year: 'Year 1', color: C.emerald, text: twoPathsNarrative.ownerJourney.year1 }, { year: 'Year 2', color: C.blue, text: twoPathsNarrative.ownerJourney.year2 }, { year: 'Year 3', color: C.amber, text: twoPathsNarrative.ownerJourney.year3 }].map((step, i) => (
+                {[
+                  { year: 'Year 1', color: C.emerald, text: twoPathsNarrative.ownerJourney.year1 },
+                  { year: 'Year 2', color: C.blue, text: twoPathsNarrative.ownerJourney.year2 },
+                  { year: 'Year 3', color: C.amber, text: twoPathsNarrative.ownerJourney.year3 },
+                ].map((step, i) => (
                   <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: step.color, minWidth: 60, textAlign: 'right', ...mono }}>{step.year}</span>
-                    <div style={{ flex: 1, borderLeft: `3px solid ${step.color}30`, paddingLeft: 16 }}><p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.7, margin: 0 }}>{step.text}</p></div>
+                    <div style={{ flex: 1, borderLeft: `3px solid ${step.color}30`, paddingLeft: 16 }}>
+                      <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.7, margin: 0 }}>{step.text}</p>
+                    </div>
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)', textAlign: 'center' }}><p style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.6 }}>{twoPathsNarrative.bottomLine}</p></div>
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)', textAlign: 'center' }}>
+                <p style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.6 }}>{twoPathsNarrative.bottomLine}</p>
+              </div>
             </RevealCard>
           </div>
         );
+      }
+
+      // ─── VISION ──────────────────────────────────────────────────────────
       case 'vision': {
         const closingSummary = (() => {
           const parts: string[] = [];
@@ -834,61 +1425,121 @@ export default function BenchmarkingClientDashboard({
           summary += '. The path forward is about protecting what you\'ve built and unlocking what\'s already there.';
           return summary;
         })();
+
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', background: 'linear-gradient(135deg, #0F172A 0%, #162340 40%, #1E293B 100%)', padding: '36px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.lg }}>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
-                <div style={{ background: `${C.emerald}20`, borderRadius: 14, padding: '16px 28px', border: '1px solid rgba(255,255,255,0.12)', minWidth: 140 }}><p style={{ fontSize: 26, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{fmt(totalOpportunity)}</p><p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>Opportunity/yr</p></div>
-                {valueAnalysis && <div style={{ background: `${C.amber}20`, borderRadius: 14, padding: '16px 28px', border: '1px solid rgba(255,255,255,0.12)', minWidth: 140 }}><p style={{ fontSize: 26, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{fmt(valueAnalysis.valueGap.mid)}</p><p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>Trapped value</p></div>}
-                {valueAnalysis && <div style={{ background: `${C.blue}20`, borderRadius: 14, padding: '16px 28px', border: '1px solid rgba(255,255,255,0.12)', minWidth: 140 }}><p style={{ fontSize: 26, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{fmt(valueAnalysis.potentialValue.mid)}</p><p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>Potential value</p></div>}
+            {/* Dark cinematic hero */}
+            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #162340 40%, #1E293B 100%)', padding: '36px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.lg }}>
+              <DotGrid opacity={0.05} /><NoiseOverlay opacity={0.15} />
+              <div style={{ position: 'absolute', top: '-15%', left: '10%', width: 200, height: 200, borderRadius: '50%', background: `radial-gradient(circle, ${C.blue}18 0%, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
+              <div style={{ position: 'relative', zIndex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 14 }}>
+                  <Rocket style={{ width: 14, height: 14, color: C.emeraldLight }} />
+                  <span style={{ fontSize: 11, letterSpacing: '0.15em', color: C.emeraldLight, textTransform: 'uppercase', fontWeight: 600, ...mono }}>Your Position: Summed Up</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
+                  {[
+                    { val: fmt(totalOpportunity), sub: 'Opportunity/yr', bg: `${C.emerald}20` },
+                    ...(valueAnalysis ? [{ val: fmt(valueAnalysis.valueGap.mid), sub: 'Trapped value', bg: `${C.amber}20` }] : []),
+                    ...(valueAnalysis ? [{ val: fmt(valueAnalysis.potentialValue.mid), sub: 'Potential value', bg: `${C.blue}20` }] : []),
+                  ].map((s, i) => (
+                    <div key={i} style={{ background: s.bg, borderRadius: 14, padding: '16px 28px', border: '1px solid rgba(255,255,255,0.12)', minWidth: 140, backdropFilter: 'blur(8px)' }}>
+                      <p style={{ fontSize: 26, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{s.val}</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>{s.sub}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             </RevealCard>
-            <RevealCard delay={100} style={{ ...glass({ padding: '24px 28px' }), borderLeft: `4px solid ${C.emerald}` }}><p style={{ fontSize: 16, lineHeight: 1.8, color: C.text, margin: 0 }}>{closingSummary}</p></RevealCard>
-            <RevealCard delay={200} style={{ borderRadius: 16, overflow: 'hidden', background: 'linear-gradient(135deg, #0F172A, #1E293B)', padding: '32px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.md }}>
-              <Phone style={{ width: 22, height: 22, color: C.emeraldLight }} />
-              <h3 style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: '12px 0' }}>Ready to Take Action?</h3>
-              <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', maxWidth: '38ch', margin: '0 auto' }}>{practitionerName} can guide you through the next steps</p>
-              {practitionerEmail && <a href={`mailto:${practitionerEmail}?subject=Benchmarking%20Report%20Follow-up${clientName ? `%20-%20${encodeURIComponent(clientName)}` : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `linear-gradient(135deg, ${C.emerald}, #047857)`, color: '#fff', padding: '12px 36px', borderRadius: 10, marginTop: 16, fontSize: 15, fontWeight: 700, textDecoration: 'none' }}>Schedule a Discussion <ArrowRight style={{ width: 16, height: 16 }} /></a>}
+
+            {/* Closing summary */}
+            <RevealCard delay={100} style={{ ...glass({ padding: '24px 28px' }), borderLeft: `4px solid ${C.emerald}`, background: `linear-gradient(135deg, ${C.emerald}05, ${C.blue}03, rgba(255,255,255,0.97))` }}>
+              <p style={{ fontSize: 16, lineHeight: 1.8, color: C.text, margin: 0 }}>{closingSummary}</p>
             </RevealCard>
+
+            {/* CTA */}
+            <RevealCard delay={200} style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A, #1E293B)', padding: '32px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.md }}>
+              <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                <Phone style={{ width: 22, height: 22, color: C.emeraldLight }} />
+                <h3 style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: 0 }}>Ready to Take Action?</h3>
+                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', maxWidth: '38ch', margin: 0 }}>
+                  {practitionerName} can guide you through the next steps
+                </p>
+                {practitionerEmail && (
+                  <a href={`mailto:${practitionerEmail}?subject=Benchmarking%20Report%20Follow-up${clientName ? `%20-%20${encodeURIComponent(clientName)}` : ''}`}
+                    style={{ background: `linear-gradient(135deg, ${C.emerald}, #047857)`, color: '#fff', padding: '12px 36px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, boxShadow: SHADOW.glow(C.emerald, 0.4), textDecoration: 'none', transition: 'all 0.3s ease' }}>
+                    Schedule a Discussion <ArrowRight style={{ width: 16, height: 16 }} />
+                  </a>
+                )}
+              </div>
+            </RevealCard>
+
+            {/* Data sources */}
             {data.data_sources && data.data_sources.length > 0 && (
               <RevealCard delay={300} style={{ ...glass({ padding: '16px 20px' }) }}>
                 <span style={{ ...label, marginBottom: 8, display: 'block' }}>Benchmark Data Sources</span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{data.data_sources.slice(0, 8).map((source, i) => <span key={i} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: 'rgba(0,0,0,0.03)', color: C.textMuted, border: '1px solid rgba(0,0,0,0.06)' }}>{source}</span>)}</div>
+                <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>Analysis based on industry benchmarks as of {data.benchmark_data_as_of || 'recent data'}</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {data.data_sources.slice(0, 8).map((source, i) => (
+                    <span key={i} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: 'rgba(0,0,0,0.03)', color: C.textMuted, border: '1px solid rgba(0,0,0,0.06)' }}>{source}</span>
+                  ))}
+                  {data.data_sources.length > 8 && <span style={{ fontSize: 11, color: C.textLight }}>+{data.data_sources.length - 8} more</span>}
+                </div>
               </RevealCard>
             )}
           </div>
         );
       }
+
       default:
         return <div style={{ color: C.textMuted, padding: 32 }}>Section not found.</div>;
     }
   };
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MAIN RENDER
+  // ═══════════════════════════════════════════════════════════════════════════
+
   return (
     <div style={{ background: C.bg, minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", color: C.text }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400;1,700&display=swap" rel="stylesheet" />
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 3px; }
         ::selection { background: ${C.blue}30; }
       `}</style>
+
       <Sidebar />
-      <div ref={contentRef} style={{ marginLeft: 220, flex: 1, padding: '24px 32px', overflowY: 'auto', height: '100vh', background: C.bg, opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(8px)' : 'translateY(0)', transition: 'opacity 0.2s ease, transform 0.2s ease' }}>
+
+      <div ref={contentRef} style={{
+        marginLeft: 220, flex: 1, padding: '24px 32px', overflowY: 'auto', height: '100vh', background: C.bg,
+        opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(8px)' : 'translateY(0)',
+        transition: 'opacity 0.2s ease, transform 0.2s ease',
+      }}>
         <div style={{ maxWidth: 1060, margin: '0 auto', overflow: 'hidden' }}>
+          {/* Header bar */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingBottom: 20, marginBottom: 20, borderBottom: `1px solid ${C.cardBorder}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
               {onBack && <button type="button" onClick={onBack} style={{ color: C.textMuted, padding: 8, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}><ArrowLeft style={{ width: 20, height: 20 }} /></button>}
               <div style={{ minWidth: 0, flex: 1 }}>
-                <h1 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2, lineHeight: 1.4 }}>{data.headline || 'Benchmarking Report'}</h1>
-                <p style={{ fontSize: 13, color: C.textMuted }}>{[clientName, `${getOrdinalSuffix(percentile)} percentile`, `£${totalOpportunity.toLocaleString()} opportunity`].filter(Boolean).join(' · ')}</p>
+                <h1 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{data.headline || 'Benchmarking Report'}</h1>
+                <p style={{ fontSize: 13, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {[clientName, `${getOrdinalSuffix(percentile)} percentile`, `£${totalOpportunity.toLocaleString()} opportunity`].filter(Boolean).join(' · ')}
+                </p>
               </div>
             </div>
-            <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{data.created_at ? new Date(data.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
+            <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>
+              {data.created_at ? new Date(data.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+            </span>
           </div>
-          <div key={activeSection} style={{ animation: 'fadeIn 0.4s ease' }}>{renderSection()}</div>
+          <div key={activeSection} style={{ animation: 'fadeIn 0.4s ease' }}>
+            {renderSection()}
+          </div>
         </div>
       </div>
     </div>
