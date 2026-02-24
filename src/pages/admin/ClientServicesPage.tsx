@@ -13356,7 +13356,9 @@ function SystemsAuditClientModal({
   const allStagesComplete = engagement?.status === 'stage_3_complete' || 
                             engagement?.status === 'analysis_complete' || 
                             engagement?.status === 'report_delivered' ||
-                            engagement?.status === 'completed';
+                            engagement?.status === 'completed' ||
+                            (!!engagement?.stage_1_completed_at && !!engagement?.stage_2_completed_at && !!engagement?.stage_3_completed_at);
+  const canRunAnalysis = engagement?.submission_status === 'submitted';
   const identifiedGapsCount = gaps.filter((g) => g.status === 'identified').length;
   const canGenerateOrRegenerate = (allStagesComplete || !!report) && (identifiedGapsCount === 0 || engagement?.review_status === 'complete');
 
