@@ -264,9 +264,13 @@ function AnimatedCounter({ target, prefix = '', suffix = '', duration = 2000, de
         const step = (ts: number) => {
           if (!start) start = ts;
           const p = Math.min((ts - start) / duration, 1);
-          const eased = 1 - Math.pow(1 - p, 3);
-          setVal(eased * target);
-          if (p < 1) requestAnimationFrame(step);
+          if (p >= 1) {
+            setVal(target);
+          } else {
+            const eased = 1 - Math.pow(1 - p, 3);
+            setVal(eased * target);
+            requestAnimationFrame(step);
+          }
         };
         requestAnimationFrame(step);
       }
@@ -354,9 +358,11 @@ function ProgressRing({ score, size = 140, strokeWidth = 12, color, ringLabel, d
 
 const fmt = (n: number) => {
   if (n == null || isNaN(n)) return '£0';
-  if (n >= 1000000) return `£${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `£${Math.round(n / 1000)}k`;
-  return `£${Math.round(n)}`;
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '−' : '';
+  if (abs >= 1000000) return `${sign}£${(abs / 1000000).toFixed(1)}M`;
+  if (abs >= 1000) return `${sign}£${Math.round(abs / 1000)}k`;
+  return `${sign}£${Math.round(abs)}`;
 };
 const fmtMetric = (val: number, format: string) => {
   switch (format) {
@@ -393,6 +399,93 @@ function calcMarginScenario(revenue: number, currentGM: number, targetGM: number
   };
 }
 
+/** Pricing power scenario */
+function calcPricingScenario(revenue: number, rateIncreasePercent: number, volumeRetention: number = 95) {
+  const retentionMult = volumeRetention / 100;
+  const marginImpact = revenue * (rateIncreasePercent / 100) * retentionMult;
+  const breakEvenLoss = (1 - (1 / (1 + rateIncreasePercent / 100))) * 100;
+  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  return {
+    marginImpact,
+    businessValueImpact: marginImpact * 5,
+    breakEvenLoss,
+    summary: `A ${rateIncreasePercent}% rate increase with ${volumeRetention}% client retention would add ${fmtCur(marginImpact)} directly to your bottom line. You could lose up to ${breakEvenLoss.toFixed(1)}% of volume and still be better off.`,
+    howToAchieve: [
+      'Communicate value delivered before discussing price',
+      'Start price increases with new clients, then existing',
+      'Consider tiered pricing for different service levels',
+      'Review market rates and position appropriately',
+    ],
+  };
+}
+
+/** Cash optimisation (debtor days) */
+function calcCashScenario(revenue: number, currentDays: number, targetDays: number) {
+  const dailyRevenue = revenue / 365;
+  const daysImproved = currentDays - targetDays;
+  const cashFreed = dailyRevenue * daysImproved;
+  const annualInterestSaved = cashFreed * 0.05;
+  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  return {
+    cashFreed,
+    daysImproved,
+    annualSaving: annualInterestSaved,
+    summary: `Reducing debtor days from ${Math.round(currentDays)} to ${Math.round(targetDays)} would free up ${fmtCur(cashFreed)} in working capital. At 5% cost of capital, that saves ${fmtCur(annualInterestSaved)} annually.`,
+    howToAchieve: [
+      'Issue invoices immediately on milestone completion',
+      'Offer early payment discounts (e.g. 2% for 7 days)',
+      'Automate invoice reminders at 7, 14, 21 days',
+      'Review payment terms on new contracts',
+    ],
+  };
+}
+
+/** Efficiency (revenue per employee) */
+function calcEfficiencyScenario(revenue: number, currentRPE: number, targetRPE: number, headcount: number, netMarginPct: number) {
+  const additionalRevenue = (targetRPE - currentRPE) * headcount;
+  const additionalProfit = additionalRevenue * (netMarginPct / 100);
+  const efficientHeadcount = Math.ceil(revenue / targetRPE);
+  const headcountReduction = Math.max(0, headcount - efficientHeadcount);
+  const costSaving = headcountReduction * 55000;
+  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  return {
+    additionalRevenue,
+    additionalProfit,
+    costSaving,
+    headcountReduction,
+    summary: `Improving revenue per employee from ${fmtCur(currentRPE)} to ${fmtCur(targetRPE)} would unlock ${fmtCur(additionalRevenue)} in additional capacity. Alternatively, deliver current revenue with ${headcountReduction} fewer people, saving ${fmtCur(costSaving)}/yr.`,
+    howToAchieve: [
+      'Improve utilisation through better resource planning',
+      'Reduce non-billable time and admin burden',
+      'Automate repetitive tasks and reporting',
+      'Focus team on higher-value work',
+    ],
+  };
+}
+
+/** Customer diversification */
+function calcDiversificationScenario(revenue: number, currentConc: number, targetConc: number, netProfit: number) {
+  const currentRiskPerClient = revenue * (currentConc / 100) / 3;
+  const targetRiskPerClient = revenue * (targetConc / 100) / 3;
+  const riskReduction = currentRiskPerClient - targetRiskPerClient;
+  const currentDiscount = currentConc >= 80 ? 25 : currentConc >= 60 ? 15 : currentConc >= 40 ? 8 : 3;
+  const targetDiscount = targetConc >= 80 ? 25 : targetConc >= 60 ? 15 : targetConc >= 40 ? 8 : 3;
+  const baseValue = netProfit > 0 ? netProfit * 5 : revenue * 0.05 * 5;
+  const valueImprovement = baseValue * ((currentDiscount - targetDiscount) / 100);
+  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  return {
+    riskReduction,
+    valueImprovement,
+    summary: `Reducing top-3 concentration from ${currentConc}% to ${targetConc}% reduces per-client risk from ${fmtCur(currentRiskPerClient)} to ${fmtCur(targetRiskPerClient)}. This could improve valuation by ${fmtCur(valueImprovement)} through a reduced buyer discount.`,
+    howToAchieve: [
+      'Proactively develop relationships with 3-5 new target clients',
+      'Expand services within existing smaller accounts',
+      'Build recurring revenue streams to reduce project dependency',
+      'Develop marketing capability to generate inbound leads',
+    ],
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DASHBOARD COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -413,6 +506,11 @@ export default function BenchmarkingClientDashboard({
   const [showSurplusDetail, setShowSurplusDetail] = useState(false);
   const [expandedRecIndex, setExpandedRecIndex] = useState<number | null>(null);
   const [targetGrossMargin, setTargetGrossMargin] = useState(18);
+  const [activeExplorer, setActiveExplorer] = useState<'margin' | 'pricing' | 'cash' | 'efficiency' | 'diversification'>('margin');
+  const [targetRateIncrease, setTargetRateIncrease] = useState(5);
+  const [targetDebtorDays, setTargetDebtorDays] = useState(30);
+  const [targetRPE, setTargetRPE] = useState(500000);
+  const [targetConcentration, setTargetConcentration] = useState(70);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // ─── Persistent visited sections ─────────────────────────────────────────
@@ -774,7 +872,7 @@ export default function BenchmarkingClientDashboard({
             </RevealCard>
 
             {/* 2×2 narrative grid — responsive */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
               {[
                 { title: 'Where You Stand', content: positionNarrative, color: C.blue, icon: Target, highlight: `${getOrdinalSuffix(percentile)} percentile` },
                 { title: 'Your Strengths', content: strengthNarrative, color: C.emerald, icon: CheckCircle },
@@ -1434,49 +1532,221 @@ export default function BenchmarkingClientDashboard({
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Explore Improvements — margin slider (ScenarioExplorer) */}
+            {/* Explore Improvement Scenarios — multi-tab */}
             <RevealCard style={{ ...glass({ padding: 24 }) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                 <BarChart3 style={{ width: 22, height: 22, color: C.blue }} />
                 <h3 style={{ color: C.text, fontSize: 18, fontWeight: 800, margin: 0 }}>Explore Improvement Scenarios</h3>
               </div>
-              <p style={{ color: C.textMuted, fontSize: 14, marginBottom: 20 }}>Use your actual data to see the impact of margin improvements</p>
-              <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you improved gross margin?</p>
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <span style={{ fontSize: 12, color: C.textMuted }}>Target Gross Margin</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetGM.toFixed(1)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min={Math.round(currentGM * 2) / 2}
-                  max={35}
-                  step={0.5}
-                  value={targetGM}
-                  onChange={(e) => setTargetGrossMargin(parseFloat(e.target.value))}
-                  style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
-                  <span>Current: {currentGM.toFixed(1)}%</span>
-                  <span>Industry median: {grossMarginMedian}%</span>
-                </div>
+              <p style={{ color: C.textMuted, fontSize: 14, marginBottom: 16 }}>Use your actual data to see the impact of potential improvements</p>
+
+              {/* Scenario type tabs */}
+              <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
+                {([
+                  { id: 'margin' as const, label: 'Gross Margin' },
+                  { id: 'pricing' as const, label: 'Pricing Power' },
+                  { id: 'cash' as const, label: 'Cash / Debtors' },
+                  { id: 'efficiency' as const, label: 'Efficiency' },
+                  ...(concentration > 40 ? [{ id: 'diversification' as const, label: 'Diversification' }] : []),
+                ]).map(tab => (
+                  <button key={tab.id} onClick={() => setActiveExplorer(tab.id)}
+                    style={{
+                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                      border: `1px solid ${activeExplorer === tab.id ? C.blue : 'rgba(0,0,0,0.08)'}`,
+                      background: activeExplorer === tab.id ? `${C.blue}10` : 'transparent',
+                      color: activeExplorer === tab.id ? C.blue : C.textMuted,
+                      cursor: 'pointer', transition: 'all 0.15s ease',
+                    }}
+                  >{tab.label}</button>
+                ))}
               </div>
-              <div style={{ padding: 20, borderRadius: 16, background: 'linear-gradient(135deg, rgba(37,99,235,0.06), rgba(124,58,237,0.04))', border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: C.blue, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, ...mono }}>Projected impact</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-                  <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Additional Gross Profit</p><p style={{ fontSize: 18, fontWeight: 800, color: C.text, ...mono }}>{fmt(marginResult.additionalGrossProfit)}</p></div>
-                  <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Net Profit Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(marginResult.netProfitImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 45% flow-through</p></div>
-                  <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Business Value Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{fmt(marginResult.businessValueImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 5x EBITDA multiple</p></div>
-                  <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Margin Improvement</p><p style={{ fontSize: 18, fontWeight: 800, color: C.purple, ...mono }}>{marginResult.marginImprovement.toFixed(1)}%</p><p style={{ fontSize: 10, color: C.textMuted }}>From {currentGM.toFixed(1)}% to {targetGM.toFixed(1)}%</p></div>
-                </div>
-              </div>
-              <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{marginResult.summary}</p>
-              <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
-                <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
-                  {marginResult.howToAchieve.map((step, i) => <li key={i}>{step}</li>)}
-                </ul>
-              </div>
+
+              {/* MARGIN */}
+              {activeExplorer === 'margin' && (() => {
+                const result = marginResult;
+                return (
+                  <>
+                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you improved gross margin?</p>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: C.textMuted }}>Target Gross Margin</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetGM.toFixed(1)}%</span>
+                      </div>
+                      <input type="range" min={Math.round(currentGM * 2) / 2} max={35} step={0.5} value={targetGM}
+                        onChange={e => setTargetGrossMargin(parseFloat(e.target.value))}
+                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
+                        <span>Current: {currentGM.toFixed(1)}%</span><span>Industry median: {grossMarginMedian}%</span>
+                      </div>
+                    </div>
+                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
+                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Additional Gross Profit</p><p style={{ fontSize: 18, fontWeight: 800, color: C.text, ...mono }}>{fmt(result.additionalGrossProfit)}</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Net Profit Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.netProfitImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 45% flow-through</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Business Value Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{fmt(result.businessValueImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 5x EBITDA multiple</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Margin Improvement</p><p style={{ fontSize: 18, fontWeight: 800, color: C.purple, ...mono }}>{result.marginImprovement.toFixed(1)}%</p><p style={{ fontSize: 10, color: C.textMuted }}>From {currentGM.toFixed(1)}% to {targetGM.toFixed(1)}%</p></div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
+                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
+                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* PRICING */}
+              {activeExplorer === 'pricing' && (() => {
+                const result = calcPricingScenario(revenue, targetRateIncrease);
+                return (
+                  <>
+                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you increased your rates?</p>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: C.textMuted }}>Rate Increase</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetRateIncrease}%</span>
+                      </div>
+                      <input type="range" min={1} max={20} step={1} value={targetRateIncrease}
+                        onChange={e => setTargetRateIncrease(parseInt(e.target.value))}
+                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
+                        <span>+1%</span><span>+20%</span>
+                      </div>
+                    </div>
+                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
+                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Direct Margin Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.marginImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>With 95% client retention</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Business Value Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{fmt(result.businessValueImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 5x EBITDA</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Break-Even Volume Loss</p><p style={{ fontSize: 18, fontWeight: 800, color: C.amber, ...mono }}>{result.breakEvenLoss.toFixed(1)}%</p><p style={{ fontSize: 10, color: C.textMuted }}>Max safe client loss</p></div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
+                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
+                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* CASH / DEBTORS */}
+              {activeExplorer === 'cash' && (() => {
+                const currentDays = baselineMetrics.debtorDays;
+                const result = calcCashScenario(revenue, currentDays, targetDebtorDays);
+                return (
+                  <>
+                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you improved debtor collection?</p>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: C.textMuted }}>Target Debtor Days</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetDebtorDays} days</span>
+                      </div>
+                      <input type="range" min={7} max={Math.max(currentDays, 60)} step={1} value={targetDebtorDays}
+                        onChange={e => setTargetDebtorDays(parseInt(e.target.value))}
+                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
+                        <span>7 days</span><span>Current: {Math.round(currentDays)} days</span>
+                      </div>
+                    </div>
+                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
+                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Cash Freed Up</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.cashFreed)}</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Days Improved</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{result.daysImproved} days</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Annual Saving</p><p style={{ fontSize: 18, fontWeight: 800, color: C.purple, ...mono }}>{fmt(result.annualSaving)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 5% cost of capital</p></div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
+                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
+                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* EFFICIENCY */}
+              {activeExplorer === 'efficiency' && (() => {
+                const currentRPE = baselineMetrics.revenuePerEmployee;
+                const result = calcEfficiencyScenario(revenue, currentRPE, targetRPE, baselineMetrics.employeeCount, baselineMetrics.netMargin);
+                return (
+                  <>
+                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you improved revenue per employee?</p>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: C.textMuted }}>Target Revenue/Employee</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{fmt(targetRPE)}</span>
+                      </div>
+                      <input type="range" min={Math.round(currentRPE / 1000) * 1000} max={Math.round(currentRPE * 2 / 10000) * 10000} step={10000} value={targetRPE}
+                        onChange={e => setTargetRPE(parseInt(e.target.value))}
+                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
+                        <span>Current: {fmt(currentRPE)}</span><span>{fmt(Math.round(currentRPE * 2 / 10000) * 10000)}</span>
+                      </div>
+                    </div>
+                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
+                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Revenue Capacity Unlocked</p><p style={{ fontSize: 18, fontWeight: 800, color: C.text, ...mono }}>{fmt(result.additionalRevenue)}</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Additional Profit</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.additionalProfit)}</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Or: Headcount Saving</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{fmt(result.costSaving)}</p><p style={{ fontSize: 10, color: C.textMuted }}>{result.headcountReduction} fewer people</p></div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
+                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
+                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* DIVERSIFICATION */}
+              {activeExplorer === 'diversification' && concentration > 40 && (() => {
+                const result = calcDiversificationScenario(revenue, concentration, targetConcentration, baselineMetrics.netProfit);
+                return (
+                  <>
+                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you reduced customer concentration?</p>
+                    <div style={{ marginBottom: 16 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: C.textMuted }}>Target Top-3 Concentration</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetConcentration}%</span>
+                      </div>
+                      <input type="range" min={30} max={concentration} step={5} value={targetConcentration}
+                        onChange={e => setTargetConcentration(parseInt(e.target.value))}
+                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
+                        <span>30% (diversified)</span><span>Current: {concentration}%</span>
+                      </div>
+                    </div>
+                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
+                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Risk Reduction per Client</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.riskReduction)}</p></div>
+                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Valuation Improvement</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{fmt(result.valueImprovement)}</p><p style={{ fontSize: 10, color: C.textMuted }}>Reduced buyer discount</p></div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
+                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
+                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                      </ul>
+                    </div>
+                  </>
+                );
+              })()}
             </RevealCard>
 
             <RevealCard style={{ ...glass({ padding: 24 }) }}>
@@ -1942,7 +2212,7 @@ export default function BenchmarkingClientDashboard({
   // ═══════════════════════════════════════════════════════════════════════════
 
   return (
-    <div style={{ display: 'flex', background: C.bg, minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", color: C.text }}>
+    <div style={{ display: 'flex', background: C.bg, height: '100vh', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: C.text }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400;1,700&display=swap" rel="stylesheet" />
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -1958,7 +2228,7 @@ export default function BenchmarkingClientDashboard({
       <Sidebar />
 
       <div ref={contentRef} style={{
-        marginLeft: 220, flex: 1, padding: '24px 32px', overflowY: 'auto', minHeight: '100vh', background: C.bg,
+        marginLeft: 220, flex: 1, padding: '24px 32px', overflowY: 'auto', background: C.bg,
         opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(8px)' : 'translateY(0)',
         transition: 'opacity 0.2s ease, transform 0.2s ease',
       }}>
