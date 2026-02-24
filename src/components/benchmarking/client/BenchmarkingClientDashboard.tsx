@@ -11,7 +11,7 @@
 // Data layer is IDENTICAL. BenchmarkAnalysis interface is the single source of truth.
 // ============================================================================
 
-import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, type ReactNode, Fragment } from 'react';
 import {
   ArrowLeft, AlertTriangle, CheckCircle, TrendingUp, TrendingDown,
   Zap, BarChart3, Target, ChevronDown, ChevronUp,
@@ -22,14 +22,14 @@ import {
   Rocket, Star, Wallet, Info, Lightbulb,
   X, Check
 } from 'lucide-react';
-import type { ValueAnalysis, ValueSuppressor, ValueEnhancer } from '../../types/benchmarking';
-import type { BaselineMetrics } from '../../lib/scenario-calculator';
+import type { ValueAnalysis, ValueSuppressor, ValueEnhancer } from '../../../types/benchmarking';
+import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 import type {
   EnhancedValueSuppressor,
   ExitReadinessScore,
   TwoPathsNarrative,
   SurplusCashData
-} from '../../types/opportunity-calculations';
+} from '../../../types/opportunity-calculations';
 
 // ─── Types (FROZEN — matches BenchmarkingClientReport exactly) ────────────
 
@@ -1223,7 +1223,7 @@ export default function BenchmarkingClientDashboard({
                 <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{score} / {exitBreakdown.maxScore} total</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {exitBreakdown.components.map((comp) => {
+                {exitBreakdown.components.map((comp: { id: string; name: string; currentScore: number; targetScore: number; maxScore: number; gap?: string }) => {
                   const compColor = comp.currentScore >= comp.targetScore ? C.emerald : comp.currentScore >= comp.maxScore * 0.5 ? C.amber : C.red;
                   const pctFilled = (comp.currentScore / comp.maxScore) * 100;
                   return (
@@ -1517,10 +1517,10 @@ export default function BenchmarkingClientDashboard({
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
                     {['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value'].map((step, i) => (
-                      <React.Fragment key={i}>
+                      <Fragment key={i}>
                         {i > 0 && <ArrowRight style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)' }} />}
                         <span style={{ padding: '4px 14px', borderRadius: 6, background: `rgba(255,255,255,0.12)`, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>{step}</span>
-                      </React.Fragment>
+                      </Fragment>
                     ))}
                   </div>
                 </div>
@@ -1582,10 +1582,10 @@ export default function BenchmarkingClientDashboard({
                 {/* Connection flow */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20, fontSize: 12 }}>
                   {['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value'].map((step, i) => (
-                    <React.Fragment key={i}>
+                    <Fragment key={i}>
                       {i > 0 && <ArrowRight style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)' }} />}
                       <span style={{ padding: '4px 14px', borderRadius: 6, background: `rgba(255,255,255,0.12)`, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>{step}</span>
-                    </React.Fragment>
+                    </Fragment>
                   ))}
                 </div>
                 <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 1.7 }}>{twoPathsNarrative.explanation}</p>
