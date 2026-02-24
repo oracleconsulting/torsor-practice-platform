@@ -13981,10 +13981,92 @@ function SystemsAuditClientModal({
                     <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
                       <h3 className="font-semibold text-gray-900">Stage 3: Process Deep Dives</h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        {engagement?.stage_3_completed_at ? 'Completed' : 'Not started'}
+                        {engagement?.stage_3_completed_at ? 'Completed' :
+                         stage3DeepDives.length > 0 ? `${stage3DeepDives.length} of ${7 + saCustomChains.filter((c: any) => c.chain_status === 'active').length} chains completed` :
+                         saCustomChains.filter((c: any) => c.chain_status === 'active').length > 0 ? `${7 + saCustomChains.filter((c: any) => c.chain_status === 'active').length} chains assigned (0 completed)` :
+                         'Not started'}
                       </p>
                     </div>
                     <div className="p-6">
+                      {/* Process Chain Roster */}
+                      <div className="mb-6">
+                        <p className="text-xs font-medium text-gray-500 uppercase mb-3">Assigned Process Chains</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {/* Core 7 chains — always present */}
+                          {[
+                            { code: 'quote_to_cash', name: 'Quote-to-Cash', icon: '💰' },
+                            { code: 'procure_to_pay', name: 'Procure-to-Pay', icon: '🛒' },
+                            { code: 'record_to_report', name: 'Record-to-Report', icon: '📊' },
+                            { code: 'hire_to_retire', name: 'Hire-to-Retire', icon: '👥' },
+                            { code: 'lead_to_client', name: 'Lead-to-Client', icon: '🎯' },
+                            { code: 'comply_to_confirm', name: 'Comply-to-Confirm', icon: '🛡️' },
+                            { code: 'project_to_delivery', name: 'Project-to-Delivery', icon: '🚀' },
+                          ].map((chain) => {
+                            const deepDive = stage3DeepDives.find((d: any) => d.chain_code === chain.code);
+                            const responseCount = deepDive ? Object.keys(deepDive.responses || {}).length : 0;
+                            return (
+                              <div key={chain.code} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${
+                                deepDive?.completed_at ? 'bg-emerald-50 border-emerald-200' :
+                                responseCount > 0 ? 'bg-amber-50 border-amber-200' :
+                                'bg-gray-50 border-gray-200'
+                              }`}>
+                                <span className="text-base">{chain.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{chain.name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {deepDive?.completed_at ? '✓ Completed' :
+                                     responseCount > 0 ? `${responseCount} answers (in progress)` :
+                                     'Not started'}
+                                  </p>
+                                </div>
+                                {deepDive?.completed_at && (
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* Engagement-specific chains (suggested/active) */}
+                          {saCustomChains
+                            .filter((c: any) => c.chain_status !== 'rejected')
+                            .map((chain: any) => {
+                              const deepDive = stage3DeepDives.find((d: any) => d.chain_code === chain.chain_code);
+                              const responseCount = deepDive ? Object.keys(deepDive.responses || {}).length : 0;
+                              return (
+                                <div key={chain.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${
+                                  chain.chain_status === 'suggested' ? 'bg-purple-50 border-purple-200' :
+                                  deepDive?.completed_at ? 'bg-emerald-50 border-emerald-200' :
+                                  responseCount > 0 ? 'bg-amber-50 border-amber-200' :
+                                  'bg-blue-50 border-blue-200'
+                                }`}>
+                                  <span className="text-base">
+                                    {chain.chain_status === 'suggested' ? '💡' : '🏗️'}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 truncate">{chain.chain_name}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {chain.chain_status === 'suggested' ? 'Suggested — pending review' :
+                                       deepDive?.completed_at ? '✓ Completed' :
+                                       responseCount > 0 ? `${responseCount} answers (in progress)` :
+                                       'Active — not started'}
+                                    </p>
+                                    {chain.suggestion_reason && (
+                                      <p className="text-xs text-purple-600 mt-0.5 truncate" title={chain.suggestion_reason}>
+                                        {chain.suggestion_reason}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {chain.chain_status === 'suggested' && (
+                                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium flex-shrink-0">
+                                      Suggested
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+
                       {stage3DeepDives.length > 0 ? (
                         <div className="space-y-6">
                           {stage3DeepDives.map((dive) => {
@@ -14420,7 +14502,7 @@ function SystemsAuditClientModal({
                             Stage 1: {(serviceLineAssessmentResponses ?? stage1Responses[0]?.raw_responses) ? Object.entries((serviceLineAssessmentResponses ?? stage1Responses[0]?.raw_responses) as Record<string, unknown>).filter(([, v]) => v != null && v !== '').length : 0} of 32 questions answered
                           </li>
                           <li>Stage 2: {stage2Inventory.length} systems logged</li>
-                          <li>Stage 3: {stage3DeepDives.length} of 7 chains completed</li>
+                          <li>Stage 3: {stage3DeepDives.length} of {7 + saCustomChains.filter((c: any) => c.chain_status === 'active').length} chains completed</li>
                         </ul>
                       </div>
 
