@@ -14,12 +14,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, type ReactNode, Fragment } from 'react';
 import {
   ArrowLeft, AlertTriangle, CheckCircle, TrendingUp, TrendingDown,
-  Zap, BarChart3, Target, ChevronDown, ChevronUp,
-  Quote, DollarSign, ArrowRight, Sparkles, Brain, Phone,
-  Clock, Users, Building2, Shield, Activity, Eye,
+  Zap, BarChart3, Target, ChevronDown,
+  ArrowRight, Sparkles, Phone,
+  Clock, Users, Shield, Activity,
   CalendarClock, PoundSterling, Coffee, Gem,
-  ChevronRight, ExternalLink, Layers,
-  Rocket, Star, Wallet, Info, Lightbulb,
+  Rocket, Wallet, Info,
   X, Check
 } from 'lucide-react';
 import type { ValueAnalysis, ValueSuppressor, ValueEnhancer } from '../../../types/benchmarking';
@@ -357,7 +356,6 @@ const fmt = (n: number) => {
   if (n >= 1000) return `£${Math.round(n / 1000)}k`;
   return `£${Math.round(n)}`;
 };
-const fmtFull = (n: number) => `£${Math.round(n).toLocaleString()}`;
 const fmtMetric = (val: number, format: string) => {
   switch (format) {
     case 'currency': return val >= 1000000 ? `£${(val / 1000000).toFixed(1)}M` : val >= 1000 ? `£${Math.round(val / 1000)}k` : `£${Math.round(val)}`;
@@ -423,12 +421,6 @@ export default function BenchmarkingClientDashboard({
     let metric = metrics.find(m => (m.metricCode || m.metric_code || '').toLowerCase() === lowerCode);
     if (!metric) metric = metrics.find(m => { const mc = (m.metricCode || m.metric_code || '').toLowerCase(); return mc.startsWith(lowerCode) || lowerCode.startsWith(mc); });
     return metric?.clientValue ?? metric?.client_value;
-  };
-
-  const getBenchmarkForMetric = (code: string) => {
-    const metric = metrics.find(m => { const mc = (m.metricCode || m.metric_code || '').toLowerCase(); return mc === code.toLowerCase() || mc.includes(code.toLowerCase()); });
-    if (!metric || metric.p50 == null) return undefined;
-    return { p25: metric.p25 || 0, p50: metric.p50, p75: metric.p75 || 0 };
   };
 
   // Baseline metrics (FROZEN)
@@ -999,7 +991,7 @@ export default function BenchmarkingClientDashboard({
       // ─── VALUATION ───────────────────────────────────────────────────────
       case 'value': {
         if (!valueAnalysis) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Value analysis not available for this engagement.</p></RevealCard>;
-        const { baseline, suppressors, currentMarketValue, valueGap, exitReadiness, pathToValue, enhancers } = valueAnalysis;
+        const { baseline, suppressors, currentMarketValue, valueGap, pathToValue, enhancers } = valueAnalysis;
         const gapPercent = valueAnalysis.valueGapPercent || 0;
 
         return (
