@@ -13629,6 +13629,25 @@ function SystemsAuditClientModal({
             </div>
           ) : (
             <>
+              {/* Submission status banners */}
+              {engagement?.submission_status === 'submitted' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-blue-800 font-medium">
+                    Client submitted all stages on {engagement.submitted_at ? new Date(engagement.submitted_at).toLocaleDateString() : '—'}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Answers are now locked. Ready for preliminary analysis.
+                  </p>
+                </div>
+              )}
+              {engagement?.submission_status !== 'submitted' && engagement?.stage_1_completed_at && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-amber-800 font-medium">
+                    Client is still working on their assessment (not yet submitted)
+                  </p>
+                </div>
+              )}
+
               {/* ASSESSMENTS TAB */}
               {activeTab === 'assessments' && (
                 <div className="space-y-6">
@@ -14706,7 +14725,7 @@ function SystemsAuditClientModal({
                         <>
                           <button
                             onClick={handleRunPreliminary}
-                            disabled={runningPreliminary || !allStagesComplete}
+                            disabled={runningPreliminary || !allStagesComplete || !canRunAnalysis}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
                           >
                             {runningPreliminary ? (
@@ -14717,6 +14736,7 @@ function SystemsAuditClientModal({
                             {runningPreliminary ? 'Running Preliminary Analysis...' : 'Run Preliminary Analysis'}
                           </button>
                           {!allStagesComplete && <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>}
+                          {allStagesComplete && !canRunAnalysis && <p className="text-sm text-amber-600 mt-2">Client must submit their assessment before you can run preliminary analysis</p>}
                         </>
                       ) : (
                         <>

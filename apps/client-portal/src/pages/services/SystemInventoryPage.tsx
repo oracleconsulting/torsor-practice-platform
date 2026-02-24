@@ -115,6 +115,8 @@ export default function SystemInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [engagementId, setEngagementId] = useState<string | null>(null);
+  const [saSubmissionLocked, setSaSubmissionLocked] = useState(false);
+  const [saSubmittedAt, setSaSubmittedAt] = useState<string | null>(null);
   const [systems, setSystems] = useState<SystemInventory[]>([]);
   const [categories, setCategories] = useState<SystemCategory[]>([]);
   const [shadowSystemsDescription, setShadowSystemsDescription] = useState<string>('');
@@ -152,7 +154,7 @@ export default function SystemInventoryPage() {
       // Fetch engagement - try to find existing one
       let { data: engagement, error: engError } = await supabase
         .from('sa_engagements')
-        .select('id, status, stage_1_completed_at, shadow_systems_description')
+        .select('id, status, stage_1_completed_at, shadow_systems_description, submission_status, submitted_at')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
 
@@ -178,7 +180,7 @@ export default function SystemInventoryPage() {
             status: 'stage_1_complete',
             stage_1_completed_at: new Date().toISOString()
           })
-          .select('id, status, stage_1_completed_at, shadow_systems_description')
+          .select('id, status, stage_1_completed_at, shadow_systems_description, submission_status, submitted_at')
           .single();
 
         console.log('📊 Create engagement result:', { newEngagement, createError });
@@ -202,6 +204,8 @@ export default function SystemInventoryPage() {
 
       setEngagementId(engagement.id);
       setShadowSystemsDescription((engagement as any)?.shadow_systems_description ?? '');
+      setSaSubmissionLocked((engagement as any)?.submission_status === 'submitted');
+      setSaSubmittedAt((engagement as any)?.submitted_at ?? null);
       console.log('✅ Engagement ID set:', engagement.id);
 
       // Fetch existing systems
@@ -514,12 +518,13 @@ export default function SystemInventoryPage() {
             <div className="flex gap-3">
               <button
                 onClick={handleAddSystem}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                disabled={saSubmissionLocked}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4" />
                 Add System
               </button>
-              {systems.length > 0 && (
+              {systems.length > 0 && !saSubmissionLocked && (
                 <button
                   onClick={handleCompleteStage2}
                   disabled={saving}
@@ -537,8 +542,16 @@ export default function SystemInventoryPage() {
           </div>
         </div>
 
+        {saSubmissionLocked && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              These answers were submitted on {saSubmittedAt ? new Date(saSubmittedAt).toLocaleDateString() : 'a previous date'} and cannot be changed. Contact your practice team if you need to make corrections.
+            </p>
+          </div>
+        )}
+
         {/* Add/Edit Form */}
-        {showAddForm && (
+        {showAddForm && !saSubmissionLocked && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900">
@@ -1242,20 +1255,24 @@ export default function SystemInventoryPage() {
                       )}
                     </div>
                     <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => handleEditSystem(system)}
-                        className="p-2 text-gray-400 hover:text-indigo-600"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSystem(system.id)}
-                        className="p-2 text-gray-400 hover:text-red-600"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {!saSubmissionLocked && (
+                        <>
+                          <button
+                            onClick={() => handleEditSystem(system)}
+                            className="p-2 text-gray-400 hover:text-indigo-600"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSystem(system.id)}
+                            className="p-2 text-gray-400 hover:text-red-600"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1275,22 +1292,25 @@ export default function SystemInventoryPage() {
             <textarea
               value={shadowSystemsDescription}
               onChange={(e) => setShadowSystemsDescription(e.target.value.slice(0, 1200))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               rows={4}
               placeholder="e.g., Maria has a personal spreadsheet mapping Harvest codes to Xero contacts. Priya tracks leads in a Google Sheet nobody else can see. The designers share files via AirDrop..."
               maxLength={1200}
+              disabled={saSubmissionLocked}
             />
             <div className="mt-2 flex justify-between text-xs text-gray-500">
               <span>{shadowSystemsDescription.length}/1200 characters</span>
               {shadowSystemsSaving && <span>Saving...</span>}
-              <button
-                type="button"
-                onClick={handleSaveShadowSystems}
-                disabled={shadowSystemsSaving}
-                className="text-indigo-600 hover:underline disabled:opacity-50"
-              >
-                Save
-              </button>
+              {!saSubmissionLocked && (
+                <button
+                  type="button"
+                  onClick={handleSaveShadowSystems}
+                  disabled={shadowSystemsSaving}
+                  className="text-indigo-600 hover:underline disabled:opacity-50"
+                >
+                  Save
+                </button>
+              )}
             </div>
           </div>
         )}

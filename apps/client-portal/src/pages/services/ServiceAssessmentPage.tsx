@@ -70,6 +70,8 @@ export default function ServiceAssessmentPage() {
   const [loading, setLoading] = useState(true);
   const [completed, setCompleted] = useState(false);
   const [generatingProposal, setGeneratingProposal] = useState(false);
+  const [saSubmissionLocked, setSaSubmissionLocked] = useState(false);
+  const [saSubmittedAt, setSaSubmittedAt] = useState<string | null>(null);
   const checkingSharedInsightRef = useRef(false);
   const hasCheckedSharedInsightRef = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -294,6 +296,13 @@ export default function ServiceAssessmentPage() {
               console.warn('[Systems Audit] Could not create engagement:', createErr.message);
             }
           }
+          const { data: saEng } = await supabase
+            .from('sa_engagements')
+            .select('submission_status, submitted_at')
+            .eq('client_id', clientSession.clientId)
+            .maybeSingle();
+          setSaSubmissionLocked(saEng?.submission_status === 'submitted');
+          setSaSubmittedAt(saEng?.submitted_at ?? null);
         }
         const { data } = await supabase
           .from('service_line_assessments')
@@ -533,7 +542,6 @@ export default function ServiceAssessmentPage() {
             .insert({
               client_id: clientSession.clientId,
               practice_id: clientSession.practiceId,
-              status: 'stage_1_complete',
               stage_1_completed_at: new Date().toISOString()
             })
             .select('id')
@@ -545,11 +553,10 @@ export default function ServiceAssessmentPage() {
           }
           engagement = newEngagement;
         } else {
-          // Update existing engagement
+          // Update existing engagement — set stage timestamp only, do NOT advance status until formal submission
           await supabase
             .from('sa_engagements')
             .update({
-              status: 'stage_1_complete',
               stage_1_completed_at: new Date().toISOString(),
               updated_at: new Date().toISOString()
             })
@@ -725,6 +732,24 @@ export default function ServiceAssessmentPage() {
         }
         
         console.log('✅ Systems Audit Stage 1 saved successfully!');
+        
+        // Auto-suggest industry-specific chains (fire and forget, non-blocking)
+        try {
+          supabase.functions.invoke('suggest-sa-process-chains', {
+            body: {
+              engagementId: engagement.id,
+              maxChains: 3,
+              autoAccept: true
+            }
+          }).then(({ data }) => {
+            console.log('Auto-suggested chains:', data?.suggestedChains ?? data?.suggested_chains ?? 0);
+          }).catch(err => {
+            console.warn('Auto-suggest chains failed (non-blocking):', err);
+          });
+        } catch (err) {
+          console.warn('Auto-suggest chains error:', err);
+        }
+        
         console.log('🚀 Navigating to Stage 2: /service/systems_audit/inventory');
         
         // IMPORTANT: Set saving to false and DON'T set completed=true for Systems Audit
@@ -985,7 +1010,7 @@ export default function ServiceAssessmentPage() {
               {saving && <span className="text-gray-500 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Saving...</span>}
               <button
                 onClick={handleSaveAndExit}
-                disabled={saving}
+                disabled={saving || (serviceCode === 'systems_audit' && saSubmissionLocked)}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save & Exit
@@ -1002,6 +1027,14 @@ export default function ServiceAssessmentPage() {
         </div>
       </header>
 
+      {serviceCode === 'systems_audit' && saSubmissionLocked && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
+          <p className="text-sm text-amber-800">
+            These answers were submitted on {saSubmittedAt ? new Date(saSubmittedAt).toLocaleDateString() : 'a previous date'} and cannot be changed. Contact your practice team if you need to make corrections.
+          </p>
+        </div>
+      )}
+
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="mb-6">
           <h2 className="text-xl font-bold text-gray-900">{assessment.sections[currentSection]}</h2>
@@ -1017,6 +1050,7 @@ export default function ServiceAssessmentPage() {
               onChange={v => setResponses(prev => ({ ...prev, [q.id]: v }))}
               contextValue={responses[`${q.id}_context`] || ''}
               onContextChange={val => setResponses(prev => ({ ...prev, [`${q.id}_context`]: val }))}
+              disabled={serviceCode === 'systems_audit' && saSubmissionLocked}
             />
           ))}
         </div>
@@ -1032,7 +1066,7 @@ export default function ServiceAssessmentPage() {
                 console.log('📋 Button state:', { isAllComplete, saving, assessmentCode: assessment.code });
                 handleComplete();
               }} 
-              disabled={!isAllComplete || saving} 
+              disabled={!isAllComplete || saving || (serviceCode === 'systems_audit' && saSubmissionLocked)} 
               className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg disabled:bg-gray-300"
             >
               {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Submitting...</> : <><Check className="w-4 h-4" />Complete</>}
@@ -1097,12 +1131,14 @@ function QuestionCard({
   onChange,
   contextValue = '',
   onContextChange,
+  disabled = false,
 }: {
   question: AssessmentQuestion;
   value: any;
   onChange: (v: any) => void;
   contextValue?: string;
   onContextChange?: (v: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -1111,8 +1147,8 @@ function QuestionCard({
       {question.type === 'single' && (
         <div className="space-y-2">
           {question.options?.map((opt, i) => (
-            <label key={i} className={`flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer ${value === opt ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
-              <input type="radio" checked={value === opt} onChange={() => onChange(opt)} className="w-4 h-4 text-indigo-600" />
+            <label key={i} className={`flex items-center gap-3 p-4 rounded-lg border-2 ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'} ${value === opt ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}>
+              <input type="radio" checked={value === opt} onChange={() => onChange(opt)} className="w-4 h-4 text-indigo-600" disabled={disabled} />
               <span>{opt}</span>
             </label>
           ))}
@@ -1125,8 +1161,8 @@ function QuestionCard({
             const sel = value?.includes(opt) || false;
             const maxReached = !!(question.maxSelections && value?.length >= question.maxSelections && !sel);
             return (
-              <label key={i} className={`flex items-center gap-3 p-4 rounded-lg border-2 ${maxReached ? 'opacity-50 cursor-not-allowed' : sel ? 'border-indigo-500 bg-indigo-50 cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer'}`}>
-                <input type="checkbox" checked={sel} disabled={maxReached} onChange={e => onChange(e.target.checked ? [...(value || []), opt] : (value || []).filter((v: string) => v !== opt))} className="w-4 h-4 text-indigo-600 rounded" />
+              <label key={i} className={`flex items-center gap-3 p-4 rounded-lg border-2 ${disabled || maxReached ? 'opacity-50 cursor-not-allowed' : sel ? 'border-indigo-500 bg-indigo-50 cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer'}`}>
+                <input type="checkbox" checked={sel} disabled={maxReached || disabled} onChange={e => onChange(e.target.checked ? [...(value || []), opt] : (value || []).filter((v: string) => v !== opt))} className="w-4 h-4 text-indigo-600 rounded" />
                 <span>{opt}</span>
               </label>
             );
@@ -1135,13 +1171,13 @@ function QuestionCard({
         </div>
       )}
 
-      {(question.type === 'single' || question.type === 'multi') && value != null && (value !== '' && (!Array.isArray(value) || value.length > 0)) && onContextChange && (
+      {(question.type === 'single' || question.type === 'multi') && value != null && (value !== '' && (!Array.isArray(value) || value.length > 0)) && onContextChange && !disabled && (
         <ContextField contextValue={contextValue} onContextChange={onContextChange} />
       )}
 
       {question.type === 'text' && (
         <div>
-          <textarea value={value || ''} onChange={e => onChange(e.target.value)} placeholder={question.placeholder} maxLength={question.charLimit} rows={4} className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none" />
+          <textarea value={value || ''} onChange={e => onChange(e.target.value)} placeholder={question.placeholder} maxLength={question.charLimit} rows={4} className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 resize-none disabled:bg-gray-100 disabled:cursor-not-allowed" disabled={disabled} />
           {question.charLimit && <p className="text-sm text-gray-400 text-right mt-1">{value?.length || 0} / {question.charLimit}</p>}
         </div>
       )}
@@ -1168,7 +1204,8 @@ function QuestionCard({
             max={question.sliderMax || 10}
             value={value || question.sliderMin || 1}
             onChange={e => onChange(Number(e.target.value))}
-            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600 disabled:opacity-70 disabled:cursor-not-allowed"
+            disabled={disabled}
           />
           <div className="flex justify-between text-xs text-gray-400">
             {Array.from({ length: (question.sliderMax || 10) - (question.sliderMin || 1) + 1 }, (_, i) => (

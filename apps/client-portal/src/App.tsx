@@ -29,6 +29,8 @@ const BIPresentationPage = lazy(() => import('./pages/services/BIPresentationPag
 const SystemInventoryPage = lazy(() => import('./pages/services/SystemInventoryPage'));
 const ProcessDeepDivesPage = lazy(() => import('./pages/services/ProcessDeepDivesPage'));
 const SAReportPage = lazy(() => import('./pages/services/SAReportPage'));
+const ReviewSubmitPage = lazy(() => import('./pages/services/ReviewSubmitPage'));
+const SubmissionStatusPage = lazy(() => import('./pages/services/SubmissionStatusPage'));
 const BenchmarkingReportPage = lazy(() => import('./pages/services/BenchmarkingReportPage'));
 const BenchmarkingReportPreviewPage = lazy(() => import('./pages/services/BenchmarkingReportPreviewPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
@@ -87,6 +89,8 @@ function App() {
               <Route path="/service/management_accounts/presentation" element={<Navigate to="/service/business_intelligence/presentation" replace />} />
               <Route path="/service/systems_audit/inventory" element={<SystemInventoryPage />} />
               <Route path="/service/systems_audit/process-deep-dives" element={<ProcessDeepDivesPage />} />
+              <Route path="/service/systems_audit/review" element={<ReviewSubmitPage />} />
+              <Route path="/service/systems_audit/status" element={<SubmissionStatusPage />} />
               <Route path="/service/systems_audit/report" element={<SAReportPage />} />
               <Route path="/service/benchmarking/report" element={<BenchmarkingReportPage />} />
               <Route path="/service/benchmarking/report/preview" element={<BenchmarkingReportPreviewPage />} />

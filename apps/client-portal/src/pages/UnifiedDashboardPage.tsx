@@ -94,6 +94,8 @@ export default function UnifiedDashboardPage() {
     stage3Complete: boolean;
     engagementId: string | null;
     reportApproved: boolean;
+    submissionStatus?: string;
+    submittedAt?: string | null;
   } | null>(null);
   const [benchmarkingStatus, setBenchmarkingStatus] = useState<{
     hasEngagement: boolean;
@@ -337,7 +339,7 @@ export default function UnifiedDashboardPage() {
         console.log('🔍 Checking Systems Audit engagement for client:', clientSession.clientId);
         const { data: saEngagement, error: saError } = await supabase
           .from('sa_engagements')
-          .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, is_shared_with_client, status')
+          .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, is_shared_with_client, status, submission_status, submitted_at')
           .eq('client_id', clientSession.clientId)
           .maybeSingle();
         
@@ -353,7 +355,9 @@ export default function UnifiedDashboardPage() {
             stage2Complete: false,
             stage3Complete: false,
             engagementId: null,
-            reportApproved: false
+            reportApproved: false,
+            submissionStatus: 'draft',
+            submittedAt: null
           });
         } else if (saEngagement) {
           // Check if report is approved
@@ -435,7 +439,9 @@ export default function UnifiedDashboardPage() {
             stage2Complete: !!saEngagement.stage_2_completed_at,
             stage3Complete: !!saEngagement.stage_3_completed_at,
             engagementId: saEngagement.id,
-            reportApproved
+            reportApproved,
+            submissionStatus: (saEngagement as any)?.submission_status ?? 'draft',
+            submittedAt: (saEngagement as any)?.submitted_at ?? null
           });
           console.log('✅ Systems Audit stage status:', {
             stage1Complete: !!saEngagement.stage_1_completed_at,
@@ -464,7 +470,9 @@ export default function UnifiedDashboardPage() {
                 stage2Complete: !!newEngagement.stage_2_completed_at,
                 stage3Complete: !!newEngagement.stage_3_completed_at,
                 engagementId: newEngagement.id,
-                reportApproved: false
+                reportApproved: false,
+                submissionStatus: (newEngagement as any)?.submission_status ?? 'draft',
+                submittedAt: (newEngagement as any)?.submitted_at ?? null
               });
             } else {
               console.warn('⚠️ No Systems Audit engagement found', createErr ? createErr.message : '');
@@ -474,7 +482,9 @@ export default function UnifiedDashboardPage() {
                 stage2Complete: false,
                 stage3Complete: false,
                 engagementId: null,
-                reportApproved: false
+                reportApproved: false,
+                submissionStatus: 'draft',
+                submittedAt: null
               });
             }
           } else {
@@ -485,7 +495,9 @@ export default function UnifiedDashboardPage() {
               stage2Complete: false,
               stage3Complete: false,
               engagementId: null,
-              reportApproved: false
+              reportApproved: false,
+              submissionStatus: 'draft',
+              submittedAt: null
             });
           }
         }
@@ -965,18 +977,17 @@ export default function UnifiedDashboardPage() {
     }
     if (code === 'systems_audit') {
       if (saReportShared) return '/service/systems_audit/report';
-      // Check stage completion status
-      if (systemsAuditStage?.stage3Complete) {
-        // Stage 3 complete - audit is complete, show completion or report
-        return '/service/systems_audit/process-deep-dives';
-      } else if (systemsAuditStage?.stage2Complete) {
-        // Stage 2 complete, route to Stage 3
+      if (systemsAuditStage?.submissionStatus === 'submitted') {
+        return '/service/systems_audit/status';
+      }
+      if (systemsAuditStage?.stage1Complete && systemsAuditStage?.stage2Complete && systemsAuditStage?.stage3Complete) {
+        return '/service/systems_audit/review';
+      }
+      if (systemsAuditStage?.stage2Complete) {
         return '/service/systems_audit/process-deep-dives';
       } else if (systemsAuditStage?.stage1Complete && !systemsAuditStage.stage2Complete) {
-        // Stage 1 complete, route to Stage 2
         return '/service/systems_audit/inventory';
       }
-      // Stage 1 not complete, route to Stage 1
       return '/service/systems_audit/assessment';
     }
     if (code === 'benchmarking') {
@@ -1119,10 +1130,13 @@ export default function UnifiedDashboardPage() {
       if (saReportShared) {
         return { label: 'Report Ready', color: 'emerald', icon: FileText };
       }
+      if (systemsAuditStage?.submissionStatus === 'submitted') {
+        return { label: 'Submitted — awaiting analysis', color: 'blue', icon: Clock };
+      }
       if (systemsAuditStage?.stage3Complete && systemsAuditStage?.reportApproved) {
         return { label: 'View Report', color: 'emerald', icon: FileText };
       } else if (systemsAuditStage?.stage3Complete) {
-        return { label: 'Report Coming Soon', color: 'amber', icon: Clock };
+        return { label: 'Ready to review & submit', color: 'amber', icon: Clock };
       } else if (systemsAuditStage?.stage2Complete) {
         return { label: 'Continue to Stage 3', color: 'cyan', icon: ArrowRight };
       } else if (systemsAuditStage?.stage1Complete) {
