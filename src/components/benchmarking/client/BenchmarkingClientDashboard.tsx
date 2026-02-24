@@ -11,24 +11,25 @@
 // Data layer is IDENTICAL. BenchmarkAnalysis interface is the single source of truth.
 // ============================================================================
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, type ReactNode, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import {
   ArrowLeft, AlertTriangle, CheckCircle, TrendingUp, TrendingDown,
-  Zap, BarChart3, Target, ChevronDown,
-  ArrowRight, Sparkles, Phone,
-  Clock, Shield, Activity,
+  Zap, BarChart3, Target, ChevronDown, ChevronUp,
+  Quote, DollarSign, ArrowRight, Sparkles, Brain, Phone,
+  Clock, Users, Building2, Shield, Activity, Eye,
   CalendarClock, PoundSterling, Coffee, Gem,
-  Rocket, Wallet,
+  ChevronRight, ExternalLink, Layers,
+  Rocket, Star, Wallet, Info, Lightbulb,
   X, Check
 } from 'lucide-react';
-import type { ValueAnalysis, ValueSuppressor, ValueEnhancer } from '../../../types/benchmarking';
-import type { BaselineMetrics } from '../../../lib/scenario-calculator';
+import type { ValueAnalysis, ValueSuppressor, ValueEnhancer } from '../../types/benchmarking';
+import type { BaselineMetrics } from '../../lib/scenario-calculator';
 import type {
   EnhancedValueSuppressor,
   ExitReadinessScore,
   TwoPathsNarrative,
   SurplusCashData
-} from '../../../types/opportunity-calculations';
+} from '../../types/opportunity-calculations';
 
 // ─── Types (FROZEN — matches BenchmarkingClientReport exactly) ────────────
 
@@ -239,7 +240,7 @@ const accentCard = (color: string, extra?: React.CSSProperties): React.CSSProper
 
 const mono: React.CSSProperties = { fontFamily: "'JetBrains Mono', monospace" };
 const label: React.CSSProperties = { fontSize: 11, color: C.textMuted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600, ...mono };
-const sectionWrap: React.CSSProperties = { maxWidth: '100%', overflow: 'hidden', wordBreak: 'break-word' as const };
+const sectionWrap: React.CSSProperties = { maxWidth: '100%', wordBreak: 'break-word' as const, minHeight: 'calc(100vh - 160px)', paddingBottom: 40 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // VISUAL COMPONENTS (same as SA Report)
@@ -356,6 +357,7 @@ const fmt = (n: number) => {
   if (n >= 1000) return `£${Math.round(n / 1000)}k`;
   return `£${Math.round(n)}`;
 };
+const fmtFull = (n: number) => `£${Math.round(n).toLocaleString()}`;
 const fmtMetric = (val: number, format: string) => {
   switch (format) {
     case 'currency': return val >= 1000000 ? `£${(val / 1000000).toFixed(1)}M` : val >= 1000 ? `£${Math.round(val / 1000)}k` : `£${Math.round(val)}`;
@@ -384,8 +386,6 @@ export default function BenchmarkingClientDashboard({
   const [activeScenario, setActiveScenario] = useState('diversify');
   const [showSurplusDetail, setShowSurplusDetail] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-  void expandedSuppressor;
-  void showSurplusDetail;
 
   // ─── Persistent visited sections ─────────────────────────────────────────
   const [visited, setVisited] = useState<Set<string>>(() => new Set(['overview']));
@@ -417,7 +417,6 @@ export default function BenchmarkingClientDashboard({
     }
     return rawRecommendations;
   }, [rawRecommendations, heroTotal]);
-  void recommendations; // used in Position section recommendations list
 
   const getMetricValue = (code: string): number | undefined => {
     const lowerCode = code.toLowerCase();
@@ -431,7 +430,6 @@ export default function BenchmarkingClientDashboard({
     if (!metric || metric.p50 == null) return undefined;
     return { p25: metric.p25 || 0, p50: metric.p50, p75: metric.p75 || 0 };
   };
-  void getBenchmarkForMetric; // reserved for future metric benchmark display
 
   // Baseline metrics (FROZEN)
   const baselineMetrics = useMemo((): BaselineMetrics | null => {
@@ -508,10 +506,9 @@ export default function BenchmarkingClientDashboard({
   const valueAnalysis = data.value_analysis;
   const enhancedSuppressors = data.pass1_data?.enhanced_suppressors || [];
   const exitBreakdown = data.pass1_data?.exit_readiness_breakdown;
-  const twoPathsNarrative = data.pass1_data?.two_paths_narrative;
+  const twoPathsNarrative = data.pass1_data?.two_paths_narrative || 
+    safeJsonParse<any>(data.pass1_data as any, {})?.two_paths_narrative || null;
   const surplusCashBreakdown = data.pass1_data?.surplus_cash_breakdown;
-  void enhancedSuppressors;
-  void surplusCashBreakdown;
 
   // Filtered metrics (no concentration, must have valid p50)
   const displayMetrics = metrics
@@ -679,6 +676,7 @@ export default function BenchmarkingClientDashboard({
                 const clientVal = metric.clientValue ?? metric.client_value ?? 0;
                 const pct = metric.percentile || 0;
                 const format = getMetricFormat(code);
+                const higherIsBetter = !(code.includes('days') || code.includes('debtor') || code.includes('creditor') || code.includes('turnover'));
                 const isStrength = pct >= 50;
                 const barColor = pct >= 75 ? C.emerald : pct >= 50 ? C.blue : pct >= 25 ? C.amber : C.red;
                 const impact = metric.annualImpact ?? metric.annual_impact;
@@ -706,6 +704,24 @@ export default function BenchmarkingClientDashboard({
                       <span>P50: {fmtMetric(metric.p50 || 0, format)}</span>
                       <span>P75: {fmtMetric(metric.p75 || 0, format)}</span>
                     </div>
+                    {/* Gap / Advantage comparison */}
+                    {metric.p50 != null && metric.p50 !== 0 && (() => {
+                      const gap = clientVal - metric.p50;
+                      const isAdvantage = higherIsBetter ? gap > 0 : gap < 0;
+                      const absGap = Math.abs(gap);
+                      return (
+                        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 10, background: isAdvantage ? `${C.emerald}06` : `${C.red}06`, border: `1px solid ${isAdvantage ? C.emerald : C.red}15` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                            <span style={{ fontWeight: 600, color: C.text }}>{fmtMetric(clientVal, format)}</span>
+                            <ArrowRight style={{ width: 12, height: 12, color: C.textMuted }} />
+                            <span style={{ color: C.textMuted }}>{fmtMetric(metric.p50, format)}</span>
+                          </div>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: isAdvantage ? C.emerald : C.red, ...mono }}>
+                            {isAdvantage ? '+' : '−'}{fmtMetric(absGap, format)}
+                          </span>
+                        </div>
+                      );
+                    })()}
                     {/* Annual impact */}
                     {impact != null && impact !== 0 && (
                       <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, background: impact > 0 ? `${C.red}06` : `${C.emerald}06`, borderLeft: `3px solid ${impact > 0 ? C.red : C.emerald}40` }}>
@@ -885,7 +901,56 @@ export default function BenchmarkingClientDashboard({
                             <tr style={{ fontWeight: 700 }}><td style={{ padding: '10px 0', color: C.emerald }}>Surplus available</td><td style={{ padding: '10px 0', textAlign: 'right', color: C.emerald, ...mono }}>{fmt(surplusCashBreakdown.surplusCash)}</td></tr>
                           </tbody>
                         </table>
-                        <p style={{ fontSize: 11, color: C.textMuted, marginTop: 12 }}><strong>Methodology:</strong> {surplusCashBreakdown.methodology}</p>
+
+                        {/* Operating Buffer Components */}
+                        <div style={{ marginTop: 16, padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10, ...mono }}>Operating Buffer Components</p>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                              <span style={{ color: C.textMuted }}>Staff costs (quarterly)</span>
+                              <span style={{ ...mono, color: C.text }}>{fmt(surplusCashBreakdown.components.staffCostsQuarterly || 0)}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                              <span style={{ color: C.textMuted }}>Admin expenses (quarterly)</span>
+                              <span style={{ ...mono, color: C.text }}>{fmt(surplusCashBreakdown.components.adminExpensesQuarterly || 0)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Working Capital Components */}
+                        <div style={{ marginTop: 10, padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.7)', border: '1px solid rgba(0,0,0,0.06)' }}>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10, ...mono }}>Working Capital Components</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {[
+                              { lbl: 'Debtors (cash owed to you)', val: (surplusCashBreakdown.components as any).debtors, positive: true },
+                              { lbl: 'Stock', val: (surplusCashBreakdown.components as any).stock, positive: true },
+                              { lbl: 'Creditors (you owe them)', val: (surplusCashBreakdown.components as any).creditors, positive: false },
+                            ].filter(r => r.val !== undefined).map((row, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                                <span style={{ color: C.textMuted }}>{row.lbl}</span>
+                                <span style={{ ...mono, color: row.positive ? C.emerald : C.red }}>{row.positive ? '+' : '-'}{fmt(Math.abs(row.val || 0))}</span>
+                              </div>
+                            ))}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: 8, marginTop: 4 }}>
+                              <span style={{ color: C.text }}>Net working capital</span>
+                              <span style={{ ...mono, color: surplusCashBreakdown.components.netWorkingCapital < 0 ? C.emerald : C.text }}>{fmt(surplusCashBreakdown.components.netWorkingCapital)}</span>
+                            </div>
+                          </div>
+                          {surplusCashBreakdown.components.netWorkingCapital < 0 && (
+                            <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 8, background: `${C.emerald}08`, border: `1px solid ${C.emerald}15`, fontSize: 12, color: C.emerald, lineHeight: 1.6 }}>
+                              <strong>Why negative is good:</strong> Your creditors (suppliers) are funding your operations. You collect from customers faster than you pay suppliers. This is free working capital.
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ marginTop: 14, display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 11, color: C.textMuted }}>
+                          <Info style={{ width: 14, height: 14, flexShrink: 0, marginTop: 1 }} />
+                          <div>
+                            <strong>Methodology:</strong> {surplusCashBreakdown.methodology}
+                            <br />
+                            <strong>Confidence:</strong> {surplusCashBreakdown.confidence}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </RevealCard>
@@ -934,8 +999,7 @@ export default function BenchmarkingClientDashboard({
       // ─── VALUATION ───────────────────────────────────────────────────────
       case 'value': {
         if (!valueAnalysis) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Value analysis not available for this engagement.</p></RevealCard>;
-        const { baseline, suppressors, currentMarketValue, valueGap, pathToValue, enhancers } = valueAnalysis;
-        void valueAnalysis.exitReadiness;
+        const { baseline, suppressors, currentMarketValue, valueGap, exitReadiness, pathToValue, enhancers } = valueAnalysis;
         const gapPercent = valueAnalysis.valueGapPercent || 0;
 
         return (
@@ -973,41 +1037,61 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 <span style={{ fontSize: 20, fontWeight: 800, color: C.blue, ...mono }}>{fmt(baseline.enterpriseValue.mid)}</span>
               </div>
-              {/* Surplus cash */}
-              {baseline.surplusCash > 100000 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 18px', borderRadius: 10, background: `${C.emerald}06`, border: `1px solid ${C.emerald}15`, marginLeft: 20, marginBottom: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Sparkles style={{ width: 14, height: 14, color: C.emerald }} /><span style={{ fontSize: 13, color: C.emerald }}>Including surplus cash</span></div>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: C.emerald, ...mono }}>+{fmt(baseline.surplusCash)}</span>
-                </div>
-              )}
+              {/* Suppressors below */}
               {/* Suppressors */}
               {suppressors.map((s: ValueSuppressor) => {
                 const avgImpact = (s.impactAmount.low + s.impactAmount.high) / 2;
                 const sevColor = s.severity === 'critical' ? C.red : s.severity === 'high' ? C.orange : s.severity === 'medium' ? C.amber : C.textMuted;
+                // Cross-reference enhanced suppressor for fix hint
+                const enhancedMatch = enhancedSuppressors.find(e => e.name === s.name || e.code === s.id);
                 return (
-                  <div key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderRadius: 10, background: `${sevColor}06`, border: `1px solid ${sevColor}15`, marginLeft: 20, marginBottom: 6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <TrendingDown style={{ width: 16, height: 16, color: sevColor }} />
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{s.name}</span>
-                          <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: sevColor, color: '#fff', ...mono }}>{s.severity.toUpperCase()}</span>
+                  <div key={s.id} style={{ padding: '12px 18px', borderRadius: 10, background: `${sevColor}06`, border: `1px solid ${sevColor}15`, marginLeft: 20, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <TrendingDown style={{ width: 16, height: 16, color: sevColor }} />
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{s.name}</span>
+                            <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: sevColor, color: '#fff', ...mono }}>{s.severity.toUpperCase()}</span>
+                          </div>
+                          <p style={{ fontSize: 11, color: C.textMuted, margin: '2px 0 0' }}>{s.evidence}</p>
                         </div>
-                        <p style={{ fontSize: 11, color: C.textMuted, margin: '2px 0 0' }}>{s.evidence}</p>
                       </div>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: sevColor, ...mono, flexShrink: 0 }}>-{fmt(avgImpact)}</span>
                     </div>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: sevColor, ...mono }}>-{fmt(avgImpact)}</span>
+                    {enhancedMatch?.pathToFix?.summary && (
+                      <div style={{ marginTop: 6, marginLeft: 26, display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: C.blue }}>
+                        <Clock style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />
+                        <span>Fixable via {enhancedMatch.pathToFix.summary}</span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
               {/* Current market value */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderRadius: 12, background: `${C.amber}08`, border: `2px solid ${C.amber}`, marginTop: 12 }}>
+              {/* Adjusted Enterprise Value (after discounts, before surplus cash) */}
+              {baseline.surplusCash > 100000 && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderRadius: 10, background: 'rgba(0,0,0,0.02)', border: '1px solid rgba(0,0,0,0.06)', marginTop: 12, marginBottom: 6 }}>
+                    <div><span style={{ fontWeight: 600, color: C.text, fontSize: 13 }}>Adjusted Enterprise Value</span><p style={{ fontSize: 11, color: C.textMuted, margin: '2px 0 0' }}>After operating-risk discounts</p></div>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: C.text, ...mono }}>{fmt(currentMarketValue.mid - baseline.surplusCash)}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderRadius: 10, background: `${C.emerald}06`, border: `1px solid ${C.emerald}15`, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Sparkles style={{ width: 16, height: 16, color: C.emerald }} /><div><span style={{ fontWeight: 600, color: C.emerald, fontSize: 13 }}>Surplus Cash</span><p style={{ fontSize: 11, color: C.textMuted, margin: '2px 0 0' }}>Added to equity value (not subject to operating discounts)</p></div></div>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: C.emerald, ...mono }}>+{fmt(baseline.surplusCash)}</span>
+                  </div>
+                </>
+              )}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderRadius: 12, background: `${C.amber}08`, border: `2px solid ${C.amber}`, marginTop: baseline.surplusCash > 100000 ? 0 : 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Target style={{ width: 18, height: 18, color: C.amber }} />
                   <div><span style={{ fontWeight: 700, color: C.text }}>Current Market Value</span><p style={{ fontSize: 12, color: C.textMuted, margin: '2px 0 0' }}>What a buyer would likely pay today</p></div>
                 </div>
                 <span style={{ fontSize: 24, fontWeight: 800, color: '#B45309', ...mono }}>{fmt(currentMarketValue.mid)}</span>
               </div>
+              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 12, lineHeight: 1.6 }}>
+                Discounts compounded multiplicatively (standard M&A practice per Pratt, 2009). Each discount reduces remaining value after prior discounts. Where founder dependency and concentration overlap, adjustment applied to prevent double-counting.
+              </p>
             </RevealCard>
 
             {/* Enhanced Suppressors — expandable cards */}
@@ -1134,21 +1218,28 @@ export default function BenchmarkingClientDashboard({
 
             {/* Component breakdown */}
             <RevealCard delay={100} style={{ ...glass({ padding: 24 }) }}>
-              <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Score Breakdown</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Score Breakdown</h3>
+                <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{score} / {exitBreakdown.maxScore} total</span>
+              </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {exitBreakdown.components.map((comp: { id: string; name: string; currentScore: number; targetScore: number; maxScore: number; gap?: string }) => {
+                {exitBreakdown.components.map((comp) => {
                   const compColor = comp.currentScore >= comp.targetScore ? C.emerald : comp.currentScore >= comp.maxScore * 0.5 ? C.amber : C.red;
+                  const pctFilled = (comp.currentScore / comp.maxScore) * 100;
                   return (
-                    <div key={comp.id} style={{ padding: '14px 18px', borderRadius: 12, border: '1px solid rgba(0,0,0,0.06)' }}>
+                    <div key={comp.id} style={{ padding: '16px 18px', borderRadius: 12, border: `1px solid ${compColor}15`, background: `${compColor}03` }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                         <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{comp.name}</span>
                         <span style={{ fontSize: 16, fontWeight: 800, color: compColor, ...mono }}>{comp.currentScore}<span style={{ color: C.textMuted, fontWeight: 400 }}>/{comp.maxScore}</span></span>
                       </div>
-                      <div style={{ height: 6, background: 'rgba(0,0,0,0.06)', borderRadius: 3, overflow: 'hidden', marginBottom: 6 }}>
-                        <div style={{ height: '100%', width: `${(comp.currentScore / comp.maxScore) * 100}%`, background: compColor, borderRadius: 3, transition: `width 1s ${EASE.spring}` }} />
+                      <div style={{ height: 8, background: 'rgba(0,0,0,0.06)', borderRadius: 4, overflow: 'hidden', marginBottom: 6 }}>
+                        <div style={{ height: '100%', width: `${pctFilled}%`, background: `linear-gradient(90deg, ${compColor}, ${compColor}bb)`, borderRadius: 4, transition: `width 1s ${EASE.spring}` }} />
                       </div>
                       {comp.currentScore < comp.targetScore && comp.gap && (
-                        <p style={{ fontSize: 12, color: C.orange, fontWeight: 500, marginTop: 4 }}>{comp.gap}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                          <Target style={{ width: 12, height: 12, color: compColor, flexShrink: 0 }} />
+                          <p style={{ fontSize: 12, color: compColor, fontWeight: 500, margin: 0 }}>{comp.gap}</p>
+                        </div>
                       )}
                     </div>
                   );
@@ -1200,17 +1291,17 @@ export default function BenchmarkingClientDashboard({
         const prefersExternal = data.client_preferences?.avoidsInternalHires || data.client_preferences?.prefersExternalSupport;
 
         const scenarios = [
-          { id: 'do_nothing', title: 'If You Do Nothing', color: C.red, outcomes: [
+          { id: 'do_nothing', title: 'If You Do Nothing', subtitle: 'Continue without structural changes', icon: AlertTriangle, color: C.red, outcomes: [
             { metric: 'Client Concentration', current: `${concentration}%`, projected: `${concentration}%`, change: 'Unchanged', positive: false },
             { metric: 'Business Value', current: fmt(currentValue), projected: fmt(currentValue), change: 'Discount persists', positive: false },
             { metric: 'Owner Freedom', current: 'Trapped', projected: 'Still trapped', change: 'No successor path', positive: false },
           ], risks: ['Loss of major client = existential crisis', 'Owner health issue = business crisis', 'Business remains unsellable at fair value'] },
-          { id: 'diversify', title: 'If You Diversify', color: C.blue, outcomes: [
+          { id: 'diversify', title: 'If You Diversify', subtitle: 'Win new clients, reduce dependency', icon: Users, color: C.blue, outcomes: [
             { metric: 'Concentration', current: `${concentration}%`, projected: '60-70%', change: '-30+ points', positive: true },
             { metric: 'Revenue', current: fmt(revenue), projected: fmt(revenue * 1.15), change: '+15% new clients', positive: true },
             { metric: 'Business Value', current: fmt(currentValue), projected: fmt(baselineValue * 0.8), change: `+${fmt(baselineValue * 0.8 - currentValue)}`, positive: true },
           ], risks: ['Takes 12-18 months to show results', 'Requires management attention', 'New clients may have different margins'] },
-          { id: 'exit_prep', title: 'If You Prepare for Exit', color: C.emerald, outcomes: [
+          { id: 'exit_prep', title: 'If You Prepare for Exit', subtitle: 'Build sellable value systematically', icon: Rocket, color: C.emerald, outcomes: [
             { metric: 'Exit Readiness', current: `${exitScore}/100`, projected: '70+/100', change: 'Attractive to buyers', positive: true },
             { metric: 'Owner Dependency', current: '70-80%', projected: '<40%', change: 'Successor in place', positive: true },
             { metric: 'Business Value', current: fmt(currentValue), projected: fmt(baselineValue * 0.75), change: `+${fmt(baselineValue * 0.75 - currentValue)}`, positive: true },
@@ -1227,13 +1318,21 @@ export default function BenchmarkingClientDashboard({
 
             {/* Scenario tabs */}
             <div style={{ display: 'flex', gap: 8 }}>
-              {scenarios.map(s => (
-                <button key={s.id} onClick={() => setActiveScenario(s.id)} style={{
-                  flex: 1, padding: '14px 16px', borderRadius: 12, border: `2px solid ${activeScenario === s.id ? s.color : 'rgba(0,0,0,0.06)'}`,
-                  background: activeScenario === s.id ? `${s.color}08` : 'rgba(255,255,255,0.97)', cursor: 'pointer',
-                  color: activeScenario === s.id ? s.color : C.textMuted, fontSize: 13, fontWeight: 600, textAlign: 'center', transition: 'all 0.2s ease',
-                }}>{s.title}</button>
-              ))}
+              {scenarios.map(s => {
+                const isActive = activeScenario === s.id;
+                const IconComp = s.icon;
+                return (
+                  <button key={s.id} onClick={() => setActiveScenario(s.id)} style={{
+                    flex: 1, padding: '16px 16px', borderRadius: 14, border: `2px solid ${isActive ? s.color : 'rgba(0,0,0,0.06)'}`,
+                    background: isActive ? `${s.color}08` : 'rgba(255,255,255,0.97)', cursor: 'pointer',
+                    textAlign: 'center', transition: 'all 0.2s ease', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  }}>
+                    <IconComp style={{ width: 18, height: 18, color: isActive ? s.color : C.textMuted }} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: isActive ? s.color : C.text }}>{s.title}</span>
+                    <span style={{ fontSize: 11, color: C.textMuted }}>{s.subtitle}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Active scenario content */}
@@ -1295,25 +1394,47 @@ export default function BenchmarkingClientDashboard({
               const accentColor = isPrimary ? C.blue : C.purple;
               return (
                 <RevealCard key={svc.serviceCode} delay={i * 60} style={{ ...glass({ padding: 0, overflow: 'hidden' }), borderLeft: `4px solid ${accentColor}` }}>
-                  <div onClick={() => setExpandedService(isExpanded ? null : svc.serviceCode)} style={{ padding: '18px 24px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{svc.serviceName}</p>
-                        {isPrimary && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: C.blue, color: '#fff', ...mono }}>PRIORITY</span>}
+                  <div onClick={() => setExpandedService(isExpanded ? null : svc.serviceCode)} style={{ padding: '18px 24px', cursor: 'pointer' }}>
+                    {/* RECOMMENDED FOR YOU badge */}
+                    {isPrimary && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                        <Sparkles style={{ width: 12, height: 12, color: C.blue }} />
+                        <span style={{ fontSize: 10, fontWeight: 700, color: C.blue, textTransform: 'uppercase', letterSpacing: '0.08em', ...mono }}>Recommended For You</span>
                       </div>
-                      <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>{svc.headline || svc.description}</p>
-                    </div>
-                    {(svc.priceRange || (svc.priceFrom && svc.priceTo)) && (
-                      <span style={{ fontSize: 14, fontWeight: 700, color: accentColor, ...mono, flexShrink: 0 }}>
-                        {svc.priceRange || `£${svc.priceFrom?.toLocaleString()}-£${svc.priceTo?.toLocaleString()}`}
-                      </span>
                     )}
-                    <ChevronDown style={{ width: 16, height: 16, color: C.textMuted, flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{svc.serviceName}</p>
+                          {isPrimary && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: C.blue, color: '#fff', ...mono }}>PRIORITY</span>}
+                        </div>
+                        <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>{svc.headline || svc.description}</p>
+                      </div>
+                      {(svc.priceRange || (svc.priceFrom && svc.priceTo)) && (
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: accentColor, ...mono }}>
+                            {svc.priceRange || `£${svc.priceFrom?.toLocaleString()} – £${svc.priceTo?.toLocaleString()}`}
+                          </span>
+                          {svc.priceUnit && <p style={{ fontSize: 11, color: C.textMuted, margin: '2px 0 0', ...mono }}>{svc.priceUnit}</p>}
+                        </div>
+                      )}
+                      {!svc.priceRange && !svc.priceFrom && (
+                        <span style={{ fontSize: 13, fontWeight: 600, color: accentColor, ...mono, flexShrink: 0 }}>Contact for pricing</span>
+                      )}
+                      <ChevronDown style={{ width: 16, height: 16, color: C.textMuted, flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.2s ease' }} />
+                    </div>
                   </div>
                   {isExpanded && (
                     <div style={{ padding: '0 24px 20px', borderTop: '1px solid rgba(0,0,0,0.04)', animation: 'fadeIn 0.25s ease' }}>
                       <div style={{ paddingTop: 16 }}>
-                        <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.7, marginBottom: 14 }}>{svc.whyThisMatters}</p>
+                        {/* Why This Matters */}
+                        {svc.whyThisMatters && (
+                          <div style={{ marginBottom: 14 }}>
+                            <span style={{ ...label, marginBottom: 6, display: 'block', color: C.textMuted }}>Why This Matters For You</span>
+                            <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.7, margin: 0 }}>{svc.whyThisMatters}</p>
+                          </div>
+                        )}
+                        {/* What You Get */}
                         {svc.whatYouGet && svc.whatYouGet.length > 0 && (
                           <div style={{ marginBottom: 14 }}>
                             <span style={{ ...label, marginBottom: 8, display: 'block' }}>What You Get</span>
@@ -1327,18 +1448,35 @@ export default function BenchmarkingClientDashboard({
                             </div>
                           </div>
                         )}
+                        {/* Expected Outcome */}
                         {svc.expectedOutcome && (
-                          <div style={{ padding: '10px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40`, marginBottom: 10 }}>
-                            <span style={{ ...label, color: C.emerald }}>Expected Outcome</span>
-                            <p style={{ fontSize: 13, color: C.text, marginTop: 4, lineHeight: 1.5 }}>{svc.expectedOutcome}</p>
+                          <div style={{ padding: '12px 16px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40`, marginBottom: 14 }}>
+                            <span style={{ ...label, color: C.emerald, marginBottom: 4, display: 'block' }}>Expected Outcome</span>
+                            <p style={{ fontSize: 13, color: C.text, margin: 0, lineHeight: 1.5 }}>{svc.expectedOutcome}</p>
                           </div>
                         )}
-                        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMuted }}>
-                            <Clock style={{ width: 14, height: 14 }} /> Time to value: {svc.timeToValue}
+                        {/* Footer: Time to value + Addressed Issues + Value at Stake */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 10, borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+                          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMuted }}>
+                              <Clock style={{ width: 14, height: 14 }} /> {svc.timeToValue}
+                            </div>
+                            {svc.addressesIssues && svc.addressesIssues.length > 0 && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', fontSize: 12 }}>
+                                <span style={{ color: C.textMuted }}>Addresses:</span>
+                                {svc.addressesIssues.map((issue, j) => (
+                                  <span key={j} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: `${C.blue}08`, color: C.blue, border: `1px solid ${C.blue}15`, fontWeight: 500 }}>
+                                    {issue.issueTitle}{issue.valueAtStake > 0 ? ` (${fmt(issue.valueAtStake)})` : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          {svc.totalValueAtStake && svc.totalValueAtStake > 0 && (
-                            <span style={{ fontSize: 12, fontWeight: 600, color: C.emerald, ...mono }}>£{svc.totalValueAtStake.toLocaleString()} at stake</span>
+                          {svc.totalValueAtStake != null && svc.totalValueAtStake > 0 && (
+                            <div style={{ padding: '10px 14px', borderRadius: 8, background: `${C.amber}06`, border: `1px solid ${C.amber}15`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>Total value at stake:</span>
+                              <span style={{ fontSize: 16, fontWeight: 800, color: '#B45309', ...mono }}>£{svc.totalValueAtStake.toLocaleString()}</span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -1352,7 +1490,75 @@ export default function BenchmarkingClientDashboard({
 
       // ─── YOUR PATH (Two Paths) ───────────────────────────────────────────
       case 'path': {
-        if (!twoPathsNarrative || !baselineMetrics) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Path narrative not available.</p></RevealCard>;
+        if (!twoPathsNarrative || !baselineMetrics) {
+          // Meaningful fallback: synthesize from available data
+          const marginOpp = totalOpportunity;
+          const valueGapMid = valueAnalysis?.valueGap?.mid || 0;
+          const potentialVal = valueAnalysis?.potentialValue?.mid || 0;
+          const currentVal = valueAnalysis?.currentMarketValue?.mid || 0;
+          const pathActions = valueAnalysis?.pathToValue?.keyActions || [];
+
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #1e3a5f 0%, #312e81 100%)', padding: '36px 40px', border: 'none', boxShadow: SHADOW.lg }}>
+                <NoiseOverlay opacity={0.12} /><DotGrid opacity={0.04} />
+                <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                  <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Two Connected Opportunities</h2>
+                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, marginBottom: 24, maxWidth: '48ch', margin: '0 auto 24px' }}>Improving margins funds the journey to unlocking trapped business value</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual margin opportunity</p>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped value</p>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
+                    {['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value'].map((step, i) => (
+                      <React.Fragment key={i}>
+                        {i > 0 && <ArrowRight style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)' }} />}
+                        <span style={{ padding: '4px 14px', borderRadius: 6, background: `rgba(255,255,255,0.12)`, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>{step}</span>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              </RevealCard>
+
+              {/* Key actions from pathToValue */}
+              {pathActions.length > 0 && (
+                <RevealCard delay={100} style={{ ...glass({ padding: 24 }) }}>
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Priority Actions</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {pathActions.map((action: string, i: number) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.7)', border: `1px solid ${C.blue}12` }}>
+                        <div style={{ width: 24, height: 24, borderRadius: 12, background: C.blue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                        <span style={{ fontSize: 13, color: C.text }}>{action}</span>
+                      </div>
+                    ))}
+                  </div>
+                </RevealCard>
+              )}
+
+              {/* Potential value card */}
+              {potentialVal > 0 && (
+                <RevealCard delay={200} style={{ ...glass({ padding: '20px 24px' }), borderTop: `3px solid ${C.emerald}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <p style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 2 }}>If you address these structural issues:</p>
+                      <p style={{ fontSize: 12, color: C.textMuted }}>Current: {fmt(currentVal)} → Potential: {fmt(potentialVal)}</p>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <p style={{ fontSize: 24, fontWeight: 800, color: C.emerald, margin: 0, ...mono }}>+{fmt(potentialVal - currentVal)}</p>
+                      <p style={{ fontSize: 11, color: C.emerald }}>uplift potential</p>
+                    </div>
+                  </div>
+                </RevealCard>
+              )}
+            </div>
+          );
+        }
         const marginOpp = totalOpportunity;
         const valueGapMid = valueAnalysis?.valueGap?.mid || 0;
 
@@ -1376,10 +1582,10 @@ export default function BenchmarkingClientDashboard({
                 {/* Connection flow */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20, fontSize: 12 }}>
                   {['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value'].map((step, i) => (
-                    <Fragment key={i}>
+                    <React.Fragment key={i}>
                       {i > 0 && <ArrowRight style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)' }} />}
                       <span style={{ padding: '4px 14px', borderRadius: 6, background: `rgba(255,255,255,0.12)`, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>{step}</span>
-                    </Fragment>
+                    </React.Fragment>
                   ))}
                 </div>
                 <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 1.7 }}>{twoPathsNarrative.explanation}</p>
@@ -1428,24 +1634,24 @@ export default function BenchmarkingClientDashboard({
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Dark cinematic hero */}
-            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #162340 40%, #1E293B 100%)', padding: '36px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.lg }}>
+            {/* Dark cinematic hero — larger stats */}
+            <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #162340 40%, #1E293B 100%)', padding: '48px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.lg }}>
               <DotGrid opacity={0.05} /><NoiseOverlay opacity={0.15} />
               <div style={{ position: 'absolute', top: '-15%', left: '10%', width: 200, height: 200, borderRadius: '50%', background: `radial-gradient(circle, ${C.blue}18 0%, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none' }} />
               <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 14 }}>
-                  <Rocket style={{ width: 14, height: 14, color: C.emeraldLight }} />
-                  <span style={{ fontSize: 11, letterSpacing: '0.15em', color: C.emeraldLight, textTransform: 'uppercase', fontWeight: 600, ...mono }}>Your Position: Summed Up</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
+                  <Rocket style={{ width: 16, height: 16, color: C.emeraldLight }} />
+                  <span style={{ fontSize: 12, letterSpacing: '0.15em', color: C.emeraldLight, textTransform: 'uppercase', fontWeight: 600, ...mono }}>Your Position: Summed Up</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 0 }}>
                   {[
                     { val: fmt(totalOpportunity), sub: 'Opportunity/yr', bg: `${C.emerald}20` },
                     ...(valueAnalysis ? [{ val: fmt(valueAnalysis.valueGap.mid), sub: 'Trapped value', bg: `${C.amber}20` }] : []),
                     ...(valueAnalysis ? [{ val: fmt(valueAnalysis.potentialValue.mid), sub: 'Potential value', bg: `${C.blue}20` }] : []),
                   ].map((s, i) => (
-                    <div key={i} style={{ background: s.bg, borderRadius: 14, padding: '16px 28px', border: '1px solid rgba(255,255,255,0.12)', minWidth: 140, backdropFilter: 'blur(8px)' }}>
-                      <p style={{ fontSize: 26, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{s.val}</p>
-                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', marginTop: 2 }}>{s.sub}</p>
+                    <div key={i} style={{ background: s.bg, borderRadius: 16, padding: '22px 36px', border: '1px solid rgba(255,255,255,0.15)', minWidth: 160, backdropFilter: 'blur(8px)' }}>
+                      <p style={{ fontSize: 32, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{s.val}</p>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>{s.sub}</p>
                     </div>
                   ))}
                 </div>
@@ -1458,16 +1664,16 @@ export default function BenchmarkingClientDashboard({
             </RevealCard>
 
             {/* CTA */}
-            <RevealCard delay={200} style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A, #1E293B)', padding: '32px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.md }}>
-              <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-                <Phone style={{ width: 22, height: 22, color: C.emeraldLight }} />
-                <h3 style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: 0 }}>Ready to Take Action?</h3>
-                <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)', maxWidth: '38ch', margin: 0 }}>
-                  {practitionerName} can guide you through the next steps
+            <RevealCard delay={200} style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A, #1E293B)', padding: '36px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.md }}>
+              <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+                <Phone style={{ width: 24, height: 24, color: C.emeraldLight }} />
+                <h3 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0 }}>Ready to Take Action?</h3>
+                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', maxWidth: '42ch', margin: 0, lineHeight: 1.6 }}>
+                  {practitionerName || 'your advisor'} can guide you through the next steps
                 </p>
                 {practitionerEmail && (
                   <a href={`mailto:${practitionerEmail}?subject=Benchmarking%20Report%20Follow-up${clientName ? `%20-%20${encodeURIComponent(clientName)}` : ''}`}
-                    style={{ background: `linear-gradient(135deg, ${C.emerald}, #047857)`, color: '#fff', padding: '12px 36px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, boxShadow: SHADOW.glow(C.emerald, 0.4), textDecoration: 'none', transition: 'all 0.3s ease' }}>
+                    style={{ background: `linear-gradient(135deg, ${C.emerald}, #047857)`, color: '#fff', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10, boxShadow: SHADOW.glow(C.emerald, 0.4), textDecoration: 'none', transition: 'all 0.3s ease', marginTop: 4 }}>
                     Schedule a Discussion <ArrowRight style={{ width: 16, height: 16 }} />
                   </a>
                 )}
