@@ -410,7 +410,7 @@ export default function ReviewSubmitPage() {
                 <AlertTriangle className="w-4 h-4 text-amber-500" />
               )}
               Stage 1: {validation?.stage1Score.answered ?? 0}/{validation?.stage1Score.total ?? 0} answered
-              {(validation?.stage1Score.flagged ?? 0) > 0 && ` (${validation.stage1Score.flagged} flagged)`}
+              {(validation?.stage1Score.flagged ?? 0) > 0 && ` (${validation?.stage1Score.flagged} flagged)`}
             </li>
             <li className="flex items-center gap-2">
               {stage2Systems.length > 0 ? (
