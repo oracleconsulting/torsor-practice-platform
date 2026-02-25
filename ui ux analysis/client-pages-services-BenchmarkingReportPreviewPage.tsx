@@ -1,19 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { ArrowLeft, Loader2, Lock, LayoutDashboard } from 'lucide-react';
 import { Logo } from '@/components/Logo';
-import { BenchmarkingClientReport } from '@torsor/platform/components/benchmarking/client/BenchmarkingClientReport';
+import BenchmarkingClientDashboard from '@torsor/platform/components/benchmarking/client/BenchmarkingClientDashboard';
 
 // ============================================================================
-// BENCHMARKING REPORT PAGE - CLIENT PORTAL VIEW (LIVE)
+// BENCHMARKING REPORT PREVIEW - NEW DASHBOARD FORMAT (TESTING)
 // ============================================================================
-// Uses BenchmarkingClientReport (scroll-through). Clients use this for shared reports.
-// Preview link goes to /service/benchmarking/report/preview for new dashboard format (testing).
+// Same data as main report page; renders BenchmarkingClientDashboard for parallel testing.
+// Link from /service/benchmarking/report — "Preview new format".
 // ============================================================================
 
-export default function BenchmarkingReportPage() {
+export default function BenchmarkingReportPreviewPage() {
   const navigate = useNavigate();
   const { clientSession, loading: authLoading } = useAuth();
 
@@ -37,8 +37,6 @@ export default function BenchmarkingReportPage() {
     }
 
     try {
-      console.log('[BM Report] Loading report for client:', clientSession.clientId);
-
       const { data: clientData } = await supabase
         .from('practice_members')
         .select('client_company, company, name')
@@ -54,8 +52,6 @@ export default function BenchmarkingReportPage() {
         .select('id, report_shared_with_client')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
-
-      console.log('[BM Report] Engagement:', engagement, 'Error:', engagementError);
 
       if (engagementError || !engagement) {
         setError('No benchmarking engagement found');
@@ -75,17 +71,8 @@ export default function BenchmarkingReportPage() {
         .eq('engagement_id', engagement.id)
         .maybeSingle();
 
-      console.log('[BM Report] Report data:', report ? 'Found' : 'Not found', 'Error:', reportError);
-
-      if (reportError) {
-        console.error('Error fetching benchmarking report:', reportError);
-        setError('Unable to load report');
-        setLoading(false);
-        return;
-      }
-
-      if (!report) {
-        setError('Report not yet available. Your advisor will share it with you when ready.');
+      if (reportError || !report) {
+        setError(reportError ? 'Unable to load report' : 'Report not yet available.');
         setLoading(false);
         return;
       }
@@ -94,8 +81,6 @@ export default function BenchmarkingReportPage() {
         ...report,
         pass1_data: typeof report.pass1_data === 'string' ? JSON.parse(report.pass1_data) : report.pass1_data,
       };
-
-      console.log('[BM Report] Setting report data with keys:', Object.keys(parsedReport));
       setReportData(parsedReport);
 
       const { data: practice } = await supabase
@@ -103,7 +88,6 @@ export default function BenchmarkingReportPage() {
         .select('name, support_email')
         .eq('id', clientSession.practiceId)
         .maybeSingle();
-
       if (practice) {
         setPractitionerInfo({ name: practice.name, email: practice.support_email });
       }
@@ -132,28 +116,21 @@ export default function BenchmarkingReportPage() {
         <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
           <div className="max-w-6xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
-              <button
-                onClick={() => navigate('/dashboard')}
-                className="flex items-center gap-2 text-slate-600 hover:text-slate-900"
-              >
+              <button onClick={() => navigate('/service/benchmarking/report')} className="flex items-center gap-2 text-slate-600 hover:text-slate-900">
                 <ArrowLeft className="w-5 h-5" />
-                <span>Back to Dashboard</span>
+                <span>Back to Report</span>
               </button>
               <Logo />
             </div>
           </div>
         </div>
-
         <div className="max-w-4xl mx-auto px-6 py-12">
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <Lock className="w-12 h-12 text-slate-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-slate-900 mb-2">Report Not Available</h2>
             <p className="text-slate-600 mb-6">{error || 'Report not yet available.'}</p>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Return to Dashboard
+            <button onClick={() => navigate('/service/benchmarking/report')} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              Back to Report
             </button>
           </div>
         </div>
@@ -163,38 +140,13 @@ export default function BenchmarkingReportPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-2 text-slate-600 hover:text-slate-900"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Dashboard</span>
-            </button>
-            <div className="flex items-center gap-4">
-              <Link
-                to="/service/benchmarking/report/preview"
-                className="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700 font-medium"
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                <span>Preview new report format</span>
-              </Link>
-              <Logo />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Full Report - scroll-through format (live for clients) */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <BenchmarkingClientReport
-          data={reportData}
+      <div className="rounded-xl overflow-hidden" style={{ height: '85vh' }}>
+        <BenchmarkingClientDashboard
+          data={{ ...reportData, created_at: reportData?.created_at }}
           clientName={clientCompany}
           practitionerName={practitionerInfo.name}
           practitionerEmail={practitionerInfo.email}
+          onBack={() => navigate('/service/benchmarking/report')}
         />
       </div>
     </div>

@@ -7,8 +7,15 @@ import {
   calculateBelbinMotivationAlignment,
   calculateRetentionRisk,
   calculateBurnoutRisk,
-  calculatePromotionReadiness
+  calculatePromotionReadiness,
+  calculateSkillProfile,
+  calculateServiceCapability,
+  calculateDevelopmentPriorities,
+  type SkillProfile,
+  type ServiceCapability,
+  type DevelopmentPriority
 } from '../lib/analytics-engine';
+import { ADVISORY_SERVICES } from '../lib/advisory-services';
 import type {
   PracticeMember,
   VarkAssessment,
@@ -21,6 +28,8 @@ import type {
   SkillAssessment
 } from '../lib/types';
 
+export type { SkillProfile, ServiceCapability, DevelopmentPriority };
+
 export interface TeamMemberAnalytics {
   member: PracticeMember;
   personalityPerformance?: ReturnType<typeof calculatePersonalityPerformance>;
@@ -30,6 +39,9 @@ export interface TeamMemberAnalytics {
   retentionRisk?: ReturnType<typeof calculateRetentionRisk>;
   burnoutRisk?: ReturnType<typeof calculateBurnoutRisk>;
   promotionReadiness?: ReturnType<typeof calculatePromotionReadiness>;
+  skillProfile?: SkillProfile;
+  serviceCapability?: ServiceCapability;
+  developmentPriorities?: DevelopmentPriority[];
 }
 
 export function useTeamAnalytics(practiceId: string | null) {
@@ -38,16 +50,17 @@ export function useTeamAnalytics(practiceId: string | null) {
     queryFn: async (): Promise<TeamMemberAnalytics[]> => {
       if (!practiceId) return [];
 
-      // Fetch all members
+      // Fetch staff members only (exclude clients)
       const { data: members, error: membersError } = await supabase
         .from('practice_members')
         .select('*')
-        .eq('practice_id', practiceId);
+        .eq('practice_id', practiceId)
+        .neq('member_type', 'client')
+        .order('name', { ascending: true });
 
       if (membersError) throw membersError;
       if (!members) return [];
 
-      // Fetch all assessment types in parallel
       const memberIds = members.map(m => m.id);
 
       const [
@@ -58,7 +71,9 @@ export function useTeamAnalytics(practiceId: string | null) {
         motivations,
         conflicts,
         workingPrefs,
-        skills
+        skillAssessments,
+        skillDefinitions,
+        serviceInterests
       ] = await Promise.all([
         supabase.from('learning_preferences').select('*').in('member_id', memberIds),
         supabase.from('personality_assessments').select('*').in('member_id', memberIds),
@@ -67,10 +82,15 @@ export function useTeamAnalytics(practiceId: string | null) {
         supabase.from('motivational_drivers').select('*').in('member_id', memberIds),
         supabase.from('conflict_style_assessments').select('*').in('member_id', memberIds),
         supabase.from('working_preferences').select('*').in('member_id', memberIds),
-        supabase.from('skill_assessments').select('*').in('member_id', memberIds)
+        supabase.from('skill_assessments').select('*').in('member_id', memberIds),
+        supabase.from('skills').select('id, name, category, required_level, is_active').eq('is_active', true),
+        supabase.from('service_line_interests').select('*').in('practice_member_id', memberIds)
       ]);
 
-      // Build analytics for each member
+      const assessments = (skillAssessments.data || []) as SkillAssessment[];
+      const skills = (skillDefinitions.data || []) as Array<{ id: string; name: string; category: string; required_level: number }>;
+      const interests = (serviceInterests.data || []) as Array<{ practice_member_id: string; service_line: string; interest_rank: number; desired_involvement_pct?: number }>;
+
       return members.map(member => {
         const vark = varks.data?.find(v => v.member_id === member.id);
         const personality = personalities.data?.find(p => p.member_id === member.id);
@@ -79,9 +99,16 @@ export function useTeamAnalytics(practiceId: string | null) {
         const motivation = motivations.data?.find(m => m.member_id === member.id);
         const conflict = conflicts.data?.find(c => c.member_id === member.id);
         const workingPref = workingPrefs.data?.find(w => w.member_id === member.id);
-        const memberSkills = skills.data?.filter(s => s.member_id === member.id) || [];
+        const memberSkills = assessments.filter(s => s.member_id === member.id);
 
         const analytics: TeamMemberAnalytics = { member };
+
+        // Skill-based analytics (always compute when we have assessments)
+        if (assessments.length > 0 && skills.length > 0) {
+          analytics.skillProfile = calculateSkillProfile(member, assessments, skills);
+          analytics.serviceCapability = calculateServiceCapability(member, assessments, skills, ADVISORY_SERVICES, interests);
+          analytics.developmentPriorities = calculateDevelopmentPriorities(member, assessments, skills, ADVISORY_SERVICES, interests);
+        }
 
         // Calculate correlations if data exists
         if (personality && memberSkills.length > 0) {
@@ -116,14 +143,14 @@ export function useTeamAnalytics(practiceId: string | null) {
           );
         }
 
-        // Calculate predictive analytics
+        // Calculate predictive analytics (pass skill data for role fit / development)
         if (motivation && personality && memberSkills.length > 0 && workingPref) {
           analytics.retentionRisk = calculateRetentionRisk(
             member,
             motivation as MotivationalDriver,
-            // personality removed from function signature
             memberSkills as SkillAssessment[],
-            workingPref as WorkingPreferences
+            workingPref as WorkingPreferences,
+            analytics.skillProfile
           );
         }
 

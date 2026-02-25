@@ -932,14 +932,60 @@ If no financial projections exist, return: { "hasProjections": false }`;
       .eq('id', practiceId || client.practice_id)
       .single();
 
-    // Get financial context
-    const { data: financialContext } = await supabase
+    // Get financial context (primary: client_financial_context; fallback: client_financial_data from accounts upload)
+    let financialContext: any = null;
+    const { data: contextRow } = await supabase
       .from('client_financial_context')
       .select('*')
       .eq('client_id', clientId)
       .order('period_end_date', { ascending: false })
       .limit(1)
       .maybeSingle();
+    financialContext = contextRow ?? null;
+
+    if (!financialContext) {
+      // Fallback: use client_financial_data (populated by process-accounts-upload from CSV/PDF uploads)
+      const { data: financialDataRows } = await supabase
+        .from('client_financial_data')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('fiscal_year', { ascending: false });
+      // Prefer a row that has revenue (extraction sometimes puts revenue in wrong year)
+      const latest = (financialDataRows ?? []).find((r: any) => r.revenue != null && Number(r.revenue) > 0)
+        ?? financialDataRows?.[0];
+      if (latest) {
+        const rev = Number(latest.revenue) || 0;
+        const staffCosts = Number(latest.staff_costs ?? 0);
+        financialContext = {
+          period_type: 'annual',
+          period_end_date: latest.fiscal_year_end,
+          revenue: rev,
+          turnover: rev,
+          gross_profit: latest.gross_profit != null ? Number(latest.gross_profit) : null,
+          gross_margin_pct: latest.gross_margin_pct != null ? Number(latest.gross_margin_pct) : null,
+          net_profit: latest.net_profit != null ? Number(latest.net_profit) : null,
+          net_margin_pct: latest.net_margin_pct != null ? Number(latest.net_margin_pct) : null,
+          operating_profit: latest.operating_profit != null ? Number(latest.operating_profit) : null,
+          ebitda: latest.ebitda != null ? Number(latest.ebitda) : null,
+          staff_cost: staffCosts || null,
+          staff_costs: staffCosts || null,
+          total_staff_costs: staffCosts || null,
+          staff_costs_pct: rev && staffCosts ? (staffCosts / rev) * 100 : null,
+          staff_count: latest.employee_count ?? null,
+          revenue_per_head: latest.revenue_per_employee != null ? Number(latest.revenue_per_employee) : null,
+          net_assets: latest.net_assets != null ? Number(latest.net_assets) : null,
+          total_assets: latest.total_assets != null ? Number(latest.total_assets) : null,
+          extracted_insights: {
+            debtors: latest.debtors,
+            creditors: latest.creditors,
+            fixed_assets: latest.fixed_assets,
+            cash: latest.cash
+          },
+          cash_position: latest.cash != null ? Number(latest.cash) : null
+        };
+        console.log('[PrepareData] Using financial context from client_financial_data (accounts upload), revenue:', rev);
+      }
+    }
 
     // Get operational context
     const { data: operationalContext } = await supabase

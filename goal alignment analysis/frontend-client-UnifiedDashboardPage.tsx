@@ -27,6 +27,7 @@ import {
   BarChart3,
   Users,
 } from 'lucide-react';
+import { PageSkeleton, StatusBadge } from '@/components/ui';
 
 interface ServiceEnrollment {
   id: string;
@@ -116,6 +117,7 @@ export default function UnifiedDashboardPage() {
     nextTaskTitle: string | null;
     sprintTheme: string | null;
   } | null>(null);
+  const [gaLifeAlignmentScore, setGALifeAlignmentScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -133,6 +135,18 @@ export default function UnifiedDashboardPage() {
         name: clientSession?.name
       });
       
+      // Fetch client portal settings (e.g. hide Discovery)
+      let hideDiscoveryInPortal = false;
+      if (clientSession?.clientId) {
+        const { data: pmRow } = await supabase
+          .from('practice_members')
+          .select('hide_discovery_in_portal')
+          .eq('id', clientSession.clientId)
+          .eq('member_type', 'client')
+          .maybeSingle();
+        hideDiscoveryInPortal = !!pmRow?.hide_discovery_in_portal;
+      }
+
       // Load all enrolled services
       const { data: enrollments, error: enrollError } = await supabase
         .from('client_service_lines')
@@ -431,15 +445,49 @@ export default function UnifiedDashboardPage() {
             reportApproved
           });
         } else {
-          console.log('⚠️ No Systems Audit engagement found');
-          setSaReportShared(false);
-          setSystemsAuditStage({
-            stage1Complete: false,
-            stage2Complete: false,
-            stage3Complete: false,
-            engagementId: null,
-            reportApproved: false
-          });
+          // No engagement yet. If client is enrolled in Systems Audit, create one so progress (e.g. 97% in service_line_assessments) is visible.
+          const hasSystemsAudit = enrollments?.some((e: any) => e.service_line?.code === 'systems_audit');
+          if (hasSystemsAudit && clientSession?.practiceId) {
+            const { data: newEngagement, error: createErr } = await supabase
+              .from('sa_engagements')
+              .insert({
+                client_id: clientSession.clientId,
+                practice_id: clientSession.practiceId,
+                status: 'pending',
+              })
+              .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, is_shared_with_client, status')
+              .single();
+            if (!createErr && newEngagement) {
+              console.log('✅ Created missing Systems Audit engagement for client');
+              setSystemsAuditStage({
+                stage1Complete: !!newEngagement.stage_1_completed_at,
+                stage2Complete: !!newEngagement.stage_2_completed_at,
+                stage3Complete: !!newEngagement.stage_3_completed_at,
+                engagementId: newEngagement.id,
+                reportApproved: false
+              });
+            } else {
+              console.warn('⚠️ No Systems Audit engagement found', createErr ? createErr.message : '');
+              setSaReportShared(false);
+              setSystemsAuditStage({
+                stage1Complete: false,
+                stage2Complete: false,
+                stage3Complete: false,
+                engagementId: null,
+                reportApproved: false
+              });
+            }
+          } else {
+            console.log('⚠️ No Systems Audit engagement found');
+            setSaReportShared(false);
+            setSystemsAuditStage({
+              stage1Complete: false,
+              stage2Complete: false,
+              stage3Complete: false,
+              engagementId: null,
+              reportApproved: false
+            });
+          }
         }
       }
 
@@ -520,6 +568,7 @@ export default function UnifiedDashboardPage() {
       // Fetch GA sprint data if enrolled
       const hasGA = serviceList.some(s => s.serviceCode === '365_method' || s.serviceCode === '365_alignment');
       if (hasGA && clientSession?.clientId) {
+        setGALifeAlignmentScore(null);
         try {
           const { data: slRow } = await supabase
             .from('service_lines')
@@ -620,6 +669,23 @@ export default function UnifiedDashboardPage() {
             const isSprintComplete = resolvedWeeks === totalWeeks;
             const weeksBehind = Math.max(0, calendarWeek - activeWeek);
             const completionRate = totalTaskCount > 0 ? Math.round((completedCount / totalTaskCount) * 100) : 0;
+
+            // Latest life alignment score for GA card badge
+            let lifeScore: number | null = null;
+            try {
+              const { data: latestScore } = await supabase
+                .from('life_alignment_scores')
+                .select('overall_score')
+                .eq('client_id', clientSession.clientId)
+                .eq('sprint_number', sprintNumber)
+                .order('week_number', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (latestScore?.overall_score != null) lifeScore = Number(latestScore.overall_score);
+            } catch {
+              // ignore
+            }
+            setGALifeAlignmentScore(lifeScore);
 
             let nextTaskTitle: string | null = null;
             const activeWeekData = weeks.find((w: any) => w.weekNumber === activeWeek);
@@ -826,8 +892,8 @@ export default function UnifiedDashboardPage() {
       console.log('📝 Discovery report exists:', hasDiscoveryReport);
       console.log('📝 Current serviceList before discovery add:', serviceList);
       
-      // Show discovery service if we have discovery data OR a report
-      if (hasDiscoveryData || hasDiscoveryReport) {
+      // Show discovery service only if we have discovery data or report AND not hidden by practice
+      if ((hasDiscoveryData || hasDiscoveryReport) && !hideDiscoveryInPortal) {
         if (!hasDiscoveryService) {
           console.log('➕ Adding discovery card to service list');
           // Use report creation date if discovery record doesn't exist
@@ -850,6 +916,11 @@ export default function UnifiedDashboardPage() {
             return s;
           });
         }
+      }
+
+      // If practice chose to hide Discovery for this client, remove it from the list
+      if (hideDiscoveryInPortal) {
+        serviceList = serviceList.filter(s => s.serviceCode !== 'discovery');
       }
 
       console.log('📝 Final serviceList:', serviceList);
@@ -1105,13 +1176,8 @@ export default function UnifiedDashboardPage() {
 
   if (loading) {
     return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your dashboard...</p>
-          </div>
-        </div>
+      <Layout title="Dashboard">
+        <PageSkeleton />
       </Layout>
     );
   }
@@ -1162,7 +1228,7 @@ export default function UnifiedDashboardPage() {
             return (
               <div
                 key={service.id}
-                className={`bg-white rounded-xl border ${colors.border} overflow-hidden hover:shadow-lg transition-shadow`}
+                className={`bg-white rounded-xl border ${colors.border} overflow-hidden transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5 cursor-pointer`}
               >
                 {/* Card Header */}
                 <div className={`${colors.bg} px-6 py-4 border-b ${colors.border}`}>
@@ -1171,12 +1237,9 @@ export default function UnifiedDashboardPage() {
                       <div className={`p-2 bg-white rounded-lg shadow-sm`}>
                         <Icon className={`w-5 h-5 ${colors.text}`} />
                       </div>
-                      <h3 className="font-semibold text-gray-900">{service.serviceName}</h3>
+                      <h3 className="font-semibold text-gray-900 font-display">{service.serviceName}</h3>
                     </div>
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeClasses(status.color)}`}>
-                      <StatusIcon className="w-3.5 h-3.5" />
-                      {status.label}
-                    </span>
+                    <StatusBadge status={service.status} label={status.label} />
                   </div>
                 </div>
 
@@ -1189,6 +1252,13 @@ export default function UnifiedDashboardPage() {
                   {/* Goal Alignment card body */}
                   {(service.serviceCode === '365_method' || service.serviceCode === '365_alignment') && (
                     <>
+                      {gaLifeAlignmentScore != null && (
+                        <div className="mb-3">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-rose-100 text-rose-700">
+                            Life Alignment: {Math.round(gaLifeAlignmentScore)}
+                          </span>
+                        </div>
+                      )}
                       {gaSprintData?.hasSprint && !gaSprintData.isSprintComplete && (
                         <div className="mb-4 space-y-3">
                           <div>
@@ -1198,17 +1268,20 @@ export default function UnifiedDashboardPage() {
                             </div>
                             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                               <div
-                                className="h-full bg-indigo-500 rounded-full transition-all"
+                                className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-teal transition-all duration-700 ease-out"
                                 style={{ width: `${gaSprintData.completionRate}%` }}
                               />
                             </div>
                           </div>
                           <div className="flex items-center gap-4 text-xs text-gray-500">
-                            <span>{gaSprintData.completedTasks} of {gaSprintData.totalTasks} tasks done</span>
+                            <span>Tasks: {gaSprintData.completedTasks}/{gaSprintData.totalTasks} complete</span>
                             {gaSprintData.sprintTheme && (
                               <span className="truncate">• {gaSprintData.sprintTheme}</span>
                             )}
                           </div>
+                          <Link to="/progress" className="text-xs font-medium text-indigo-600 hover:text-indigo-700 mt-1 inline-block">
+                            View full progress →
+                          </Link>
                           {gaSprintData.hasCatchUpNeeded && (
                             <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
                               <Clock className="w-3.5 h-3.5 flex-shrink-0" />
@@ -1257,7 +1330,7 @@ export default function UnifiedDashboardPage() {
                           </div>
                           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-indigo-500 rounded-full transition-all"
+                              className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-teal transition-all duration-700 ease-out"
                               style={{ width: `${assessmentProgress.overall}%` }}
                             />
                           </div>
@@ -1326,6 +1399,7 @@ export default function UnifiedDashboardPage() {
             {gaSprintData?.hasSprint ? (
               <>
                 <QuickLink to="/tasks" icon={Target} label="Sprint" />
+                <QuickLink to="/progress" icon={BarChart3} label="Progress" />
                 <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
                 <QuickLink to="/chat" icon="💬" label="Chat" />
                 <QuickLink to="/appointments" icon="📅" label="Book Call" />

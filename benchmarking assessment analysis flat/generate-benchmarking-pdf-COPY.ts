@@ -65,7 +65,7 @@ function formatPercent(value: number): string {
 // Normalize any suppressor to a common display format (handles enhanced + value_analysis structures)
 function normalizeSuppressor(s: any): {
   name: string; severity: string; evidence: string; whyThisDiscount: string; currentLabel: string; targetLabel: string;
-  discountPercent: number; discountValue: number; recoveryValue: number; recoveryTimeframe: string; pathToFixSummary: string;
+  discountPercent: number; discountValue: number; waterfallAmount: number; recoveryValue: number; recoveryTimeframe: string; pathToFixSummary: string;
   pathToFixSteps: string[]; investment: string | number | null; roi: string | null; dependencies: string | null;
 } {
   const pathToFix = s.pathToFix || {};
@@ -76,6 +76,8 @@ function normalizeSuppressor(s: any): {
   const roi = invNum > 0 && recoveryVal > 0 ? `${Math.round(recoveryVal / invNum)}x` : (pathToFix.roi ?? null);
   const deps = pathToFix.dependencies;
   const dependencies = deps == null ? null : Array.isArray(deps) ? deps.join('; ') : String(deps);
+
+  const waterfallAmt = s.waterfallAmount ?? s.current?.waterfallAmount ?? 0;
 
   // Already in enhanced format
   if (s.current && typeof s.current === 'object' && (s.current.value !== undefined || s.current.discountValue !== undefined)) {
@@ -92,6 +94,7 @@ function normalizeSuppressor(s: any): {
       targetLabel: (targVal !== undefined && targVal !== null && typeof targVal !== 'object' ? `${targVal} ${targMetric}`.trim() : targMetric || '') || 'Improved',
       discountPercent: s.current.discountPercent || 0,
       discountValue: s.current.discountValue || 0,
+      waterfallAmount: waterfallAmt,
       recoveryValue: recoveryVal,
       recoveryTimeframe: s.recovery?.timeframe || '',
       pathToFixSummary: pathToFix.summary || '',
@@ -117,6 +120,7 @@ function normalizeSuppressor(s: any): {
     targetLabel: s.remediationService ? `Fixable via ${s.remediationService}` : '',
     discountPercent: Math.round(midDiscount),
     discountValue: Math.round(midImpact),
+    waterfallAmount: waterfallAmt,
     recoveryValue: 0,
     recoveryTimeframe: s.remediationTimeMonths ? `${s.remediationTimeMonths} months` : '',
     pathToFixSummary: s.remediationService || '',
@@ -139,10 +143,13 @@ function normalizeSuppressorKey(s: any): string {
 
 // Cover Page
 function renderCover(data: any, config: any): string {
+  const logoUrl = data.siteUrl ? `${data.siteUrl}/logos/rpgcc-logo-light.png` : null;
   return `
     <div class="page cover-page">
       <div class="cover-header">
-        <div class="logo">RPGCC</div>
+        ${logoUrl
+          ? `<img src="${logoUrl}" alt="RPGCC" class="logo-img" />`
+          : '<div class="logo">RPGCC</div>'}
         <div class="tagline">Chartered Accountants, Auditors, Tax & Business Advisers</div>
       </div>
       <div class="cover-content">
@@ -627,9 +634,9 @@ function renderValueWaterfall(data: any, config: any): string {
   const val = data.valuation || {};
   const baselineValue = val.baseline?.enterpriseValue?.mid ?? 0;
   const surplusCash = val.baseline?.surplusCash ?? data.surplusCash ?? 0;
+  const adjustedEV = val.adjustedEV?.mid ?? (val.currentMarketValue?.mid != null && surplusCash != null ? val.currentMarketValue.mid - surplusCash : 0);
   const currentValue = val.currentMarketValue?.mid ?? 0;
   const suppressors = data.suppressors || [];
-  const multipleJustification = val.baseline?.multipleJustification || '';
   const multiple = val.baseline?.multipleRange?.mid ?? 5;
 
   if (baselineValue === 0) return '';
@@ -641,21 +648,15 @@ function renderValueWaterfall(data: any, config: any): string {
       <div class="waterfall-item baseline-item">
         <div class="wf-left">
           <strong>Baseline Enterprise Value</strong>
-          <div class="wf-detail">${multipleJustification || `${multiple}x EBITDA`}</div>
+          <div class="wf-detail">${multiple}x EBITDA</div>
         </div>
         <div class="wf-amount positive">${formatCurrency(baselineValue)}</div>
       </div>
       
-      ${surplusCash > 0 ? `
-        <div class="waterfall-item surplus-item">
-          <div class="wf-left">Including surplus cash</div>
-          <div class="wf-amount positive">+${formatCurrency(surplusCash)}</div>
-        </div>
-      ` : ''}
-      
       ${suppressors.map((s: any) => {
         const n = normalizeSuppressor(s);
         const severity = n.severity.toLowerCase();
+        const displayAmount = n.waterfallAmount || n.discountValue;
         return `
           <div class="waterfall-item suppressor-item severity-${severity}">
             <div class="wf-left">
@@ -664,27 +665,91 @@ function renderValueWaterfall(data: any, config: any): string {
               ${n.evidence ? `<div class="wf-evidence">${n.evidence}</div>` : ''}
               ${n.pathToFixSummary ? `<div class="wf-remedy">Fixable via ${n.pathToFixSummary}</div>` : n.recoveryTimeframe ? `<div class="wf-remedy">Fixable in ~${n.recoveryTimeframe}</div>` : ''}
             </div>
-            <div class="wf-amount negative">-${formatCurrency(n.discountValue)}</div>
+            <div class="wf-amount negative">-${formatCurrency(displayAmount)}</div>
           </div>
         `;
       }).join('')}
       
+      <div class="waterfall-item adjusted-ev-item">
+        <div class="wf-left">
+          <strong>Adjusted Enterprise Value</strong>
+          <div class="wf-detail">After operating-risk discounts</div>
+        </div>
+        <div class="wf-amount">${formatCurrency(adjustedEV)}</div>
+      </div>
+      
+      ${surplusCash > 0 ? `
+        <div class="waterfall-item surplus-item">
+          <div class="wf-left">
+            <strong>Surplus Cash</strong>
+            <div class="wf-detail">Added to equity value (not subject to operating discounts)</div>
+          </div>
+          <div class="wf-amount positive">+${formatCurrency(surplusCash)}</div>
+        </div>
+      ` : ''}
+      
       <div class="waterfall-item current-item">
-        <div class="wf-left"><strong>Current Market Value</strong></div>
+        <div class="wf-left">
+          <strong>Current Market Value</strong>
+          <div class="wf-detail">What a buyer would likely pay today</div>
+        </div>
         <div class="wf-amount">${formatCurrency(currentValue)}</div>
       </div>
+      ${(val.aggregateDiscount?.methodology) ? `
+      <div class="valuation-methodology-note">
+        <strong>Valuation methodology:</strong> ${val.aggregateDiscount.methodology}
+      </div>
+      <p class="valuation-disclaimer">This is indicative analysis, not a formal valuation opinion. Discount ranges are grounded in practitioner frameworks (e.g. Pratt, Damodaran, BDO PCPI) and industry calibration; individual outcomes vary by buyer and deal structure.</p>
+      ` : ''}
     </div>
   `;
 }
 
-// Value Suppressors (detailed cards - waterfall shows the flow)
+// Value Suppressors (table for Tier 1, cards for Tier 2)
 function renderSuppressors(data: any, config: any): string {
   const suppressors = data.suppressors || [];
-
   if (suppressors.length === 0) {
     return '<div class="section"><p>No value suppressors identified.</p></div>';
   }
 
+  const layout = config.layout || 'cards';
+
+  // ===== TABLE LAYOUT (compact, for Tier 1) =====
+  if (layout === 'table') {
+    return `
+      <div class="section">
+        <h2 class="section-title">Value Suppressors</h2>
+        <table class="suppressor-table-compact">
+          <thead>
+            <tr>
+              <th style="width: 24%;">Suppressor</th>
+              <th style="width: 10%;">Severity</th>
+              <th style="width: 9%;">Discount</th>
+              <th style="width: 12%;">Impact</th>
+              <th style="width: 45%;">Summary</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${suppressors.map((s: any) => {
+              const n = normalizeSuppressor(s);
+              const severity = n.severity.toLowerCase();
+              return `
+                <tr>
+                  <td><strong>${n.name}</strong></td>
+                  <td><span class="severity-badge ${severity}">${n.severity}</span></td>
+                  <td class="discount-value">-${n.discountPercent}%</td>
+                  <td class="discount-value">${formatCurrency(n.discountValue)}</td>
+                  <td>${n.evidence || n.whyThisDiscount || ''}${n.pathToFixSummary ? `<br><span class="suppressor-remedy">Fix: ${n.pathToFixSummary}</span>` : ''}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // ===== CARDS LAYOUT (detailed, for Tier 2) =====
   return `
     <div class="section">
       <h2 class="section-title">Value Suppressor Details</h2>
@@ -714,21 +779,13 @@ function renderSuppressors(data: any, config: any): string {
                   <span class="timeframe">${n.recoveryTimeframe || ''}</span>
                 </div>
               ` : ''}
-              ${n.evidence ? `
-                <div class="supp-evidence">${n.evidence}</div>
-              ` : ''}
-              ${n.whyThisDiscount ? `
-                <div class="supp-why">${n.whyThisDiscount}</div>
-              ` : ''}
-              ${n.pathToFixSummary ? `
-                <div class="supp-remedy">Fixable via ${n.pathToFixSummary}</div>
-              ` : ''}
+              ${n.evidence ? `<div class="supp-evidence">${n.evidence}</div>` : ''}
+              ${n.whyThisDiscount ? `<div class="supp-why">${n.whyThisDiscount}</div>` : ''}
+              ${n.pathToFixSummary ? `<div class="supp-remedy">Fixable via ${n.pathToFixSummary}</div>` : ''}
               ${n.pathToFixSteps?.length > 0 ? `
                 <div class="supp-fix-steps">
                   <strong>Path to fix:</strong>
-                  <ol>
-                    ${n.pathToFixSteps.map((step: string) => `<li>${step}</li>`).join('')}
-                  </ol>
+                  <ol>${n.pathToFixSteps.map((step: string) => `<li>${step}</li>`).join('')}</ol>
                 </div>
               ` : ''}
               ${n.investment ? `
@@ -737,9 +794,13 @@ function renderSuppressors(data: any, config: any): string {
                   ${n.roi ? `<span>ROI: ${n.roi}</span>` : ''}
                 </div>
               ` : ''}
-              ${n.dependencies ? `
-                <div class="supp-dependencies">
-                  <strong>Dependencies:</strong> ${n.dependencies}
+              ${n.dependencies ? `<div class="supp-dependencies"><strong>Dependencies:</strong> ${n.dependencies}</div>` : ''}
+              ${(s.methodology && (s.methodology.sources?.length || s.methodology.calibrationNote)) ? `
+                <div class="supp-methodology">
+                  <strong>Methodology &amp; sources:</strong>
+                  ${s.methodology.calibrationNote ? `<p class="supp-methodology-note">${s.methodology.calibrationNote}</p>` : ''}
+                  ${s.methodology.sources?.length ? `<ul class="supp-sources">${s.methodology.sources.map((src: string) => `<li>${src}</li>`).join('')}</ul>` : ''}
+                  ${s.methodology.limitationsNote ? `<p class="supp-limitations italic">${s.methodology.limitationsNote}</p>` : ''}
                 </div>
               ` : ''}
             </div>
@@ -1264,12 +1325,58 @@ function renderScenarioExplorer(data: any, config: any): string {
   `;
 }
 
-// Scenario Planning
+// Scenario Planning (table for Tier 1, sequential blocks for Tier 2)
 function renderScenarioPlanning(data: any, config: any): string {
   const scenarios = data.scenarios || [];
-
   if (scenarios.length === 0) return '';
 
+  const layout = config.layout || 'sequential';
+
+  // ===== TABLE LAYOUT (compact, for Tier 1) =====
+  if (layout === 'table') {
+    return `
+      <div class="section">
+        <h2 class="section-title">Scenario Planning</h2>
+        <p class="section-subtitle">What happens depending on the path you choose</p>
+        <table class="scenario-table-compact">
+          <thead>
+            <tr>
+              <th style="width: 18%;">Scenario</th>
+              <th style="width: 20%;">Metric</th>
+              <th style="width: 13%;">Today</th>
+              <th style="width: 13%;">Projected</th>
+              <th style="width: 36%;">Impact</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${scenarios.map((scenario: any, sIdx: number) => {
+              const metrics = scenario.metrics || [];
+              if (metrics.length === 0) return '';
+              return `
+                ${metrics.map((m: any, mIdx: number) => `
+                  <tr>
+                    ${mIdx === 0 ? `
+                      <td class="scenario-name-cell" rowspan="${metrics.length}">
+                        <strong>${scenario.title || scenario.name || 'Scenario'}</strong>
+                        ${scenario.timeframe ? `<br><span style="font-size: 8px; color: #64748b;">${scenario.timeframe}</span>` : ''}
+                      </td>
+                    ` : ''}
+                    <td>${m.label || m.name || ''}</td>
+                    <td>${m.current ?? '-'}</td>
+                    <td>${m.projected ?? '-'}</td>
+                    <td>${m.impact || ''}</td>
+                  </tr>
+                `).join('')}
+                ${sIdx < scenarios.length - 1 ? '<tr><td colspan="5" style="height: 4px; border: none;"></td></tr>' : ''}
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  // ===== SEQUENTIAL LAYOUT (detailed, for Tier 2) =====
   return `
     <div class="section">
       <h2 class="section-title">Scenario Planning</h2>
@@ -1281,9 +1388,7 @@ function renderScenarioPlanning(data: any, config: any): string {
           ${scenario.timeframe ? `<div class="scenario-timeframe">Timeframe: ${scenario.timeframe}</div>` : ''}
           ${scenario.metrics?.length > 0 ? `
             <table class="scenario-metrics">
-              <thead>
-                <tr><th>Metric</th><th>Today</th><th>Projected</th><th>Impact</th></tr>
-              </thead>
+              <thead><tr><th>Metric</th><th>Today</th><th>Projected</th><th>Impact</th></tr></thead>
               <tbody>
                 ${scenario.metrics.map((m: any) => `
                   <tr>
@@ -1298,20 +1403,20 @@ function renderScenarioPlanning(data: any, config: any): string {
           ` : ''}
           ${scenario.risks?.length > 0 ? `
             <div class="scenario-risks">
-              <h4>⚠️ What You Risk</h4>
-              <ul>${scenario.risks.map((r: string) => `<li>⚠ ${r}</li>`).join('')}</ul>
+              <h4>What You Risk</h4>
+              <ul>${scenario.risks.map((r: string) => `<li>${r}</li>`).join('')}</ul>
             </div>
           ` : ''}
-          ${scenario.requirements?.length > 0 ? `
+          ${scenario.requirements?.length > 0 && config.showRequirements !== false ? `
             <div class="scenario-requirements">
-              <h4>✓ What This Requires</h4>
-              <ul>${scenario.requirements.map((r: string) => `<li>✓ ${r}</li>`).join('')}</ul>
+              <h4>What This Requires</h4>
+              <ul>${scenario.requirements.map((r: string) => `<li>${r}</li>`).join('')}</ul>
             </div>
           ` : ''}
           ${scenario.considerations?.length > 0 ? `
             <div class="scenario-considerations">
-              <h4>⚠ Considerations</h4>
-              <ul>${scenario.considerations.map((c: string) => `<li>• ${c}</li>`).join('')}</ul>
+              <h4>Considerations</h4>
+              <ul>${scenario.considerations.map((c: string) => `<li>${c}</li>`).join('')}</ul>
             </div>
           ` : ''}
         </div>
@@ -1353,8 +1458,8 @@ function generateServicesFromSuppressors(data: any): any[] {
   services.push({
     name: 'Quarterly BI & Benchmarking',
     tagline: 'Turn your management accounts into strategic intelligence',
-    priceRange: '£500 – £1,000/month',
-    frequency: 'Monthly',
+    priceRange: '£500 – £1,000/month or £1,500 – £3,000/quarter',
+    frequency: 'Monthly or Quarterly',
     duration: 'Ongoing',
     whyThisMatters: `With ${formatCurrency(baselineMid)} revenue and margins recovering, ongoing benchmarking tracks your recovery against industry peers and catches margin drift early. Quarterly tracking is especially important with ${hasConcentration ? '99% client concentration' : 'your client mix'}. Early warning on margin erosion gives you time to act.`,
     expectedOutcome: 'Addresses issues worth £750k in potential value',
@@ -1465,9 +1570,13 @@ function renderClosing(data: any, config: any): string {
             <p>enquiries@rpgcc.co.uk | 020 7870 9050</p>
             <p>30 City Road, London EC1Y 2AB</p>
           </div>
+          ${config.showDataSources && data.dataSources ? `
+            <div class="data-sources-inline">
+              Benchmark Data Sources: ${data.dataSources.join(', ')}
+            </div>
+          ` : ''}
         </div>
-      ` : ''}
-      ${config.showDataSources && data.dataSources ? `
+      ` : config.showDataSources && data.dataSources ? `
         <div class="data-sources">
           <strong>Benchmark Data Sources:</strong>
           <p>${data.dataSources.join(', ')}</p>
@@ -1483,7 +1592,7 @@ function renderClosing(data: any, config: any): string {
 
 function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
   const { sections, pdfSettings, tier } = pdfConfig;
-  const density = pdfSettings?.density || 'comfortable';
+  const density = pdfSettings?.density || (tier === 1 ? 'compact' : 'comfortable');
   
   // Build sections HTML
   let sectionsHTML = '';
@@ -1491,8 +1600,8 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
   for (const section of sections) {
     if (!section.enabled) continue;
 
-    // Add page break if configured for this section
-    if (section.config?.pageBreakBefore) {
+    // Add page break only for Tier 2 when configured (Tier 1 flows without forced breaks)
+    if (tier === 2 && section.config?.pageBreakBefore) {
       sectionsHTML += '<div class="page-break-before"></div>';
     }
 
@@ -1525,7 +1634,6 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderNarrativeContinuation('The Opportunity', data.opportunityNarrative, [`${formatCurrency(data.totalOpportunity || 0)} potential`]);
         break;
       case 'scenarioExplorer':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderScenarioExplorer(data, section.config);
         break;
       case 'twoPaths':
@@ -1534,7 +1642,6 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         }
         break;
       case 'recommendations':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderRecommendations(data, section.config);
         break;
       case 'valuationAnalysis':
@@ -1553,11 +1660,9 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderPathToValue(data, section.config);
         break;
       case 'exitReadiness':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderExitReadiness(data, section.config);
         break;
       case 'scenarioPlanning':
-        sectionsHTML += '<div class="page-break-before"></div>';
         sectionsHTML += renderScenarioPlanning(data, section.config);
         break;
       case 'serviceRecommendations':
@@ -1621,6 +1726,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     .cover-header { margin-bottom: 60px; }
     .cover-header .logo { font-size: 24px; font-weight: 700; }
+    .cover-header .logo-img { height: 36px; width: auto; object-fit: contain; display: block; }
     .cover-header .tagline { font-size: 11px; color: var(--blue-light); margin-top: 4px; }
     
     .cover-content {
@@ -2098,14 +2204,14 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .suppressors-grid {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 8px;
     }
     
     .suppressor-card {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 14px;
+      padding: 10px;
       break-inside: avoid;
     }
     
@@ -2116,7 +2222,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 5px;
     }
     
     .supp-name { font-weight: 600; font-size: 12px; }
@@ -2133,8 +2239,8 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     .supp-impact {
       display: flex;
-      gap: 12px;
-      margin-bottom: 8px;
+      gap: 10px;
+      margin-bottom: 5px;
     }
     
     .discount { font-size: 18px; font-weight: 700; color: var(--red); }
@@ -2163,14 +2269,83 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .supp-fix-steps ol { margin: 3px 0 0 16px; padding: 0; }
     .supp-investment { display: flex; gap: 12px; font-size: 0.82em; margin-top: 6px; }
     .supp-dependencies { font-size: 0.82em; margin-top: 6px; color: #64748b; }
+    .supp-methodology { font-size: 0.78em; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e2e8f0; color: #64748b; }
+    .supp-methodology-note { margin: 4px 0; }
+    .supp-sources { margin: 4px 0 0 0.8em; padding-left: 0.4em; }
+    .supp-limitations { margin-top: 6px; font-style: italic; color: #94a3b8; }
+    .valuation-methodology-note { font-size: 0.8em; margin-top: 12px; padding: 8px 0; color: #64748b; }
+    .valuation-disclaimer { font-size: 0.75em; color: #94a3b8; margin-top: 8px; font-style: italic; }
+    
+    /* =========================== COMPACT SUPPRESSOR TABLE (TIER 1) =========================== */
+    .suppressor-table-compact {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9px;
+      margin-top: 6px;
+    }
+    .suppressor-table-compact th {
+      background: var(--navy-dark);
+      color: white;
+      padding: 5px 7px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .suppressor-table-compact td {
+      padding: 5px 7px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+      line-height: 1.35;
+    }
+    .suppressor-table-compact tr:nth-child(even) td {
+      background: #f8fafc;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .suppressor-table-compact .discount-value { font-weight: 700; color: var(--red); }
+    .suppressor-remedy { font-size: 8px; color: var(--green); }
+    
+    /* =========================== COMPACT SCENARIO TABLE (TIER 1) =========================== */
+    .scenario-table-compact {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9px;
+      margin-top: 6px;
+    }
+    .scenario-table-compact th {
+      background: var(--navy-dark);
+      color: white;
+      padding: 5px 7px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 8px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .scenario-table-compact td {
+      padding: 4px 7px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+      line-height: 1.35;
+    }
+    .scenario-table-compact .scenario-name-cell {
+      font-weight: 600;
+      background: #f1f5f9;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
     
     /* =========================== EXIT READINESS =========================== */
     .exit-score-display {
       text-align: center;
-      padding: 14px;
+      padding: 10px;
       background: #f8fafc;
       border-radius: 8px;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
     }
     
     .score-circle {
@@ -2178,7 +2353,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     .score-circle .score-value {
-      font-size: 40px;
+      font-size: 32px;
       font-weight: 700;
     }
     
@@ -2192,21 +2367,21 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     .score-status {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
-      margin-top: 8px;
+      margin-top: 4px;
     }
     
     .score-circle.red + .score-status { color: var(--red); }
     
     .exit-components {
-      margin-top: 16px;
+      margin-top: 8px;
     }
     
     .exit-component {
-      padding: 8px 0;
+      padding: 5px 0;
       border-bottom: 1px solid #e2e8f0;
-      font-size: 11px;
+      font-size: 10px;
     }
     
     .comp-main {
@@ -2218,7 +2393,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .comp-name { font-weight: 500; }
     .comp-score { font-weight: 600; }
     
-    .comp-bar-row { margin: 6px 0; }
+    .comp-bar-row { margin: 3px 0; }
     
     .comp-bar {
       height: 8px;
@@ -2251,11 +2426,11 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: white;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     
-    .path-steps { margin-bottom: 16px; }
-    .path-step { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
+    .path-steps { margin-bottom: 10px; }
+    .path-step { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
     .step-number {
       display: inline-flex;
       align-items: center;
@@ -2289,15 +2464,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .scenarios-sequential {
       display: flex;
       flex-direction: column;
-      gap: 16px;
-    }
-    
-    .scenario-block {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 16px;
-      page-break-inside: avoid;
+      gap: 10px;
     }
     
     .scenario-name {
@@ -2307,9 +2474,9 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     .scenario-timeframe {
-      font-size: 11px;
+      font-size: 10px;
       color: #64748b;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     
     .scenario-metrics {
@@ -2332,10 +2499,10 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .sm-projected { font-weight: 600; color: var(--navy-dark); }
     
     .scenario-requirements {
-      margin-top: 12px;
-      padding-top: 12px;
+      margin-top: 5px;
+      padding-top: 5px;
       border-top: 1px solid #e2e8f0;
-      font-size: 10px;
+      font-size: 9px;
     }
     
     .scenario-requirements ul {
@@ -2347,15 +2514,15 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .services-list {
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 6px;
     }
     
     .service-card {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
       border-radius: 8px;
-      padding: 16px;
-      page-break-inside: avoid;
+      padding: 12px;
+      break-inside: avoid;
     }
     
     .service-header {
@@ -2371,15 +2538,20 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .service-meta {
       font-size: 10px;
       color: #64748b;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
     
     .service-meta span:not(:last-child)::after { content: ' · '; }
     
     .service-why, .service-outcomes {
-      margin-bottom: 12px;
-      font-size: 11px;
+      margin-bottom: 6px;
+      font-size: 10px;
     }
+    
+    .service-deliverables ul { margin: 2px 0; padding-left: 14px; }
+    .service-deliverables li { margin-bottom: 1px; font-size: 10px; }
+    .service-outcome { margin-bottom: 6px; }
+    .service-outcome p { font-size: 10px; }
     
     .service-why p, .service-outcomes ul {
       margin-top: 4px;
@@ -2407,45 +2579,54 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .closing-box {
       background: var(--navy-dark);
       color: white;
-      padding: 14px;
+      padding: 10px 14px;
       border-radius: 8px;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     
     .closing-box p {
-      font-size: 12px;
-      line-height: 1.7;
+      font-size: 11px;
+      line-height: 1.5;
     }
     
     .contact-cta {
       text-align: center;
-      padding: 14px;
+      padding: 8px;
       background: var(--teal);
       color: white;
       border-radius: 8px;
-      margin-bottom: 10px;
+      margin-bottom: 4px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
     
     .contact-cta h3 {
-      font-size: 16px;
-      margin-bottom: 8px;
+      font-size: 14px;
+      margin-bottom: 4px;
     }
     
     .contact-details {
-      margin-top: 12px;
-      font-size: 11px;
+      margin-top: 6px;
+      font-size: 10px;
     }
     
     .data-sources {
-      font-size: 10px;
+      font-size: 8px;
       color: #64748b;
-      padding: 12px;
+      padding: 4px 10px;
       background: #f1f5f9;
-      border-radius: 6px;
+      border-radius: 4px;
+      line-height: 1.3;
+    }
+    .data-sources-inline {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px solid rgba(255,255,255,0.2);
+      font-size: 7.5px;
+      opacity: 0.7;
+      line-height: 1.3;
     }
     
     /* =========================== HIGHLIGHT SECTIONS =========================== */
@@ -2501,7 +2682,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .highlights {
       display: flex;
       gap: 8px;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
     }
     .highlights.compact {
       margin-bottom: 6px;
@@ -2509,8 +2690,8 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     
     /* Narrative continuation — lighter than full section */
     .narrative-continuation {
-      margin-top: 12px;
-      margin-bottom: 4px;
+      margin-top: 8px;
+      margin-bottom: 2px;
     }
     .subsection-heading {
       font-size: ${density === 'compact' ? '13px' : '14px'};
@@ -2537,7 +2718,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     }
     
     th, td {
-      padding: 8px 12px;
+      padding: 6px 10px;
       text-align: left;
       border-bottom: 1px solid #e2e8f0;
     }
@@ -2597,18 +2778,18 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
 
     /* Margin Impact / Scenario Explorer */
     .margin-impact-section { /* panels handle own breaks */ }
-    .margin-scenario { display: flex; gap: 16px; margin: 12px 0; break-inside: avoid; }
-    .scenario-left, .scenario-right { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; }
+    .margin-scenario { display: flex; gap: 12px; margin: 8px 0; break-inside: avoid; }
+    .scenario-left, .scenario-right { flex: 1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
     .scenario-target { display: flex; justify-content: space-between; align-items: center; margin: 8px 0; }
     .scenario-target strong { font-size: 1.2em; color: #059669; }
     .scenario-current { font-size: 0.82em; color: #64748b; }
-    .impact-hero { background: #059669; color: white; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+    .impact-hero { background: #059669; color: white; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; }
     .impact-hero .impact-value { font-size: 1.3em; font-weight: 800; }
     .impact-hero .impact-value span { font-size: 0.5em; font-weight: 400; }
-    .impact-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #e2e8f0; font-size: 0.92em; }
+    .impact-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #e2e8f0; font-size: 0.88em; }
     .impact-detail { font-size: 0.78em; color: #94a3b8; }
-    .how-to-achieve { margin-top: 10px; font-size: 0.85em; margin-bottom: 16px; }
-    .how-to-achieve div { color: #334155; margin: 3px 0; }
+    .how-to-achieve { margin-top: 6px; font-size: 0.82em; margin-bottom: 8px; }
+    .how-to-achieve div { color: #334155; margin: 2px 0; }
 
     /* =========================== PAGINATION CONTROL =========================== */
     /* NO forced page breaks. Content flows. break-inside:avoid on atomic blocks. */
@@ -2644,21 +2825,27 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
     .pv-uplift { color: #059669; }
 
     /* Scenario enhancements */
-    .scenario-card { break-inside: avoid; padding: 14px; }
-    .scenario-risks { background: #fef2f2; padding: 12px; border-radius: 6px; margin: 12px 0; }
-    .scenario-risks h4 { color: #dc2626; margin: 0 0 8px 0; }
-    .scenario-considerations { background: #fffbeb; padding: 12px; border-radius: 6px; margin: 12px 0; }
-    .scenario-considerations h4 { color: #d97706; margin: 0 0 8px 0; }
+    .scenario-card { break-inside: avoid; padding: 10px; }
+    .scenario-card th, .scenario-card td { padding: 4px 8px; font-size: 9.5px; }
+    .scenario-card table { margin: 6px 0; }
+    .scenario-card h3 { margin: 0 0 4px 0; font-size: 13px; }
+    .scenario-card > p { margin: 0 0 4px 0; font-size: 10px; }
+    .scenario-card ul { margin: 2px 0; padding-left: 14px; }
+    .scenario-card li { margin-bottom: 1px; font-size: 9.5px; }
+    .scenario-risks { background: #fef2f2; padding: 6px 10px; border-radius: 6px; margin: 6px 0; }
+    .scenario-risks h4 { color: #dc2626; margin: 0 0 3px 0; font-size: 10px; }
+    .scenario-considerations { background: #fffbeb; padding: 6px 10px; border-radius: 6px; margin: 6px 0; }
+    .scenario-considerations h4 { color: #d97706; margin: 0 0 3px 0; font-size: 10px; }
 
     /* Services */
-    .services-grid { display: flex; flex-direction: column; gap: 16px; }
+    .services-grid { display: flex; flex-direction: column; gap: 12px; }
     .service-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; break-inside: avoid; }
     .service-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
     .service-price { font-weight: 600; color: #0f172a; }
     .service-frequency { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
     .service-name { font-size: 1.2em; font-weight: 600; margin: 0 0 4px 0; }
     .service-tagline { color: #64748b; margin: 0 0 12px 0; }
-    .service-why, .service-deliverables, .service-outcome { margin: 12px 0; }
+    .service-why, .service-deliverables, .service-outcome { margin: 6px 0; }
     .service-why h4, .service-deliverables h4, .service-outcome h4 { font-size: 0.9em; color: #475569; margin: 0 0 4px 0; }
     .service-meta { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 0.85em; color: #64748b; }
     .service-value { font-weight: 600; color: #059669; }
@@ -2682,7 +2869,7 @@ serve(async (req) => {
   }
   
   try {
-    const { reportId, pdfConfig, returnHtml } = await req.json();
+    const { reportId, pdfConfig, returnHtml, siteUrl } = await req.json();
 
     if (!reportId) {
       throw new Error('reportId is required');
@@ -2797,6 +2984,18 @@ serve(async (req) => {
     }
     }
 
+    // Normalise BI/Benchmarking to show both monthly and quarterly options
+    const isBIOrBenchmarking = (s: any) => {
+      const n = (s.name || '').toLowerCase();
+      const c = (s.code || '').toLowerCase();
+      return n.includes('bi') || n.includes('benchmarking') || c === 'business_intelligence' || c === 'benchmarking';
+    };
+    clientServices = clientServices.map((s: any) =>
+      isBIOrBenchmarking(s)
+        ? { ...s, priceRange: '£500 – £1,000/month or £1,500 – £3,000/quarter', frequency: 'Monthly or Quarterly' }
+        : s
+    );
+
     let effectiveConfig: PdfConfig;
     if (pdfConfig) {
       effectiveConfig = pdfConfig;
@@ -2885,6 +3084,7 @@ serve(async (req) => {
 
     const reportData = {
       clientName,
+      siteUrl: siteUrl || Deno.env.get('SITE_URL') || undefined,
       tier: 2,
       overallPercentile: report.overall_percentile || 50,
       totalOpportunity: parseFloat(report.total_annual_opportunity) || 0,
@@ -2911,8 +3111,10 @@ serve(async (req) => {
           enterpriseValue: baseline.enterpriseValue || { low: 0, mid: 0, high: 0 },
           multipleRange: baseline.multipleRange || { low: 0, mid: 5, high: 0 },
           surplusCash: baseline.surplusCash || 0,
+          totalBaseline: baseline.totalBaseline,
           multipleJustification: baseline.multipleJustification || '',
         },
+        adjustedEV: valueAnalysis.adjustedEV || { low: 0, mid: 0, high: 0 },
         currentMarketValue: valueAnalysis.currentMarketValue || { low: 0, mid: 0, high: 0 },
         valueGap: valueAnalysis.valueGap || { low: 0, mid: 0, high: 0 },
         valueGapPercent: valueAnalysis.valueGapPercent || 0,
@@ -2926,6 +3128,7 @@ serve(async (req) => {
           strengths: exitReadinessFromVal.strengths || [],
         },
         pathToValue: valueAnalysis.pathToValue || { timeframeMonths: 24, recoverableValue: { low: 0, mid: 0, high: 0 }, keyActions: [] },
+        aggregateDiscount: valueAnalysis.aggregateDiscount || { percentRange: { low: 0, mid: 0, high: 0 }, methodology: '' },
       },
       suppressors: allSuppressors.map((s: any) => ({
         code: s.code || s.id || '',
@@ -2936,6 +3139,7 @@ serve(async (req) => {
           metric: s.current?.metric || '',
           discountPercent: s.current?.discountPercent ?? 0,
           discountValue: s.current?.discountValue ?? 0,
+          waterfallAmount: s.waterfallAmount ?? s.current?.waterfallAmount,
         },
         target: { value: s.target?.value || '', metric: s.target?.metric || '' },
         recovery: { valueRecoverable: s.recovery?.valueRecoverable ?? 0, timeframe: s.recovery?.timeframe || '12-24 months' },
@@ -2943,6 +3147,8 @@ serve(async (req) => {
         whyThisDiscount: s.whyThisDiscount || '',
         industryContext: s.industryContext || '',
         pathToFix: s.pathToFix || { summary: '', steps: [], investment: 0, dependencies: [] },
+        waterfallAmount: s.waterfallAmount ?? s.current?.waterfallAmount,
+        methodology: s.methodology || null,
       })),
       exitReadiness: {
         totalScore: exitBreakdown.totalScore || 0,

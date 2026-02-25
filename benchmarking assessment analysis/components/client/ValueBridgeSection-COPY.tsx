@@ -12,26 +12,29 @@ import {
   Clock
 } from 'lucide-react';
 import type { ValueAnalysis, ValueSuppressor, ValueEnhancer } from '../../../types/benchmarking';
+import type { EnhancedValueSuppressor } from '../../../types/opportunity-calculations';
 
 interface Props {
   valueAnalysis: ValueAnalysis;
+  /** When provided, waterfall uses these with waterfallAmount so displayed £ sum matches gap; surplus shown at bottom */
+  enhancedSuppressors?: EnhancedValueSuppressor[];
   clientName?: string;
   forceExpanded?: boolean; // For PDF export - shows all details
 }
 
-export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business', forceExpanded = false }: Props) {
+export function ValueBridgeSection({ valueAnalysis, enhancedSuppressors, clientName = 'Your Business', forceExpanded = false }: Props) {
   const [showDetails, setShowDetails] = useState(false);
-  
-  // If forceExpanded (for PDF), always show details
+
   const isShowingDetails = forceExpanded || showDetails;
-  
+
   const formatCurrency = (value: number) => {
     if (value >= 1000000) return `£${(value / 1000000).toFixed(1)}M`;
     if (value >= 1000) return `£${(value / 1000).toFixed(0)}k`;
     return `£${value.toFixed(0)}`;
   };
 
-  const { baseline, suppressors, currentMarketValue, valueGap, exitReadiness, pathToValue, enhancers } = valueAnalysis;
+  const { baseline, suppressors, adjustedEV, currentMarketValue, valueGap, exitReadiness, pathToValue, enhancers } = valueAnalysis;
+  const waterfallSuppressors = enhancedSuppressors && enhancedSuppressors.length > 0 ? enhancedSuppressors : null;
 
   const severityColors = {
     critical: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-800', badge: 'bg-red-500' },
@@ -116,41 +119,35 @@ export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business'
         </div>
         
         <div className="space-y-3">
-          {/* Starting point */}
+          {/* Baseline EV (EBITDA × multiple only; surplus added after discounts) */}
           <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg border border-blue-200">
             <div className="flex items-center gap-3">
               <TrendingUp className="w-5 h-5 text-blue-600" />
               <div>
                 <span className="font-medium text-blue-900">Baseline Enterprise Value</span>
-                <p className="text-xs text-blue-700">{baseline.multipleJustification}</p>
+                <p className="text-xs text-blue-700">{baseline.multipleRange.mid}x EBITDA</p>
               </div>
             </div>
             <span className="text-xl font-bold text-blue-600">
               {formatCurrency(baseline.enterpriseValue.mid)}
             </span>
           </div>
-          
-          {/* Surplus cash add-back */}
-          {baseline.surplusCash > 100000 && (
-            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200 ml-4">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-green-600" />
-                <span className="text-green-800">Including surplus cash</span>
-              </div>
-              <span className="font-semibold text-green-600">
-                +{formatCurrency(baseline.surplusCash)}
-              </span>
-            </div>
-          )}
-          
-          {/* Suppressors */}
-          {suppressors.map((s: ValueSuppressor) => {
-            const colors = severityColors[s.severity as keyof typeof severityColors];
-            const avgImpact = (s.impactAmount.low + s.impactAmount.high) / 2;
-            
+
+          {/* Suppressors (waterfallAmount when from enhanced_suppressors so sum = gap) */}
+          {(waterfallSuppressors ? waterfallSuppressors : suppressors).map((s: ValueSuppressor | EnhancedValueSuppressor, idx: number) => {
+            const isEnhanced = waterfallSuppressors != null;
+            const name = isEnhanced ? (s as EnhancedValueSuppressor).name : (s as ValueSuppressor).name;
+            const severity = (isEnhanced ? (s as EnhancedValueSuppressor).severity : (s as ValueSuppressor).severity).toLowerCase() as keyof typeof severityColors;
+            const colors = severityColors[severity] ?? severityColors.medium;
+            const displayAmount = isEnhanced
+              ? ((s as EnhancedValueSuppressor).waterfallAmount ?? (s as EnhancedValueSuppressor).current?.waterfallAmount ?? (s as EnhancedValueSuppressor).current?.discountValue ?? 0)
+              : ((s as ValueSuppressor).impactAmount.low + (s as ValueSuppressor).impactAmount.high) / 2;
+            const evidence = isEnhanced ? (s as EnhancedValueSuppressor).evidence : (s as ValueSuppressor).evidence;
+            const key = isEnhanced ? (s as EnhancedValueSuppressor).code : (s as ValueSuppressor).id;
+
             return (
-              <div 
-                key={s.id} 
+              <div
+                key={key ?? idx}
                 className={`p-4 rounded-lg border ml-4 ${colors.bg} ${colors.border}`}
               >
                 <div className="flex items-center justify-between">
@@ -158,31 +155,64 @@ export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business'
                     <TrendingDown className={`w-5 h-5 ${colors.text}`} />
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className={`font-medium ${colors.text}`}>{s.name}</span>
+                        <span className={`font-medium ${colors.text}`}>{name}</span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full text-white ${colors.badge}`}>
-                          {s.severity.toUpperCase()}
+                          {(isEnhanced ? (s as EnhancedValueSuppressor).severity : (s as ValueSuppressor).severity).toUpperCase()}
                         </span>
                       </div>
-                      {isShowingDetails && (
-                        <p className="text-xs mt-1 opacity-80">{s.evidence}</p>
+                      {isShowingDetails && evidence && (
+                        <p className="text-xs mt-1 opacity-80">{evidence}</p>
                       )}
                     </div>
                   </div>
                   <span className={`text-lg font-bold ${colors.text}`}>
-                    -{formatCurrency(avgImpact)}
+                    -{formatCurrency(displayAmount)}
                   </span>
                 </div>
-                {isShowingDetails && s.remediable && (
+                {isShowingDetails && !isEnhanced && (s as ValueSuppressor).remediable && (
                   <div className="mt-2 pt-2 border-t border-dashed border-current/20 text-xs flex items-center gap-2">
                     <Clock className="w-3 h-3" />
-                    <span>Fixable in ~{s.remediationTimeMonths}mo via {s.remediationService}</span>
+                    <span>Fixable in ~{(s as ValueSuppressor).remediationTimeMonths}mo via {(s as ValueSuppressor).remediationService}</span>
+                  </div>
+                )}
+                {isShowingDetails && isEnhanced && (s as EnhancedValueSuppressor).pathToFix?.summary && (
+                  <div className="mt-2 pt-2 border-t border-dashed border-current/20 text-xs flex items-center gap-2">
+                    <Clock className="w-3 h-3" />
+                    <span>Fixable via {(s as EnhancedValueSuppressor).pathToFix.summary}</span>
                   </div>
                 )}
               </div>
             );
           })}
-          
-          {/* Result */}
+
+          {/* Adjusted EV (after operating-risk discounts, before surplus) */}
+          {(adjustedEV != null && adjustedEV.mid != null) && (
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200 ml-4">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-slate-700">Adjusted Enterprise Value</span>
+                <p className="text-xs text-slate-600">After operating-risk discounts</p>
+              </div>
+              <span className="font-semibold text-slate-700">{formatCurrency(adjustedEV.mid)}</span>
+            </div>
+          )}
+
+          {/* Surplus cash (added after discounts; not subject to operating risk) */}
+          {baseline.surplusCash > 100000 && (
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200 ml-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-green-600" />
+                <div>
+                  <span className="text-green-800 font-medium">Surplus Cash</span>
+                  <p className="text-xs text-green-700">Added to equity value (not subject to operating discounts)</p>
+                </div>
+              </div>
+              <span className="font-semibold text-green-600">
+                +{formatCurrency(baseline.surplusCash)}
+              </span>
+            </div>
+          )}
+
+          {/* Current Market Value */}
           <div className="flex items-center justify-between p-4 bg-amber-50 rounded-lg border-2 border-amber-400 ml-0 mt-4">
             <div className="flex items-center gap-3">
               <Target className="w-5 h-5 text-amber-700" />
@@ -195,6 +225,13 @@ export function ValueBridgeSection({ valueAnalysis, clientName = 'Your Business'
               {formatCurrency(currentMarketValue.mid)}
             </span>
           </div>
+
+          {/* Aggregate methodology note */}
+          {valueAnalysis.aggregateDiscount?.methodology && (
+            <p className="text-xs text-gray-500 mt-3 italic">
+              {valueAnalysis.aggregateDiscount.methodology}
+            </p>
+          )}
         </div>
       </div>
 

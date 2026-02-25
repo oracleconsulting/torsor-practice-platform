@@ -39,6 +39,7 @@ import {
   RotateCcw,
   Play
 } from 'lucide-react';
+import { PageSkeleton } from '@/components/ui';
 
 type ViewTab = 'vision' | 'shift' | 'sprint' | 'value';
 
@@ -163,11 +164,8 @@ export default function RoadmapPage() {
   // Loading states
   if (!isInitialized || roadmapLoading) {
     return (
-      <Layout title="Your Roadmap" subtitle="Loading...">
-        <div className="flex flex-col items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-          <p className="text-slate-600 mt-4">Loading your transformation journey...</p>
-        </div>
+      <Layout title="Your Roadmap">
+        <PageSkeleton />
       </Layout>
     );
   }

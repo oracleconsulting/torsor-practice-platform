@@ -190,19 +190,19 @@ export function TechDatabasePage() {
         {loading ? (
           <p className="text-gray-500">Loading products…</p>
         ) : (
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="card overflow-hidden">
+            <table className="data-table min-w-full">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="w-10 px-4 py-3" />
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Market</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">UK</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price from</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Scores</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Integrations</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Zapier</th>
+                  <th>Category</th>
+                  <th>Market</th>
+                  <th>UK</th>
+                  <th>Price from</th>
+                  <th>Scores</th>
+                  <th>Integrations</th>
+                  <th>Zapier</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">

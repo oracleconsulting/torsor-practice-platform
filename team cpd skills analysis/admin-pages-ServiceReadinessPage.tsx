@@ -1,14 +1,24 @@
+import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useServiceReadiness } from '../../hooks/useServiceReadiness';
+import { useTrainingPlanMutations } from '../../hooks/useTrainingPlans';
+import { useSkills } from '../../hooks/useSkills';
+import { useTeamMembers } from '../../hooks/useTeamMembers';
 import { AdminLayout } from '../../components/AdminLayout';
 import { PageSkeleton, StatCard } from '../../components/ui';
 import { CheckCircle, BarChart3, Users, AlertTriangle } from 'lucide-react';
+import type { SkillReadiness } from '../../lib/service-calculations';
+import type { ServiceLine } from '../../lib/advisory-services';
 
 export function ServiceReadinessPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const { data: readiness, isLoading } = useServiceReadiness(currentMember?.practice_id ?? null);
+  const { createPlan } = useTrainingPlanMutations();
+  const { data: allSkills = [] } = useSkills();
+  const { data: teamMembers = [] } = useTeamMembers(currentMember?.practice_id ?? null);
+  const [creatingPlan, setCreatingPlan] = useState<{ gap: SkillReadiness; service: ServiceLine } | null>(null);
 
   if (isLoading) {
     return (
@@ -201,8 +211,8 @@ export function ServiceReadinessPage() {
                                 : 'bg-yellow-50 border-yellow-200'
                             }`}
                           >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
                                 <div className="text-sm font-medium text-gray-900">
                                   {gap.isCritical && '🚨 '}
                                   {gap.skillName}
@@ -212,9 +222,19 @@ export function ServiceReadinessPage() {
                                   {gap.membersWithSkill.length > 0 && ` (Avg: ${gap.averageLevel.toFixed(1)})`}
                                 </div>
                               </div>
-                              <span className="ml-2 text-xs font-medium text-gray-500 whitespace-nowrap">
+                              <span className="text-xs font-medium text-gray-500 whitespace-nowrap">
                                 Need Lvl {gap.required}+
                               </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCreatingPlan({ gap, service: r.service });
+                                }}
+                                className="ml-2 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors whitespace-nowrap shrink-0"
+                              >
+                                📋 Create Plan
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -240,6 +260,118 @@ export function ServiceReadinessPage() {
             );
           })}
         </div>
+
+        {creatingPlan && currentMember?.practice_id && (
+          <CreatePlanFromGapModal
+            gap={creatingPlan.gap}
+            service={creatingPlan.service}
+            practiceId={currentMember.practice_id}
+            currentMemberId={currentMember.id}
+            teamMembers={teamMembers}
+            allSkills={allSkills}
+            createPlan={createPlan}
+            onClose={() => setCreatingPlan(null)}
+            onSuccess={() => setCreatingPlan(null)}
+          />
+        )}
     </AdminLayout>
+  );
+}
+
+interface CreatePlanFromGapModalProps {
+  gap: SkillReadiness;
+  service: ServiceLine;
+  practiceId: string;
+  currentMemberId: string;
+  teamMembers: { id: string; name: string }[];
+  allSkills: { id: string; name: string; category: string }[];
+  createPlan: ReturnType<typeof useTrainingPlanMutations>['createPlan'];
+  onClose: () => void;
+  onSuccess: () => void;
+}
+
+function CreatePlanFromGapModal({
+  gap,
+  service,
+  practiceId,
+  currentMemberId,
+  teamMembers,
+  allSkills,
+  createPlan,
+  onClose,
+  onSuccess,
+}: CreatePlanFromGapModalProps) {
+  const matchedSkill = allSkills.find((s) => s.name.toLowerCase() === gap.skillName.toLowerCase());
+  const candidateMembers = gap.membersWithSkill.filter((m) => m.currentLevel < gap.required);
+  const memberOptions = candidateMembers.length > 0
+    ? candidateMembers.map((m) => ({ id: m.memberId, name: m.memberName }))
+    : teamMembers;
+  const [memberId, setMemberId] = useState(memberOptions[0]?.id ?? '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const title = `Develop ${gap.skillName} for ${service.name}`;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const member = memberId || memberOptions[0]?.id;
+    if (!member) {
+      setError('Select a team member');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await createPlan.mutateAsync({
+        practice_id: practiceId,
+        member_id: member,
+        title,
+        skill_ids: matchedSkill ? [matchedSkill.id] : [],
+        service_line_id: service.id,
+        target_level: gap.required,
+        status: 'not_started',
+        current_progress: 0,
+        created_by: currentMemberId,
+      });
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create plan');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden />
+      <div className="relative bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Create Training Plan</h3>
+        <p className="text-sm text-gray-600 mb-4">{title}</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Member</label>
+            <select
+              value={memberId}
+              onChange={(e) => setMemberId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              required
+            >
+              {memberOptions.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50">
+              Cancel
+            </button>
+            <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {submitting ? 'Creating...' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

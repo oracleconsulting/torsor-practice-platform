@@ -15,10 +15,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Model configuration for Opus 4.5
+// Model configuration - Sonnet 4.5 for speed (Opus timed out at 150s edge limit)
 const MODEL_CONFIG = {
-  model: 'anthropic/claude-opus-4-20250514',
-  max_tokens: 12000,
+  model: 'anthropic/claude-sonnet-4-5-20250929',
+  max_tokens: 8000,
   temperature: 0.3,
 };
 
@@ -65,7 +65,7 @@ serve(async (req) => {
     let analysis = await analyseWithLLM(clientData, services || [], existingConcepts || []);
     const analysisTime = Date.now() - startTime;
     
-    console.log(`[Pass 3] Opus 4.5 identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
+    console.log(`[Pass 3] LLM identified ${analysis.opportunities?.length || 0} RAW opportunities in ${analysisTime}ms`);
     
     // 4a. POST-PROCESSING: Consolidate and sanitize opportunities
     // Revenue is stored as _enriched_revenue in pass1_data (not nested)
@@ -582,24 +582,39 @@ async function analyseWithLLM(
   const userPrompt = buildUserPrompt(clientData, services, existingConcepts);
   
   console.log(`[Pass 3] Calling ${MODEL_CONFIG.model}...`);
-  
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://torsor.co',
-    },
-    body: JSON.stringify({
-      model: MODEL_CONFIG.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      max_tokens: MODEL_CONFIG.max_tokens,
-      temperature: MODEL_CONFIG.temperature,
-    }),
-  });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s safety
+
+  let response: Response;
+  try {
+    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://torsor.co',
+      },
+      body: JSON.stringify({
+        model: MODEL_CONFIG.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        max_tokens: MODEL_CONFIG.max_tokens,
+        temperature: MODEL_CONFIG.temperature,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error('[Pass 3] LLM call timed out after 120s');
+      throw new Error('LLM timeout - try regenerating');
+    }
+    throw err;
+  }
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -835,7 +850,7 @@ Respond with valid JSON only. No markdown code blocks, no explanations outside t
 }
 
 // ============================================================================
-// ENHANCED USER PROMPT FOR OPUS 4.5
+// USER PROMPT FOR OPPORTUNITY ANALYSIS (Sonnet 4.5 - compact for speed)
 // ============================================================================
 
 function buildUserPrompt(clientData: ClientData, services: any[], existingConcepts: any[]): string {
@@ -871,9 +886,10 @@ function buildUserPrompt(clientData: ClientData, services: any[], existingConcep
                        assessment?.top_customers ||
                        pass1Data?.supplementary?.top_customers;
 
-  // Build metrics text with percentile context
+  // Build metrics text - only gaps (<50th) and strengths (>=75th) to reduce tokens
   const metricsText = (metrics || [])
-    .filter((m: any) => m.percentile !== null && m.percentile !== undefined && m.client_value !== null)
+    .filter((m: any) => m.percentile !== null && m.percentile !== undefined && m.client_value !== null &&
+      (m.percentile < 50 || m.percentile >= 75))
     .map((m: any) => {
       const percentile = m.percentile;
       const position = percentile < 25 ? 'bottom quartile' :
@@ -884,14 +900,17 @@ function buildUserPrompt(clientData: ClientData, services: any[], existingConcep
     })
     .join('\n') || 'Benchmark data not available';
 
-  // Build services text with context
-  const servicesText = services.map(s => {
-    const deliverables = Array.isArray(s.deliverables) ? s.deliverables.slice(0, 3).join(', ') : '';
-    return `**${s.code}**: ${s.name}
-   ${s.headline}
-   £${s.price_from}${s.price_to !== s.price_from ? `-${s.price_to}` : ''}${s.price_unit} | ${s.typical_duration}
-   ${deliverables ? `Includes: ${deliverables}` : ''}`;
-  }).join('\n\n');
+  // Compact services text (saves ~2-3K tokens)
+  const servicesText = services
+    .filter((s: any) => s.status === 'active')
+    .map((s: any) => {
+      const priceStr = s.price_from != null && s.price_to != null
+        ? `£${s.price_from.toLocaleString()}-£${s.price_to.toLocaleString()}`
+        : s.price_from != null ? `£${s.price_from.toLocaleString()}` : '?';
+      const deliverables = Array.isArray(s.deliverables) ? s.deliverables.slice(0, 3).join(', ') : '';
+      return `- **${s.code}**: ${s.name} (${s.category || 'governance'}) — ${s.headline || s.description || ''}\n  ${priceStr} ${s.price_unit || ''} | ${deliverables ? `Deliverables: ${deliverables}` : ''}`;
+    })
+    .join('\n');
 
   // Financial trends
   const trendsText = (pass1Data?.financialTrends || [])
@@ -1040,11 +1059,11 @@ ${clientPreferences?.hasSuccessionConcerns ? '- Exit/succession timeline is a fa
 
 ${servicesText}
 
-## SERVICE CONCEPTS ALREADY IN OUR PIPELINE
+## SERVICE CONCEPTS ALREADY IN PIPELINE
 
-${existingConcepts.length > 0 
-  ? existingConcepts.map(c => `- **${c.suggested_name}** (identified ${c.times_identified}x): ${c.problem_it_solves}`).join('\n')
-  : 'No concepts currently in development pipeline'}
+${existingConcepts.length > 0
+  ? existingConcepts.map((c: any) => c.suggested_name).join(', ')
+  : 'None'}
 
 ---
 
@@ -1256,7 +1275,7 @@ function filterBlockedServices(
     if (!serviceCode) return true;
     
     // NEW: Check if manually blocked by advisor (highest priority)
-    if (manuallyBlockedServices.includes(serviceCode)) {
+    if (manuallyBlockedServices.some((b: string) => b.toUpperCase() === (serviceCode || '').toUpperCase())) {
       blocked.push({
         serviceCode,
         reason: 'Manually blocked by advisor',
@@ -1266,8 +1285,8 @@ function filterBlockedServices(
     }
     
     // Check enhanced rules that use both context AND preferences
-    const matchingRules = ENHANCED_BLOCK_RULES.filter(r => 
-      r.serviceCode === serviceCode && r.blockIf(context, preferences)
+    const matchingRules = ENHANCED_BLOCK_RULES.filter(r =>
+      (r.serviceCode || '').toUpperCase() === (serviceCode || '').toUpperCase() && r.blockIf(context, preferences)
     );
     
     if (matchingRules.length > 0) {
@@ -1333,7 +1352,7 @@ function getContextDrivenSuggestions(
     suggestions.push({
       title: 'Systems & Process Audit',
       description: 'Context notes indicate loose structure and potential documentation gaps. A systems audit would identify what processes exist vs what\'s in heads, creating a roadmap for systemisation.',
-      serviceCode: 'SYSTEMS_AUDIT',
+      serviceCode: 'systems_audit',
       severity: prefs.hasSuccessionConcerns ? 'high' : 'medium',
       priority: prefs.hasSuccessionConcerns ? 'must_address_now' : 'next_12_months',
       reason: 'Identified from advisor context notes: loose leadership structure and founder dependency suggest undocumented processes.',
@@ -1357,7 +1376,7 @@ function getContextDrivenSuggestions(
     suggestions.push({
       title: 'Exit Readiness Programme',
       description: 'Context notes mention timeline for stepping back/exit. Proactive exit planning maximises value and creates options.',
-      serviceCode: 'EXIT_READINESS',
+      serviceCode: 'exit_readiness',
       severity: 'high',
       priority: 'next_12_months',
       reason: 'Identified from advisor context notes: mentions of exit timeline, succession, or stepping back.',
@@ -1376,7 +1395,7 @@ function getContextDrivenSuggestions(
     suggestions.push({
       title: 'Strategic Advisory (Project-Based)',
       description: 'Context notes indicate preference for external, project-based support. Strategic advisory offers flexible engagement without permanent headcount.',
-      serviceCode: 'STRATEGIC_ADVISORY',
+      serviceCode: 'strategic_advisory',
       severity: 'medium',
       priority: 'when_ready',
       reason: 'Identified from advisor context notes: preference for external support on project basis.',
@@ -1487,14 +1506,16 @@ function generateRecommendedServices(
   const serviceOpportunityMap = new Map<string, any[]>();
   
   for (const opp of opportunities) {
-    // Check both old format (serviceMapping) and new format (direct service object)
-    const serviceCode = opp.serviceMapping?.existingService?.code || 
-                       opp.service?.code ||
-                       (opp.opportunity_code?.startsWith('pinned-') ? opp.opportunity_code.replace('pinned-', '').toUpperCase() : null);
-    
+    let serviceCode = opp.serviceMapping?.existingService?.code ||
+                     opp.service?.code ||
+                     (opp.opportunity_code?.startsWith('pinned-') ? opp.opportunity_code.replace('pinned-', '') : null);
+
     if (!serviceCode) continue;
-    if (blockedCodes.includes(serviceCode)) continue;
-    if (activeServiceCodes.includes(serviceCode)) continue;
+
+    serviceCode = serviceCode.toUpperCase();
+
+    if (blockedCodes.some((c: string) => c.toUpperCase() === serviceCode)) continue;
+    if (activeServiceCodes.some((c: string) => c.toUpperCase() === serviceCode)) continue;
     
     const existing = serviceOpportunityMap.get(serviceCode) || [];
     existing.push(opp);
@@ -1506,7 +1527,7 @@ function generateRecommendedServices(
   for (const opp of opportunities) {
     const code = opp.serviceMapping?.existingService?.code || opp.service?.code;
     // If this opportunity mapped to a blocked service, try to reassign
-    if (code && blockedCodes.includes(code)) {
+    if (code && blockedCodes.some((bc: string) => bc.toUpperCase() === code.toUpperCase())) {
       // Founder-related opportunities should map to SYSTEMS_AUDIT
       // Broadened to catch ALL LLM title variations
       const titleLower = (opp.title || '').toLowerCase();
@@ -1531,7 +1552,7 @@ function generateRecommendedServices(
                                 opp.serviceMapping?.existingService?.code === 'FRACTIONAL_COO');
                                // Any CRITICAL opp that was going to COO should remap to audit
       
-      if (isFounderRelated && !blockedCodes.includes('SYSTEMS_AUDIT') && !activeServiceCodes.includes('SYSTEMS_AUDIT')) {
+      if (isFounderRelated && !blockedCodes.some((bc: string) => bc.toUpperCase() === 'SYSTEMS_AUDIT') && !activeServiceCodes.some((ac: string) => ac.toUpperCase() === 'SYSTEMS_AUDIT')) {
         const existing = serviceOpportunityMap.get('SYSTEMS_AUDIT') || [];
         // Only add if not already mapped here
         if (!existing.some((e: any) => e.code === opp.code || e.title === opp.title)) {
@@ -1549,14 +1570,18 @@ function generateRecommendedServices(
   const serviceEntries = Array.from(serviceOpportunityMap.entries());
   for (const [serviceCode, opps] of serviceEntries) {
     // Find the service details
-    const service = services.find((s: any) => s.code === serviceCode);
+    const service = services.find((s: any) => (s.code || '').toUpperCase() === serviceCode.toUpperCase());
     if (!service) {
-      console.log(`[RecommendedServices] Service not found: ${serviceCode}`);
+      console.log(`[RecommendedServices] Service not found: ${serviceCode} (available: ${(services || []).slice(0, 5).map((s: any) => s.code).join(', ')}...)`);
       continue;
     }
     
-    // Determine if this is a pinned service
-    const isPinned = opps.some((o: any) => o.opportunity_code?.startsWith('pinned-'));
+    // Determine if this is a pinned service (check code, opportunity_code, and explicit flag)
+    const isPinned = opps.some((o: any) =>
+      o.opportunity_code?.startsWith('pinned-') ||
+      o.code?.startsWith('pinned-') ||
+      o._pinnedByAdvisor === true
+    );
     
     // Get highest severity among opportunities
     const severityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -2675,14 +2700,20 @@ async function storeOpportunities(
       console.warn(`[Pass 3] Skipping opportunity ${opp.code} - no valid client_id`);
       continue;
     }
-    
+
+    const opportunityCode = opp.code || opp.opportunity_code || `opp_${opp.category || 'general'}_${index + 1}`;
+    if (!opportunityCode || String(opportunityCode) === 'undefined') {
+      console.warn(`[Pass 3] Skipping opportunity with no code: "${opp.title}"`);
+      continue;
+    }
+
     // Use INSERT (not upsert) since we deleted existing opportunities above
     const { error: oppError } = await supabase
       .from('client_opportunities')
       .insert({
         engagement_id: engagementId,
         client_id: safeClientId,
-        opportunity_code: opp.code,
+        opportunity_code: opportunityCode,
         title: opp.title,
         category: opp.category,
         severity: opp.severity,
@@ -2714,7 +2745,7 @@ async function storeOpportunities(
       });
     
     if (oppError) {
-      console.error(`[Pass 3] Failed to store opportunity ${opp.code}: ${oppError.message}`);
+      console.error(`[Pass 3] Failed to store opportunity ${opportunityCode}: ${oppError.message}`);
     }
   }
   
@@ -2795,15 +2826,23 @@ function postProcessOpportunities(
         .map(o => o.serviceMapping?.existingService?.code)
         .filter(Boolean)
     );
-    
+
     for (const pinnedCode of pinnedServices) {
-      // Skip if already in opportunities
-      if (existingServiceCodes.has(pinnedCode)) {
-        console.log(`[Post-Process] ⏭️ Pinned service ${pinnedCode} already in opportunities`);
+      // If already in opportunities, mark existing opportunity as pinned (don't skip)
+      if ([...existingServiceCodes].some((code: string) => (code || '').toUpperCase() === pinnedCode.toUpperCase())) {
+        const existingOpp = allowed.find(
+          (o: any) => (o.serviceMapping?.existingService?.code || '').toUpperCase() === pinnedCode.toUpperCase()
+        );
+        if (existingOpp) {
+          existingOpp._pinnedByAdvisor = true;
+          existingOpp.severity = existingOpp.severity === 'critical' ? 'critical' : 'high';
+          existingOpp.priority = existingOpp.priority === 'must_address_now' ? 'must_address_now' : 'next_12_months';
+          console.log(`[Post-Process] ⭐️ Pinned service ${pinnedCode} already in opportunities - marked as pinned`);
+        }
         continue;
       }
-      
-      const service = services.find((s: any) => s.code === pinnedCode);
+
+      const service = services.find((s: any) => (s.code || '').toUpperCase() === pinnedCode.toUpperCase());
       if (service) {
         // Build context-aware evidence and talking point instead of boilerplate
         let pinnedDataEvidence = '';
@@ -2816,7 +2855,7 @@ function postProcessOpportunities(
         const concentration = clientData.pass1Data?.client_concentration_top3;
         const balanceSheet = clientData.pass1Data?.balance_sheet;
         
-        switch (pinnedCode) {
+        switch (pinnedCode.toUpperCase()) {
           case 'QUARTERLY_BI_SUPPORT':
             if (revenueFormatted && grossMargin) {
               pinnedDataEvidence = `With ${revenueFormatted} revenue and margins recovering to ${grossMargin}%, ongoing benchmarking tracks your recovery against industry peers and catches margin drift early`;
@@ -2891,10 +2930,12 @@ function postProcessOpportunities(
         });
         
         console.log(`[Post-Process] 📌 Added pinned service: ${service.name}`);
+      } else {
+        console.log(`[Post-Process] ⚠️ Pinned service ${pinnedCode} not found in services catalogue (available: ${(services || []).slice(0, 5).map((s: any) => s.code).join(', ')}...)`);
       }
     }
   }
-  
+
   // Step 4: Apply direction-aware priority adjustment
   const prioritised = adjustPrioritiesForDirection(allowed, directionContext.businessDirection);
   
@@ -2912,8 +2953,16 @@ function postProcessOpportunities(
     return (b.financialImpact?.amount || 0) - (a.financialImpact?.amount || 0);
   });
   
-  // Step 6: Cap at 12 opportunities
-  const capped = forcedPriority.slice(0, 12);
+  // Step 6: Cap at 12 opportunities, but NEVER drop pinned services
+  let capped = forcedPriority.slice(0, 12);
+
+  // Re-add any pinned services that got capped out
+  const droppedPins = forcedPriority.slice(12).filter((o: any) => o._pinnedByAdvisor);
+  if (droppedPins.length > 0) {
+    console.log(`[Post-Process] 📌 Rescuing ${droppedPins.length} pinned services from cap: ${droppedPins.map((o: any) => o.serviceMapping?.existingService?.code).join(', ')}`);
+    capped = [...capped, ...droppedPins];
+  }
+
   console.log(`[Post-Process] Final count: ${capped.length} opportunities`);
   
   // Recalculate total opportunity value

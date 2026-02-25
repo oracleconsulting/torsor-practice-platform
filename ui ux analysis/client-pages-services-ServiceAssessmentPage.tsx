@@ -25,6 +25,39 @@ const serviceIcons: Record<string, React.ComponentType<any>> = {
   'benchmarking': BarChart3,
 };
 
+/** Returns true if a response value counts as meaningful (not placeholder junk). */
+function isMeaningfulResponse(value: unknown, questionId: string): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') {
+    const t = value.trim();
+    if (t.length === 0) return false;
+    if (t.length >= 20) return true;
+    if (t.length >= 10 && /\s/.test(t)) return true;
+    if (t.length >= 8 && /^[\w\s\-–—\/]+$/u.test(t)) return true;
+    return false;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return false;
+    if (questionId === 'sa_staff_roster') {
+      return value.some((entry: any) => entry?.name?.trim?.()?.length > 0);
+    }
+    return true;
+  }
+  if (typeof value === 'number' && !Number.isNaN(value)) return true;
+  return true;
+}
+
+/** Completion % from required questions that have meaningful answers only. */
+function completionFromMeaningfulResponses(
+  responses: Record<string, any>,
+  questions: AssessmentQuestion[]
+): number {
+  const required = questions.filter((q) => q.required !== false);
+  if (required.length === 0) return 0;
+  const meaningful = required.filter((q) => isMeaningfulResponse(responses[q.id], q.id)).length;
+  return Math.round((meaningful / required.length) * 100);
+}
+
 export default function ServiceAssessmentPage() {
   const { serviceCode } = useParams<{ serviceCode: string }>();
   const navigate = useNavigate();
@@ -239,6 +272,29 @@ export default function ServiceAssessmentPage() {
           }
         }
       } else {
+        // For Systems Audit: ensure an sa_engagements row exists so dashboard and admin see the client.
+        // Progress is stored in service_line_assessments; engagement is only created on "Complete" otherwise.
+        if (code === 'systems_audit' && clientSession.practiceId) {
+          const { data: existingEngagement } = await supabase
+            .from('sa_engagements')
+            .select('id')
+            .eq('client_id', clientSession.clientId)
+            .maybeSingle();
+          if (!existingEngagement) {
+            const { error: createErr } = await supabase
+              .from('sa_engagements')
+              .insert({
+                client_id: clientSession.clientId,
+                practice_id: clientSession.practiceId,
+                status: 'pending',
+              });
+            if (!createErr) {
+              console.log('[Systems Audit] Created missing sa_engagements row for client');
+            } else {
+              console.warn('[Systems Audit] Could not create engagement:', createErr.message);
+            }
+          }
+        }
         const { data } = await supabase
           .from('service_line_assessments')
           .select('responses, completed_at')
@@ -311,7 +367,7 @@ export default function ServiceAssessmentPage() {
           }
         }
       } else {
-        const completionPct = Math.round((Object.keys(responses).length / assessment.questions.length) * 100);
+        const completionPct = completionFromMeaningfulResponses(responses, assessment.questions);
         await supabase.from('service_line_assessments').upsert({
           client_id: clientSession.clientId,
           practice_id: clientSession.practiceId,

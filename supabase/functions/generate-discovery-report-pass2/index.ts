@@ -119,11 +119,14 @@ interface DestinationClarityAnalysis {
 // ============================================================================
 
 type ClientBusinessType = 
-  | 'trading_product'        
-  | 'trading_agency'         
-  | 'professional_practice'  
-  | 'investment_vehicle'     
-  | 'funded_startup'         
+  | 'trading_product'
+  | 'trading_agency'
+  | 'trading_construction'
+  | 'trading_recruitment'
+  | 'trading_hospitality'
+  | 'professional_practice'
+  | 'investment_vehicle'
+  | 'funded_startup'
   | 'lifestyle_business';
 
 interface FrameworkOverrides {
@@ -438,6 +441,18 @@ However, also flag the concentration risk: 50%+ of revenue from one client is a 
 
     'trading_product': `
 Standard trading business - all frameworks apply normally.
+`,
+
+    'trading_construction': `
+Construction/fit-out/interiors - benchmark against detected industry (fit_out, construction). Subcontract delivery workforce sits in cost of sales; payroll benchmark is admin/management only. Gross margin 20-32% is typical for fit-out.
+`,
+
+    'trading_recruitment': `
+Recruitment/staffing - benchmark against detected industry. Placement fees distort standard payroll benchmarks. Standard frameworks apply with recruitment-appropriate metrics.
+`,
+
+    'trading_hospitality': `
+Hospitality/F&B - benchmark against detected industry. Standard frameworks apply.
 `,
 
     'professional_practice': `

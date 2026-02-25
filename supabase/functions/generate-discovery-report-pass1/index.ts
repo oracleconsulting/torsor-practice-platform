@@ -336,7 +336,10 @@ interface DestinationClarityAnalysis {
 
 type ClientBusinessType = 
   | 'trading_product'        // Traditional product/service business (default)
-  | 'trading_agency'         // Creative/digital agency with contractor model
+  | 'trading_agency'         // Creative/digital agency with billable contractor model
+  | 'trading_construction'   // Construction, fit-out, interiors — subcontract delivery of physical works
+  | 'trading_recruitment'    // Recruitment / staffing — revenue is candidate placement, not billable time
+  | 'trading_hospitality'    // Restaurant, hotel, pub, café, events venue
   | 'professional_practice'  // Accountancy, law, consulting
   | 'investment_vehicle'     // Property investment, holding company
   | 'funded_startup'         // VC/angel-backed, pre or early revenue
@@ -369,6 +372,39 @@ const CLIENT_TYPE_FRAMEWORKS: Record<ClientBusinessType, ClientTypeClassificatio
     payrollBenchmarkRelevant: true,
     appropriateServices: ['benchmarking', '365_method', 'management_accounts', 'systems_audit', 'fractional_cfo', 'fractional_coo', 'business_advisory'],
     inappropriateServices: [],
+    reportFraming: 'transformation',
+    maxRecommendedInvestment: null
+  },
+  'trading_construction': {
+    useEarningsValuation: true,
+    useAssetValuation: false,
+    benchmarkAgainst: 'detected_industry',
+    exitReadinessRelevant: true,
+    payrollBenchmarkRelevant: true,
+    appropriateServices: ['management_accounts', 'benchmarking', 'systems_audit', 'fractional_cfo', 'business_advisory', '365_method'],
+    inappropriateServices: [],
+    reportFraming: 'transformation',
+    maxRecommendedInvestment: null
+  },
+  'trading_recruitment': {
+    useEarningsValuation: true,
+    useAssetValuation: false,
+    benchmarkAgainst: 'detected_industry',
+    exitReadinessRelevant: true,
+    payrollBenchmarkRelevant: false,
+    appropriateServices: ['management_accounts', 'benchmarking', 'systems_audit', 'fractional_cfo'],
+    inappropriateServices: [],
+    reportFraming: 'transformation',
+    maxRecommendedInvestment: null
+  },
+  'trading_hospitality': {
+    useEarningsValuation: true,
+    useAssetValuation: false,
+    benchmarkAgainst: 'detected_industry',
+    exitReadinessRelevant: true,
+    payrollBenchmarkRelevant: true,
+    appropriateServices: ['management_accounts', 'benchmarking', 'systems_audit', '365_method'],
+    inappropriateServices: ['fractional_coo'],
     reportFraming: 'transformation',
     maxRecommendedInvestment: null
   },
@@ -450,7 +486,7 @@ function classifyBusinessType(
   // ADMIN OVERRIDE CHECK (Highest Priority)
   // ========================================================================
   // If admin has explicitly set a business type, use it with high confidence
-  if (adminBusinessType && ['trading_product', 'trading_agency', 'professional_practice', 'investment_vehicle', 'funded_startup', 'lifestyle_business'].includes(adminBusinessType)) {
+  if (adminBusinessType && ['trading_product', 'trading_agency', 'trading_construction', 'trading_recruitment', 'trading_hospitality', 'professional_practice', 'investment_vehicle', 'funded_startup', 'lifestyle_business'].includes(adminBusinessType)) {
     type = adminBusinessType as ClientBusinessType;
     confidence = 95;
     signals.push(`Admin override: ${adminBusinessType}`);
@@ -547,31 +583,87 @@ function classifyBusinessType(
     }
 
     // ========================================================================
-    // AGENCY DETECTION (Alex's case)
+    // CONSTRUCTION / FIT-OUT / WORKS DETECTION
+    // Must run BEFORE agency detection — both have high subcontractor ratios
+    // but completely different business models and benchmarks
     // ========================================================================
-    
+
     if (type === 'trading_product') {
-      // Check for high contractor/consultancy costs
+      const mentionsConstruction = /\b(fit.?out|fitout|interiors?|interior design|office design|office works|installation|fit-out|refurb(ishment)?|shopfitting|shop fitting|joinery|stonework|groundwork|groundworks|civils|civil engineering|contractor|main contractor|subcontract|concrete|structural|cladding|roofing|flooring|tiling|glazing|partitioning|mezzanine|steelwork|mechanical|electrical|m&e|plumbing|carpentry|painting and decorating|site (work|management)|project deliver|works contract|construction)\b/.test(allText);
+      const mentionsTradesSector = /\b(builder|building contractor|property development|property developer|housebuilder|new build|renovation|demolition|surveyor|quantity surveyor|architect|planning)\b/.test(allText);
+
+      const subcontractorCosts = financials?.subcontractorCosts || financials?.consultancyFees || financials?.consultingCosts || 0;
+      const turnoverForConstruction = financials?.turnover || 1;
+      const subcontractRatio = subcontractorCosts / turnoverForConstruction;
+
+      if (mentionsConstruction || mentionsTradesSector) {
+        type = 'trading_construction';
+        confidence = mentionsConstruction ? 90 : 75;
+        signals.push('Construction/fit-out/works language detected');
+        if (subcontractRatio > 0.3) signals.push(`Subcontract delivery model: ${(subcontractRatio * 100).toFixed(0)}% of revenue`);
+      }
+    }
+
+    // ========================================================================
+    // RECRUITMENT / STAFFING DETECTION
+    // Must run BEFORE agency detection — both involve placing people
+    // ========================================================================
+
+    if (type === 'trading_product') {
+      const mentionsRecruitment = /\b(recruit(ment|ing|er)?|staffing|talent acquisition|headhunting|executive search|temp(orary)? staff|perm(anent)? placement|candidate|cv|job board|talent pool|RPO)\b/.test(allText);
+
+      if (mentionsRecruitment) {
+        type = 'trading_recruitment';
+        confidence = 85;
+        signals.push('Recruitment/staffing language detected');
+      }
+    }
+
+    // ========================================================================
+    // HOSPITALITY DETECTION
+    // ========================================================================
+
+    if (type === 'trading_product') {
+      const mentionsHospitality = /\b(restaurant|hotel|pub|bar|café|cafe|catering|takeaway|food service|events venue|wedding venue|hospitality|accommodation|bed and breakfast|b&b|guest house|spa|leisure|club|nightclub)\b/.test(allText);
+
+      if (mentionsHospitality) {
+        type = 'trading_hospitality';
+        confidence = 85;
+        signals.push('Hospitality/food service language detected');
+      }
+    }
+
+    // ========================================================================
+    // AGENCY DETECTION (creative/digital/marketing agencies)
+    // Only fires for genuine agency models with billable client work
+    // ========================================================================
+
+    if (type === 'trading_product') {
       const consultancyCosts = financials?.consultancyFees || financials?.subcontractorCosts || 0;
       const turnover = financials?.turnover || 1;
-      const consultancyRatio = consultancyCosts / turnover;
-      
-      const mentionsAgency = allText.includes('agency') || allText.includes('creative') || 
+      const consultancyRatio = turnover ? consultancyCosts / turnover : 0;
+
+      const mentionsAgency = allText.includes('agency') || allText.includes('creative') ||
                              allText.includes('digital agency') || allText.includes('advertising') ||
-                             allText.includes('design agency') || allText.includes('marketing agency');
-      const mentionsFreelance = allText.includes('freelance') || allText.includes('contractor') ||
-                                allText.includes('subcontract');
-      const hasProjectStructure = allText.includes('project') || allText.includes('retainer') ||
-                                  allText.includes('client work') || allText.includes('campaign');
-      
-      if (consultancyRatio > 0.3) {
+                             allText.includes('design agency') || allText.includes('marketing agency') ||
+                             allText.includes('media agency') || allText.includes('pr agency') ||
+                             allText.includes('content agency') || allText.includes('seo agency');
+      const mentionsFreelance = allText.includes('freelance') || allText.includes('contractor');
+      const mentionsClientWork = allText.includes('retainer') || allText.includes('client work') ||
+                                allText.includes('campaign') || allText.includes('brief');
+
+      if (consultancyRatio > 0.3 && (mentionsAgency || mentionsClientWork)) {
         type = 'trading_agency';
         confidence = 85;
-        signals.push(`High contractor costs: ${(consultancyRatio * 100).toFixed(0)}% of revenue`);
-      } else if (mentionsAgency && (mentionsFreelance || hasProjectStructure)) {
+        signals.push(`Agency model: ${(consultancyRatio * 100).toFixed(0)}% contractor costs + agency/client work language`);
+      } else if (consultancyRatio > 0.5 && mentionsFreelance) {
         type = 'trading_agency';
         confidence = 75;
-        signals.push('Agency language + contractor/project structure');
+        signals.push(`High freelance contractor model: ${(consultancyRatio * 100).toFixed(0)}% of revenue`);
+      } else if (mentionsAgency && (mentionsFreelance || mentionsClientWork)) {
+        type = 'trading_agency';
+        confidence = 75;
+        signals.push('Agency language + contractor/client work structure');
       } else if (mentionsAgency) {
         type = 'trading_agency';
         confidence = 60;
@@ -1182,38 +1274,84 @@ function calculateFinancialHealthSnapshot(
 // ============================================================================
 
 const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
-  // Distribution & Wholesale (28-32% is healthy range)
-  'wholesale_distribution': { typical: 30, good: 28, concern: 32, notes: 'Wholesale/distribution - 28-32% healthy' },
-  'distribution': { typical: 30, good: 28, concern: 32, notes: 'Distribution' },
-  'wholesale': { typical: 30, good: 28, concern: 32, notes: 'Wholesale' },
-  'keys_lockers': { typical: 30, good: 28, concern: 32, notes: 'Keys/lockers wholesale' },
-  'creative_agency': { typical: 35, good: 25, concern: 50, notes: 'Agency/digital/creative services' },
-  
-  // Agency/Creative Services (45-55% typical - includes contractors)
-  'agency': { typical: 50, good: 45, concern: 55, notes: 'Agency/Creative Services - includes contractors' },
-  
-  // Professional Services (45-60% typical)
-  'professional_services': { typical: 52, good: 45, concern: 60, notes: 'People are the product' },
-  'consulting': { typical: 52, good: 45, concern: 60, notes: 'Consulting' },
-  'accountancy': { typical: 50, good: 45, concern: 55, notes: 'Accountancy' },
-  'legal': { typical: 52, good: 45, concern: 60, notes: 'Legal' },
-  
-  // Technology (35-50% typical)
-  'technology': { typical: 42, good: 35, concern: 50, notes: 'Technology' },
-  'saas': { typical: 38, good: 30, concern: 45, notes: 'SaaS' },
-  'software': { typical: 42, good: 35, concern: 50, notes: 'Software' },
-  
-  // Construction (30-40% typical)
-  'construction': { typical: 35, good: 30, concern: 40, notes: 'Construction' },
-  'trades': { typical: 35, good: 30, concern: 40, notes: 'Trades' },
-  
-  // Retail (15-25% typical)
-  'retail': { typical: 20, good: 15, concern: 25, notes: 'Retail' },
-  
-  // Manufacturing (25-35% typical)
-  'manufacturing': { typical: 30, good: 25, concern: 35, notes: 'Manufacturing' },
-  
-  // Default
+  // ── CONSTRUCTION & FIT-OUT ──────────────────────────────────────────────
+  'fit_out':              { typical: 16, good: 12, concern: 22, notes: 'Fit-out/interiors — admin staff only, subcontract in COS' },
+  'construction_fitout':  { typical: 16, good: 12, concern: 22, notes: 'Construction fit-out' },
+  'construction':         { typical: 28, good: 22, concern: 35, notes: 'Construction — mixed employed/subcontract' },
+  'trades':               { typical: 30, good: 25, concern: 38, notes: 'Trades — mostly employed labour' },
+  'civil_engineering':    { typical: 25, good: 20, concern: 32, notes: 'Civil engineering' },
+  'housebuilder':         { typical: 18, good: 14, concern: 24, notes: 'Housebuilder — subcontract delivery model' },
+
+  // ── DISTRIBUTION & WHOLESALE ─────────────────────────────────────────────
+  'wholesale_distribution': { typical: 30, good: 28, concern: 32, notes: 'Wholesale/distribution — 28-32% healthy' },
+  'distribution':           { typical: 30, good: 28, concern: 32, notes: 'Distribution' },
+  'wholesale':              { typical: 30, good: 28, concern: 32, notes: 'Wholesale' },
+  'keys_lockers':           { typical: 30, good: 28, concern: 32, notes: 'Keys/lockers wholesale' },
+  'logistics':              { typical: 32, good: 28, concern: 38, notes: 'Logistics/transport' },
+  'ecommerce':              { typical: 18, good: 14, concern: 24, notes: 'E-commerce — lean team, high throughput' },
+
+  // ── PROFESSIONAL SERVICES ─────────────────────────────────────────────────
+  'professional_services':  { typical: 52, good: 45, concern: 60, notes: 'People are the product' },
+  'consulting':             { typical: 52, good: 45, concern: 60, notes: 'Consulting' },
+  'accountancy':            { typical: 50, good: 45, concern: 55, notes: 'Accountancy' },
+  'legal':                  { typical: 52, good: 45, concern: 60, notes: 'Legal' },
+  'financial_services':     { typical: 45, good: 38, concern: 55, notes: 'Financial services/IFA' },
+  'architecture':           { typical: 48, good: 42, concern: 56, notes: 'Architecture/design practice' },
+  'surveying':              { typical: 50, good: 44, concern: 58, notes: 'Surveying/valuations' },
+  'engineering_consultancy':{ typical: 50, good: 44, concern: 58, notes: 'Engineering consultancy' },
+
+  // ── AGENCY & CREATIVE ─────────────────────────────────────────────────────
+  'creative_agency':  { typical: 35, good: 25, concern: 50, notes: 'Agency — includes some freelancers in COS' },
+  'agency':           { typical: 50, good: 45, concern: 55, notes: 'Agency/creative services — fully employed model' },
+
+  // ── TECHNOLOGY ────────────────────────────────────────────────────────────
+  'technology':       { typical: 42, good: 35, concern: 50, notes: 'Technology' },
+  'saas':             { typical: 38, good: 30, concern: 45, notes: 'SaaS' },
+  'software':         { typical: 42, good: 35, concern: 50, notes: 'Software' },
+
+  // ── HOSPITALITY & LEISURE ─────────────────────────────────────────────────
+  'hospitality':      { typical: 38, good: 30, concern: 45, notes: 'Hospitality/F&B — high labour' },
+  'restaurant':       { typical: 38, good: 30, concern: 45, notes: 'Restaurant' },
+  'hotel':            { typical: 35, good: 28, concern: 42, notes: 'Hotel — includes front of house' },
+  'events':           { typical: 32, good: 26, concern: 40, notes: 'Events/venue' },
+  'leisure':          { typical: 38, good: 30, concern: 46, notes: 'Leisure/fitness' },
+
+  // ── HEALTHCARE ────────────────────────────────────────────────────────────
+  'healthcare':       { typical: 48, good: 42, concern: 56, notes: 'Healthcare — high clinical staff costs' },
+  'dental':           { typical: 44, good: 38, concern: 52, notes: 'Dental practice' },
+  'care_home':        { typical: 52, good: 46, concern: 60, notes: 'Care home — very high staffing' },
+  'pharmacy':         { typical: 32, good: 26, concern: 40, notes: 'Pharmacy — mixed labour/product' },
+  'veterinary':       { typical: 42, good: 36, concern: 50, notes: 'Veterinary practice' },
+
+  // ── RECRUITMENT ───────────────────────────────────────────────────────────
+  'recruitment':      { typical: 40, good: 34, concern: 50, notes: 'Recruitment — consultant headcount driven' },
+
+  // ── RETAIL ────────────────────────────────────────────────────────────────
+  'retail':           { typical: 20, good: 15, concern: 25, notes: 'Retail' },
+  'food_retail':      { typical: 22, good: 17, concern: 28, notes: 'Food retail — higher staff ratio' },
+
+  // ── MANUFACTURING & ENGINEERING ───────────────────────────────────────────
+  'manufacturing':    { typical: 30, good: 25, concern: 35, notes: 'Manufacturing' },
+  'engineering':      { typical: 32, good: 27, concern: 38, notes: 'Engineering/production' },
+  'food_production':  { typical: 28, good: 23, concern: 34, notes: 'Food production' },
+
+  // ── MEDIA, EDUCATION & OTHER ──────────────────────────────────────────────
+  'media':            { typical: 40, good: 33, concern: 50, notes: 'Media/publishing' },
+  'education':        { typical: 55, good: 48, concern: 63, notes: 'Education — staff-intensive' },
+  'training':         { typical: 45, good: 38, concern: 54, notes: 'Training/coaching' },
+  'marketing_services':{ typical: 38, good: 30, concern: 48, notes: 'Marketing services' },
+  'cleaning':         { typical: 50, good: 44, concern: 58, notes: 'Cleaning/facilities — labour-intensive' },
+  'security_services':{ typical: 52, good: 46, concern: 60, notes: 'Security services — labour-intensive' },
+  'estate_agency':    { typical: 42, good: 35, concern: 52, notes: 'Estate agency — commission + staff' },
+  'property_management':{ typical: 35, good: 28, concern: 44, notes: 'Property management' },
+  'insurance':        { typical: 38, good: 30, concern: 48, notes: 'Insurance/broking' },
+  'automotive':       { typical: 25, good: 20, concern: 32, notes: 'Automotive/dealership' },
+  'transport':        { typical: 32, good: 26, concern: 40, notes: 'Transport/haulage' },
+  'agriculture':      { typical: 22, good: 18, concern: 28, notes: 'Agriculture/farming' },
+  'printing':         { typical: 28, good: 23, concern: 35, notes: 'Print/signage' },
+  'funeral':          { typical: 38, good: 32, concern: 46, notes: 'Funeral services' },
+
+  // ── DEFAULT ───────────────────────────────────────────────────────────────
   'general_business': { typical: 35, good: 30, concern: 40, notes: 'UK SME average' }
 };
 
@@ -1222,16 +1360,84 @@ const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
 // ============================================================================
 
 const GROSS_MARGIN_BENCHMARKS: Record<string, { low: number; high: number }> = {
+  // ── CONSTRUCTION & FIT-OUT ──────────────────────────────────────────────
+  'fit_out':              { low: 20, high: 32 },
+  'construction_fitout':  { low: 20, high: 32 },
+  'construction':         { low: 15, high: 30 },
+  'trades':               { low: 35, high: 55 },
+  'civil_engineering':    { low: 18, high: 32 },
+  'housebuilder':         { low: 15, high: 28 },
+
+  // ── DISTRIBUTION & WHOLESALE ─────────────────────────────────────────────
   'wholesale_distribution': { low: 25, high: 40 },
-  'keys_lockers': { low: 45, high: 60 },  // Higher margin niche
-  'creative_agency': { low: 40, high: 55 },  // Agencies have higher people costs due to contractors
-  'professional_services': { low: 60, high: 80 },
-  'accountancy': { low: 65, high: 85 },
-  'construction': { low: 15, high: 30 },
-  'manufacturing': { low: 30, high: 50 },
-  'retail': { low: 30, high: 50 },
-  'technology': { low: 60, high: 80 },
-  'saas': { low: 70, high: 90 },
+  'distribution':           { low: 25, high: 40 },
+  'wholesale':              { low: 25, high: 40 },
+  'keys_lockers':           { low: 45, high: 60 },
+  'logistics':              { low: 30, high: 50 },
+  'ecommerce':              { low: 35, high: 55 },
+
+  // ── PROFESSIONAL SERVICES ─────────────────────────────────────────────────
+  'professional_services':  { low: 60, high: 80 },
+  'consulting':             { low: 60, high: 80 },
+  'accountancy':            { low: 65, high: 85 },
+  'legal':                  { low: 60, high: 80 },
+  'financial_services':     { low: 55, high: 75 },
+  'architecture':           { low: 55, high: 75 },
+  'surveying':              { low: 55, high: 75 },
+  'engineering_consultancy':{ low: 55, high: 75 },
+
+  // ── AGENCY & CREATIVE ─────────────────────────────────────────────────────
+  'creative_agency':  { low: 40, high: 55 },
+  'agency':           { low: 50, high: 70 },
+
+  // ── TECHNOLOGY ────────────────────────────────────────────────────────────
+  'technology':   { low: 60, high: 80 },
+  'saas':         { low: 70, high: 90 },
+  'software':     { low: 65, high: 85 },
+
+  // ── HOSPITALITY & LEISURE ─────────────────────────────────────────────────
+  'hospitality':  { low: 60, high: 75 },
+  'restaurant':   { low: 60, high: 75 },
+  'hotel':        { low: 65, high: 80 },
+  'events':       { low: 40, high: 60 },
+  'leisure':      { low: 55, high: 70 },
+
+  // ── HEALTHCARE ────────────────────────────────────────────────────────────
+  'healthcare':     { low: 40, high: 65 },
+  'dental':         { low: 45, high: 65 },
+  'care_home':      { low: 20, high: 40 },
+  'pharmacy':       { low: 20, high: 35 },
+  'veterinary':     { low: 40, high: 60 },
+
+  // ── RECRUITMENT ───────────────────────────────────────────────────────────
+  'recruitment':  { low: 25, high: 45 },
+
+  // ── RETAIL ────────────────────────────────────────────────────────────────
+  'retail':       { low: 30, high: 50 },
+  'food_retail':  { low: 25, high: 45 },
+
+  // ── MANUFACTURING & ENGINEERING ───────────────────────────────────────────
+  'manufacturing':    { low: 30, high: 50 },
+  'engineering':      { low: 35, high: 55 },
+  'food_production':  { low: 25, high: 45 },
+
+  // ── MEDIA, EDUCATION & OTHER ──────────────────────────────────────────────
+  'media':              { low: 45, high: 65 },
+  'education':          { low: 50, high: 70 },
+  'training':           { low: 55, high: 75 },
+  'marketing_services': { low: 45, high: 65 },
+  'cleaning':           { low: 25, high: 40 },
+  'security_services':  { low: 20, high: 35 },
+  'estate_agency':      { low: 75, high: 90 },
+  'property_management':{ low: 50, high: 70 },
+  'insurance':          { low: 50, high: 70 },
+  'automotive':         { low: 15, high: 30 },
+  'transport':          { low: 25, high: 45 },
+  'agriculture':        { low: 20, high: 40 },
+  'printing':           { low: 35, high: 55 },
+  'funeral':            { low: 45, high: 65 },
+
+  // ── DEFAULT ───────────────────────────────────────────────────────────────
   'general_business': { low: 35, high: 55 }
 };
 
@@ -1241,96 +1447,233 @@ const GROSS_MARGIN_BENCHMARKS: Record<string, { low: number; high: number }> = {
 
 function getPayrollBenchmark(industry: string): PayrollBenchmark {
   const lower = (industry || '').toLowerCase();
-  
-  // Exact match
+
   if (PAYROLL_BENCHMARKS[lower]) return PAYROLL_BENCHMARKS[lower];
-  
-  // Keys/lockers detection
-  if (lower.includes('key') || lower.includes('lock') || lower.includes('locker') || lower.includes('security hardware')) {
-    console.log('[Pass1] Detected keys/lockers -> wholesale_distribution');
-    return PAYROLL_BENCHMARKS['wholesale_distribution'];
+
+  for (const key of Object.keys(PAYROLL_BENCHMARKS)) {
+    if (lower.includes(key) || key.includes(lower)) {
+      return PAYROLL_BENCHMARKS[key];
+    }
   }
-  
-  // Distribution
+
+  if (lower.includes('fit') || lower.includes('interior') || lower.includes('fitout')) {
+    return PAYROLL_BENCHMARKS['fit_out'];
+  }
+  if (lower.includes('build') || lower.includes('construct') || lower.includes('contractor')) {
+    return PAYROLL_BENCHMARKS['construction'];
+  }
   if (lower.includes('distrib') || lower.includes('wholesale') || lower.includes('supply')) {
     return PAYROLL_BENCHMARKS['wholesale_distribution'];
   }
-  
-  // Technology
   if (lower.includes('tech') || lower.includes('software') || lower.includes('saas')) {
     return PAYROLL_BENCHMARKS['technology'];
   }
-  
-  // Professional services
   if (lower.includes('consult') || lower.includes('advisory')) {
     return PAYROLL_BENCHMARKS['professional_services'];
   }
-  
-  // Accountancy
   if (lower.includes('account') || lower.includes('bookkeep')) {
     return PAYROLL_BENCHMARKS['accountancy'];
   }
-  
+  if (lower.includes('health') || lower.includes('medical') || lower.includes('care')) {
+    return PAYROLL_BENCHMARKS['healthcare'];
+  }
+  if (lower.includes('recruit') || lower.includes('staffing')) {
+    return PAYROLL_BENCHMARKS['recruitment'];
+  }
+  if (lower.includes('restaurant') || lower.includes('hospitality') || lower.includes('food service')) {
+    return PAYROLL_BENCHMARKS['hospitality'];
+  }
+
   return PAYROLL_BENCHMARKS['general_business'];
 }
 
 function detectIndustry(responses: Record<string, any>, companyName?: string, clientType?: string): string {
   const allText = JSON.stringify({ ...responses, companyName }).toLowerCase();
-  
-  // Priority 1: Use client type classification from engagement
+
   if (clientType) {
-    const typeMap: Record<string, string> = {
-      'trading_agency': 'creative_agency',
-      'trading_product': 'general_business',
-      'professional_practice': 'professional_services',
-      'investment_vehicle': 'financial_services',
-      'funded_startup': 'saas',
-      'lifestyle_business': 'general_business',
+    const typeMap: Record<string, string | null> = {
+      'trading_agency':       'creative_agency',
+      'trading_construction': null,
+      'trading_recruitment':  'recruitment',
+      'trading_hospitality':  null,
+      'trading_product':      null,
+      'professional_practice':'professional_services',
+      'investment_vehicle':   'financial_services',
+      'funded_startup':       'saas',
+      'lifestyle_business':   null,
     };
-    if (typeMap[clientType]) {
-      console.log(`[Pass1] Industry from client type '${clientType}': ${typeMap[clientType]}`);
-      return typeMap[clientType];
+    const mapped = typeMap[clientType];
+    if (mapped !== undefined && mapped !== null) {
+      console.log(`[Pass1] Industry from client type '${clientType}': ${mapped}`);
+      return mapped;
     }
   }
-  
-  // Priority 2: Industry-specific keywords with word boundary matching
-  if (/\b(agency|agencies|creative agency|digital agency|marketing agency|advertising|media buying|campaigns?|branding)\b/.test(allText)) {
-    return 'creative_agency';
+
+  // ── PRIORITY 2: Construction & Fit-Out ───────────────────────────────────
+  if (/\b(fit.?out|fitout|office interior|commercial interior|shopfitt|shop fitting|joinery|partitioning|mezzanine|steelwork|glazing|cladding|flooring contractor|tiling contractor|interior contractor|office refurb|refurbishment contractor|fit out contractor)\b/.test(allText)) {
+    return 'fit_out';
   }
-  if (/\b(saas|software as a service|software platform|recurring revenue|mrr|arr|subscription.*(model|revenue))\b/.test(allText)) {
-    return 'saas';
+  if (/\b(housebuilder|house builder|new build|residential developer|property developer)\b/.test(allText)) {
+    return 'housebuilder';
   }
-  if (/\b(software|app development|mobile app|web platform|tech startup)\b/.test(allText)) {
-    return 'saas';
+  if (/\b(civil engineering|groundwork|earthwork|infrastructure contractor)\b/.test(allText)) {
+    return 'civil_engineering';
   }
-  if (/\b(consult(ing|ancy|ant)|advisory|professional services|legal|solicitor)\b/.test(allText)) {
-    return 'professional_services';
-  }
-  if (/\b(accountan(cy|t|ts)|bookkeep(ing|er)|tax advisory|audit)\b/.test(allText)) {
-    return 'accountancy';
-  }
-  if (/\b(construction|builder|plumber|electrician|carpent|roofing|civil engineering)\b/.test(allText)) {
+  if (/\b(builder|building contractor|main contractor|general contractor|construction company|renovation|demolition|structural|concrete|roofing contractor|painting and decorating)\b/.test(allText)) {
     return 'construction';
   }
-  if (/\b(retail|shop|ecommerce|e-commerce|online store|high street)\b/.test(allText)) {
-    return 'retail';
+  if (/\b(plumb(er|ing)|electrician|electrical contractor|heating engineer|boiler|hvac|gas engineer|carpenter|carpentry|joiner|tiler|plasterer|decorator)\b/.test(allText)) {
+    return 'trades';
   }
-  if (/\b(manufactur(ing|er)|factory|production line|fabricat)\b/.test(allText)) {
-    return 'manufacturing';
+
+  // ── PRIORITY 3: Technology & SaaS ────────────────────────────────────────
+  if (/\b(saas|software as a service|recurring revenue model|mrr|arr|subscription (model|revenue)|product-led)\b/.test(allText)) {
+    return 'saas';
   }
-  if (/\b(distribut(ion|or)|wholesale|supply chain|logistics|warehousing)\b/.test(allText)) {
-    return 'wholesale_distribution';
+  if (/\b(software|app development|mobile app|web platform|tech startup|developer platform)\b/.test(allText)) {
+    return 'software';
   }
-  if (/\b(keys? (and|&) lockers?|security hardware|locksmith|padlock|safe(s| ))\b/.test(allText)) {
-    return 'keys_lockers';
+  if (/\b(tech(nology)?|digital product|it services|managed service provider|msp)\b/.test(allText)) {
+    return 'technology';
   }
-  if (/\b(restaurant|hotel|hospitality|catering|pub|bar|cafe)\b/.test(allText)) {
-    return 'hospitality';
+
+  // ── PRIORITY 4: Agency & Creative ────────────────────────────────────────
+  if (/\b(agency|agencies|creative agency|digital agency|marketing agency|advertising agency|media agency|pr agency|design agency|content agency|seo agency|social media agency)\b/.test(allText)) {
+    return 'creative_agency';
   }
-  if (/\b(healthcare|medical|dental|clinic|pharmacy|care home|nhs)\b/.test(allText)) {
+
+  // ── PRIORITY 5: Professional Services ────────────────────────────────────
+  if (/\b(accountan(cy|t|ts)|bookkeep(ing|er)|tax advisory|audit firm)\b/.test(allText)) {
+    return 'accountancy';
+  }
+  if (/\b(solicitor|law firm|legal services|barrister|conveyancing)\b/.test(allText)) {
+    return 'legal';
+  }
+  if (/\b(independent financial adviser|ifa|wealth management|financial planning|mortgage broker|insurance broker)\b/.test(allText)) {
+    return 'financial_services';
+  }
+  if (/\b(architect(ure|ural)?|architectural practice)\b/.test(allText)) {
+    return 'architecture';
+  }
+  if (/\b(surveyor|surveying|quantity surveyor|chartered surveyor|valuation)\b/.test(allText)) {
+    return 'surveying';
+  }
+  if (/\b(engineering consultant|structural engineer|mechanical engineer|project engineer)\b/.test(allText)) {
+    return 'engineering_consultancy';
+  }
+  if (/\b(consult(ing|ancy|ant)|advisory firm|management consultant|business consultant|professional services)\b/.test(allText)) {
+    return 'professional_services';
+  }
+
+  // ── PRIORITY 6: Healthcare ────────────────────────────────────────────────
+  if (/\b(dental practice|dentist|orthodont)\b/.test(allText)) {
+    return 'dental';
+  }
+  if (/\b(care home|residential care|nursing home|domiciliary care|home care)\b/.test(allText)) {
+    return 'care_home';
+  }
+  if (/\b(pharmacy|pharmacist|dispensing)\b/.test(allText)) {
+    return 'pharmacy';
+  }
+  if (/\b(veterinar|vet practice|animal health)\b/.test(allText)) {
+    return 'veterinary';
+  }
+  if (/\b(healthcare|medical practice|clinic|gp practice|nhs|physiotherap|optician|optical)\b/.test(allText)) {
     return 'healthcare';
   }
-  
+
+  // ── PRIORITY 7: Hospitality & Leisure ────────────────────────────────────
+  if (/\b(restaurant|takeaway|food service|café|cafe|coffee shop|bakery|catering)\b/.test(allText)) {
+    return 'restaurant';
+  }
+  if (/\b(hotel|accommodation|b&b|bed and breakfast|guest house|serviced apartment)\b/.test(allText)) {
+    return 'hotel';
+  }
+  if (/\b(events? (venue|company|management)|wedding venue|conference centre|exhibition)\b/.test(allText)) {
+    return 'events';
+  }
+  if (/\b(gym|fitness|leisure centre|spa|wellness|swimming pool|sports club)\b/.test(allText)) {
+    return 'leisure';
+  }
+  if (/\b(pub|bar|nightclub|hospitality)\b/.test(allText)) {
+    return 'hospitality';
+  }
+
+  // ── PRIORITY 8: Recruitment ───────────────────────────────────────────────
+  if (/\b(recruit(ment|ing|er)?|staffing agency|talent acquisition|headhunt|executive search|temp staff|contract staff|placement agency)\b/.test(allText)) {
+    return 'recruitment';
+  }
+
+  // ── PRIORITY 9: Retail ────────────────────────────────────────────────────
+  if (/\b(ecommerce|e-commerce|online store|marketplace|amazon|shopify)\b/.test(allText)) {
+    return 'ecommerce';
+  }
+  if (/\b(food retail|supermarket|grocer|deli|farm shop)\b/.test(allText)) {
+    return 'food_retail';
+  }
+  if (/\b(retail|shop|high street|showroom|boutique)\b/.test(allText)) {
+    return 'retail';
+  }
+
+  // ── PRIORITY 10: Manufacturing & Engineering ──────────────────────────────
+  if (/\b(food (production|manufacture|processing)|bakery production|brewery|distillery)\b/.test(allText)) {
+    return 'food_production';
+  }
+  if (/\b(manufactur(ing|er)|factory|production line|fabricat(ion|ed)|machining|assembly)\b/.test(allText)) {
+    return 'manufacturing';
+  }
+  if (/\b(engineering (company|firm|group)|precision engineer|mechanical engineer|production engineer)\b/.test(allText)) {
+    return 'engineering';
+  }
+
+  // ── PRIORITY 11: Distribution & Logistics ────────────────────────────────
+  if (/\b(haulage|courier|delivery (company|service)|freight|logistics|transport company)\b/.test(allText)) {
+    return 'transport';
+  }
+  if (/\b(distribut(ion|or)|wholesale|supply chain|warehousing|fulfilment)\b/.test(allText)) {
+    return 'wholesale_distribution';
+  }
+  if (/\b(keys? (and|&) lockers?|security hardware|locksmith|padlock)\b/.test(allText)) {
+    return 'keys_lockers';
+  }
+
+  // ── PRIORITY 12: Property & Estate ───────────────────────────────────────
+  if (/\b(estate agent|letting agent|estate agency|property sales)\b/.test(allText)) {
+    return 'estate_agency';
+  }
+  if (/\b(property management|block management|facilities management|service charge)\b/.test(allText)) {
+    return 'property_management';
+  }
+
+  // ── PRIORITY 13: Other Service Sectors ───────────────────────────────────
+  if (/\b(cleaning (company|service|contractor)|commercial clean|janitorial|facilities)\b/.test(allText)) {
+    return 'cleaning';
+  }
+  if (/\b(security (company|firm|services|guard)|manned guarding|door supervision)\b/.test(allText)) {
+    return 'security_services';
+  }
+  if (/\b(media|publish(ing|er)|broadcast|newspaper|magazine|journalist)\b/.test(allText)) {
+    return 'media';
+  }
+  if (/\b(education|school|college|training (company|provider)|e-learning|learning|tuition)\b/.test(allText)) {
+    return 'education';
+  }
+  if (/\b(marketing (services|company|group)|pr (firm|company)|communications agency)\b/.test(allText)) {
+    return 'marketing_services';
+  }
+  if (/\b(print(ing)?|sign(age|making)|reprograph)\b/.test(allText)) {
+    return 'printing';
+  }
+  if (/\b(car dealer|car sales|automotive|garage|mot|tyre|vehicle)\b/.test(allText)) {
+    return 'automotive';
+  }
+  if (/\b(funeral|undertaker|cremation|bereavement)\b/.test(allText)) {
+    return 'funeral';
+  }
+  if (/\b(farm(ing)?|agriculture|agricultural|crop|livestock|horticulture)\b/.test(allText)) {
+    return 'agriculture';
+  }
+
   return 'general_business';
 }
 
@@ -1554,16 +1897,51 @@ function analyseValuation(
   
   // Industry-specific base multiples
   const industryMultiples: Record<string, { low: number; high: number }> = {
+    'fit_out':              { low: 2.5, high: 4.5 },
+    'construction_fitout':  { low: 2.5, high: 4.5 },
+    'construction':         { low: 2.5, high: 4.5 },
+    'trades':               { low: 2.5, high: 4.5 },
+    'civil_engineering':    { low: 2.5, high: 4.5 },
+    'housebuilder':         { low: 2.0, high: 3.5 },
     'wholesale_distribution': { low: 3.0, high: 5.0 },
-    'keys_lockers': { low: 3.0, high: 5.0 },
-    'creative_agency': { low: 3.0, high: 6.0 },  // Digital agencies valued on recurring revenue
-    'professional_services': { low: 4.0, high: 8.0 },
-    'accountancy': { low: 4.0, high: 7.0 },
-    'construction': { low: 2.5, high: 4.5 },
-    'manufacturing': { low: 3.0, high: 5.0 },
-    'retail': { low: 2.0, high: 4.0 },
-    'technology': { low: 5.0, high: 10.0 },
-    'saas': { low: 6.0, high: 12.0 },
+    'keys_lockers':           { low: 3.0, high: 5.0 },
+    'distribution':           { low: 3.0, high: 5.0 },
+    'logistics':              { low: 3.0, high: 5.0 },
+    'ecommerce':              { low: 3.0, high: 6.0 },
+    'professional_services':  { low: 4.0, high: 8.0 },
+    'consulting':             { low: 4.0, high: 8.0 },
+    'accountancy':            { low: 4.0, high: 7.0 },
+    'legal':                  { low: 3.5, high: 7.0 },
+    'financial_services':     { low: 4.0, high: 8.0 },
+    'architecture':           { low: 3.5, high: 6.0 },
+    'surveying':              { low: 3.5, high: 6.0 },
+    'engineering_consultancy':{ low: 4.0, high: 7.0 },
+    'creative_agency':  { low: 3.0, high: 6.0 },
+    'agency':           { low: 3.0, high: 6.0 },
+    'technology':   { low: 5.0, high: 10.0 },
+    'saas':         { low: 6.0, high: 12.0 },
+    'software':     { low: 5.0, high: 10.0 },
+    'hospitality':  { low: 2.5, high: 5.0 },
+    'restaurant':   { low: 2.0, high: 4.0 },
+    'hotel':        { low: 3.0, high: 6.0 },
+    'events':       { low: 2.5, high: 5.0 },
+    'healthcare':   { low: 3.5, high: 6.0 },
+    'dental':       { low: 3.0, high: 6.0 },
+    'care_home':    { low: 2.5, high: 5.0 },
+    'veterinary':   { low: 3.5, high: 6.0 },
+    'recruitment':  { low: 3.0, high: 6.0 },
+    'retail':       { low: 2.0, high: 4.0 },
+    'food_retail':  { low: 2.0, high: 4.0 },
+    'manufacturing':    { low: 3.0, high: 5.0 },
+    'engineering':      { low: 3.0, high: 5.5 },
+    'food_production':  { low: 3.0, high: 5.0 },
+    'media':              { low: 3.0, high: 6.0 },
+    'education':          { low: 3.0, high: 5.0 },
+    'estate_agency':      { low: 3.0, high: 6.0 },
+    'property_management':{ low: 3.5, high: 6.0 },
+    'cleaning':           { low: 2.5, high: 4.5 },
+    'security_services':  { low: 2.5, high: 4.5 },
+    'transport':          { low: 2.5, high: 4.5 },
     'general_business': { low: 3.0, high: 5.0 }
   };
   
@@ -1800,30 +2178,57 @@ function analyseProductivity(financials: ExtractedFinancials, industry: string):
   const revenuePerHead = revenue / employeeCount;
   
   const industryBenchmarks: Record<string, { low: number; high: number }> = {
+    'fit_out':              { low: 400000, high: 1200000 },
+    'construction_fitout':  { low: 400000, high: 1200000 },
+    'construction':         { low: 150000, high: 300000 },
+    'trades':               { low: 100000, high: 200000 },
+    'civil_engineering':    { low: 150000, high: 350000 },
+    'housebuilder':         { low: 300000, high: 800000 },
     'wholesale_distribution': { low: 120000, high: 180000 },
-    'keys_lockers': { low: 120000, high: 180000 },
-    'creative_agency': { low: 80000, high: 200000 },  // Wide range depending on contractor use
-    'professional_services': { low: 80000, high: 150000 },
-    'accountancy': { low: 80000, high: 150000 },
-    'construction': { low: 100000, high: 150000 },
-    'manufacturing': { low: 80000, high: 120000 },
-    'retail': { low: 60000, high: 100000 },
-    'technology': { low: 100000, high: 200000 },
-    'saas': { low: 150000, high: 300000 },
+    'keys_lockers':           { low: 120000, high: 180000 },
+    'logistics':              { low: 100000, high: 180000 },
+    'ecommerce':              { low: 150000, high: 400000 },
+    'professional_services':  { low: 80000,  high: 150000 },
+    'consulting':             { low: 80000,  high: 200000 },
+    'accountancy':            { low: 80000,  high: 150000 },
+    'legal':                  { low: 80000,  high: 180000 },
+    'financial_services':     { low: 100000, high: 250000 },
+    'architecture':           { low: 70000,  high: 130000 },
+    'surveying':              { low: 70000,  high: 130000 },
+    'creative_agency': { low: 80000,  high: 200000 },
+    'agency':          { low: 60000,  high: 150000 },
+    'technology':  { low: 100000, high: 200000 },
+    'saas':        { low: 150000, high: 350000 },
+    'software':    { low: 120000, high: 250000 },
+    'hospitality': { low: 40000, high: 80000 },
+    'restaurant':  { low: 40000, high: 80000 },
+    'hotel':       { low: 50000, high: 100000 },
+    'events':      { low: 60000, high: 120000 },
+    'healthcare': { low: 60000, high: 130000 },
+    'dental':     { low: 80000, high: 160000 },
+    'veterinary': { low: 80000, high: 160000 },
+    'recruitment': { low: 60000, high: 160000 },
+    'retail':      { low: 60000,  high: 100000 },
+    'food_retail': { low: 50000,  high: 90000  },
+    'manufacturing':  { low: 80000, high: 130000 },
+    'engineering':    { low: 80000, high: 150000 },
+    'estate_agency':  { low: 80000, high: 160000 },
+    'cleaning':       { low: 30000, high: 60000  },
+    'transport':      { low: 80000, high: 150000 },
     'general_business': { low: 80000, high: 130000 }
   };
-  
+
   const industryLower = industry.toLowerCase();
   let selectedIndustry = 'general_business';
   for (const key of Object.keys(industryBenchmarks)) {
     if (industryLower.includes(key)) { selectedIndustry = key; break; }
   }
-  
+
   const benchmark = industryBenchmarks[selectedIndustry];
   const gap = benchmark.low - revenuePerHead;
   const impliedHeadcount = Math.round(revenue / benchmark.low);
   const excessHeadcount = employeeCount - impliedHeadcount;
-  
+
   let narrative = `Revenue per head £${(revenuePerHead/1000).toFixed(0)}k vs industry benchmark £${(benchmark.low/1000).toFixed(0)}k-£${(benchmark.high/1000).toFixed(0)}k. `;
   if (revenuePerHead < benchmark.low) {
     narrative += `Below benchmark suggests ${excessHeadcount > 0 ? `~${excessHeadcount} potential excess employees` : 'productivity improvement opportunity'}.`;
@@ -1832,7 +2237,13 @@ function analyseProductivity(financials: ExtractedFinancials, industry: string):
   } else {
     narrative += `Within healthy range.`;
   }
-  
+
+  // For fit-out and similar subcontract-delivery models, very high revenue-per-head is structurally normal
+  const isSubcontractModel = ['fit_out', 'construction_fitout', 'housebuilder', 'civil_engineering'].includes(selectedIndustry);
+  if (isSubcontractModel && revenuePerHead > benchmark.high) {
+    narrative = `Revenue per head £${(revenuePerHead/1000).toFixed(0)}k is high, reflecting a subcontract delivery model where the delivery workforce sits in cost of sales rather than headcount. This is structurally normal for this type of business — the ${employeeCount} employees are management and administration. The real efficiency question is in gross margin, not revenue per head.`;
+  }
+
   return {
     hasData: true, revenue, employeeCount, revenuePerHead,
     benchmarkLow: benchmark.low, benchmarkHigh: benchmark.high,

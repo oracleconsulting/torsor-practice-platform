@@ -823,8 +823,9 @@ export function BenchmarkingClientReport({
         
         {/* Business Valuation Analysis */}
         {data.value_analysis && (
-          <ValueBridgeSection 
+          <ValueBridgeSection
             valueAnalysis={data.value_analysis}
+            enhancedSuppressors={data.pass1_data?.enhanced_suppressors}
             clientName={clientName}
             forceExpanded={printMode}
           />

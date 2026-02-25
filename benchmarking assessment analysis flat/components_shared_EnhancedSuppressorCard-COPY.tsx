@@ -163,6 +163,22 @@ export function EnhancedSuppressorCard({ suppressor }: EnhancedSuppressorCardPro
                 <strong>Dependencies:</strong> {suppressor.pathToFix.dependencies.join(', ')}
               </div>
             )}
+
+            {/* Methodology & Sources */}
+            {suppressor.methodology && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  Methodology & Sources
+                </h4>
+                <p className="text-sm text-gray-600 mb-2">{suppressor.methodology.calibrationNote}</p>
+                <ul className="text-xs text-gray-500 space-y-1">
+                  {suppressor.methodology.sources.map((s, i) => (
+                    <li key={i}>• {s}</li>
+                  ))}
+                </ul>
+                <p className="text-xs text-gray-400 mt-2 italic">{suppressor.methodology.limitationsNote}</p>
+              </div>
+            )}
           </div>
         )}
       </div>

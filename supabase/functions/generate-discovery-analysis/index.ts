@@ -6180,46 +6180,46 @@ serve(async (req) => {
     
     if (!extractedFinancials.hasAccounts && preparedData.financialContext) {
       const fc = preparedData.financialContext;
+      const turnover = fc.turnover ?? fc.revenue;
+      const staffCosts = fc.totalStaffCosts ?? fc.staffCosts ?? null;
       console.log('[Discovery] Using financialContext fallback:', {
-        turnover: fc.turnover,
-        staffCosts: fc.totalStaffCosts || fc.staffCosts,
+        turnover,
+        staffCosts,
         staffCostsPct: fc.staffCostsPct
       });
-      
-      if (fc.turnover && (fc.totalStaffCosts || fc.staffCosts)) {
-        const staffCosts = fc.totalStaffCosts || fc.staffCosts;
-        const turnover = fc.turnover;
-        
+      // Use financialContext when we have turnover/revenue (staff costs optional — e.g. from client_financial_data CSV)
+      if (turnover && Number(turnover) > 0) {
+        const turnoverNum = Number(turnover);
+        const staffCostsNum = staffCosts != null ? Number(staffCosts) : null;
         // Calculate turnover growth if prior year available
         let turnoverGrowth: number | undefined;
-        if (fc.turnoverPriorYear && fc.turnoverPriorYear > 0) {
-          turnoverGrowth = ((turnover - fc.turnoverPriorYear) / fc.turnoverPriorYear) * 100;
+        if (fc.turnoverPriorYear && Number(fc.turnoverPriorYear) > 0) {
+          turnoverGrowth = ((turnoverNum - Number(fc.turnoverPriorYear)) / Number(fc.turnoverPriorYear)) * 100;
         } else if (fc.revenueGrowthPct !== undefined && fc.revenueGrowthPct !== null) {
           turnoverGrowth = fc.revenueGrowthPct;
         }
-        
         extractedFinancials = {
           hasAccounts: true,
           source: 'statutory_accounts',
-          turnover: turnover,
-          turnoverPriorYear: fc.turnoverPriorYear,
+          turnover: turnoverNum,
+          turnoverPriorYear: fc.turnoverPriorYear != null ? Number(fc.turnoverPriorYear) : undefined,
           turnoverGrowth: turnoverGrowth,
-          totalStaffCosts: staffCosts,
-          staffCostsPercentOfRevenue: fc.staffCostsPct || (staffCosts / turnover * 100),
-          operatingProfit: fc.operatingProfit,
-          ebitda: fc.ebitda,
-          netAssets: fc.netAssets,
-          employeeCount: fc.staffCount,
-          grossProfit: fc.grossProfit,
-          grossMarginPct: fc.grossMarginPct,
+          totalStaffCosts: staffCostsNum ?? undefined,
+          staffCostsPercentOfRevenue: fc.staffCostsPct != null ? Number(fc.staffCostsPct) : (staffCostsNum != null && turnoverNum ? (staffCostsNum / turnoverNum) * 100 : undefined),
+          operatingProfit: fc.operatingProfit != null ? Number(fc.operatingProfit) : undefined,
+          ebitda: fc.ebitda != null ? Number(fc.ebitda) : undefined,
+          netAssets: fc.netAssets != null ? Number(fc.netAssets) : undefined,
+          employeeCount: fc.staffCount ?? undefined,
+          grossProfit: fc.grossProfit != null ? Number(fc.grossProfit) : undefined,
+          grossMarginPct: fc.grossMarginPct != null ? Number(fc.grossMarginPct) : undefined,
           // Balance sheet items
-          cash: fc.cash,
-          debtors: fc.debtors,
-          creditors: fc.creditors,
-          stock: fc.stock,
-          fixedAssets: fc.fixedAssets,
+          cash: fc.cash != null ? Number(fc.cash) : undefined,
+          debtors: fc.debtors != null ? Number(fc.debtors) : undefined,
+          creditors: fc.creditors != null ? Number(fc.creditors) : undefined,
+          stock: fc.stock != null ? Number(fc.stock) : undefined,
+          fixedAssets: fc.fixedAssets != null ? Number(fc.fixedAssets) : undefined,
           // Revenue per head
-          revenuePerEmployee: fc.revenuePerHead || (fc.staffCount ? turnover / fc.staffCount : undefined),
+          revenuePerEmployee: fc.revenuePerHead != null ? Number(fc.revenuePerHead) : (fc.staffCount && turnoverNum ? turnoverNum / Number(fc.staffCount) : undefined),
         };
         console.log('[Discovery] ✅ Built extractedFinancials from financialContext:', {
           turnover: extractedFinancials.turnover,

@@ -237,14 +237,54 @@ serve(async (req) => {
       }
     }
 
+    let lifeAlignmentBlock = '';
+    if (sprintNumber > 1) {
+      try {
+        const { data: lifeScores } = await supabase
+          .from('life_alignment_scores')
+          .select('*')
+          .eq('client_id', clientId)
+          .eq('sprint_number', sprintNumber - 1)
+          .order('week_number', { ascending: false })
+          .limit(12);
+
+        if (lifeScores?.length) {
+          const avgScore = lifeScores.reduce((s, r) => s + Number(r.overall_score), 0) / lifeScores.length;
+          const lastScore = lifeScores[0];
+          const catScores = (lastScore.category_scores || {}) as Record<string, number>;
+          const lowCategories = Object.entries(catScores)
+            .filter(([, v]) => (v as number) < 50)
+            .map(([k]) => k);
+          const highCategories = Object.entries(catScores)
+            .filter(([, v]) => (v as number) >= 70)
+            .map(([k]) => k);
+
+          lifeAlignmentBlock = `\n\n# LIFE ALIGNMENT CONTEXT (from Sprint ${sprintNumber - 1})
+Average life alignment score: ${avgScore.toFixed(0)}/100 (${avgScore >= 70 ? 'strong' : avgScore >= 40 ? 'moderate' : 'needs attention'})
+Trend: ${lastScore.trend}
+${lowCategories.length ? `LOW-scoring categories (need MORE life tasks): ${lowCategories.join(', ')}` : 'All categories adequately covered.'}
+${highCategories.length ? `HIGH-scoring categories (maintain): ${highCategories.join(', ')}` : ''}
+Action: Increase life tasks in low-scoring categories. Maintain high-scoring ones with lighter touch.`;
+          console.log('[generate-sprint-plan-part2] Life alignment context included');
+        }
+      } catch (err) {
+        console.warn('[generate-sprint-plan-part2] Failed to fetch life alignment:', err);
+      }
+    }
+
     const { data: assessmentMeta } = await supabase.from('client_assessments').select('metadata').eq('client_id', clientId).eq('assessment_type', 'part2').maybeSingle();
     if (assessmentMeta?.metadata?.adaptive) {
-      console.log('[generate-sprint-plan-part2] Adaptive assessment — skipped sections:', assessmentMeta.metadata.skippedSections?.map((s: any) => s.sectionId).join(', '));
+      const skipped = assessmentMeta.metadata.skippedSections || [];
+      console.log('[generate-sprint-plan-part2] Adaptive assessment — skipped sections:', skipped.map((s: any) => s.sectionId).join(', '));
+      const skippedNames = skipped.map((s: any) => s.sectionId).join(', ');
+      if (skippedNames) {
+        advisorNotesBlock += `\n\nNote: Client used adaptive assessment and skipped Part 2 sections: ${skippedNames}. For these areas, rely on the cross-service enrichment data provided above (BM/SA/financial data) rather than Part 2 responses.`;
+      }
     }
 
     console.log(`Generating weeks 7-12 for ${context.userName}...`);
 
-    const sprintPart2 = await generateSprintPart2(context, (enrichedContext?.promptContext || '') + advisorNotesBlock);
+    const sprintPart2 = await generateSprintPart2(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock);
     const completeSprint = mergeSprints(sprintPart1, sprintPart2);
 
     const duration = Date.now() - startTime;

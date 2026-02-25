@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Page } from '../../types/navigation';
-import { Navigation } from '../../components/Navigation';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import type { PageId } from '../../types/navigation';
+import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { supabase } from '../../lib/supabase';
@@ -24,12 +24,12 @@ import {
   TrendingUp,
   Briefcase,
   Calendar,
-  Filter,
-  Search,
+  Filter as _Filter,
+  Search as _Search,
   Plus,
   Mail,
   X,
-  Send,
+  Send as _Send,
   LineChart,
   Settings,
   Compass,
@@ -55,31 +55,44 @@ import {
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
-import { BenchmarkingClientReport } from '../../components/benchmarking/client/BenchmarkingClientReport';
+import BenchmarkingClientDashboard from '../../components/benchmarking/client/BenchmarkingClientDashboard';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
 import { calculateFounderRisk } from '../../lib/services/benchmarking/founder-risk-calculator';
 import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-mapper';
 
 // Management Accounts Report Components (Two-Pass Architecture)
-import { MAAdminReportView, MAClientReportView } from '../../components/management-accounts';
+import { MAAdminReportView } from '../../components/business-intelligence/MAAdminReportView';
+import { MAClientReportView } from '../../components/business-intelligence/MAClientReportView';
+
+// MA report context shape (matches AdditionalContext from MAAdminReportView)
+interface MAReportContext {
+  callNotes: string;
+  callTranscript: string;
+  gapsFilled: Record<string, string>;
+  gapsWithLabels?: Record<string, { question: string; answer: string }>;
+  gapsChecked?: Record<string, boolean>;
+  tierDiscussed: string;
+  clientObjections: string;
+  additionalInsights: string;
+  completedPhases: string[];
+}
 
 // Test Client Panel for testing workflows
-import { TestClientPanel } from '../../components/admin/TestClientPanel';
+import { TestClientPanel as _TestClientPanel } from '../../components/admin/TestClientPanel';
 import { SystemMatchBadge } from '../../components/admin/SystemMatchBadge';
 import { useTechLookupBatch } from '../../hooks/useTechLookupBatch';
 import type { TechLookupBatchResult } from '../../types/tech-stack';
+import type { SAEngagementGap, PreliminaryAnalysis } from '../../types/systems-audit';
 
 // Accounts Upload for Benchmarking
 import { AccountsUploadPanel } from '../../components/benchmarking/admin/AccountsUploadPanel';
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
 import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
-import SprintEditorModal from '../../components/admin/SprintEditorModal';
-
-
-interface ClientServicesPageProps {
-  currentPage: Page;
-  onNavigate: (page: Page) => void;
-}
+import { SprintEditorModal } from '../../components/admin/sprint-editor';
+import { getAssessmentByCode } from '../../config/serviceLineAssessments';
+import type { AssessmentQuestion } from '../../config/serviceLineAssessments';
+import { ClientServicesClientList } from './ClientServicesClientList';
+import type { ClientRow } from './ClientServicesClientListTypes';
 
 // All Service Lines - BSG Complete Offering
 const SERVICE_LINES = [
@@ -202,6 +215,7 @@ interface Client {
   client_owner_id?: string | null;
   owner?: { id: string; name: string } | null;
   is_test_client?: boolean;
+  hide_discovery_in_portal?: boolean;
 }
 
 interface StaffMember {
@@ -212,20 +226,21 @@ interface StaffMember {
 
 const GA_DASHBOARD_STORAGE_KEY = 'gaDashboardSelected';
 
-export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPageProps) {
+export function ClientServicesPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [selectedServiceLine, setSelectedServiceLine] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedClient, setSelectedClient] = useState<string | null>(null);
+  const [_selectedClient, setSelectedClient] = useState<string | null>(null);
   const [pendingGAClientId, setPendingGAClientId] = useState<string | null>(null);
-  const [assigningOwner, setAssigningOwner] = useState<string | null>(null);
-  
+  const [_assigningOwner, setAssigningOwner] = useState<string | null>(null);
+  const [_updatingDiscoveryHide, setUpdatingDiscoveryHide] = useState<string | null>(null);
+
   // Invitation modal state
-  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [_showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
     email: '',
     name: '',
@@ -234,14 +249,14 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     customMessage: '',
     inviteType: 'discovery' as 'discovery' | 'direct'  // Discovery First or Direct Service
   });
-  const [sendingInvite, setSendingInvite] = useState(false);
+  const [_sendingInvite, setSendingInvite] = useState(false);
   
   // Bulk import state
-  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
-  const [bulkImportData, setBulkImportData] = useState('');
-  const [bulkImporting, setBulkImporting] = useState(false);
+  const [_showBulkImportModal, setShowBulkImportModal] = useState(false);
+  const [bulkImportData, _setBulkImportData] = useState('');
+  const [_bulkImporting, setBulkImporting] = useState(false);
   const [bulkImportResults, setBulkImportResults] = useState<any>(null);
-  const [bulkSendEmails, setBulkSendEmails] = useState(false); // Default: NO auto emails
+  const [bulkSendEmails, _setBulkSendEmails] = useState(false); // Default: NO auto emails
   const [deletingClient, setDeletingClient] = useState<string | null>(null);
   const [clientToDelete, setClientToDelete] = useState<{ id: string; name: string; email: string } | null>(null);
   
@@ -252,7 +267,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   // Service editing/deleting state
   const [editingService, setEditingService] = useState<any | null>(null);
   const [deletingService, setDeletingService] = useState<string | null>(null);
-  const [savingService, setSavingService] = useState(false);
+  const [_savingService, setSavingService] = useState(false);
 
   // Fetch additional services from database
   useEffect(() => {
@@ -380,7 +395,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   };
 
   // Save edited service
-  const handleSaveService = async (service: any) => {
+  const _handleSaveService = async (service: any) => {
     setSavingService(true);
     try {
       const { error } = await supabase
@@ -462,7 +477,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   }, [currentMember?.practice_id]);
 
   // Handle assigning a client to a staff owner
-  const handleAssignOwner = async (clientId: string, ownerId: string | null) => {
+  const _handleAssignOwner = async (clientId: string, ownerId: string | null) => {
     setAssigningOwner(clientId);
     try {
       const { error } = await supabase
@@ -490,8 +505,27 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     }
   };
 
+  const _handleToggleHideDiscovery = async (clientId: string, hide: boolean) => {
+    setUpdatingDiscoveryHide(clientId);
+    try {
+      const { error } = await supabase
+        .from('practice_members')
+        .update({ hide_discovery_in_portal: hide })
+        .eq('id', clientId);
+      if (error) throw error;
+      setClients(prev => prev.map(c =>
+        c.id === clientId ? { ...c, hide_discovery_in_portal: hide } : c
+      ));
+    } catch (e) {
+      console.error('Failed to update hide Discovery:', e);
+      alert('Failed to update setting');
+    } finally {
+      setUpdatingDiscoveryHide(null);
+    }
+  };
+
   // Send client invitation
-  const handleSendInvite = async () => {
+  const _handleSendInvite = async () => {
     // For discovery invites, services are optional. For direct invites, at least one is required.
     if (!inviteForm.email || !currentMember?.practice_id) {
       alert('Please enter an email address');
@@ -576,7 +610,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
   };
 
   // Bulk import clients from CSV/pasted data
-  const handleBulkImport = async () => {
+  const _handleBulkImport = async () => {
     if (!bulkImportData.trim() || !currentMember?.practice_id) {
       alert('Please paste client data');
       return;
@@ -709,6 +743,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             last_portal_login,
             created_at,
             client_owner_id,
+            hide_discovery_in_portal,
             owner:practice_members!client_owner_id(id, name)
           `)
           .eq('practice_id', practiceId)
@@ -723,7 +758,11 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
 
         const enrichedClients: Client[] = (discoveryClients || []).map((client: any) => {
           const discovery = discoveryMap.get(client.id);
-          const isComplete = discovery?.completed_at || client.program_status === 'discovery_complete';
+          const responseCount = discovery?.responses ? Object.keys(discovery.responses).length : 0;
+          // Only show 100% / Roadmap Active when there are actual discovery responses AND
+          // a completion signal. Avoids showing complete when program_status is discovery_complete
+          // (e.g. from Goal Alignment) but the client never did the discovery assessment.
+          const isComplete = responseCount > 0 && (discovery?.completed_at || client.program_status === 'discovery_complete');
           
           // Calculate actual progress based on responses
           // Discovery has ~40 questions total across all sections
@@ -731,8 +770,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
           let progress = 0;
           if (isComplete) {
             progress = 100;
-          } else if (discovery?.responses) {
-            const responseCount = Object.keys(discovery.responses || {}).length;
+          } else if (responseCount > 0) {
             progress = Math.min(95, Math.round((responseCount / TOTAL_DISCOVERY_QUESTIONS) * 100));
           } else if (client.last_portal_login) {
             // Logged in but no responses yet
@@ -751,7 +789,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             lastActivity: client.last_portal_login,
             hasRoadmap: isComplete,
             client_owner_id: client.client_owner_id,
-            owner: client.owner
+            owner: client.owner,
+            hide_discovery_in_portal: client.hide_discovery_in_portal ?? false
           };
         });
         
@@ -787,7 +826,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
         if (serviceLineCode === '365_method') {
           const { data: clientsData } = await supabase
             .from('practice_members')
-            .select('id, name, email, client_company, program_status, last_portal_login')
+            .select('id, name, email, client_company, program_status, last_portal_login, hide_discovery_in_portal')
             .eq('practice_id', practiceId)
             .eq('member_type', 'client')
             .order('name');
@@ -804,7 +843,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             .select('client_id, status')
             .in('client_id', clientIds);
 
-          const enrichedClients: Client[] = (clientsData || []).map(client => {
+          const enrichedClients: Client[] = (clientsData || []).map((client: any) => {
             const clientAssessments = assessments?.filter(a => a.client_id === client.id) || [];
             const completedCount = clientAssessments.filter(a => a.status === 'completed').length;
             const hasRoadmap = roadmaps?.some(r => r.client_id === client.id) || false;
@@ -817,7 +856,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
               status: client.program_status || 'active',
               progress: completedCount * 33,
               lastActivity: client.last_portal_login,
-              hasRoadmap
+              hasRoadmap,
+              hide_discovery_in_portal: client.hide_discovery_in_portal ?? false
             };
           });
           setClients(enrichedClients);
@@ -841,7 +881,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             email,
             client_company,
             program_status,
-            last_portal_login
+            last_portal_login,
+            hide_discovery_in_portal
           )
         `)
         .eq('practice_id', practiceId)
@@ -928,7 +969,8 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
             status: enrollment.status || client.program_status || 'active',
             progress,
             lastActivity: client.last_portal_login,
-            hasRoadmap: serviceLineCode === '365_method' ? hasRoadmap : !!enrollment.onboarding_completed_at
+            hasRoadmap: serviceLineCode === '365_method' ? hasRoadmap : !!enrollment.onboarding_completed_at,
+            hide_discovery_in_portal: client.hide_discovery_in_portal ?? false
           };
         });
 
@@ -1136,41 +1178,7 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Client Services</h1>
-              <p className="text-sm text-gray-500 mt-1">
-                Manage clients across all service lines
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setShowBulkImportModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                Bulk Import
-              </button>
-            <button 
-              onClick={() => setShowInviteModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Mail className="w-4 h-4" />
-              Invite Client
-            </button>
-            </div>
-          </div>
-        </div>
-        <Navigation currentPage={currentPage} onNavigate={onNavigate} />
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!selectedServiceLine ? (
+  const mainContent = !selectedServiceLine ? (
           // Service Lines Grid
           <div className="space-y-6">
             <h2 className="text-lg font-semibold text-gray-900">Select Service Line</h2>
@@ -1290,998 +1298,90 @@ export function ClientServicesPage({ currentPage, onNavigate }: ClientServicesPa
               </div>
             )}
           </div>
-        ) : (
-          // Client List for Selected Service Line
-          <div className="space-y-6">
-            {/* Back button and header */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setSelectedServiceLine(null)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ← Back to Service Lines
-              </button>
-              <div className="h-6 w-px bg-gray-300" />
-              <h2 className="text-lg font-semibold text-gray-900">
-                {SERVICE_LINES.find(s => s.id === selectedServiceLine)?.name}
-              </h2>
-            </div>
+  ) : renderClientList();
 
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                    <Users className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">{clients.length}</p>
-                    <p className="text-sm text-gray-500">Total Clients</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-emerald-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {clients.filter(c => c.hasRoadmap).length}
-                    </p>
-                    <p className="text-sm text-gray-500">With Roadmap</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                    <Clock className="w-5 h-5 text-amber-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {clients.filter(c => !c.hasRoadmap && c.progress > 0).length}
-                    </p>
-                    <p className="text-sm text-gray-500">In Progress</p>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-xl border border-gray-200 p-5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                    <AlertCircle className="w-5 h-5 text-slate-600" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {clients.filter(c => c.progress === 0).length}
-                    </p>
-                    <p className="text-sm text-gray-500">Not Started</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+  function renderClientList() {
+    return (
+      <ClientServicesClientList
+        serviceLines={SERVICE_LINES}
+        selectedServiceLine={selectedServiceLine}
+        setSelectedServiceLine={setSelectedServiceLine}
+        clients={clients as ClientRow[]}
+        filteredClients={filteredClients as ClientRow[]}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        setShowInviteModal={setShowInviteModal}
+        setSelectedClient={setSelectedClient}
+        selectedClient={_selectedClient}
+        fetchClients={fetchClients}
+        handleDeleteClient={handleDeleteClient}
+        confirmDeleteClient={confirmDeleteClient}
+        clientToDelete={clientToDelete}
+        setClientToDelete={setClientToDelete}
+        deletingClient={deletingClient}
+        setShowBulkImportModal={setShowBulkImportModal}
+        bulkImportResults={bulkImportResults}
+        setBulkImportResults={setBulkImportResults}
+        editingService={editingService}
+        setEditingService={setEditingService}
+        handleDeleteService={handleDeleteService}
+        savingService={_savingService}
+        deletingService={deletingService}
+        currentMember={currentMember ?? null}
+        getStatusColor={getStatusColor}
+        handleSaveService={_handleSaveService}
+        staffMembers={staffMembers}
+        assigningOwner={_assigningOwner}
+        updatingDiscoveryHide={_updatingDiscoveryHide}
+        handleAssignOwner={_handleAssignOwner}
+        handleToggleHideDiscovery={_handleToggleHideDiscovery}
+        DiscoveryClientModal={DiscoveryClientModal}
+        SystemsAuditClientModal={SystemsAuditClientModal}
+        BenchmarkingClientModal={BenchmarkingClientModal}
+        ClientDetailModal={ClientDetailModal}
+        showInviteModal={_showInviteModal}
+        inviteForm={inviteForm}
+        setInviteForm={setInviteForm}
+        sendingInvite={_sendingInvite}
+        handleSendInvite={_handleSendInvite}
+        showBulkImportModal={_showBulkImportModal}
+        bulkImportData={bulkImportData}
+        setBulkImportData={_setBulkImportData}
+        bulkSendEmails={bulkSendEmails}
+        setBulkSendEmails={_setBulkSendEmails}
+        bulkImporting={_bulkImporting}
+        handleBulkImport={_handleBulkImport}
+      />
+    );
+  }
 
-            {/* Test Mode Panel */}
-            {currentMember?.practice_id && selectedServiceLine && (
-              <TestClientPanel
-                practiceId={currentMember.practice_id}
-                serviceLineCode={selectedServiceLine}
-                serviceLineName={SERVICE_LINES.find(s => s.id === selectedServiceLine)?.name || selectedServiceLine}
-                onTestClientCreated={(clientId) => {
-                  console.log('Test client created:', clientId);
-                  fetchClients();
-                }}
-                onTestClientReset={() => {
-                  console.log('Test client reset');
-                  fetchClients();
-                }}
-              />
-            )}
-
-            {/* Search and Filter */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4">
-              <div className="flex gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search clients..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-                <button className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50">
-                  <Filter className="w-4 h-4" />
-                  Filters
-                </button>
-              </div>
-            </div>
-
-            {/* Client List */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              {loading ? (
-                <div className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
-                  <p className="text-gray-500 mt-4">Loading clients...</p>
-                </div>
-              ) : filteredClients.length === 0 ? (
-                <div className="p-8 text-center">
-                  <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No clients found</p>
-                </div>
-              ) : (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Client</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Owner</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Progress</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Status</th>
-                      <th className="text-left px-6 py-4 text-sm font-semibold text-gray-700">Last Activity</th>
-                      <th className="px-6 py-4"></th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredClients.map((client) => (
-                      <tr key={client.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-start gap-2">
-                          <div>
-                            <p className="font-medium text-gray-900">{client.name}</p>
-                            <p className="text-sm text-gray-500">{client.email}</p>
-                            {client.company && (
-                              <p className="text-sm text-gray-400">{client.company}</p>
-                              )}
-                            </div>
-                            {client.is_test_client && (
-                              <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded">
-                                TEST
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <select
-                            value={client.client_owner_id || ''}
-                            onChange={(e) => handleAssignOwner(client.id, e.target.value || null)}
-                            disabled={assigningOwner === client.id}
-                            className="text-sm border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50 min-w-[140px]"
-                          >
-                            <option value="">Unassigned</option>
-                            {staffMembers.map(staff => (
-                              <option key={staff.id} value={staff.id}>
-                                {staff.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-indigo-600 rounded-full transition-all"
-                                style={{ width: `${client.progress}%` }}
-                              />
-                            </div>
-                            <span className="text-sm text-gray-600">{client.progress}%</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            {client.hasRoadmap ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-medium">
-                                <CheckCircle className="w-4 h-4" />
-                                Roadmap Active
-                              </span>
-                            ) : (
-                              <span className={`px-2.5 py-1 rounded-full text-sm font-medium ${getStatusColor(client.status)}`}>
-                                {client.status === 'active' ? 'In Progress' : client.status}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm text-gray-500">
-                            {client.lastActivity 
-                              ? new Date(client.lastActivity).toLocaleDateString()
-                              : 'Never'
-                            }
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`/clients/${client.id}`}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                setSelectedClient(client.id);
-                              }}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors text-sm font-medium"
-                            >
-                              View
-                              <ChevronRight className="w-4 h-4" />
-                            </a>
-                            <button
-                              onClick={() => handleDeleteClient(client.id, client.name, client.email)}
-                              disabled={deletingClient === client.id}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="Delete client permanently"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Client Detail Modal - show Discovery modal for discovery clients */}
-        {selectedClient && selectedServiceLine === 'discovery' && (
-          <DiscoveryClientModal 
-            clientId={selectedClient} 
-            onClose={() => setSelectedClient(null)}
-            onRefresh={fetchClients}
-          />
-        )}
-        
-        {/* Systems Audit Modal - show Systems Audit view for systems_audit service line */}
-        {selectedClient && selectedServiceLine === 'systems_audit' && (
-          <SystemsAuditClientModal 
-            clientId={selectedClient} 
-            onClose={() => setSelectedClient(null)}
-          />
-        )}
-        
-        {/* Benchmarking Modal - show Benchmarking view for benchmarking service line */}
-        {selectedClient && selectedServiceLine === 'benchmarking' && (
-          <BenchmarkingClientModal 
-            clientId={selectedClient} 
-            onClose={() => setSelectedClient(null)}
-          />
-        )}
-        
-        {/* Regular Client Detail Modal for other service lines */}
-        {selectedClient && selectedServiceLine && selectedServiceLine !== 'discovery' && selectedServiceLine !== 'systems_audit' && selectedServiceLine !== 'benchmarking' && (
-          <ClientDetailModal 
-            clientId={selectedClient} 
-            serviceLineCode={selectedServiceLine}
-            onClose={() => setSelectedClient(null)} 
-            onNavigate={onNavigate}
-          />
-        )}
-
-        {/* Delete Client Confirmation Modal */}
-        {clientToDelete && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                  <Trash2 className="w-5 h-5 text-red-600" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900">Delete Client</h2>
-              </div>
-              
-              <p className="text-gray-600 mb-6">
-                Are you sure you want to permanently delete <strong>{clientToDelete.name}</strong> ({clientToDelete.email})?
-              </p>
-              
-              <p className="text-sm text-red-600 mb-6 bg-red-50 p-3 rounded-lg">
-                ⚠️ This action cannot be undone. This will permanently delete:
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>Client profile and account</li>
-                  <li>All service enrollments</li>
-                  <li>All assessments and progress data</li>
-                  <li>All roadmaps and plans</li>
-                  <li>All related records</li>
-                </ul>
-              </p>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setClientToDelete(null)}
-                  disabled={deletingClient === clientToDelete.id}
-                  className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmDeleteClient}
-                  disabled={deletingClient === clientToDelete.id}
-                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {deletingClient === clientToDelete.id ? 'Deleting...' : 'Delete Permanently'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Invite Client Modal */}
-        {showInviteModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-              {/* Modal Header */}
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Invite Client</h2>
-                  <p className="text-sm text-gray-500">Create their portal account and start their journey</p>
-                </div>
-                <button
-                  onClick={() => setShowInviteModal(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-6 space-y-6">
-                {/* Invite Type Toggle */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    How should they start?
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setInviteForm({ ...inviteForm, inviteType: 'discovery' })}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                        inviteForm.inviteType === 'discovery'
-                          ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          inviteForm.inviteType === 'discovery' ? 'bg-indigo-500 text-white' : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          <Target className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900">Destination Discovery</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Start with a questionnaire to understand their goals, then recommend services
-                          </p>
-                        </div>
-                      </div>
-                      {inviteForm.inviteType === 'discovery' && (
-                        <div className="absolute top-2 right-2">
-                          <CheckCircle className="w-5 h-5 text-indigo-500" />
-                        </div>
-                      )}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setInviteForm({ ...inviteForm, inviteType: 'direct' })}
-                      className={`relative p-4 rounded-xl border-2 text-left transition-all ${
-                        inviteForm.inviteType === 'direct'
-                          ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-200'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          inviteForm.inviteType === 'direct' ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          <Send className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-semibold text-gray-900">Direct Enrollment</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Skip discovery and enroll directly in specific services
-                          </p>
-                        </div>
-                      </div>
-                      {inviteForm.inviteType === 'direct' && (
-                        <div className="absolute top-2 right-2">
-                          <CheckCircle className="w-5 h-5 text-emerald-500" />
-                        </div>
-                      )}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Client Details */}
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Email */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      value={inviteForm.email}
-                      onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                      placeholder="client@example.com"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-
-                  {/* Name */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Client Name
-                    </label>
-                    <input
-                      type="text"
-                      value={inviteForm.name}
-                      onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
-                      placeholder="John Smith"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Company */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Company Name
-                  </label>
-                  <input
-                    type="text"
-                    value={inviteForm.company}
-                    onChange={(e) => setInviteForm({ ...inviteForm, company: e.target.value })}
-                    placeholder="Acme Ltd"
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-
-                {/* Service Lines - Only show for Direct enrollment, or optionally for Discovery */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {inviteForm.inviteType === 'discovery' 
-                      ? 'Pre-select services (optional - let discovery guide them)'
-                      : 'Enroll in Services *'
-                    }
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
-                    {SERVICE_LINES.filter((service, index, self) => 
-                      // Remove duplicates by id and only show ready services
-                      service.status === 'ready' && index === self.findIndex(s => s.id === service.id)
-                    ).map((service) => {
-                      const Icon = service.icon;
-                      const isSelected = inviteForm.services.includes(service.code);
-                      return (
-                        <label
-                          key={service.id}
-                          className={`flex items-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                            isSelected 
-                              ? 'border-indigo-500 bg-indigo-50' 
-                              : 'border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setInviteForm({ ...inviteForm, services: [...inviteForm.services, service.code] });
-                              } else {
-                                setInviteForm({ ...inviteForm, services: inviteForm.services.filter(s => s !== service.code) });
-                              }
-                            }}
-                            className="w-4 h-4 text-indigo-600 rounded"
-                          />
-                          <Icon className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm font-medium text-gray-900">{service.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  {inviteForm.inviteType === 'discovery' && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      Tip: Leave blank to let Discovery recommend the best services based on their goals
-                    </p>
-                  )}
-                </div>
-
-                {/* Custom Message */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Personal Message (optional)
-                  </label>
-                  <textarea
-                    value={inviteForm.customMessage}
-                    onChange={(e) => setInviteForm({ ...inviteForm, customMessage: e.target.value })}
-                    placeholder="Looking forward to helping you reach your goals..."
-                    rows={3}
-                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                </div>
-
-                {/* Preview what client will see */}
-                <div className="bg-slate-50 rounded-lg p-4">
-                  <p className="text-sm font-medium text-slate-700 mb-2">What they will experience:</p>
-                  <div className="flex items-start gap-3 text-sm text-slate-600">
-                    <div className="flex flex-col items-center">
-                      <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold">1</div>
-                      <div className="w-px h-4 bg-slate-300" />
-                    </div>
-                    <p>Receive email invitation</p>
-                  </div>
-                  <div className="flex items-start gap-3 text-sm text-slate-600">
-                    <div className="flex flex-col items-center">
-                      <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs font-bold">2</div>
-                      <div className="w-px h-4 bg-slate-300" />
-                    </div>
-                    <p>Create their portal account (set password)</p>
-                  </div>
-                  {inviteForm.inviteType === 'discovery' ? (
-                    <>
-                      <div className="flex items-start gap-3 text-sm text-slate-600">
-                        <div className="flex flex-col items-center">
-                          <div className="w-6 h-6 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">3</div>
-                          <div className="w-px h-4 bg-slate-300" />
-                        </div>
-                        <p>Complete Destination Discovery (~15 mins)</p>
-                      </div>
-                      <div className="flex items-start gap-3 text-sm text-slate-600">
-                        <div className="flex flex-col items-center">
-                          <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">4</div>
-                        </div>
-                        <p>Receive personalized service recommendations</p>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex items-start gap-3 text-sm text-slate-600">
-                      <div className="flex flex-col items-center">
-                        <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-bold">3</div>
-                      </div>
-                      <p>Start onboarding for {inviteForm.services.length > 0 ? inviteForm.services.length : 'selected'} service(s)</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-6 border-t border-gray-200 flex justify-end gap-3 sticky bottom-0 bg-white">
-                <button
-                  onClick={() => {
-                    setShowInviteModal(false);
-                    setInviteForm({ email: '', name: '', company: '', services: [], customMessage: '', inviteType: 'discovery' });
-                  }}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSendInvite}
-                  disabled={sendingInvite || !inviteForm.email || (inviteForm.inviteType === 'direct' && inviteForm.services.length === 0)}
-                  className={`inline-flex items-center gap-2 px-6 py-2 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    inviteForm.inviteType === 'discovery'
-                      ? 'bg-indigo-600 hover:bg-indigo-700'
-                      : 'bg-emerald-600 hover:bg-emerald-700'
-                  }`}
-                >
-                  {sendingInvite ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <Mail className="w-4 h-4" />
-                      {inviteForm.inviteType === 'discovery' ? 'Send Discovery Invite' : 'Send Direct Invite'}
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Bulk Import Modal */}
-        {showBulkImportModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl overflow-hidden max-h-[90vh] overflow-y-auto">
-              {/* Modal Header */}
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Bulk Import Clients</h2>
-                  <p className="text-sm text-gray-500">Import multiple clients at once for Destination Discovery</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setShowBulkImportModal(false);
-                    setBulkImportData('');
-                    setBulkImportResults(null);
-                    setBulkSendEmails(false);
-                  }}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-gray-400" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-6 space-y-6">
-                {!bulkImportResults ? (
-                  <>
-                    {/* Instructions */}
-                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
-                      <h3 className="font-medium text-blue-900 mb-2">How to format your data</h3>
-                      <p className="text-sm text-blue-700 mb-3">
-                        Paste data from Excel/Sheets with columns: <strong>Name</strong>, <strong>Email</strong>, and optionally <strong>Company</strong>
-                      </p>
-                      <div className="bg-white rounded-lg p-3 font-mono text-xs text-gray-600 border border-blue-200">
-                        <div>Yonas Ackholm	yackholm@hotmail.com	Ackholm Holdings</div>
-                        <div>Jeremy Baron	jeremy@baronsec.com	Baron Securities</div>
-                        <div>Claude Partridge	claudepartridge@me.com	CEP Developments</div>
-                      </div>
-                      <p className="text-xs text-blue-600 mt-2">
-                        ✓ Tab-separated (Excel copy) or comma-separated (CSV)<br />
-                        ✓ Passwords will be auto-generated if not provided<br />
-                        ✓ Each client will receive a welcome email with their credentials
-                      </p>
-                    </div>
-
-                    {/* Data Input */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Paste your client data here
-                      </label>
-                      <textarea
-                        value={bulkImportData}
-                        onChange={(e) => setBulkImportData(e.target.value)}
-                        placeholder="Name	Email	Company (optional)
-Yonas Ackholm	yackholm@hotmail.com	Ackholm Holdings
-Jeremy Baron	jeremy@baronsec.com	Baron Securities"
-                        rows={12}
-                        className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-sm"
-                      />
-                    </div>
-
-                    {/* Preview */}
-                    {bulkImportData.trim() && (
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-sm font-medium text-gray-700 mb-2">
-                          Preview: {bulkImportData.trim().split('\n').filter(l => l.trim() && !l.toLowerCase().includes('name')).length} clients detected
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Email Option */}
-                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <div>
-                          <h3 className="font-medium text-gray-900">Send welcome emails automatically?</h3>
-                          <p className="text-sm text-gray-500 mt-1">
-                            {bulkSendEmails 
-                              ? 'Clients will receive an email with their login credentials'
-                              : 'No emails sent - you will share credentials personally'
-                            }
-                          </p>
-                        </div>
-                        <div 
-                          onClick={() => setBulkSendEmails(!bulkSendEmails)}
-                          className={`relative w-12 h-6 rounded-full transition-colors ${bulkSendEmails ? 'bg-emerald-500' : 'bg-gray-300'}`}
-                        >
-                          <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${bulkSendEmails ? 'translate-x-6' : 'translate-x-0.5'}`} />
-                        </div>
-                      </label>
-                    </div>
-
-                    {/* What happens */}
-                    <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
-                      <h3 className="font-medium text-amber-900 mb-2">What happens when you import</h3>
-                      <div className="space-y-2 text-sm text-amber-800">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>Portal accounts created with auto-generated passwords</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>Credentials shown after import so you can share them</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>Clients enrolled in <strong>Destination Discovery</strong></span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="w-4 h-4 text-amber-600" />
-                          <span>When they log in, Discovery assessment appears immediately</span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  /* Results View */
-                  <div className="space-y-4">
-                    {/* Summary */}
-                    <div className={`rounded-xl p-6 ${bulkImportResults.summary?.succeeded === bulkImportResults.summary?.total ? 'bg-emerald-50 border border-emerald-200' : 'bg-amber-50 border border-amber-200'}`}>
-                      <h3 className="text-lg font-semibold mb-3">
-                        {bulkImportResults.summary?.succeeded === bulkImportResults.summary?.total 
-                          ? '✅ All clients imported successfully!'
-                          : `⚠️ ${bulkImportResults.summary?.succeeded} of ${bulkImportResults.summary?.total} clients imported`
-                        }
-                      </h3>
-                      <div className="grid grid-cols-3 gap-4 text-center">
-                        <div className="bg-white rounded-lg p-3">
-                          <div className="text-2xl font-bold text-emerald-600">{bulkImportResults.summary?.succeeded || 0}</div>
-                          <div className="text-xs text-gray-500">Succeeded</div>
-                        </div>
-                        <div className="bg-white rounded-lg p-3">
-                          <div className="text-2xl font-bold text-red-600">{bulkImportResults.summary?.failed || 0}</div>
-                          <div className="text-xs text-gray-500">Failed</div>
-                        </div>
-                        <div className="bg-white rounded-lg p-3">
-                          <div className="text-2xl font-bold text-blue-600">{bulkImportResults.summary?.emailsSent || 0}</div>
-                          <div className="text-xs text-gray-500">Emails Sent</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Credentials Table - Copyable */}
-                    {bulkImportResults.results?.some((r: any) => r.success) && (
-                      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                        <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-200 flex items-center justify-between">
-                          <h4 className="font-medium text-emerald-900">📋 Client Credentials</h4>
-                          <button
-                            onClick={() => {
-                              const successResults = bulkImportResults.results.filter((r: any) => r.success);
-                              const text = successResults.map((r: any) => 
-                                `${r.name}\t${r.email}\t${r.password}`
-                              ).join('\n');
-                              navigator.clipboard.writeText(`Name\tEmail\tPassword\n${text}`);
-                              alert('Credentials copied to clipboard!');
-                            }}
-                            className="text-xs px-3 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors"
-                          >
-                            Copy All
-                          </button>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                              <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email (Username)</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Password</th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                              {bulkImportResults.results?.filter((r: any) => r.success).map((result: any, idx: number) => (
-                                <tr key={idx} className="hover:bg-gray-50">
-                                  <td className="px-4 py-2 font-medium text-gray-900">{result.name}</td>
-                                  <td className="px-4 py-2 text-gray-600">{result.email}</td>
-                                  <td className="px-4 py-2">
-                                    <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">{result.password}</code>
-                                  </td>
-                                  <td className="px-4 py-2 text-gray-500">{result.company || '-'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        <div className="px-4 py-3 bg-blue-50 border-t border-blue-200 text-xs text-blue-700">
-                          <strong>Portal URL:</strong> https://torsor.co.uk/client
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Failed Imports */}
-                    {bulkImportResults.results?.some((r: any) => !r.success) && (
-                      <div className="bg-white rounded-lg border border-red-200 overflow-hidden">
-                        <div className="px-4 py-3 bg-red-50 border-b border-red-200">
-                          <h4 className="font-medium text-red-900">⚠️ Failed Imports</h4>
-                        </div>
-                        <div className="max-h-32 overflow-y-auto">
-                          {bulkImportResults.results?.filter((r: any) => !r.success).map((result: any, idx: number) => (
-                            <div key={idx} className="px-4 py-2 border-b border-red-100 flex items-center justify-between">
-                              <span className="text-sm text-gray-900">{result.name || result.email}</span>
-                              <span className="text-xs text-red-600">{result.error}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="p-6 border-t border-gray-200 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
-                {!bulkImportResults ? (
-                  <>
-                    <button
-                      onClick={() => {
-                        setShowBulkImportModal(false);
-                        setBulkImportData('');
-                        setBulkSendEmails(false);
-                      }}
-                      className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-gray-600"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleBulkImport}
-                      disabled={bulkImporting || !bulkImportData.trim()}
-                      className={`inline-flex items-center gap-2 px-6 py-2 rounded-lg text-white font-medium transition-colors ${
-                        bulkImporting || !bulkImportData.trim()
-                          ? 'bg-gray-300 cursor-not-allowed'
-                          : 'bg-emerald-600 hover:bg-emerald-700'
-                      }`}
-                    >
-                      {bulkImporting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Importing...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4" />
-                          Import Clients
-                        </>
-                      )}
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setShowBulkImportModal(false);
-                      setBulkImportData('');
-                      setBulkImportResults(null);
-                      setBulkSendEmails(false);
-                    }}
-                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
-                  >
-                    Done
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Service Edit Modal */}
-        {editingService && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold">Edit Service</h2>
-                  <button 
-                    onClick={() => setEditingService(null)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-              
-              <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Service Name</label>
-                  <input
-                    type="text"
-                    value={editingService.name || ''}
-                    onChange={(e) => setEditingService({ ...editingService, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Short Description</label>
-                  <input
-                    type="text"
-                    value={editingService.short_description || ''}
-                    onChange={(e) => setEditingService({ ...editingService, short_description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Description</label>
-                  <textarea
-                    rows={3}
-                    value={editingService.description || ''}
-                    onChange={(e) => setEditingService({ ...editingService, description: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (£)</label>
-                    <input
-                      type="number"
-                      value={editingService.price_amount || ''}
-                      onChange={(e) => setEditingService({ ...editingService, price_amount: parseFloat(e.target.value) || null })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price Period</label>
-                    <select
-                      value={editingService.price_period || 'one-off'}
-                      onChange={(e) => setEditingService({ ...editingService, price_period: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    >
-                      <option value="one-off">One-off</option>
-                      <option value="month">Monthly</option>
-                      <option value="year">Annual</option>
-                    </select>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select
-                    value={editingService.status || 'active'}
-                    onChange={(e) => setEditingService({ ...editingService, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="active">Active</option>
-                    <option value="draft">Draft</option>
-                    <option value="archived">Archived</option>
-                  </select>
-                </div>
-              </div>
-              
-              <div className="p-6 border-t border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      // Archive instead of delete (safer)
-                      handleSaveService({ ...editingService, status: 'archived' });
-                    }}
-                    disabled={savingService}
-                    className="px-4 py-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors flex items-center gap-2"
-                    title="Archive service (keeps data but hides from list)"
-                  >
-                    <XCircle className="w-4 h-4" />
-                    Archive
-                  </button>
-                  <button
-                    onClick={() => handleDeleteService(editingService.id)}
-                    disabled={savingService}
-                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-2"
-                    title="Permanently delete (may fail if in use)"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setEditingService(null)}
-                    className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handleSaveService(editingService)}
-                    disabled={savingService}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                  >
-                    {savingService ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="w-4 h-4" />
-                        Save Changes
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+  return (
+    <AdminLayout
+      title="Client Services"
+      subtitle="Manage clients across all service lines"
+      headerActions={
+        <>
+          <button
+            onClick={() => setShowBulkImportModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Bulk Import
+          </button>
+          <button
+            onClick={() => setShowInviteModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            <Mail className="w-4 h-4" />
+            Invite Client
+          </button>
+        </>
+      }
+    >
+      <div className="max-w-7xl mx-auto">
+        {mainContent}
+      </div>
+    </AdminLayout>
   );
 }
 
@@ -4856,6 +3956,17 @@ function DiscoveryClientModal({
               {/* RESPONSES TAB */}
               {activeTab === 'responses' && (
                 <div className="space-y-6">
+                  {/* IDs for database lookup - always show when on Responses tab */}
+                  <div className="rounded-lg bg-slate-100 border border-slate-200 px-3 py-2 font-mono text-xs text-slate-600">
+                    <p className="text-slate-500 font-sans font-medium mb-1.5">IDs for tables</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      <span><strong className="text-slate-500">client_id</strong> (practice_members): <code className="bg-slate-200 px-1 rounded">{clientId}</code></span>
+                      {discovery?.id && <span><strong className="text-slate-500">destination_discovery.id</strong>: <code className="bg-slate-200 px-1 rounded">{discovery.id}</code></span>}
+                      {discoveryEngagement?.id && <span><strong className="text-slate-500">discovery_engagement.id</strong>: <code className="bg-slate-200 px-1 rounded">{discoveryEngagement.id}</code></span>}
+                      {destinationReport?.id && <span><strong className="text-slate-500">discovery_report.id</strong>: <code className="bg-slate-200 px-1 rounded">{destinationReport.id}</code></span>}
+                    </div>
+                  </div>
+
                   {!discovery ? (
                     <div className="text-center py-12 bg-gray-50 rounded-xl">
                       <Compass className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -7176,7 +6287,7 @@ function DiscoveryClientModal({
 }
 
 // Enhanced Client Detail Modal with full functionality
-function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: { clientId: string; serviceLineCode: string; onClose: () => void; onNavigate: (page: Page) => void }) {
+function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: { clientId: string; serviceLineCode: string; onClose: () => void; onNavigate: (page: PageId) => void }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [client, setClient] = useState<any>(null);
@@ -7184,7 +6295,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   
   // Service-line specific tabs
   const isManagementAccounts = serviceLineCode === 'management_accounts' || serviceLineCode === 'business_intelligence';
-  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis'>(
+  const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis' | 'progress'>(
     isManagementAccounts ? 'assessments' : 'overview'
   );
   
@@ -7233,6 +6344,15 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [sprintStageRaw, setSprintStageRaw] = useState<any>(null);
   const [publishingSprint, setPublishingSprint] = useState(false);
 
+  // Progress tab (365_method): snapshots + wins for value tracker
+  const [progressSnapshots, setProgressSnapshots] = useState<any[]>([]);
+  const [progressWins, setProgressWins] = useState<any[]>([]);
+  const [progressLoading, setProgressLoading] = useState(false);
+  const [addingWin, setAddingWin] = useState(false);
+  const [newWinTitle, setNewWinTitle] = useState('');
+  const [newWinDescription, setNewWinDescription] = useState('');
+  const [newWinCategory, setNewWinCategory] = useState<string>('general');
+
   // Goal Alignment tier (365_method only)
   const [clientTier, setClientTier] = useState<string | null>(null);
   const [savingTier, setSavingTier] = useState(false);
@@ -7243,6 +6363,27 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   useEffect(() => {
     fetchClientDetail();
   }, [clientId]);
+
+  const fetchProgressData = useCallback(async () => {
+    if (!clientId) return;
+    setProgressLoading(true);
+    try {
+      const [snapRes, winsRes] = await Promise.all([
+        supabase.from('client_progress_snapshots').select('*').eq('client_id', clientId).order('sprint_number').order('week_number'),
+        supabase.from('client_wins').select('*').eq('client_id', clientId).order('is_highlighted', { ascending: false }).order('created_at', { ascending: false }).limit(50),
+      ]);
+      if (snapRes.data) setProgressSnapshots(snapRes.data);
+      if (winsRes.data) setProgressWins(winsRes.data);
+    } catch (e) {
+      console.warn('Fetch progress failed', e);
+    } finally {
+      setProgressLoading(false);
+    }
+  }, [clientId]);
+
+  useEffect(() => {
+    if (activeTab === 'progress' && clientId) fetchProgressData();
+  }, [activeTab, clientId, fetchProgressData]);
 
   const fetchClientDetail = async () => {
     setLoading(true);
@@ -8303,7 +7444,9 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
         <div className="flex border-b border-gray-200">
           {(isManagementAccounts 
             ? ['assessments', 'documents', 'analysis'] 
-            : ['overview', 'roadmap', 'assessments', 'context', 'sprint']
+            : (serviceLineCode === '365_method'
+                ? ['overview', 'roadmap', 'assessments', 'context', 'sprint', 'progress']
+                : ['overview', 'roadmap', 'assessments', 'context', 'sprint'])
           ).map((tab) => (
             <button
               key={tab}
@@ -9523,7 +8666,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         engagement={client}
                         clientName={client?.name || client?.client_company}
                         initialContext={maAssessmentReport.call_context || undefined}
-                        onSaveContext={async (context) => {
+                        onSaveContext={async (context: MAReportContext) => {
                           try {
                             const { error } = await supabase
                               .from('ma_assessment_reports')
@@ -9541,7 +8684,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           }
                         }}
                         isRegenerating={regeneratingMAReport}
-                        onRegenerateClientView={async (context) => {
+                        onRegenerateClientView={async (context: MAReportContext) => {
                           if (!maAssessmentReport?.id) {
                             alert('No report to regenerate');
                             return;
@@ -10094,7 +9237,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             call_context: maAssessmentReport.call_context // Pass call context for real financial data
                           }}
                           engagement={client}
-                          onTierSelect={async (tier) => {
+                          onTierSelect={async (tier: string) => {
                             console.log('[MA Report] Client selected tier:', tier);
                             // Parse tier - might be "foresight_monthly" or just "foresight"
                             const [tierName, frequency] = tier.includes('_') ? tier.split('_') : [tier, 'monthly'];
@@ -11554,10 +10697,162 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                 </div>
               )}
 
+              {/* PROGRESS TAB (365_method) — value tracker: snapshots + wins */}
+              {activeTab === 'progress' && serviceLineCode === '365_method' && (
+                <div className="space-y-6">
+                  {progressLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                    </div>
+                  ) : (
+                    <>
+                      {/* Summary stats from latest snapshot */}
+                      {progressSnapshots.length > 0 && (() => {
+                        const latest = progressSnapshots[progressSnapshots.length - 1];
+                        const totalCompleted = progressSnapshots.reduce((s, n) => s + (n.completed_tasks || 0), 0);
+                        return (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Hours reclaimed</p>
+                              <p className="text-2xl font-bold text-emerald-600 mt-1">{latest.hours_reclaimed ?? '—'}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tasks completed</p>
+                              <p className="text-2xl font-bold text-indigo-600 mt-1">{totalCompleted}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Life alignment</p>
+                              <p className="text-2xl font-bold text-rose-600 mt-1">{latest.life_alignment_score ?? '—'}</p>
+                            </div>
+                            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Completion rate</p>
+                              <p className="text-2xl font-bold text-slate-900 mt-1">{latest.completion_rate ?? 0}%</p>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      {progressSnapshots.length === 0 && (
+                        <div className="bg-gray-50 border border-dashed border-gray-200 rounded-xl p-6 text-center text-gray-500 text-sm">
+                          No progress snapshots yet. Client progress will appear after they complete tasks.
+                        </div>
+                      )}
+
+                      {/* Wins: list + toggle highlight + Add Win */}
+                      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+                          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                            <Award className="w-5 h-5 text-amber-500" />
+                            Client Wins
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setAddingWin(true)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                          >
+                            Add Win
+                          </button>
+                        </div>
+                        <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
+                          {progressWins.length === 0 && !addingWin && (
+                            <p className="text-sm text-gray-500 text-center py-6">No wins recorded yet.</p>
+                          )}
+                          {addingWin && (
+                            <div className="border border-indigo-200 rounded-lg p-4 bg-indigo-50/50 space-y-3">
+                              <input
+                                type="text"
+                                placeholder="Title"
+                                value={newWinTitle}
+                                onChange={(e) => setNewWinTitle(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              />
+                              <textarea
+                                placeholder="Description (optional)"
+                                value={newWinDescription}
+                                onChange={(e) => setNewWinDescription(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm min-h-[60px]"
+                              />
+                              <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600">Category:</label>
+                                <select
+                                  value={newWinCategory}
+                                  onChange={(e) => setNewWinCategory(e.target.value)}
+                                  className="border border-gray-300 rounded-lg px-2 py-1 text-sm"
+                                >
+                                  {['general', 'team', 'financial', 'systems', 'life', 'personal'].map((c) => (
+                                    <option key={c} value={c}>{c}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!newWinTitle.trim() || !client?.practice_id) return;
+                                    try {
+                                      await supabase.from('client_wins').insert({
+                                        client_id: clientId,
+                                        practice_id: client.practice_id,
+                                        sprint_number: client?.gaEnrollment?.current_sprint_number ?? 1,
+                                        title: newWinTitle.trim(),
+                                        description: newWinDescription.trim() || null,
+                                        category: newWinCategory,
+                                        source: 'advisor',
+                                      });
+                                      setNewWinTitle('');
+                                      setNewWinDescription('');
+                                      setNewWinCategory('general');
+                                      setAddingWin(false);
+                                      fetchProgressData();
+                                    } catch (e) {
+                                      console.warn('Add win failed', e);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700"
+                                >
+                                  Save
+                                </button>
+                                <button type="button" onClick={() => { setAddingWin(false); setNewWinTitle(''); setNewWinDescription(''); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          {progressWins.map((win: any) => (
+                            <div
+                              key={win.id}
+                              className={`flex items-start justify-between gap-3 p-3 rounded-lg border ${win.is_highlighted ? 'bg-amber-50 border-amber-200' : 'border-gray-200'}`}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900">{win.title}</p>
+                                {win.description && <p className="text-sm text-gray-600 mt-0.5">{win.description}</p>}
+                                <p className="text-xs text-gray-400 mt-1">Sprint {win.sprint_number}{win.week_number ? ` • Week ${win.week_number}` : ''} • {win.category} • {win.source}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await supabase.from('client_wins').update({ is_highlighted: !win.is_highlighted }).eq('id', win.id);
+                                    fetchProgressData();
+                                  } catch (e) {
+                                    console.warn('Toggle highlight failed', e);
+                                  }
+                                }}
+                                className={`flex-shrink-0 px-2 py-1 rounded text-xs font-medium ${win.is_highlighted ? 'bg-amber-200 text-amber-900' : 'bg-gray-100 text-gray-600'}`}
+                              >
+                                {win.is_highlighted ? '★ Highlighted' : 'Highlight'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Sprint Editor Modal — outside tab content so it opens from any tab */}
               {showSprintEditor && sprintStageRaw && (
                 <SprintEditorModal
-                  isOpen={showSprintEditor}
                   onClose={() => setShowSprintEditor(false)}
                   onSave={() => { fetchClientDetail(); }}
                   clientId={client?.id || clientId || ''}
@@ -12779,17 +12074,15 @@ function BenchmarkingClientModal({
                       {/* Report Content - New Components */}
                       {viewMode === 'client' ? (
                         report ? (
-                          // Match client portal styling: bg-slate-50 + max-w wrapper
-                          <div className="bg-slate-50 rounded-xl -mx-2 px-2 py-6">
-                            <div className="max-w-5xl mx-auto">
-                              <BenchmarkingClientReport 
-                                data={{
-                                  ...report,
-                                  created_at: report?.created_at
-                                }}
-                                clientName={clientName}
-                              />
-                            </div>
+                          // Dashboard has its own full-width layout with sidebar nav
+                          <div className="rounded-xl overflow-hidden -mx-2" style={{ height: '85vh' }}>
+                            <BenchmarkingClientDashboard
+                              data={{
+                                ...report,
+                                created_at: report?.created_at
+                              }}
+                              clientName={clientName}
+                            />
                           </div>
                         ) : (
                           <div className="text-center py-8 text-gray-500">
@@ -13143,12 +12436,16 @@ function SystemsAuditClientModal({
 }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
-  const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'analysis'>('assessments');
+  const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'review' | 'analysis'>('assessments');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
   const [stage1Responses, setStage1Responses] = useState<any[]>([]);
+  /** Prefer service_line_assessments.responses when present so admin and client read from same place */
+  const [serviceLineAssessmentResponses, setServiceLineAssessmentResponses] = useState<Record<string, unknown> | null>(null);
   const [stage2Inventory, setStage2Inventory] = useState<any[]>([]);
   const [stage3DeepDives, setStage3DeepDives] = useState<any[]>([]);
+  const [saCustomChains, setSaCustomChains] = useState<any[]>([]);
+  const [suggestChainsLoading, setSuggestChainsLoading] = useState(false);
   const [report, setReport] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
   const [saReportPollingAfterError, setSaReportPollingAfterError] = useState(false);
@@ -13168,7 +12465,22 @@ function SystemsAuditClientModal({
   });
   const [savingEdits, setSavingEdits] = useState(false);
   const [makingAvailable, setMakingAvailable] = useState(false);
-  
+  const [staffInterviewCompleteCount, setStaffInterviewCompleteCount] = useState(0);
+  const [staffInterviewTotalCount, setStaffInterviewTotalCount] = useState(0);
+  const [gaps, setGaps] = useState<SAEngagementGap[]>([]);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [newGapForm, setNewGapForm] = useState({ gap_area: 'cross_cutting' as SAEngagementGap['gap_area'], gap_tag: '', description: '', source_question: '' });
+  const [savingGap, setSavingGap] = useState(false);
+  const [resolvingGapId, setResolvingGapId] = useState<string | null>(null);
+  const [resolveForm, setResolveForm] = useState({ resolution: '', additional_context: '' });
+  const [gapTrends, setGapTrends] = useState<{ tag: string; count: number }[]>([]);
+  const [runningPreliminary, setRunningPreliminary] = useState(false);
+  const [dismissedSuggestedGapIds, setDismissedSuggestedGapIds] = useState<Set<number>>(new Set());
+  const [generatingScript, setGeneratingScript] = useState(false);
+  const [processingTranscript, setProcessingTranscript] = useState(false);
+  const [transcriptText, setTranscriptText] = useState('');
+  const [showTranscriptInput, setShowTranscriptInput] = useState(false);
+
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
   const [contextNotes, setContextNotes] = useState<any[]>([]);
@@ -13252,15 +12564,41 @@ function SystemsAuditClientModal({
         return;
       }
 
-      if (engagementData) {
-        console.log('[Systems Audit Modal] Found engagement:', engagementData.id, 'Status:', engagementData.status);
-        setEngagement(engagementData);
+      // If no engagement exists but client is in our practice, create one (e.g. client has
+      // progress in service_line_assessments but never completed the flow that creates sa_engagements)
+      let engagementToUse = engagementData;
+      if (!engagementToUse && currentMember?.practice_id) {
+        const { data: newEngagement, error: createError } = await supabase
+          .from('sa_engagements')
+          .insert({
+            client_id: clientId,
+            practice_id: currentMember.practice_id,
+            status: 'pending',
+            engagement_type: 'diagnostic', // required by schema if default not applied
+          })
+          .select('*')
+          .single();
+        if (createError) {
+          console.error('[Systems Audit Modal] Create engagement failed:', createError.code, createError.message, createError.details);
+          alert(`Could not create Systems Audit engagement: ${createError.message}. Check the console for details. This may be an RLS/permissions issue.`);
+          setLoading(false);
+          return;
+        } else if (newEngagement) {
+          engagementToUse = newEngagement;
+          setEngagement(newEngagement);
+          console.log('[Systems Audit Modal] Created new engagement for client:', newEngagement.id);
+        }
+      }
+
+      if (engagementToUse) {
+        console.log('[Systems Audit Modal] Found engagement:', engagementToUse.id, 'Status:', engagementToUse.status);
+        setEngagement(engagementToUse);
 
         // Fetch Stage 1 responses - single row per engagement (UNIQUE constraint)
         const { data: stage1Data, error: stage1Error } = await supabase
           .from('sa_discovery_responses')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .maybeSingle();
 
         console.log('[Systems Audit Modal] Stage 1 responses:', { 
@@ -13286,15 +12624,26 @@ function SystemsAuditClientModal({
             console.warn('[Systems Audit Modal] Stage 1 data exists but appears empty');
             setStage1Responses([]);
           }
-        } else {
-          setStage1Responses([]);
+} else {
+            setStage1Responses([]);
         }
+
+        // Prefer service_line_assessments for Stage 1 display (same source as client portal)
+        const { data: slaRow } = await supabase
+          .from('service_line_assessments')
+          .select('responses')
+          .eq('client_id', clientId)
+          .eq('service_line_code', 'systems_audit')
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        setServiceLineAssessmentResponses((slaRow?.responses as Record<string, unknown>) ?? null);
 
         // Fetch Stage 2 inventory
         const { data: stage2Data, error: stage2Error } = await supabase
           .from('sa_system_inventory')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at');
 
         console.log('[Systems Audit Modal] Stage 2 inventory:', { count: stage2Data?.length || 0, error: stage2Error });
@@ -13315,7 +12664,7 @@ function SystemsAuditClientModal({
         const { data: stage3Data, error: stage3Error } = await supabase
           .from('sa_process_deep_dives')
           .select('*')
-          .eq('engagement_id', engagementData.id);
+          .eq('engagement_id', engagementToUse.id);
 
         console.log('[Systems Audit Modal] Stage 3 deep dives:', { count: stage3Data?.length || 0, error: stage3Error });
         if (stage3Error) {
@@ -13324,11 +12673,18 @@ function SystemsAuditClientModal({
           setStage3DeepDives(stage3Data || []);
         }
 
+        // Fetch engagement-specific process chains (for custom/suggested chains management)
+        const { data: customChainsData } = await supabase
+          .from('sa_process_chains')
+          .select('*')
+          .eq('engagement_id', engagementToUse.id);
+        setSaCustomChains(customChainsData || []);
+
         // Fetch report
         const { data: reportData, error: reportError } = await supabase
           .from('sa_audit_reports')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -13344,7 +12700,7 @@ function SystemsAuditClientModal({
         const { data: findingsData, error: findingsError } = await supabase
           .from('sa_findings')
           .select('*')
-          .eq('engagement_id', engagementData.id);
+          .eq('engagement_id', engagementToUse.id);
         
         // Sort findings by severity order (critical first)
         const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -13366,7 +12722,7 @@ function SystemsAuditClientModal({
         const { data: recsData, error: recsError } = await supabase
           .from('sa_recommendations')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('priority_rank');
 
         if (recsError) {
@@ -13379,7 +12735,7 @@ function SystemsAuditClientModal({
         const { data: docsData, error: docsError } = await supabase
           .from('sa_uploaded_documents')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: false });
         
         if (docsError) {
@@ -13392,7 +12748,7 @@ function SystemsAuditClientModal({
         const { data: contextData, error: contextError } = await supabase
           .from('sa_context_notes')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: false });
         
         if (contextError) {
@@ -13401,12 +12757,53 @@ function SystemsAuditClientModal({
           setContextNotes(contextData || []);
         }
 
+        // Staff interviews: total and completed count
+        const { count: staffTotal } = await supabase
+          .from('sa_staff_interviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('engagement_id', engagementToUse.id);
+        const { count: staffComplete } = await supabase
+          .from('sa_staff_interviews')
+          .select('*', { count: 'exact', head: true })
+          .eq('engagement_id', engagementToUse.id)
+          .eq('status', 'complete');
+        setStaffInterviewCompleteCount(staffComplete ?? 0);
+        setStaffInterviewTotalCount(staffTotal ?? 0);
+
+        // Gaps (pre-generation review)
+        const { data: gapsData, error: gapsError } = await supabase
+          .from('sa_engagement_gaps')
+          .select('*')
+          .eq('engagement_id', engagementToUse.id)
+          .order('created_at', { ascending: true });
+        if (!gapsError) setGaps((gapsData || []) as SAEngagementGap[]);
+        const { data: tagData } = await supabase
+          .from('sa_engagement_gaps')
+          .select('gap_tag')
+          .not('gap_tag', 'is', null);
+        const uniqueTags = [...new Set((tagData || []).map((r: { gap_tag: string }) => r.gap_tag).filter(Boolean))] as string[];
+        setTagSuggestions(uniqueTags);
+        const { data: resolvedTagData } = await supabase
+          .from('sa_engagement_gaps')
+          .select('gap_tag')
+          .eq('status', 'resolved')
+          .not('gap_tag', 'is', null);
+        const tagCounts: Record<string, number> = {};
+        (resolvedTagData || []).forEach((g: { gap_tag: string }) => {
+          if (g.gap_tag) tagCounts[g.gap_tag] = (tagCounts[g.gap_tag] || 0) + 1;
+        });
+        const sortedTrends = Object.entries(tagCounts)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 10)
+          .map(([tag, count]) => ({ tag, count }));
+        setGapTrends(sortedTrends);
+
         // Fetch client name
-        if (engagementData.client_id) {
+        if (engagementToUse.client_id) {
           const { data: clientData } = await supabase
             .from('practice_members')
             .select('client_company, company, name')
-            .eq('id', engagementData.client_id)
+            .eq('id', engagementToUse.client_id)
             .maybeSingle();
           
           if (clientData) {
@@ -13430,6 +12827,25 @@ function SystemsAuditClientModal({
     setGenerating(true);
 
     try {
+      const { data: resolvedGaps } = await supabase
+        .from('sa_engagement_gaps')
+        .select('gap_area, gap_tag, description, resolution, additional_context')
+        .eq('engagement_id', engagement.id)
+        .eq('status', 'resolved')
+        .not('additional_context', 'is', null);
+      const additionalContext = (resolvedGaps || []).map((g: { gap_area: string; gap_tag: string | null; description: string; resolution: string | null; additional_context: string | null }) => ({
+        area: g.gap_area,
+        tag: g.gap_tag ?? undefined,
+        gap: g.description,
+        resolution: g.resolution ?? '',
+        context: g.additional_context ?? '',
+      }));
+      if (engagement.transcript_extraction?.additionalInsights?.length) {
+        for (const insight of engagement.transcript_extraction.additionalInsights) {
+          additionalContext.push({ area: 'cross_cutting', tag: 'call_insight', gap: '', resolution: '', context: insight });
+        }
+      }
+
       const pollDB = async (
         checkFn: () => Promise<boolean>,
         label: string,
@@ -13449,8 +12865,16 @@ function SystemsAuditClientModal({
       };
 
       const firePhase = (phaseNum: number) => {
+        const body: { engagementId: string; phase: number; additionalContext?: typeof additionalContext; preliminaryAnalysis?: typeof engagement.preliminary_analysis } = {
+          engagementId: engagement.id,
+          phase: phaseNum,
+        };
+        if (phaseNum === 1) {
+          if (additionalContext.length > 0) body.additionalContext = additionalContext;
+          if (engagement.preliminary_analysis) body.preliminaryAnalysis = engagement.preliminary_analysis;
+        }
         supabase.functions.invoke('generate-sa-report-pass1', {
-          body: { engagementId: engagement.id, phase: phaseNum }
+          body
         }).then(({ data, error }) => {
           if (error) console.warn(`[SA Report] Phase ${phaseNum} invoke returned error (may still complete):`, error.message);
           else console.log(`[SA Report] Phase ${phaseNum} invoke returned:`, data);
@@ -13459,50 +12883,65 @@ function SystemsAuditClientModal({
         });
       };
 
-      // ── Phase 1: Extract core facts and system inventory ──
-      console.log('[SA Report] Starting Phase 1/5: Extracting facts...', { engagementId: engagement.id });
+      // ── Fire once: edge function creates job, Railway worker runs all 8 phases ──
+      console.log('[SA Report] Starting report generation...', { engagementId: engagement.id });
       firePhase(1);
+
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase1;
-      }, 'Phase 1');
+      }, 'Phase 1', 120, 5000);
       console.log('[SA Report] Phase 1 complete');
 
-      // ── Phase 2: Analyse processes, scores, costs ──
-      console.log('[SA Report] Starting Phase 2/5: Analysing processes...');
-      firePhase(2);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase2;
-      }, 'Phase 2');
+      }, 'Phase 2', 120, 5000);
       console.log('[SA Report] Phase 2 complete');
 
-      // ── Phase 3: Generate findings and quick wins ──
-      console.log('[SA Report] Starting Phase 3/5: Generating findings...');
-      firePhase(3);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase3;
-      }, 'Phase 3');
+      }, 'Phase 3', 60, 5000);
       console.log('[SA Report] Phase 3 complete');
 
-      // ── Phase 4: Build recommendations, then systems maps (two steps in one invoke) ──
-      console.log('[SA Report] Starting Phase 4/5: Building recommendations, then systems maps...');
-      firePhase(4);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase4;
-      }, 'Phase 4 (recommendations + systems maps)');
+      }, 'Phase 4', 60, 5000);
       console.log('[SA Report] Phase 4 complete');
 
-      // ── Phase 5: Admin guidance and client presentation ──
-      console.log('[SA Report] Starting Phase 5/5: Generating admin guidance...');
-      firePhase(5);
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
+        return !!data?.pass1_data?.phase5;
+      }, 'Phase 5', 60, 5000);
+      console.log('[SA Report] Phase 5 complete');
+
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
+        return !!data?.pass1_data?.phase6;
+      }, 'Phase 6', 60, 5000);
+      console.log('[SA Report] Phase 6 complete');
+
+      await pollDB(async () => {
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
+        return !!data?.pass1_data?.phase7;
+      }, 'Phase 7', 60, 5000);
+      console.log('[SA Report] Phase 7 complete');
+
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
-        return data?.status === 'pass1_complete';
-      }, 'Phase 5');
-      console.log('[SA Report] All 5 phases complete. Starting narrative generation (Pass 2)...');
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
+        return data?.status === 'pass1_complete' || data?.status === 'generated';
+      }, 'Phase 8 (assembly)', 60, 5000);
+      console.log('[SA Report] Pass 1 complete. Starting narrative generation (Pass 2)...');
 
       // ── Pass 2: Narrative generation (Opus) ──
       const { data: reportRow } = await supabase
@@ -13546,9 +12985,12 @@ function SystemsAuditClientModal({
       const phasesComplete = [
         partialReport?.pass1_data?.phase1 ? '1 (Extract)' : null,
         partialReport?.pass1_data?.phase2 ? '2 (Analyse)' : null,
-        partialReport?.pass1_data?.phase3 ? '3 (Diagnose)' : null,
-        partialReport?.pass1_data?.phase4 ? '4 (Recommend)' : null,
-        partialReport?.status === 'pass1_complete' ? '5 (Guide)' : null,
+        partialReport?.pass1_data?.phase3 ? '3 (Critical Findings)' : null,
+        partialReport?.pass1_data?.phase4 ? '4 (All Findings)' : null,
+        partialReport?.pass1_data?.phase5 ? '5 (Recommend)' : null,
+        partialReport?.pass1_data?.phase6 ? '6 (Maps)' : null,
+        partialReport?.pass1_data?.phase7 ? '7 (Guidance)' : null,
+        partialReport?.status === 'pass1_complete' ? '8 (Presentation)' : null,
       ].filter(Boolean).join(', ');
 
       if (phasesComplete) {
@@ -13734,6 +13176,17 @@ function SystemsAuditClientModal({
         approvedAt: updatedReport.approved_at,
         approvedBy: updatedReport.approved_by
       });
+
+      // RLS requires sa_engagements.is_shared_with_client = TRUE for clients to see the report
+      const { error: engagementError } = await supabase
+        .from('sa_engagements')
+        .update({ is_shared_with_client: true })
+        .eq('id', engagement.id);
+
+      if (engagementError) {
+        console.error('[SA Report] Error setting engagement is_shared_with_client:', engagementError);
+        alert('Report status was updated but sharing flag may not have been set. Client might not see the report until you try again.');
+      }
       
       alert('Report is now available to the client!');
       await fetchData(); // Refresh to show updated status
@@ -13904,7 +13357,229 @@ function SystemsAuditClientModal({
                             engagement?.status === 'analysis_complete' || 
                             engagement?.status === 'report_delivered' ||
                             engagement?.status === 'completed';
-  const canGenerateOrRegenerate = allStagesComplete || !!report;
+  const identifiedGapsCount = gaps.filter((g) => g.status === 'identified').length;
+  const canGenerateOrRegenerate = (allStagesComplete || !!report) && (identifiedGapsCount === 0 || engagement?.review_status === 'complete');
+
+  const handleAddGap = async () => {
+    if (!engagement || !newGapForm.description.trim()) return;
+    setSavingGap(true);
+    try {
+      const { data, error } = await supabase.from('sa_engagement_gaps').insert({
+        engagement_id: engagement.id,
+        gap_area: newGapForm.gap_area,
+        gap_tag: newGapForm.gap_tag.trim() || null,
+        description: newGapForm.description.trim(),
+        source_question: newGapForm.source_question.trim() || null,
+        status: 'identified',
+        created_by: user?.id ?? null,
+      }).select().single();
+      if (error) throw error;
+      setGaps((prev) => [...prev, data as SAEngagementGap]);
+      setNewGapForm({ gap_area: 'cross_cutting', gap_tag: '', description: '', source_question: '' });
+    } catch (e: any) {
+      alert(e?.message || 'Failed to add gap');
+    } finally {
+      setSavingGap(false);
+    }
+  };
+
+  const handleUpdateGapStatus = async (gapId: string, status: 'not_applicable' | 'deferred') => {
+    try {
+      const { error } = await supabase.from('sa_engagement_gaps').update({ status, updated_at: new Date().toISOString() }).eq('id', gapId);
+      if (error) throw error;
+      setGaps((prev) => prev.map((g) => (g.id === gapId ? { ...g, status } : g)));
+    } catch (e: any) {
+      alert(e?.message || 'Failed to update gap');
+    }
+  };
+
+  const handleDeleteGap = async (gapId: string) => {
+    if (!confirm('Delete this gap?')) return;
+    try {
+      const { error } = await supabase.from('sa_engagement_gaps').delete().eq('id', gapId);
+      if (error) throw error;
+      setGaps((prev) => prev.filter((g) => g.id !== gapId));
+    } catch (e: any) {
+      alert(e?.message || 'Failed to delete gap');
+    }
+  };
+
+  const handleSaveResolve = async () => {
+    if (!resolvingGapId || !resolveForm.resolution.trim()) return;
+    setSavingGap(true);
+    try {
+      const { error } = await supabase
+        .from('sa_engagement_gaps')
+        .update({
+          status: 'resolved',
+          resolution: resolveForm.resolution.trim(),
+          additional_context: resolveForm.additional_context.trim() || null,
+          resolved_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', resolvingGapId);
+      if (error) throw error;
+      setGaps((prev) =>
+        prev.map((g) =>
+          g.id === resolvingGapId
+            ? { ...g, status: 'resolved' as const, resolution: resolveForm.resolution.trim(), additional_context: resolveForm.additional_context.trim() || null, resolved_at: new Date().toISOString() }
+            : g
+        )
+      );
+      setResolvingGapId(null);
+      setResolveForm({ resolution: '', additional_context: '' });
+    } catch (e: any) {
+      alert(e?.message || 'Failed to save resolution');
+    } finally {
+      setSavingGap(false);
+    }
+  };
+
+  const handleMarkReviewComplete = async () => {
+    if (!engagement || identifiedGapsCount > 0) return;
+    try {
+      const { error } = await supabase
+        .from('sa_engagements')
+        .update({
+          review_status: 'complete',
+          review_completed_at: new Date().toISOString(),
+          review_completed_by: user?.id ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', engagement.id);
+      if (error) throw error;
+      setEngagement((prev: any) => (prev ? { ...prev, review_status: 'complete', review_completed_at: new Date().toISOString(), review_completed_by: user?.id } : prev));
+    } catch (e: any) {
+      alert(e?.message || 'Failed to mark review complete');
+    }
+  };
+
+  const gapAreaLabels: Record<SAEngagementGap['gap_area'], string> = {
+    stage_1_discovery: "Stage 1: Discovery",
+    stage_2_inventory: "Stage 2: Inventory",
+    stage_3_process: "Stage 3: Process",
+    cross_cutting: "Cross-cutting",
+  };
+
+  const hasPreliminary = !!engagement?.preliminary_analysis;
+  const preliminary = engagement?.preliminary_analysis as PreliminaryAnalysis | undefined;
+
+  // SA Edge Functions (LLM) can run 1–3+ minutes; use long timeout to avoid "Failed to send a request to the Edge Function".
+  const SA_EDGE_FN_TIMEOUT_MS = 300000; // 5 minutes
+
+  const handleRunPreliminary = async () => {
+    if (!engagement) return;
+    setRunningPreliminary(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SA_EDGE_FN_TIMEOUT_MS);
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-sa-preliminary', {
+        body: { engagementId: engagement.id },
+        signal: controller.signal as AbortSignal,
+      });
+      if (error) throw error;
+      if (data?.analysis) {
+        setEngagement((prev: any) => (prev ? { ...prev, preliminary_analysis: data.analysis, preliminary_analysis_at: new Date().toISOString() } : prev));
+      }
+      if (!data?.success) throw new Error(data?.error || 'Preliminary analysis failed');
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to run preliminary analysis';
+      if (msg.includes('Failed to send') || msg.includes('aborted') || msg.includes('Edge Function')) {
+        alert('The request is taking longer than expected. The analysis may still be running — refresh the page in a minute to check for new gaps.');
+      } else {
+        alert(msg);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setRunningPreliminary(false);
+    }
+  };
+
+  const handleAcceptSuggestedGap = async (suggested: { gap_area: string; gap_tag: string; description: string; source_question: string | null }) => {
+    if (!engagement) return;
+    setSavingGap(true);
+    try {
+      const { data, error } = await supabase.from('sa_engagement_gaps').insert({
+        engagement_id: engagement.id,
+        gap_area: suggested.gap_area,
+        gap_tag: suggested.gap_tag || null,
+        description: suggested.description,
+        source_question: suggested.source_question,
+        status: 'identified',
+        created_by: user?.id ?? null,
+      }).select().single();
+      if (error) throw error;
+      setGaps((prev) => [...prev, data as SAEngagementGap]);
+    } catch (e: any) {
+      alert(e?.message || 'Failed to add gap');
+    } finally {
+      setSavingGap(false);
+    }
+  };
+
+  const handleDismissSuggestedGap = (index: number) => {
+    setDismissedSuggestedGapIds((prev) => new Set(prev).add(index));
+  };
+
+  const handleGenerateScript = async () => {
+    if (!engagement?.id) return;
+    setGeneratingScript(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SA_EDGE_FN_TIMEOUT_MS);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-sa-call-script', {
+        body: { engagementId: engagement.id },
+        signal: controller.signal as AbortSignal,
+      });
+      if (error) throw error;
+      if (data?.script) {
+        setEngagement((prev: any) => (prev ? { ...prev, follow_up_script: data.script, follow_up_script_generated_at: new Date().toISOString() } : prev));
+      }
+      if (data?.message && !data?.script) {
+        alert(data.message);
+      }
+    } catch (e: any) {
+      const msg = e?.message || 'Script generation failed';
+      if (msg.includes('Failed to send') || msg.includes('aborted') || msg.includes('Edge Function')) {
+        alert('The request is taking longer than expected. The script may still be generating — refresh the page in a minute to check.');
+      } else {
+        alert(msg);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setGeneratingScript(false);
+    }
+  };
+
+  const handleProcessTranscript = async () => {
+    if (!engagement?.id || !transcriptText.trim()) return;
+    if (!window.confirm(`Process this transcript (${transcriptText.length} characters)? The AI will extract answers and auto-resolve matching gaps.`)) return;
+    setProcessingTranscript(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), SA_EDGE_FN_TIMEOUT_MS);
+    try {
+      const { data, error } = await supabase.functions.invoke('process-sa-transcript', {
+        body: { engagementId: engagement.id, transcript: transcriptText },
+        signal: controller.signal as AbortSignal,
+      });
+      if (error) throw error;
+      setTranscriptText('');
+      setShowTranscriptInput(false);
+      await fetchData();
+      const stats = data?.stats || {};
+      alert(`Transcript processed! ${stats.resolved ?? 0} of ${stats.totalGaps ?? 0} gaps resolved.${(stats.additionalInsights ?? 0) > 0 ? ` ${stats.additionalInsights} additional insights captured.` : ''}`);
+    } catch (e: any) {
+      const msg = e?.message || 'Processing failed';
+      if (msg.includes('Failed to send') || msg.includes('aborted') || msg.includes('Edge Function') || msg.includes('connection closed')) {
+        alert('The request took a long time and the connection may have closed. Transcript processing often completes anyway — refresh the page in a minute to see if gaps were resolved.');
+      } else {
+        alert(msg);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+      setProcessingTranscript(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -13925,6 +13600,7 @@ function SystemsAuditClientModal({
           {[
             { id: 'assessments', label: 'Assessments', icon: FileText },
             { id: 'documents', label: 'Documents / Context', icon: Upload },
+            { id: 'review', label: 'Review', icon: Eye },
             { id: 'analysis', label: 'Analysis', icon: Sparkles }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -13965,100 +13641,64 @@ function SystemsAuditClientModal({
                       </p>
                     </div>
                     <div className="p-6">
-                      {stage1Responses.length > 0 && stage1Responses[0] ? (
-                        <div className="space-y-4">
-                          {(() => {
-                            const response = stage1Responses[0];
-                            const rawResponses = response.raw_responses || {};
-                            
-                            // Helper to get value from either individual column or raw_responses
-                            const getValue = (dbKey: string, rawKey?: string): any => {
-                              // First try individual column
-                              if (response[dbKey] !== null && response[dbKey] !== undefined && response[dbKey] !== '') {
-                                return response[dbKey];
+                      {(() => {
+                            // Same source as client: prefer service_line_assessments.responses, else sa_discovery_responses.raw_responses
+                            const discoveryRow = stage1Responses[0];
+                            const responses: Record<string, unknown> = serviceLineAssessmentResponses
+                              ?? (discoveryRow?.raw_responses as Record<string, unknown>)
+                              ?? {};
+                            const assessment = getAssessmentByCode('systems_audit');
+                            if (!assessment) return <p className="text-gray-500">Assessment config not found</p>;
+
+                            function formatStage1Value(q: AssessmentQuestion, value: unknown): string | null {
+                              if (value == null || value === '') return null;
+                              if (q.type === 'staff_roster' || q.id === 'sa_staff_roster') {
+                                const roster = Array.isArray(value) ? value : (typeof value === 'string' ? (() => { try { return JSON.parse(value) as unknown[]; } catch { return []; } })() : []);
+                                if (roster.length === 0) return null;
+                                return roster
+                                  .map((p: { name?: string; roleTitle?: string; hourlyRate?: number; hoursPerWeek?: number }) => {
+                                    const name = (p as { name?: string }).name || '—';
+                                    const role = (p as { roleTitle?: string }).roleTitle;
+                                    const rate = (p as { hourlyRate?: number }).hourlyRate;
+                                    const hours = (p as { hoursPerWeek?: number }).hoursPerWeek;
+                                    let line = name;
+                                    if (role) line += ` · ${role}`;
+                                    if (rate != null && rate > 0) line += ` · £${rate}/hr`;
+                                    if (hours != null) line += ` · ${hours}h/week`;
+                                    return line;
+                                  })
+                                  .join('\n');
                               }
-                              // Fallback to raw_responses if provided
-                              if (rawKey && rawResponses[rawKey] !== null && rawResponses[rawKey] !== undefined && rawResponses[rawKey] !== '') {
-                                return rawResponses[rawKey];
+                              if (Array.isArray(value)) {
+                                return value.length > 0 && typeof value[0] === 'object' && value[0] !== null && 'name' in (value[0] as object)
+                                  ? (value as { name?: string; roleTitle?: string }[]).map((p) => p.name + (p.roleTitle ? ` (${p.roleTitle})` : '')).join(', ')
+                                  : (value as string[]).join(', ');
                               }
-                              return null;
-                            };
-                            
-                            // All possible fields from sa_discovery_responses table
-                            // Format: { key: 'db_column_name', rawKey: 'raw_responses_key', label: '...', section: '...' }
-                            const fields = [
-                              // Section 1: Current Pain
-                              { key: 'systems_breaking_point', rawKey: 'sa_breaking_point', label: 'What broke – or is about to break – that made you think about systems?', section: 'Current Pain' },
-                              { key: 'operations_self_diagnosis', rawKey: 'sa_operations_diagnosis', label: 'How would you describe your current operations?', section: 'Current Pain' },
-                              { key: 'month_end_shame', rawKey: 'sa_month_end_shame', label: 'What would embarrass you if a potential investor saw it?', section: 'Current Pain' },
-                              
-                              // Section 2: Impact Quantification
-                              { key: 'manual_hours_monthly', rawKey: 'sa_manual_hours', label: 'How many hours per month are spent on manual data entry or transfer?', section: 'Impact Quantification' },
-                              { key: 'month_end_close_duration', rawKey: 'sa_month_end_duration', label: 'How long does your month-end close take?', section: 'Impact Quantification' },
-                              { key: 'data_error_frequency', rawKey: 'sa_data_error_frequency', label: 'How often do you discover data errors or inconsistencies?', section: 'Impact Quantification' },
-                              { key: 'expensive_systems_mistake', rawKey: 'sa_expensive_mistake', label: 'What\'s the most expensive mistake your systems have caused?', section: 'Impact Quantification' },
-                              { key: 'information_access_frequency', rawKey: 'sa_information_access', label: 'How often can\'t you get the information you need within 5 minutes?', section: 'Impact Quantification' },
-                              
-                              // Section 3: Tech Stack
-                              { key: 'software_tools_used', rawKey: 'sa_tech_stack', label: 'What software tools do you currently use?', section: 'Tech Stack' },
-                              { key: 'integration_rating', rawKey: 'sa_integration_health', label: 'How well do your systems integrate with each other?', section: 'Tech Stack' },
-                              { key: 'critical_spreadsheets', rawKey: 'sa_spreadsheet_count', label: 'How many critical spreadsheets do you rely on?', section: 'Tech Stack' },
-                              
-                              // Section 4: Focus Areas
-                              { key: 'broken_areas', rawKey: 'sa_priority_areas', label: 'Which areas of your business feel most broken?', section: 'Focus Areas' },
-                              { key: 'magic_process_fix', rawKey: 'sa_magic_fix', label: 'If you could fix one process by magic, what would it be?', section: 'Focus Areas' },
-                              // Section 5: Your Vision
-                              { key: 'desired_outcomes', rawKey: 'sa_desired_outcomes', label: 'What specific outcomes do you want from fixing systems?', section: 'Your Vision' },
-                              { key: 'monday_morning_vision', rawKey: 'sa_monday_morning', label: 'What does Monday morning look like when systems work?', section: 'Your Vision' },
-                              { key: 'time_freedom_priority', rawKey: 'sa_time_freedom', label: 'What would you do with 10+ hours/week back?', section: 'Your Vision' },
-                              // Section 6: Readiness
-                              { key: 'change_appetite', rawKey: 'sa_change_appetite', label: 'What\'s your appetite for change right now?', section: 'Readiness' },
-                              { key: 'systems_fears', rawKey: 'sa_fears', label: 'What are your biggest fears about changing systems?', section: 'Readiness' },
-                              { key: 'internal_champion', rawKey: 'sa_champion', label: 'Who would champion systems improvements internally?', section: 'Readiness' },
-                              
-                              // Section 6: Context
-                              { key: 'team_size', rawKey: 'sa_team_size', label: 'Current team size', section: 'Context' },
-                              { key: 'expected_team_size_12mo', rawKey: 'sa_expected_team_size', label: 'Expected team size in 12 months', section: 'Context' },
-                              { key: 'revenue_band', rawKey: 'sa_revenue_band', label: 'Annual revenue band', section: 'Context' },
-                              { key: 'industry_sector', rawKey: 'sa_industry_sector', label: 'Industry sector', section: 'Context' },
-                            ];
-                            
-                            // Group by section
-                            const sections: Record<string, typeof fields> = {};
-                            fields.forEach((field) => {
-                              if (!sections[field.section]) sections[field.section] = [];
-                              sections[field.section].push(field);
-                            });
-                            
-                            return Object.entries(sections).map(([sectionName, sectionFields]: [string, typeof fields]) => {
-                              const sectionData = sectionFields
-                                .map((field) => {
-                                  let value = getValue(field.key, field.rawKey);
-                                  if (value === null || value === undefined || value === '') {
-                                    return null;
-                                  }
-                                  if (Array.isArray(value)) {
-                                    value = value.join(', ');
-                                  } else if (typeof value === 'string' && value.includes('_') && !value.includes(' ')) {
-                                    // Format enum values: 'controlled_chaos' -> 'Controlled Chaos'
-                                    value = value.split('_').map((word: string) => 
-                                      word.charAt(0).toUpperCase() + word.slice(1)
-                                    ).join(' ');
-                                  }
-                                  return { field, value };
+                              if (typeof value === 'string' && value.includes('_') && !value.includes(' ')) {
+                                return value.split('_').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                              }
+                              return String(value);
+                            }
+
+                            return assessment.sections.map((sectionName) => {
+                              const sectionQuestions = assessment.questions.filter((q) => q.section === sectionName);
+                              const items = sectionQuestions
+                                .map((q) => {
+                                  const value = responses[q.id];
+                                  const formatted = formatStage1Value(q, value);
+                                  if (formatted == null || formatted === '') return null;
+                                  return { q, formatted };
                                 })
-                                .filter((item): item is { field: typeof fields[0], value: any } => item !== null);
-                              
-                              if (sectionData.length === 0) return null;
-                              
+                                .filter((item): item is { q: AssessmentQuestion; formatted: string } => item !== null);
+                              if (items.length === 0) return null;
                               return (
                                 <div key={sectionName} className="mb-6">
                                   <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">{sectionName}</h5>
                                   <div className="space-y-3">
-                                    {sectionData.map(({ field, value }) => (
-                                      <div key={field.key} className="border-l-4 border-amber-500 pl-4">
-                                        <p className="font-medium text-gray-900">{field.label}</p>
-                                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{String(value)}</p>
+                                    {items.map(({ q, formatted }) => (
+                                      <div key={q.id} className="border-l-4 border-amber-500 pl-4">
+                                        <p className="font-medium text-gray-900">{q.question}</p>
+                                        <p className="text-sm text-gray-600 mt-1 whitespace-pre-wrap">{formatted}</p>
                                       </div>
                                     ))}
                                   </div>
@@ -14066,10 +13706,6 @@ function SystemsAuditClientModal({
                               );
                             }).filter(Boolean);
                           })()}
-                        </div>
-                      ) : (
-                        <p className="text-gray-500">No responses yet</p>
-                      )}
                     </div>
                   </div>
 
@@ -14234,6 +13870,90 @@ function SystemsAuditClientModal({
                       )}
                     </div>
                   </div>
+
+                  {/* Process chains (custom / suggested) — after Stage 1 */}
+                  {(engagement?.stage_1_completed_at || stage1Responses?.length > 0) && (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <div className="bg-purple-50 px-6 py-4 border-b border-gray-200">
+                        <h3 className="font-semibold text-gray-900">Process Chains</h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {engagement?.chain_suggestions_generated_at
+                            ? `Suggested at ${new Date(engagement.chain_suggestions_generated_at).toLocaleString()}`
+                            : 'AI can suggest industry-specific chains from Stage 1.'}
+                        </p>
+                      </div>
+                      <div className="p-6">
+                        {!engagement?.chain_suggestions_generated_at ? (
+                          <button
+                            type="button"
+                            disabled={suggestChainsLoading}
+                            onClick={async () => {
+                              if (!engagement?.id) return;
+                              setSuggestChainsLoading(true);
+                              try {
+                                const { data, error } = await supabase.functions.invoke('suggest-sa-process-chains', {
+                                  body: { engagementId: engagement.id },
+                                });
+                                if (error) throw new Error(error.message || 'Suggest chains failed');
+                                const count = (data?.suggestedChains ?? 0);
+                                alert(count > 0 ? `${count} chain(s) suggested. Accept or reject below.` : 'No industry-specific chains suggested.');
+                                const { data: eng } = await supabase.from('sa_engagements').select('suggested_chains, chain_suggestions_generated_at').eq('id', engagement.id).single();
+                                if (eng) setEngagement((prev: any) => ({ ...prev, ...eng }));
+                                const { data: chains } = await supabase.from('sa_process_chains').select('*').eq('engagement_id', engagement.id);
+                                setSaCustomChains(chains || []);
+                              } catch (e: any) {
+                                alert(e?.message || 'Failed to suggest chains');
+                              } finally {
+                                setSuggestChainsLoading(false);
+                              }
+                            }}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium"
+                          >
+                            {suggestChainsLoading ? 'Suggesting…' : 'Suggest chains'}
+                          </button>
+                        ) : (
+                          <div className="space-y-3">
+                            {saCustomChains.filter((c: any) => c.chain_status === 'suggested').length === 0 ? (
+                              <p className="text-gray-500 text-sm">No suggested chains pending, or all have been accepted/rejected.</p>
+                            ) : (
+                              saCustomChains.filter((c: any) => c.chain_status === 'suggested').map((chain: any) => (
+                                <div key={chain.id} className="flex items-center justify-between gap-4 py-2 px-4 bg-gray-50 rounded-lg border border-gray-200">
+                                  <div>
+                                    <p className="font-medium text-gray-900">{chain.chain_name}</p>
+                                    <p className="text-xs text-gray-600">{chain.description}</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const { error } = await supabase.from('sa_process_chains').update({ chain_status: 'active' }).eq('id', chain.id);
+                                        if (error) alert(error.message);
+                                        else setSaCustomChains((prev: any[]) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'active' } : c));
+                                      }}
+                                      className="px-3 py-1 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const { error } = await supabase.from('sa_process_chains').update({ chain_status: 'rejected' }).eq('id', chain.id);
+                                        if (error) alert(error.message);
+                                        else setSaCustomChains((prev: any[]) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'rejected' } : c));
+                                      }}
+                                      className="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Stage 3 */}
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
@@ -14565,6 +14285,416 @@ function SystemsAuditClientModal({
                 </div>
               )}
 
+              {/* REVIEW TAB */}
+              {activeTab === 'review' && (
+                <div className="space-y-6">
+                  <div className="bg-white border border-gray-200 rounded-xl p-6">
+                    <h4 className="font-semibold text-gray-900">Pre-Generation Review</h4>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Review client responses and identify gaps before generating the report. Use the follow-up call to fill in missing context.
+                    </p>
+                    <div className="mt-4 flex flex-wrap items-center gap-4">
+                      <span className="text-sm text-gray-600">
+                        Status: <strong>{engagement?.review_status === 'complete' ? 'Complete' : engagement?.review_status === 'in_progress' ? 'In Progress' : 'Not Started'}</strong>
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        Gaps: {gaps.filter((g) => g.status === 'identified').length} identified, {gaps.filter((g) => g.status === 'resolved').length} resolved, {gaps.filter((g) => g.status === 'not_applicable').length} N/A, {gaps.filter((g) => g.status === 'deferred').length} deferred
+                      </span>
+                    </div>
+                  </div>
+
+                  {!allStagesComplete ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 text-sm">
+                      Complete all 3 stages before reviewing.
+                    </div>
+                  ) : (
+                    <>
+                      {preliminary && (
+                        <>
+                          <div className="bg-white border border-gray-200 rounded-xl p-6">
+                            <h4 className="font-medium text-gray-900 mb-3">Business snapshot</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                              <p><span className="text-gray-500">Type:</span> {preliminary.businessSnapshot?.companyType || '—'}</p>
+                              <p><span className="text-gray-500">Revenue model:</span> {preliminary.businessSnapshot?.revenue_model || '—'}</p>
+                              <p><span className="text-gray-500">Growth stage:</span> {preliminary.businessSnapshot?.growth_stage || '—'}</p>
+                              <p><span className="text-gray-500">Systems:</span> {preliminary.businessSnapshot?.systems_count ?? '—'}</p>
+                              <p className="sm:col-span-2"><span className="text-gray-500">Headline pain:</span> {preliminary.businessSnapshot?.headline_pain || '—'}</p>
+                            </div>
+                          </div>
+                          {preliminary.confidenceScores && preliminary.confidenceScores.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">Confidence by area</h4>
+                              <div className="flex flex-wrap gap-2">
+                                {preliminary.confidenceScores.map((c: { area: string; confidence: string; reason: string }, i: number) => (
+                                  <span
+                                    key={i}
+                                    className={`px-3 py-1.5 rounded-lg text-sm ${
+                                      c.confidence === 'high' ? 'bg-emerald-100 text-emerald-800' :
+                                      c.confidence === 'medium' ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'
+                                    }`}
+                                    title={c.reason}
+                                  >
+                                    {c.area}: {c.confidence}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {preliminary.suggestedGaps && preliminary.suggestedGaps.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">AI-suggested gaps</h4>
+                              <p className="text-xs text-gray-500 mb-3">Accept to add to your gaps list, or dismiss.</p>
+                              <ul className="space-y-3">
+                                {preliminary.suggestedGaps.map((sg: { gap_area: string; gap_tag: string; description: string; source_question: string | null; severity: string }, idx: number) => (
+                                  dismissedSuggestedGapIds.has(idx) ? null : (
+                                    <li key={idx} className="border border-gray-200 rounded-lg p-3 bg-gray-50/50 flex flex-wrap items-start justify-between gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${sg.severity === 'blocking' ? 'bg-red-100 text-red-800' : sg.severity === 'important' ? 'bg-amber-100 text-amber-800' : 'bg-gray-200 text-gray-700'}`}>
+                                          {sg.severity}
+                                        </span>
+                                        <span className="text-xs text-gray-500 ml-2">[{sg.gap_area}]</span>
+                                        {sg.gap_tag && <span className="text-xs text-gray-500 ml-1">Tag: {sg.gap_tag}</span>}
+                                        <p className="text-sm text-gray-800 mt-1">{sg.description}</p>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button onClick={() => handleAcceptSuggestedGap(sg)} disabled={savingGap} className="px-2 py-1 bg-indigo-600 text-white rounded text-xs hover:bg-indigo-700 disabled:opacity-50">Accept</button>
+                                        <button onClick={() => handleDismissSuggestedGap(idx)} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100">Dismiss</button>
+                                      </div>
+                                    </li>
+                                  )
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {preliminary.contradictions && preliminary.contradictions.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">Contradictions</h4>
+                              <ul className="space-y-3">
+                                {preliminary.contradictions.map((c: { claim_a: string; claim_b: string; source_a: string; source_b: string; suggested_resolution: string }, i: number) => (
+                                  <li key={i} className="border border-amber-200 rounded-lg p-3 bg-amber-50/50">
+                                    <p className="text-sm"><span className="text-amber-800 font-medium">A:</span> {c.claim_a} <span className="text-gray-500 text-xs">({c.source_a})</span></p>
+                                    <p className="text-sm mt-1"><span className="text-amber-800 font-medium">B:</span> {c.claim_b} <span className="text-gray-500 text-xs">({c.source_b})</span></p>
+                                    <p className="text-xs text-gray-600 mt-2">Resolve: {c.suggested_resolution}</p>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {preliminary.topInsights && preliminary.topInsights.length > 0 && (
+                            <div className="bg-white border border-gray-200 rounded-xl p-6">
+                              <h4 className="font-medium text-gray-900 mb-3">Key insights preview</h4>
+                              <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
+                                {preliminary.topInsights.map((insight: string, i: number) => (
+                                  <li key={i}>{insight}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h4 className="font-medium text-gray-900 mb-3">Response completeness</h4>
+                        <ul className="text-sm text-gray-600 space-y-1">
+                          <li>
+                            Stage 1: {(serviceLineAssessmentResponses ?? stage1Responses[0]?.raw_responses) ? Object.entries((serviceLineAssessmentResponses ?? stage1Responses[0]?.raw_responses) as Record<string, unknown>).filter(([, v]) => v != null && v !== '').length : 0} of 32 questions answered
+                          </li>
+                          <li>Stage 2: {stage2Inventory.length} systems logged</li>
+                          <li>Stage 3: {stage3DeepDives.length} of 7 chains completed</li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-white border border-gray-200 rounded-xl p-6">
+                        <h4 className="font-medium text-gray-900 mb-3">Gaps</h4>
+                        <div className="space-y-4">
+                          {gaps.map((gap) => (
+                            <div key={gap.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50/50">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span>
+                                  {gap.status === 'identified' && '🟡'}
+                                  {gap.status === 'resolved' && '🟢'}
+                                  {gap.status === 'not_applicable' && '⚪'}
+                                  {gap.status === 'deferred' && '🔵'}
+                                </span>
+                                <span className="text-xs font-medium text-gray-500">[{gapAreaLabels[gap.gap_area]}]</span>
+                                {gap.gap_tag && <span className="text-xs text-gray-600">Tag: {gap.gap_tag}</span>}
+                              </div>
+                              <p className="text-sm text-gray-800 mb-2">{gap.description}</p>
+                              {gap.resolution && <p className="text-sm text-gray-700 mb-2"><span className="font-medium">Resolution:</span> {gap.resolution}</p>}
+                              {gap.additional_context && <p className="text-sm text-gray-600 mb-2"><span className="font-medium">Additional context for AI:</span> {gap.additional_context}</p>}
+                              {resolvingGapId === gap.id ? (
+                                <div className="mt-3 space-y-2 border-t pt-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">What did you learn on the call?</label>
+                                    <textarea value={resolveForm.resolution} onChange={(e) => setResolveForm((f) => ({ ...f, resolution: e.target.value }))} maxLength={800} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="Resolution..." />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Additional context for the report AI (optional)</label>
+                                    <textarea value={resolveForm.additional_context} onChange={(e) => setResolveForm((f) => ({ ...f, additional_context: e.target.value }))} maxLength={800} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="Factual input for the AI..." />
+                                    <p className="text-xs text-gray-500 mt-0.5">This will be passed to the AI as supplementary context when generating the report.</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button onClick={handleSaveResolve} disabled={savingGap || !resolveForm.resolution.trim()} className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50">Save</button>
+                                    <button onClick={() => { setResolvingGapId(null); setResolveForm({ resolution: '', additional_context: '' }); }} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">Cancel</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  {gap.status === 'identified' && (
+                                    <button onClick={() => { setResolvingGapId(gap.id); setResolveForm({ resolution: gap.resolution || '', additional_context: gap.additional_context || '' }); }} className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700">Resolve</button>
+                                  )}
+                                  {gap.status === 'identified' && (
+                                    <>
+                                      <button onClick={() => handleUpdateGapStatus(gap.id, 'not_applicable')} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100">Not Applicable</button>
+                                      <button onClick={() => handleUpdateGapStatus(gap.id, 'deferred')} className="px-2 py-1 border border-gray-300 rounded text-xs hover:bg-gray-100">Defer</button>
+                                    </>
+                                  )}
+                                  <button onClick={() => handleDeleteGap(gap.id)} className="px-2 py-1 text-red-600 border border-red-200 rounded text-xs hover:bg-red-50">Delete</button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
+                          <h5 className="font-medium text-gray-800">Add gap</h5>
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Area</label>
+                              <select value={newGapForm.gap_area} onChange={(e) => setNewGapForm((f) => ({ ...f, gap_area: e.target.value as SAEngagementGap['gap_area'] }))} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                                <option value="stage_1_discovery">Stage 1: Discovery</option>
+                                <option value="stage_2_inventory">Stage 2: Inventory</option>
+                                <option value="stage_3_process">Stage 3: Process</option>
+                                <option value="cross_cutting">Cross-cutting</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Tag (autocomplete)</label>
+                              <input list="gap-tag-list" value={newGapForm.gap_tag} onChange={(e) => setNewGapForm((f) => ({ ...f, gap_tag: e.target.value }))} placeholder="e.g. pricing_model_detail" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                              <datalist id="gap-tag-list">{tagSuggestions.map((t) => <option key={t} value={t} />)}</datalist>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Description * (max 400)</label>
+                            <textarea value={newGapForm.description} onChange={(e) => setNewGapForm((f) => ({ ...f, description: e.target.value }))} maxLength={400} rows={3} className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" placeholder="What's missing or unclear..." />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">Source question (optional)</label>
+                            <input value={newGapForm.source_question} onChange={(e) => setNewGapForm((f) => ({ ...f, source_question: e.target.value }))} placeholder="e.g. sa_business_model" className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                          </div>
+                          <button onClick={handleAddGap} disabled={savingGap || !newGapForm.description.trim()} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50">
+                            {savingGap ? 'Adding...' : 'Add gap'}
+                          </button>
+                        </div>
+
+                        {/* Follow-Up Call Workflow */}
+                        {preliminary && (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-4">Follow-Up Call</h4>
+                            {!engagement.follow_up_script && (
+                              <div className="mb-4">
+                                <button
+                                  onClick={handleGenerateScript}
+                                  disabled={generatingScript}
+                                  className="inline-flex items-center gap-2 bg-indigo-100 text-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-200 disabled:opacity-50 text-sm font-medium"
+                                >
+                                  {generatingScript ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+                                  {generatingScript ? 'Generating Script...' : 'Generate Call Script'}
+                                </button>
+                                <p className="text-xs text-gray-500 mt-1">Creates a conversational script from your accepted gaps (~15 seconds)</p>
+                              </div>
+                            )}
+                            {engagement.follow_up_script && (
+                              <div className="mb-6">
+                                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                                  <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+                                    <span className="font-medium text-sm">Call Script</span>
+                                    <span className="text-xs text-gray-500">~{engagement.follow_up_script.estimatedMinutes ?? '?'} minutes</span>
+                                    <button type="button" onClick={handleGenerateScript} disabled={generatingScript} className="text-xs text-indigo-600 hover:underline">Regenerate</button>
+                                  </div>
+                                  <div className="px-4 py-3 border-b bg-indigo-50">
+                                    <p className="text-sm text-indigo-900 italic">&quot;{engagement.follow_up_script.opener}&quot;</p>
+                                  </div>
+                                  {(engagement.follow_up_script.sections || []).map((section: any, i: number) => (
+                                    <div key={i} className="px-4 py-3 border-b last:border-b-0">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <h5 className="font-medium text-sm">{i + 1}. {section.topic}</h5>
+                                        <span className="text-xs text-gray-400">~{section.estimatedMinutes ?? '?'} min</span>
+                                      </div>
+                                      <p className="text-xs text-gray-500 mb-2 italic">{section.leadIn}</p>
+                                      <div className="space-y-2">
+                                        {(section.questions || []).map((q: any, j: number) => (
+                                          <div key={j} className="bg-gray-50 rounded p-2">
+                                            <p className="text-sm font-medium">{q.question}</p>
+                                            {q.followUp && <p className="text-xs text-gray-500 mt-1"><span className="font-medium">If vague:</span> {q.followUp}</p>}
+                                            {q.goodEnough && <p className="text-xs text-green-600 mt-1"><span className="font-medium">✓ Good enough:</span> {q.goodEnough}</p>}
+                                            {q.addressesGapTags?.length > 0 && (
+                                              <div className="flex gap-1 mt-1 flex-wrap">
+                                                {q.addressesGapTags.map((tag: string) => (
+                                                  <span key={tag} className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded">{tag}</span>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {engagement.follow_up_script.contradictions?.length > 0 && (
+                                    <div className="px-4 py-3 border-t bg-amber-50">
+                                      <h5 className="font-medium text-sm text-amber-800 mb-2">Clarifications</h5>
+                                      {engagement.follow_up_script.contradictions.map((c: any, idx: number) => (
+                                        <div key={idx} className="text-sm mb-1"><span className="font-medium">{c.topic}:</span> {c.question}</div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {engagement.follow_up_script.closer && (
+                                    <div className="px-4 py-3 border-t bg-gray-50">
+                                      <p className="text-sm text-gray-700 italic">&quot;{engagement.follow_up_script.closer}&quot;</p>
+                                    </div>
+                                  )}
+                                  {engagement.follow_up_script.callerNotes && (
+                                    <div className="px-4 py-2 border-t text-xs text-gray-500">
+                                      <span className="font-medium">Notes for caller:</span> {engagement.follow_up_script.callerNotes}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {engagement.follow_up_script && !engagement.transcript_extraction && (
+                              <div className="mb-4">
+                                {!showTranscriptInput ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowTranscriptInput(true)}
+                                    className="inline-flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-lg hover:bg-green-200 text-sm font-medium"
+                                  >
+                                    <Upload className="w-4 h-4" />
+                                    Upload Call Transcript / Notes
+                                  </button>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <textarea
+                                      value={transcriptText}
+                                      onChange={(e) => setTranscriptText(e.target.value)}
+                                      placeholder="Paste the call transcript, meeting notes, or recording summary here..."
+                                      className="w-full h-48 border border-gray-300 rounded-lg p-3 text-sm resize-y focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-400">{transcriptText.length > 0 ? `${transcriptText.length} characters` : 'Paste transcript or notes'}</span>
+                                      <div className="flex gap-2">
+                                        <button type="button" onClick={() => { setShowTranscriptInput(false); setTranscriptText(''); }} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                                        <button
+                                          type="button"
+                                          onClick={handleProcessTranscript}
+                                          disabled={processingTranscript || transcriptText.trim().length < 50}
+                                          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                                        >
+                                          {processingTranscript ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                          {processingTranscript ? 'Processing...' : 'Process Transcript'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {engagement.transcript_extraction && (
+                              <div className="mb-4">
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <CheckCircle className="w-5 h-5 text-green-600" />
+                                    <span className="font-medium text-green-800">Transcript Processed</span>
+                                  </div>
+                                  <p className="text-sm text-green-700 mb-2">
+                                    {engagement.transcript_extraction.resolvedGaps?.length || 0} gaps resolved, {engagement.transcript_extraction.unresolvedGaps?.length || 0} unresolved
+                                  </p>
+                                  {engagement.transcript_extraction.additionalInsights?.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-green-200">
+                                      <p className="text-xs font-medium text-green-800 mb-1">Additional insights from the call:</p>
+                                      {engagement.transcript_extraction.additionalInsights.map((insight: string, i: number) => (
+                                        <p key={i} className="text-xs text-green-700 ml-2">• {insight}</p>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {engagement.transcript_extraction.unresolvedGaps?.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-green-200">
+                                      <p className="text-xs font-medium text-amber-700 mb-1">Still need answers for:</p>
+                                      {engagement.transcript_extraction.unresolvedGaps.map((u: any, i: number) => (
+                                        <p key={i} className="text-xs text-amber-600 ml-2">• {u.gap_tag}: {u.reason}</p>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                                {!showTranscriptInput ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setShowTranscriptInput(true); setTranscriptText(engagement.follow_up_transcript || ''); }}
+                                    className="text-xs text-indigo-600 hover:underline mt-2"
+                                  >
+                                    Upload additional notes or re-process
+                                  </button>
+                                ) : (
+                                  <div className="mt-4 space-y-3 pt-4 border-t border-green-200">
+                                    <p className="text-sm text-gray-700">Add more notes or edit the transcript and re-run extraction.</p>
+                                    <textarea
+                                      value={transcriptText}
+                                      onChange={(e) => setTranscriptText(e.target.value)}
+                                      placeholder="Paste updated call transcript or additional notes..."
+                                      className="w-full h-48 border border-gray-300 rounded-lg p-3 text-sm resize-y focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-400">{transcriptText.length > 0 ? `${transcriptText.length} characters` : 'Paste transcript or notes'}</span>
+                                      <div className="flex gap-2">
+                                        <button type="button" onClick={() => { setShowTranscriptInput(false); setTranscriptText(''); }} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+                                        <button
+                                          type="button"
+                                          onClick={handleProcessTranscript}
+                                          disabled={processingTranscript || transcriptText.trim().length < 50}
+                                          className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                                        >
+                                          {processingTranscript ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                          {processingTranscript ? 'Processing...' : 'Re-process Transcript'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                          <button
+                            onClick={handleMarkReviewComplete}
+                            disabled={identifiedGapsCount > 0 || engagement?.review_status === 'complete'}
+                            className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50"
+                          >
+                            Mark Review Complete
+                          </button>
+                          {identifiedGapsCount > 0 && <p className="text-xs text-amber-700 mt-1">Resolve, mark N/A, or defer all gaps first.</p>}
+                        </div>
+                      </div>
+
+                      <details className="bg-white border border-gray-200 rounded-xl">
+                        <summary className="p-4 cursor-pointer font-medium text-gray-900">Gap trends across all engagements</summary>
+                        <div className="px-4 pb-4 text-sm text-gray-600">
+                          {gapTrends.length === 0 ? (
+                            <p>No recurring gap tags yet.</p>
+                          ) : (
+                            <ol className="list-decimal list-inside space-y-1">
+                              {gapTrends.map((t) => (
+                                <li key={t.tag}>{t.tag} — {t.count} occurrences</li>
+                              ))}
+                            </ol>
+                          )}
+                        </div>
+                      </details>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* ANALYSIS TAB */}
               {activeTab === 'analysis' && (
                 <div className="space-y-6">
@@ -14572,18 +14702,64 @@ function SystemsAuditClientModal({
                     <div className="text-center py-12">
                       <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                       <p className="text-gray-500 mb-4">No report generated yet</p>
-                      <button
-                        onClick={handleGenerateReport}
-                        disabled={generating || !canGenerateOrRegenerate}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg transition-colors text-sm font-medium"
-                      >
-                        {generating ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
-                        {generating ? 'Generating Analysis...' : 'Generate Analysis'}
-                      </button>
+                      {!hasPreliminary ? (
+                        <>
+                          <button
+                            onClick={handleRunPreliminary}
+                            disabled={runningPreliminary || !allStagesComplete}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                          >
+                            {runningPreliminary ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-4 h-4" />
+                            )}
+                            {runningPreliminary ? 'Running Preliminary Analysis...' : 'Run Preliminary Analysis'}
+                          </button>
+                          {!allStagesComplete && <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>}
+                        </>
+                      ) : (
+                        <>
+                          {identifiedGapsCount > 0 ? (
+                            <div className="max-w-md mx-auto space-y-3">
+                              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+                                You have {identifiedGapsCount} unresolved gap{identifiedGapsCount !== 1 ? 's' : ''}. Complete the review before generating.
+                              </div>
+                              <button
+                                onClick={handleGenerateReport}
+                                disabled
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm font-medium"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                                Generate Full Report
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={handleGenerateReport}
+                              disabled={generating || !canGenerateOrRegenerate}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                            >
+                              {generating ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Sparkles className="w-4 h-4" />
+                              )}
+                              {generating ? 'Generating Full Report...' : 'Generate Full Report'}
+                            </button>
+                          )}
+                          <p className="mt-3">
+                            <button
+                              type="button"
+                              onClick={handleRunPreliminary}
+                              disabled={runningPreliminary}
+                              className="text-sm text-indigo-600 hover:underline disabled:opacity-50"
+                            >
+                              Re-run Preliminary Analysis
+                            </button>
+                          </p>
+                        </>
+                      )}
                       {saReportPollingAfterError && (
                         <div className="mt-4 max-w-md mx-auto p-3 bg-amber-50 border border-amber-200 rounded-lg text-left space-y-3">
                           <p className="text-sm text-amber-800">
@@ -14604,7 +14780,7 @@ function SystemsAuditClientModal({
                           </button>
                         </div>
                       )}
-                      {!canGenerateOrRegenerate && !saReportPollingAfterError && (
+                      {!allStagesComplete && !hasPreliminary && !saReportPollingAfterError && (
                         <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>
                       )}
                     </div>
@@ -14724,7 +14900,7 @@ function SystemsAuditClientModal({
                             >
                               {isEditing ? 'Cancel Edit' : 'Edit Client View'}
                             </button>
-                            {!isEditing && (report.status === 'generated' || report.status === 'approved') && (
+                            {!isEditing && (report.status === 'pass1_complete' || report.status === 'pass2_failed' || report.status === 'generated' || report.status === 'approved') && (
                               <button
                                 onClick={handleMakeAvailableToClient}
                                 disabled={makingAvailable}
@@ -14743,6 +14919,75 @@ function SystemsAuditClientModal({
                                 )}
                               </button>
                             )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Implementation Tools */}
+                      {engagement && (
+                        <div className="bg-white border border-gray-200 rounded-xl p-4">
+                          <h3 className="text-sm font-semibold text-gray-900 mb-1">Implementation Tools</h3>
+                          <div className="border-t border-gray-200 pt-4 mt-4">
+                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Staff Interviews</h4>
+                            <p className="text-xs text-gray-600 mb-3">
+                              Enable staff-level questionnaires for the implementation phase. Generates a shareable link the client distributes to their team. Use this after the SA report is delivered and the client has committed to build-out.
+                            </p>
+                            <div className="flex items-center gap-4 mb-3">
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!!engagement.staff_interviews_enabled}
+                                  onChange={async (e) => {
+                                    const v = e.target.checked;
+                                    const { error } = await supabase.from('sa_engagements').update({ staff_interviews_enabled: v }).eq('id', engagement.id);
+                                    if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_enabled: v }));
+                                  }}
+                                  className="rounded border-gray-300 text-indigo-600"
+                                />
+                                <span className="text-sm font-medium text-gray-700">Staff Interviews enabled</span>
+                              </label>
+                            </div>
+                            {engagement.staff_interviews_enabled && (
+                              <>
+                                <div className="flex items-center gap-4 mb-2">
+                                  <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!engagement.staff_interviews_anonymous}
+                                      onChange={async (e) => {
+                                        const v = e.target.checked;
+                                        const { error } = await supabase.from('sa_engagements').update({ staff_interviews_anonymous: v }).eq('id', engagement.id);
+                                        if (!error) setEngagement((prev: any) => ({ ...prev, staff_interviews_anonymous: v }));
+                                      }}
+                                      className="rounded border-gray-300 text-indigo-600"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Anonymous Mode</span>
+                                  </label>
+                                </div>
+                                <p className="text-xs text-gray-600 mb-2">
+                                  Hide staff names from responses. Recommended for smaller teams where honest feedback might be sensitive.
+                                </p>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm text-gray-600">Link:</span>
+                                <code className="text-xs bg-gray-100 px-2 py-1 rounded truncate max-w-md">
+                                  {`${(typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CLIENT_PORTAL_URL) || window.location.origin}/staff-interview/${engagement.id}`}
+                                </code>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const url = `${(typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_CLIENT_PORTAL_URL) || window.location.origin}/staff-interview/${engagement.id}`;
+                                    navigator.clipboard.writeText(url);
+                                  }}
+                                  className="text-sm px-2 py-1 border border-gray-300 rounded hover:bg-gray-50"
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-2">
+                                {staffInterviewCompleteCount} of {staffInterviewTotalCount} staff interviews completed
+                              </p>
+                            </>
+                          )}
                           </div>
                         </div>
                       )}

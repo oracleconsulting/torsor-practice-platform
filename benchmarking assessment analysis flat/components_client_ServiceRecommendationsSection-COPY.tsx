@@ -3,9 +3,10 @@
  * Displays recommended services based on identified issues with CTAs
  */
 
-import React from 'react';
-import { ArrowRight, CheckCircle, Clock, TrendingUp, AlertTriangle, Shield, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowRight, CheckCircle, Clock, TrendingUp, AlertTriangle, Shield, Zap, Info } from 'lucide-react';
 import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
+import { ServiceRecommendationPopup } from '../../shared/ServiceRecommendationPopup';
 
 interface ServiceRecommendationsSectionProps {
   issues: DetectedIssue[];
@@ -58,6 +59,18 @@ export const ServiceRecommendationsSection: React.FC<ServiceRecommendationsSecti
       case 'medium-term': return 'bg-blue-100 text-blue-700';
       default: return 'bg-gray-100 text-gray-700';
     }
+  };
+
+  const [popupServiceCode, setPopupServiceCode] = useState<string | null>(null);
+  const serviceNameToCode = (name: string): string => {
+    const n = (name || '').toLowerCase();
+    if (n.includes('benchmark')) return 'benchmarking';
+    if (n.includes('systems') || n.includes('audit')) return 'systems_audit';
+    if (n.includes('goal') || n.includes('alignment') || n.includes('365')) return 'goal_alignment';
+    if (n.includes('fractional cfo')) return 'fractional_cfo';
+    if (n.includes('profit extraction')) return 'profit_extraction';
+    if (n.includes('business intelligence') || n.includes('quarterly bi')) return 'quarterly_bi';
+    return 'benchmarking';
   };
 
   // Group critical/high issues for emphasis
@@ -159,9 +172,19 @@ export const ServiceRecommendationsSection: React.FC<ServiceRecommendationsSecti
                     <h4 className="font-bold text-lg text-slate-900">
                       {service.serviceName}
                     </h4>
-                    <span className={`flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${getPriorityColor(service.priority)}`}>
-                      {getPriorityLabel(service.priority)}
-                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setPopupServiceCode(service.serviceCode || serviceNameToCode(service.serviceName))}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Learn more"
+                      >
+                        <Info className="w-4 h-4" />
+                      </button>
+                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${getPriorityColor(service.priority)}`}>
+                        {getPriorityLabel(service.priority)}
+                      </span>
+                    </div>
                   </div>
                   <p className="text-sm text-slate-600 mb-4">
                     {service.description}
@@ -228,6 +251,12 @@ export const ServiceRecommendationsSection: React.FC<ServiceRecommendationsSecti
           These recommendations are based on your business data and industry benchmarks. 
           Service pricing is indicative and will be confirmed based on your specific requirements.
         </p>
+
+        <ServiceRecommendationPopup
+          isOpen={!!popupServiceCode}
+          onClose={() => setPopupServiceCode(null)}
+          serviceCode={popupServiceCode || ''}
+        />
       </div>
     </section>
   );

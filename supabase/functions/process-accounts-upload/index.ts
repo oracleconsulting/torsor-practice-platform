@@ -61,14 +61,14 @@ const METRIC_LABELS: { patterns: RegExp[]; field: keyof ExtractedFinancialData }
   { patterns: [/^revenue$|^turnover$|^sales$|^total\s+income$|^total\s+turnover$|^revenue\s*\(/i], field: 'revenue' },
   { patterns: [/^cost\s+of\s+sales$|^direct\s+costs$|^cost\s+of\s+goods\s+sold$|^total\s+cost\s+of\s+sales$/i], field: 'cost_of_sales' },
   { patterns: [/^gross\s+profit$/i], field: 'gross_profit' },
-  { patterns: [/^operating\s+expenses$|^admin\s+expenses$|^overheads$|^total\s+expenses$|^total\s+administrative\s+costs$/i], field: 'operating_expenses' },
+  { patterns: [/^operating\s+expenses$|^admin\s+expenses$|^overheads$|^total\s+expenses$|^total\s+administrative\s+(costs|expenses)$/i], field: 'operating_expenses' },
   { patterns: [/^ebitda$/i], field: 'ebitda' },
   { patterns: [/^operating\s+profit$|^profit\s+from\s+operations$|^operating\s+surplus$/i], field: 'operating_profit' },
   { patterns: [/^depreciation$/i], field: 'depreciation' },
   { patterns: [/^amortisation$/i], field: 'amortisation' },
   { patterns: [/^interest$|^interest\s+paid$/i], field: 'interest_paid' },
   { patterns: [/^tax$|^corporation\s+tax$/i], field: 'tax' },
-  { patterns: [/^net\s+profit$|^profit\s+after\s+tax$|^pat$|^profit\s+for\s+the\s+year$|^current\s+year\s+earnings$/i], field: 'net_profit' },
+  { patterns: [/^net\s+profit$|^profit\s+after\s+tax$|^pat$|^profit\s+for\s+(the\s+)?financial\s+year$|^profit\s+for\s+the\s+year$|^current\s+year\s+earnings$|^net\s+profit\s+after\s+tax$/i], field: 'net_profit' },
   { patterns: [/^debtors$|^trade\s+debtors$|^receivables$|^accounts\s+receivable$/i], field: 'debtors' },
   { patterns: [/^creditors$|^trade\s+creditors$|^payables$|^accounts\s+payable$/i], field: 'creditors' },
   { patterns: [/^cash$|^cash\s+at\s+bank$|^total\s+cash$|^cash\s+position$/i], field: 'cash' },
@@ -173,6 +173,17 @@ function findYearColumnsForRow(grid: string[][], rowIndex: number): { year: numb
   return [];
 }
 
+/** Find the header row that contains year columns (e.g. 2024, 2023, 2022). Uses first row if it has 2+ years. */
+function findGlobalYearHeaderRow(grid: string[][]): { headerRowIndex: number; yearCols: { year: number; colIndex: number }[] } | null {
+  const maxRowsToScan = 10;
+  for (let r = 0; r < Math.min(maxRowsToScan, grid.length); r++) {
+    const row = grid[r].map(c => c.replace(/^["']|["']$/g, '').trim());
+    const yearCols = detectYearColumns(row);
+    if (yearCols.length >= 2) return { headerRowIndex: r, yearCols };
+  }
+  return null;
+}
+
 function tryParseStructuredCSV(csvText: string): ExtractedFinancialData[] | null {
   const normalized = csvText.replace(/^\uFEFF/, '').trim();
   const grid = parseCSVToGrid(normalized);
@@ -181,7 +192,13 @@ function tryParseStructuredCSV(csvText: string): ExtractedFinancialData[] | null
   const yearsMap = new Map<number, Partial<ExtractedFinancialData>>();
   const currentYear = new Date().getFullYear();
 
+  // Use a single header row for the whole file (e.g. row 0: Section, Subsection, Item, Description, 2024, 2023, 2022, 2021)
+  const globalHeader = findGlobalYearHeaderRow(grid);
+  const yearColsFromHeader = globalHeader?.yearCols ?? [];
+  const headerRowIndex = globalHeader?.headerRowIndex ?? -1;
+
   for (let r = 0; r < grid.length; r++) {
+    if (r <= headerRowIndex) continue; // skip header row(s)
     const row = grid[r];
     // Try first four columns as label (Section, Subsection, Item, Description) so formats like
     // "KEY RATIOS, Cost Structure, Staff Costs Total, ..." match on "Staff Costs Total"
@@ -194,7 +211,7 @@ function tryParseStructuredCSV(csvText: string): ExtractedFinancialData[] | null
     }
     if (!field) continue;
 
-    const yearCols = findYearColumnsForRow(grid, r);
+    const yearCols = yearColsFromHeader.length >= 2 ? yearColsFromHeader : findYearColumnsForRow(grid, r);
     if (yearCols.length === 0) continue;
 
     for (const { year, colIndex } of yearCols) {

@@ -110,8 +110,6 @@ interface BenchmarkAnalysis {
   founder_risk_level?: string;
   founder_risk_score?: number;
   value_analysis?: ValueAnalysis;
-  opportunity_synthesis?: { quickWins?: string[]; watchOuts?: string[]; topPriority?: string; clientHealth?: string } | string;
-  exit_readiness_breakdown?: ExitReadinessScore;
   opportunities?: any[];
   recommended_services?: any[];
   not_recommended_services?: any[];
@@ -241,7 +239,7 @@ const accentCard = (color: string, extra?: React.CSSProperties): React.CSSProper
 
 const mono: React.CSSProperties = { fontFamily: "'JetBrains Mono', monospace" };
 const label: React.CSSProperties = { fontSize: 11, color: C.textMuted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600, ...mono };
-const sectionWrap: React.CSSProperties = { maxWidth: '100%', wordBreak: 'break-word' as const, paddingBottom: 40 };
+const sectionWrap: React.CSSProperties = { maxWidth: '100%', wordBreak: 'break-word' as const, minHeight: 'calc(100vh - 160px)', paddingBottom: 40 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // VISUAL COMPONENTS (same as SA Report)
@@ -264,13 +262,9 @@ function AnimatedCounter({ target, prefix = '', suffix = '', duration = 2000, de
         const step = (ts: number) => {
           if (!start) start = ts;
           const p = Math.min((ts - start) / duration, 1);
-          if (p >= 1) {
-            setVal(target);
-          } else {
-            const eased = 1 - Math.pow(1 - p, 3);
-            setVal(eased * target);
-            requestAnimationFrame(step);
-          }
+          const eased = 1 - Math.pow(1 - p, 3);
+          setVal(eased * target);
+          if (p < 1) requestAnimationFrame(step);
         };
         requestAnimationFrame(step);
       }
@@ -358,11 +352,9 @@ function ProgressRing({ score, size = 140, strokeWidth = 12, color, ringLabel, d
 
 const fmt = (n: number) => {
   if (n == null || isNaN(n)) return '£0';
-  const abs = Math.abs(n);
-  const sign = n < 0 ? '−' : '';
-  if (abs >= 1000000) return `${sign}£${(abs / 1000000).toFixed(1)}M`;
-  if (abs >= 1000) return `${sign}£${Math.round(abs / 1000)}k`;
-  return `${sign}£${Math.round(abs)}`;
+  if (n >= 1000000) return `£${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `£${Math.round(n / 1000)}k`;
+  return `£${Math.round(n)}`;
 };
 const fmtMetric = (val: number, format: string) => {
   switch (format) {
@@ -372,119 +364,6 @@ const fmtMetric = (val: number, format: string) => {
     default: return val.toFixed(1);
   }
 };
-
-/** Inline margin improvement scenario (no external deps). */
-function calcMarginScenario(revenue: number, currentGM: number, targetGM: number) {
-  const currentGP = revenue * (currentGM / 100);
-  const projectedGP = revenue * (targetGM / 100);
-  const additionalGP = projectedGP - currentGP;
-  const flowThrough = 0.45;
-  const netImpact = additionalGP * flowThrough;
-  const valueMultiple = 5;
-  const valueImpact = netImpact * valueMultiple;
-  const marginImprovement = targetGM - currentGM;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
-  return {
-    additionalGrossProfit: additionalGP,
-    netProfitImpact: netImpact,
-    businessValueImpact: valueImpact,
-    marginImprovement,
-    summary: `Improving gross margin from ${currentGM.toFixed(1)}% to ${targetGM.toFixed(1)}% would generate ${fmtCur(additionalGP)} additional gross profit annually. After overheads, this translates to approximately ${fmtCur(netImpact)} on the bottom line, potentially adding ${fmtCur(valueImpact)} to business value.`,
-    howToAchieve: [
-      'Review pricing structure: when did you last increase rates?',
-      'Analyse project profitability by client and service type',
-      'Identify and eliminate margin-diluting work',
-      'Negotiate better terms with suppliers and subcontractors',
-    ],
-  };
-}
-
-/** Pricing power scenario */
-function calcPricingScenario(revenue: number, rateIncreasePercent: number, volumeRetention: number = 95) {
-  const retentionMult = volumeRetention / 100;
-  const marginImpact = revenue * (rateIncreasePercent / 100) * retentionMult;
-  const breakEvenLoss = (1 - (1 / (1 + rateIncreasePercent / 100))) * 100;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
-  return {
-    marginImpact,
-    businessValueImpact: marginImpact * 5,
-    breakEvenLoss,
-    summary: `A ${rateIncreasePercent}% rate increase with ${volumeRetention}% client retention would add ${fmtCur(marginImpact)} directly to your bottom line. You could lose up to ${breakEvenLoss.toFixed(1)}% of volume and still be better off.`,
-    howToAchieve: [
-      'Communicate value delivered before discussing price',
-      'Start price increases with new clients, then existing',
-      'Consider tiered pricing for different service levels',
-      'Review market rates and position appropriately',
-    ],
-  };
-}
-
-/** Cash optimisation (debtor days) */
-function calcCashScenario(revenue: number, currentDays: number, targetDays: number) {
-  const dailyRevenue = revenue / 365;
-  const daysImproved = currentDays - targetDays;
-  const cashFreed = dailyRevenue * daysImproved;
-  const annualInterestSaved = cashFreed * 0.05;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
-  return {
-    cashFreed,
-    daysImproved,
-    annualSaving: annualInterestSaved,
-    summary: `Reducing debtor days from ${Math.round(currentDays)} to ${Math.round(targetDays)} would free up ${fmtCur(cashFreed)} in working capital. At 5% cost of capital, that saves ${fmtCur(annualInterestSaved)} annually.`,
-    howToAchieve: [
-      'Issue invoices immediately on milestone completion',
-      'Offer early payment discounts (e.g. 2% for 7 days)',
-      'Automate invoice reminders at 7, 14, 21 days',
-      'Review payment terms on new contracts',
-    ],
-  };
-}
-
-/** Efficiency (revenue per employee) */
-function calcEfficiencyScenario(revenue: number, currentRPE: number, targetRPE: number, headcount: number, netMarginPct: number) {
-  const additionalRevenue = (targetRPE - currentRPE) * headcount;
-  const additionalProfit = additionalRevenue * (netMarginPct / 100);
-  const efficientHeadcount = Math.ceil(revenue / targetRPE);
-  const headcountReduction = Math.max(0, headcount - efficientHeadcount);
-  const costSaving = headcountReduction * 55000;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
-  return {
-    additionalRevenue,
-    additionalProfit,
-    costSaving,
-    headcountReduction,
-    summary: `Improving revenue per employee from ${fmtCur(currentRPE)} to ${fmtCur(targetRPE)} would unlock ${fmtCur(additionalRevenue)} in additional capacity. Alternatively, deliver current revenue with ${headcountReduction} fewer people, saving ${fmtCur(costSaving)}/yr.`,
-    howToAchieve: [
-      'Improve utilisation through better resource planning',
-      'Reduce non-billable time and admin burden',
-      'Automate repetitive tasks and reporting',
-      'Focus team on higher-value work',
-    ],
-  };
-}
-
-/** Customer diversification */
-function calcDiversificationScenario(revenue: number, currentConc: number, targetConc: number, netProfit: number) {
-  const currentRiskPerClient = revenue * (currentConc / 100) / 3;
-  const targetRiskPerClient = revenue * (targetConc / 100) / 3;
-  const riskReduction = currentRiskPerClient - targetRiskPerClient;
-  const currentDiscount = currentConc >= 80 ? 25 : currentConc >= 60 ? 15 : currentConc >= 40 ? 8 : 3;
-  const targetDiscount = targetConc >= 80 ? 25 : targetConc >= 60 ? 15 : targetConc >= 40 ? 8 : 3;
-  const baseValue = netProfit > 0 ? netProfit * 5 : revenue * 0.05 * 5;
-  const valueImprovement = baseValue * ((currentDiscount - targetDiscount) / 100);
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
-  return {
-    riskReduction,
-    valueImprovement,
-    summary: `Reducing top-3 concentration from ${currentConc}% to ${targetConc}% reduces per-client risk from ${fmtCur(currentRiskPerClient)} to ${fmtCur(targetRiskPerClient)}. This could improve valuation by ${fmtCur(valueImprovement)} through a reduced buyer discount.`,
-    howToAchieve: [
-      'Proactively develop relationships with 3-5 new target clients',
-      'Expand services within existing smaller accounts',
-      'Build recurring revenue streams to reduce project dependency',
-      'Develop marketing capability to generate inbound leads',
-    ],
-  };
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN DASHBOARD COMPONENT
@@ -504,13 +383,6 @@ export default function BenchmarkingClientDashboard({
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [activeScenario, setActiveScenario] = useState('diversify');
   const [showSurplusDetail, setShowSurplusDetail] = useState(false);
-  const [expandedRecIndex, setExpandedRecIndex] = useState<number | null>(null);
-  const [targetGrossMargin, setTargetGrossMargin] = useState(18);
-  const [activeExplorer, setActiveExplorer] = useState<'margin' | 'pricing' | 'cash' | 'efficiency' | 'diversification'>('margin');
-  const [targetRateIncrease, setTargetRateIncrease] = useState(5);
-  const [targetDebtorDays, setTargetDebtorDays] = useState(30);
-  const [targetRPE, setTargetRPE] = useState(500000);
-  const [targetConcentration, setTargetConcentration] = useState(70);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // ─── Persistent visited sections ─────────────────────────────────────────
@@ -625,8 +497,7 @@ export default function BenchmarkingClientDashboard({
   const surplusCash = data.surplus_cash?.surplusCash || data.pass1_data?.surplus_cash?.surplusCash || 0;
   const valueAnalysis = data.value_analysis;
   const enhancedSuppressors = data.pass1_data?.enhanced_suppressors || [];
-  const exitBreakdown = data.exit_readiness_breakdown ?? data.pass1_data?.exit_readiness_breakdown;
-  const opportunitySynthesis = safeJsonParse<{ quickWins?: string[]; watchOuts?: string[]; topPriority?: string; clientHealth?: string } | null>(data.opportunity_synthesis as string, null);
+  const exitBreakdown = data.pass1_data?.exit_readiness_breakdown;
   const twoPathsNarrative = data.pass1_data?.two_paths_narrative || 
     safeJsonParse<any>(data.pass1_data as any, {})?.two_paths_narrative || null;
   const surplusCashBreakdown = data.pass1_data?.surplus_cash_breakdown;
@@ -859,11 +730,7 @@ export default function BenchmarkingClientDashboard({
         );
 
       // ─── POSITION (Narratives) ───────────────────────────────────────────
-      case 'position': {
-        const positionNarrative = data.position_narrative ?? '';
-        const strengthNarrative = data.strength_narrative ?? '';
-        const gapNarrative = data.gap_narrative ?? '';
-        const opportunityNarrative = data.opportunity_narrative ?? '';
+      case 'position':
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <RevealCard style={{ ...glass({ padding: 24 }) }}>
@@ -871,13 +738,13 @@ export default function BenchmarkingClientDashboard({
               <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>How your business compares to sector peers</p>
             </RevealCard>
 
-            {/* 2×2 narrative grid — responsive */}
+            {/* 2×2 narrative grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
               {[
-                { title: 'Where You Stand', content: positionNarrative, color: C.blue, icon: Target, highlight: `${getOrdinalSuffix(percentile)} percentile` },
-                { title: 'Your Strengths', content: strengthNarrative, color: C.emerald, icon: CheckCircle },
-                { title: 'Performance Gaps', content: gapNarrative, color: C.red, icon: AlertTriangle, highlight: `${data.gap_count || gapMetrics.length} gaps identified` },
-                { title: 'The Opportunity', content: opportunityNarrative, color: C.purple, icon: Sparkles, highlight: `£${totalOpportunity.toLocaleString()} potential` },
+                { title: 'Where You Stand', content: data.position_narrative, color: C.blue, icon: Target, highlight: `${getOrdinalSuffix(percentile)} percentile` },
+                { title: 'Your Strengths', content: data.strength_narrative, color: C.emerald, icon: CheckCircle },
+                { title: 'Performance Gaps', content: data.gap_narrative, color: C.red, icon: AlertTriangle, highlight: `${data.gap_count || gapMetrics.length} gaps identified` },
+                { title: 'The Opportunity', content: data.opportunity_narrative, color: C.purple, icon: Sparkles, highlight: `£${totalOpportunity.toLocaleString()} potential` },
               ].map((section, i) => {
                 const Icon = section.icon;
                 return (
@@ -889,83 +756,59 @@ export default function BenchmarkingClientDashboard({
                     {section.highlight && (
                       <span style={{ display: 'inline-block', fontSize: 11, fontWeight: 600, padding: '3px 12px', borderRadius: 12, background: `${section.color}10`, color: section.color, marginBottom: 12, ...mono }}>{section.highlight}</span>
                     )}
-                    <div style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{section.content || '—'}</div>
+                    {splitNarrative(section.content, 4).map((para, j) => (
+                      <p key={j} style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 10 }}>{para}</p>
+                    ))}
                   </RevealCard>
                 );
               })}
             </div>
 
-            {/* Recommendations — full detail with collapsible implementation steps */}
+            {/* Recommendations */}
             {recommendations.length > 0 && (
               <RevealCard delay={350} style={{ ...glass({ padding: 24 }) }}>
                 <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Recommendations</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {recommendations.map((rec: any, i: number) => {
-                    const annualVal = rec.annualValue ?? rec.annual_value ?? 0;
-                    const timeframe = rec.timeframe ?? rec.time_frame ?? '';
-                    const difficulty = rec.difficulty ?? 'medium';
-                    const steps = rec.implementationSteps ?? rec.implementation_steps ?? [];
-                    const quickWins = rec.quickWins ?? rec.quick_wins ?? [];
-                    const whatWeCanHelp = rec.whatWeCanHelp ?? rec.what_we_can_help ?? '';
-                    const isExpanded = expandedRecIndex === i;
-                    return (
-                      <div key={i} style={{ borderRadius: 12, background: 'rgba(0,0,0,0.02)', borderLeft: `3px solid ${C.blue}40`, overflow: 'hidden' }}>
-                        <div
-                          style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px', cursor: (steps.length > 0 || quickWins.length > 0 || whatWeCanHelp) ? 'pointer' : 'default' }}
-                          onClick={() => (steps.length > 0 || quickWins.length > 0 || whatWeCanHelp) ? setExpandedRecIndex(isExpanded ? null : i) : undefined}
-                        >
-                          <div style={{ width: 24, height: 24, borderRadius: 12, background: `${C.blue}15`, color: C.blue, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{i + 1}</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: '0 0 4px' }}>{rec.title || rec.recommendation}</p>
-                            {rec.description && <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 8 }}>{rec.description}</p>}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                              {annualVal > 0 && <span style={{ fontSize: 12, color: C.emerald, fontWeight: 600, ...mono }}>£{Number(annualVal).toLocaleString()}/yr</span>}
-                              {timeframe && <span style={{ fontSize: 12, color: C.textMuted }}>{timeframe}</span>}
-                              {difficulty && (
-                                <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 8, background: difficulty === 'low' ? `${C.emerald}15` : difficulty === 'high' ? `${C.red}15` : `${C.amber}15`, color: difficulty === 'low' ? C.emerald : difficulty === 'high' ? C.red : C.amber }}>{String(difficulty)}</span>
-                              )}
-                              {(steps.length > 0 || quickWins.length > 0 || whatWeCanHelp) && (
-                                <ChevronDown style={{ width: 16, height: 16, color: C.textMuted, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        {isExpanded && (steps.length > 0 || quickWins.length > 0 || whatWeCanHelp) && (
-                          <div style={{ padding: '0 16px 16px 52px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-                            {steps.length > 0 && (
-                              <div style={{ marginTop: 12 }}>
-                                <span style={{ ...label, color: C.blue }}>Implementation steps</span>
-                                <ol style={{ margin: '6px 0 0', paddingLeft: 20, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
-                                  {steps.map((step: string, k: number) => (
-                                    <li key={k}>{step}</li>
-                                  ))}
-                                </ol>
-                              </div>
-                            )}
-                            {quickWins.length > 0 && (
-                              <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: `${C.emerald}08`, borderLeft: `3px solid ${C.emerald}40` }}>
-                                <span style={{ ...label, color: C.emerald }}>Start this week</span>
-                                <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.6 }}>
-                                  {quickWins.map((w: string, k: number) => (
-                                    <li key={k}>{w}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            {whatWeCanHelp && (
-                              <p style={{ marginTop: 12, fontSize: 13, color: C.textSecondary, lineHeight: 1.6 }}><strong>How we can help:</strong> {whatWeCanHelp}</p>
-                            )}
-                          </div>
-                        )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {recommendations.map((rec: any, i: number) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px', borderRadius: 12, background: 'rgba(0,0,0,0.02)', borderLeft: `3px solid ${C.blue}40` }}>
+                      <div style={{ width: 24, height: 24, borderRadius: 12, background: `${C.blue}15`, color: C.blue, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, marginTop: 2 }}>{i + 1}</div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: '0 0 4px' }}>{rec.title || rec.recommendation}</p>
+                        {rec.annualValue > 0 && <span style={{ fontSize: 12, color: C.emerald, fontWeight: 600, ...mono }}>£{rec.annualValue.toLocaleString()}/yr</span>}
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
+              </RevealCard>
+            )}
+
+            {/* Competitive Moat */}
+            {data.hva_data?.competitive_moat && data.hva_data.competitive_moat.length > 0 && (
+              <RevealCard delay={400} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <Shield style={{ width: 20, height: 20, color: C.blue }} />
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Your Competitive Moat</h3>
+                </div>
+                <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 14 }}>Barriers that protect your business from competitors:</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+                  {data.hva_data.competitive_moat.map((moat, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: `${C.blue}06`, border: `1px solid ${C.blue}15` }}>
+                      <CheckCircle style={{ width: 14, height: 14, color: C.blue, flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: C.text }}>{moat}</span>
+                    </div>
+                  ))}
+                </div>
+                {data.hva_data.unique_methods && (
+                  <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
+                    <span style={{ ...label, color: C.purple }}>Your Unique Advantage</span>
+                    <p style={{ fontSize: 14, fontStyle: 'italic', color: C.text, marginTop: 6, lineHeight: 1.6 }}>"{data.hva_data.unique_methods}"</p>
+                    {data.hva_data.reputation_build_time && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>Time to replicate: {data.hva_data.reputation_build_time}</p>}
+                  </div>
+                )}
               </RevealCard>
             )}
           </div>
         );
-      }
 
       // ─── HIDDEN VALUE ────────────────────────────────────────────────────
       case 'hidden': {
@@ -1136,33 +979,7 @@ export default function BenchmarkingClientDashboard({
               </RevealCard>
             )}
 
-            {/* Competitive Moat (HVA) */}
-            {data.hva_data?.competitive_moat && data.hva_data.competitive_moat.length > 0 && (
-              <RevealCard delay={hasHiddenValue || hasConcentrationRisk ? 380 : 0} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                  <Shield style={{ width: 20, height: 20, color: C.blue }} />
-                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Competitive Moat</h3>
-                </div>
-                <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 14 }}>Barriers that protect your business from competitors:</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
-                  {(Array.isArray(data.hva_data.competitive_moat) ? data.hva_data.competitive_moat : []).map((moat: string, i: number) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: `${C.blue}06`, border: `1px solid ${C.blue}15` }}>
-                      <CheckCircle style={{ width: 14, height: 14, color: C.blue, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, color: C.text }}>{moat}</span>
-                    </div>
-                  ))}
-                </div>
-                {data.hva_data.unique_methods && (
-                  <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
-                    <span style={{ ...label, color: C.purple }}>Your Unique Advantage</span>
-                    <p style={{ fontSize: 14, fontStyle: 'italic', color: C.text, marginTop: 6, lineHeight: 1.6 }}>"{data.hva_data.unique_methods}"</p>
-                    {data.hva_data.reputation_build_time && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>Time to replicate: {data.hva_data.reputation_build_time}</p>}
-                  </div>
-                )}
-              </RevealCard>
-            )}
-
-            {!hasHiddenValue && !hasConcentrationRisk && !(data.hva_data?.competitive_moat && data.hva_data.competitive_moat.length > 0) && (
+            {!hasHiddenValue && !hasConcentrationRisk && (
               <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
                 <p style={{ color: C.textMuted, fontSize: 14 }}>No hidden value or concentration risk data available for this engagement.</p>
               </RevealCard>
@@ -1176,9 +993,6 @@ export default function BenchmarkingClientDashboard({
         if (!valueAnalysis) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Value analysis not available for this engagement.</p></RevealCard>;
         const { baseline, suppressors, currentMarketValue, valueGap, pathToValue, enhancers } = valueAnalysis;
         const gapPercent = valueAnalysis.valueGapPercent || 0;
-        const exitBlockers = valueAnalysis.exitReadiness?.blockers ?? [];
-        const exitStrengths = valueAnalysis.exitReadiness?.strengths ?? [];
-        const methodologyNote = valueAnalysis.aggregateDiscount?.methodology;
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1267,46 +1081,10 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 <span style={{ fontSize: 24, fontWeight: 800, color: '#B45309', ...mono }}>{fmt(currentMarketValue.mid)}</span>
               </div>
-              {methodologyNote && (
-                <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 12, lineHeight: 1.6 }}>{methodologyNote}</p>
-              )}
-              {!methodologyNote && (
-                <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 12, lineHeight: 1.6 }}>
-                  Discounts compounded multiplicatively (standard M&A practice per Pratt, 2009). Each discount reduces remaining value after prior discounts. Where founder dependency and concentration overlap, adjustment applied to prevent double-counting.
-                </p>
-              )}
+              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 12, lineHeight: 1.6 }}>
+                Discounts compounded multiplicatively (standard M&A practice per Pratt, 2009). Each discount reduces remaining value after prior discounts. Where founder dependency and concentration overlap, adjustment applied to prevent double-counting.
+              </p>
             </RevealCard>
-
-            {/* Exit Blockers / Value Protectors two-column summary */}
-            {(exitBlockers.length > 0 || exitStrengths.length > 0) && (
-              <RevealCard delay={150} style={{ ...glass({ padding: 24 }) }}>
-                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Exit Blockers & Value Protectors</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
-                  {exitBlockers.length > 0 && (
-                    <div style={{ padding: 16, borderRadius: 12, background: `${C.red}06`, borderLeft: `4px solid ${C.red}` }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                        <AlertTriangle style={{ width: 18, height: 18, color: C.red }} />
-                        <span style={{ fontSize: 13, fontWeight: 700, color: C.red }}>Exit Blockers</span>
-                      </div>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
-                        {exitBlockers.map((b: string, i: number) => <li key={i}>{b}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                  {exitStrengths.length > 0 && (
-                    <div style={{ padding: 16, borderRadius: 12, background: `${C.emerald}06`, borderLeft: `4px solid ${C.emerald}` }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                        <CheckCircle style={{ width: 18, height: 18, color: C.emerald }} />
-                        <span style={{ fontSize: 13, fontWeight: 700, color: C.emerald }}>Value Protectors</span>
-                      </div>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
-                        {exitStrengths.map((s: string, i: number) => <li key={i}>{s}</li>)}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              </RevealCard>
-            )}
 
             {/* Enhanced Suppressors — expandable cards */}
             {enhancedSuppressors.length > 0 && (
@@ -1499,13 +1277,6 @@ export default function BenchmarkingClientDashboard({
       case 'scenarios': {
         if (!baselineMetrics) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Scenario data requires baseline financial metrics.</p></RevealCard>;
         const revenue = baselineMetrics.revenue;
-        const currentGM = baselineMetrics.grossMargin || 0;
-        const grossMarginMedian = (() => {
-          const m = metrics.find((x: any) => (x.metricCode || x.metric_code || '').toLowerCase().includes('gross_margin'));
-          return m?.p50 ?? 18;
-        })();
-        const targetGM = Math.max(currentGM, Math.min(35, targetGrossMargin));
-        const marginResult = calcMarginScenario(revenue, currentGM, targetGM);
         const currentValue = valueAnalysis?.currentMarketValue?.mid || 0;
         const baselineValue = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
         const exitScore = valueAnalysis?.exitReadiness?.score || exitBreakdown?.totalScore || 0;
@@ -1532,223 +1303,6 @@ export default function BenchmarkingClientDashboard({
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Explore Improvement Scenarios — multi-tab */}
-            <RevealCard style={{ ...glass({ padding: 24 }) }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <BarChart3 style={{ width: 22, height: 22, color: C.blue }} />
-                <h3 style={{ color: C.text, fontSize: 18, fontWeight: 800, margin: 0 }}>Explore Improvement Scenarios</h3>
-              </div>
-              <p style={{ color: C.textMuted, fontSize: 14, marginBottom: 16 }}>Use your actual data to see the impact of potential improvements</p>
-
-              {/* Scenario type tabs */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
-                {([
-                  { id: 'margin' as const, label: 'Gross Margin' },
-                  { id: 'pricing' as const, label: 'Pricing Power' },
-                  { id: 'cash' as const, label: 'Cash / Debtors' },
-                  { id: 'efficiency' as const, label: 'Efficiency' },
-                  ...(concentration > 40 ? [{ id: 'diversification' as const, label: 'Diversification' }] : []),
-                ]).map(tab => (
-                  <button key={tab.id} onClick={() => setActiveExplorer(tab.id)}
-                    style={{
-                      padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                      border: `1px solid ${activeExplorer === tab.id ? C.blue : 'rgba(0,0,0,0.08)'}`,
-                      background: activeExplorer === tab.id ? `${C.blue}10` : 'transparent',
-                      color: activeExplorer === tab.id ? C.blue : C.textMuted,
-                      cursor: 'pointer', transition: 'all 0.15s ease',
-                    }}
-                  >{tab.label}</button>
-                ))}
-              </div>
-
-              {/* MARGIN */}
-              {activeExplorer === 'margin' && (() => {
-                const result = marginResult;
-                return (
-                  <>
-                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you improved gross margin?</p>
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: 12, color: C.textMuted }}>Target Gross Margin</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetGM.toFixed(1)}%</span>
-                      </div>
-                      <input type="range" min={Math.round(currentGM * 2) / 2} max={35} step={0.5} value={targetGM}
-                        onChange={e => setTargetGrossMargin(parseFloat(e.target.value))}
-                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
-                        <span>Current: {currentGM.toFixed(1)}%</span><span>Industry median: {grossMarginMedian}%</span>
-                      </div>
-                    </div>
-                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
-                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Additional Gross Profit</p><p style={{ fontSize: 18, fontWeight: 800, color: C.text, ...mono }}>{fmt(result.additionalGrossProfit)}</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Net Profit Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.netProfitImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 45% flow-through</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Business Value Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{fmt(result.businessValueImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 5x EBITDA multiple</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Margin Improvement</p><p style={{ fontSize: 18, fontWeight: 800, color: C.purple, ...mono }}>{result.marginImprovement.toFixed(1)}%</p><p style={{ fontSize: 10, color: C.textMuted }}>From {currentGM.toFixed(1)}% to {targetGM.toFixed(1)}%</p></div>
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
-                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
-                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
-                      </ul>
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* PRICING */}
-              {activeExplorer === 'pricing' && (() => {
-                const result = calcPricingScenario(revenue, targetRateIncrease);
-                return (
-                  <>
-                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you increased your rates?</p>
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: 12, color: C.textMuted }}>Rate Increase</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetRateIncrease}%</span>
-                      </div>
-                      <input type="range" min={1} max={20} step={1} value={targetRateIncrease}
-                        onChange={e => setTargetRateIncrease(parseInt(e.target.value))}
-                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
-                        <span>+1%</span><span>+20%</span>
-                      </div>
-                    </div>
-                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
-                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Direct Margin Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.marginImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>With 95% client retention</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Business Value Impact</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{fmt(result.businessValueImpact)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 5x EBITDA</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Break-Even Volume Loss</p><p style={{ fontSize: 18, fontWeight: 800, color: C.amber, ...mono }}>{result.breakEvenLoss.toFixed(1)}%</p><p style={{ fontSize: 10, color: C.textMuted }}>Max safe client loss</p></div>
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
-                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
-                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
-                      </ul>
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* CASH / DEBTORS */}
-              {activeExplorer === 'cash' && (() => {
-                const currentDays = baselineMetrics.debtorDays;
-                const result = calcCashScenario(revenue, currentDays, targetDebtorDays);
-                return (
-                  <>
-                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you improved debtor collection?</p>
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: 12, color: C.textMuted }}>Target Debtor Days</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetDebtorDays} days</span>
-                      </div>
-                      <input type="range" min={7} max={Math.max(currentDays, 60)} step={1} value={targetDebtorDays}
-                        onChange={e => setTargetDebtorDays(parseInt(e.target.value))}
-                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
-                        <span>7 days</span><span>Current: {Math.round(currentDays)} days</span>
-                      </div>
-                    </div>
-                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
-                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Cash Freed Up</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.cashFreed)}</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Days Improved</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{result.daysImproved} days</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Annual Saving</p><p style={{ fontSize: 18, fontWeight: 800, color: C.purple, ...mono }}>{fmt(result.annualSaving)}</p><p style={{ fontSize: 10, color: C.textMuted }}>At 5% cost of capital</p></div>
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
-                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
-                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
-                      </ul>
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* EFFICIENCY */}
-              {activeExplorer === 'efficiency' && (() => {
-                const currentRPE = baselineMetrics.revenuePerEmployee;
-                const result = calcEfficiencyScenario(revenue, currentRPE, targetRPE, baselineMetrics.employeeCount, baselineMetrics.netMargin);
-                return (
-                  <>
-                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you improved revenue per employee?</p>
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: 12, color: C.textMuted }}>Target Revenue/Employee</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{fmt(targetRPE)}</span>
-                      </div>
-                      <input type="range" min={Math.round(currentRPE / 1000) * 1000} max={Math.round(currentRPE * 2 / 10000) * 10000} step={10000} value={targetRPE}
-                        onChange={e => setTargetRPE(parseInt(e.target.value))}
-                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
-                        <span>Current: {fmt(currentRPE)}</span><span>{fmt(Math.round(currentRPE * 2 / 10000) * 10000)}</span>
-                      </div>
-                    </div>
-                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
-                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Revenue Capacity Unlocked</p><p style={{ fontSize: 18, fontWeight: 800, color: C.text, ...mono }}>{fmt(result.additionalRevenue)}</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Additional Profit</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.additionalProfit)}</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Or: Headcount Saving</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{fmt(result.costSaving)}</p><p style={{ fontSize: 10, color: C.textMuted }}>{result.headcountReduction} fewer people</p></div>
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
-                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
-                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
-                      </ul>
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* DIVERSIFICATION */}
-              {activeExplorer === 'diversification' && concentration > 40 && (() => {
-                const result = calcDiversificationScenario(revenue, concentration, targetConcentration, baselineMetrics.netProfit);
-                return (
-                  <>
-                    <p style={{ color: C.text, fontSize: 14, fontWeight: 600, marginBottom: 8 }}>What if you reduced customer concentration?</p>
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                        <span style={{ fontSize: 12, color: C.textMuted }}>Target Top-3 Concentration</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetConcentration}%</span>
-                      </div>
-                      <input type="range" min={30} max={concentration} step={5} value={targetConcentration}
-                        onChange={e => setTargetConcentration(parseInt(e.target.value))}
-                        style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
-                        <span>30% (diversified)</span><span>Current: {concentration}%</span>
-                      </div>
-                    </div>
-                    <div style={{ padding: 20, borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}06, ${C.purple}04)`, border: `1px solid ${C.blue}15`, marginBottom: 16 }}>
-                      <p style={{ ...label, color: C.blue, marginBottom: 12 }}>Projected Impact</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Risk Reduction per Client</p><p style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(result.riskReduction)}</p></div>
-                        <div><p style={{ fontSize: 11, color: C.textMuted, marginBottom: 2 }}>Valuation Improvement</p><p style={{ fontSize: 18, fontWeight: 800, color: C.blue, ...mono }}>{fmt(result.valueImprovement)}</p><p style={{ fontSize: 10, color: C.textMuted }}>Reduced buyer discount</p></div>
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
-                    <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
-                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
-                        {result.howToAchieve.map((s: string, i: number) => <li key={i}>{s}</li>)}
-                      </ul>
-                    </div>
-                  </>
-                );
-              })()}
-            </RevealCard>
-
             <RevealCard style={{ ...glass({ padding: 24 }) }}>
               <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Scenario Planning</h2>
               <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>What happens depending on the path you choose</p>
@@ -1994,42 +1548,6 @@ export default function BenchmarkingClientDashboard({
                   </div>
                 </RevealCard>
               )}
-
-              {/* Quick Wins (opportunity_synthesis) */}
-              {opportunitySynthesis?.quickWins && opportunitySynthesis.quickWins.length > 0 && (
-                <RevealCard delay={250} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
-                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Quick Wins</h3>
-                  <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Immediate actions you can take</p>
-                  <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: C.textSecondary, lineHeight: 1.7 }}>
-                    {opportunitySynthesis.quickWins.map((q, i) => <li key={i}>{q}</li>)}
-                  </ul>
-                </RevealCard>
-              )}
-
-              {/* Watch Outs */}
-              {opportunitySynthesis?.watchOuts && opportunitySynthesis.watchOuts.length > 0 && (
-                <RevealCard delay={300} style={{ ...glass({ padding: 24 }), borderLeft: `4px solid ${C.amber}` }}>
-                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Watch Outs</h3>
-                  <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Risks to monitor</p>
-                  <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: C.textSecondary, lineHeight: 1.7 }}>
-                    {opportunitySynthesis.watchOuts.map((w, i) => <li key={i}>{w}</li>)}
-                  </ul>
-                </RevealCard>
-              )}
-
-              {/* Investment Required (pathTo70) */}
-              {exitBreakdown?.pathTo70?.investment != null && exitBreakdown.pathTo70.investment > 0 && (
-                <RevealCard delay={350} style={{ ...glass({ padding: '16px 24px' }), borderTop: `3px solid ${C.blue}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <Wallet style={{ width: 20, height: 20, color: C.blue }} />
-                    <div>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0 }}>Investment required to reach exit-ready</p>
-                      <p style={{ fontSize: 18, fontWeight: 800, color: C.blue, margin: '4px 0 0', ...mono }}>{fmt(exitBreakdown.pathTo70.investment)}</p>
-                      {exitBreakdown.pathTo70.timeframe && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>Timeline: {exitBreakdown.pathTo70.timeframe}</p>}
-                    </div>
-                  </div>
-                </RevealCard>
-              )}
             </div>
           );
         }
@@ -2087,28 +1605,6 @@ export default function BenchmarkingClientDashboard({
                 <p style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.6 }}>{twoPathsNarrative.bottomLine}</p>
               </div>
             </RevealCard>
-
-            {/* Quick Wins (opportunity_synthesis) */}
-            {opportunitySynthesis?.quickWins && opportunitySynthesis.quickWins.length > 0 && (
-              <RevealCard delay={200} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
-                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Quick Wins</h3>
-                <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Immediate actions you can take</p>
-                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: C.textSecondary, lineHeight: 1.7 }}>
-                  {opportunitySynthesis.quickWins.map((q, i) => <li key={i}>{q}</li>)}
-                </ul>
-              </RevealCard>
-            )}
-
-            {/* Watch Outs */}
-            {opportunitySynthesis?.watchOuts && opportunitySynthesis.watchOuts.length > 0 && (
-              <RevealCard delay={250} style={{ ...glass({ padding: 24 }), borderLeft: `4px solid ${C.amber}` }}>
-                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Watch Outs</h3>
-                <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Risks to monitor</p>
-                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: C.textSecondary, lineHeight: 1.7 }}>
-                  {opportunitySynthesis.watchOuts.map((w, i) => <li key={i}>{w}</li>)}
-                </ul>
-              </RevealCard>
-            )}
           </div>
         );
       }
@@ -2154,33 +1650,24 @@ export default function BenchmarkingClientDashboard({
               </div>
             </RevealCard>
 
-            {/* Top priority message (opportunity_synthesis) */}
-            {opportunitySynthesis?.topPriority && (
-              <RevealCard delay={80} style={{ ...glass({ padding: '20px 24px' }), borderLeft: `4px solid ${C.blue}`, background: `linear-gradient(135deg, ${C.blue}06, rgba(255,255,255,0.97))` }}>
-                <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: 0, lineHeight: 1.7 }}>{opportunitySynthesis.topPriority}</p>
-              </RevealCard>
-            )}
-
             {/* Closing summary */}
             <RevealCard delay={100} style={{ ...glass({ padding: '24px 28px' }), borderLeft: `4px solid ${C.emerald}`, background: `linear-gradient(135deg, ${C.emerald}05, ${C.blue}03, rgba(255,255,255,0.97))` }}>
               <p style={{ fontSize: 16, lineHeight: 1.8, color: C.text, margin: 0 }}>{closingSummary}</p>
             </RevealCard>
 
-            {/* CTA — practitioner-focused */}
+            {/* CTA */}
             <RevealCard delay={200} style={{ borderRadius: 16, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A, #1E293B)', padding: '36px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.md }}>
               <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
                 <Phone style={{ width: 24, height: 24, color: C.emeraldLight }} />
-                <h3 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0 }}>Ready to take action?</h3>
+                <h3 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0 }}>Ready to Take Action?</h3>
                 <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.6)', maxWidth: '42ch', margin: 0, lineHeight: 1.6 }}>
-                  {practitionerName ? `${practitionerName} can guide you through the next steps.` : 'Your advisor can guide you through the next steps.'}
+                  {practitionerName || 'your advisor'} can guide you through the next steps
                 </p>
-                {practitionerEmail ? (
+                {practitionerEmail && (
                   <a href={`mailto:${practitionerEmail}?subject=Benchmarking%20Report%20Follow-up${clientName ? `%20-%20${encodeURIComponent(clientName)}` : ''}`}
                     style={{ background: `linear-gradient(135deg, ${C.emerald}, #047857)`, color: '#fff', padding: '14px 40px', borderRadius: 12, border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 10, boxShadow: SHADOW.glow(C.emerald, 0.4), textDecoration: 'none', transition: 'all 0.3s ease', marginTop: 4 }}>
-                    Get in touch <ArrowRight style={{ width: 16, height: 16 }} />
+                    Schedule a Discussion <ArrowRight style={{ width: 16, height: 16 }} />
                   </a>
-                ) : (
-                  <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Contact your advisor to discuss next steps.</p>
                 )}
               </div>
             </RevealCard>
@@ -2212,7 +1699,7 @@ export default function BenchmarkingClientDashboard({
   // ═══════════════════════════════════════════════════════════════════════════
 
   return (
-    <div style={{ display: 'flex', background: C.bg, height: '100%', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: C.text }}>
+    <div style={{ background: C.bg, minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", color: C.text }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400;1,700&display=swap" rel="stylesheet" />
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -2228,7 +1715,7 @@ export default function BenchmarkingClientDashboard({
       <Sidebar />
 
       <div ref={contentRef} style={{
-        marginLeft: 220, flex: 1, padding: '24px 32px', overflowY: 'auto', background: C.bg,
+        marginLeft: 220, flex: 1, padding: '24px 32px', overflowY: 'auto', height: '100vh', background: C.bg,
         opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(8px)' : 'translateY(0)',
         transition: 'opacity 0.2s ease, transform 0.2s ease',
       }}>

@@ -55,13 +55,27 @@ import {
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
-import { BenchmarkingClientReport } from '../../components/benchmarking/client/BenchmarkingClientReport';
+import BenchmarkingClientDashboard from '../../components/benchmarking/client/BenchmarkingClientDashboard';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
 import { calculateFounderRisk } from '../../lib/services/benchmarking/founder-risk-calculator';
 import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-mapper';
 
 // Management Accounts Report Components (Two-Pass Architecture)
-import { MAAdminReportView, MAClientReportView } from '../../components/management-accounts';
+import { MAAdminReportView } from '../../components/business-intelligence/MAAdminReportView';
+import { MAClientReportView } from '../../components/business-intelligence/MAClientReportView';
+
+// MA report context shape (matches AdditionalContext from MAAdminReportView)
+interface MAReportContext {
+  callNotes: string;
+  callTranscript: string;
+  gapsFilled: Record<string, string>;
+  gapsWithLabels?: Record<string, { question: string; answer: string }>;
+  gapsChecked?: Record<string, boolean>;
+  tierDiscussed: string;
+  clientObjections: string;
+  additionalInsights: string;
+  completedPhases: string[];
+}
 
 // Test Client Panel for testing workflows
 import { TestClientPanel as _TestClientPanel } from '../../components/admin/TestClientPanel';
@@ -8652,7 +8666,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         engagement={client}
                         clientName={client?.name || client?.client_company}
                         initialContext={maAssessmentReport.call_context || undefined}
-                        onSaveContext={async (context) => {
+                        onSaveContext={async (context: MAReportContext) => {
                           try {
                             const { error } = await supabase
                               .from('ma_assessment_reports')
@@ -8670,7 +8684,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           }
                         }}
                         isRegenerating={regeneratingMAReport}
-                        onRegenerateClientView={async (context) => {
+                        onRegenerateClientView={async (context: MAReportContext) => {
                           if (!maAssessmentReport?.id) {
                             alert('No report to regenerate');
                             return;
@@ -9223,7 +9237,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             call_context: maAssessmentReport.call_context // Pass call context for real financial data
                           }}
                           engagement={client}
-                          onTierSelect={async (tier) => {
+                          onTierSelect={async (tier: string) => {
                             console.log('[MA Report] Client selected tier:', tier);
                             // Parse tier - might be "foresight_monthly" or just "foresight"
                             const [tierName, frequency] = tier.includes('_') ? tier.split('_') : [tier, 'monthly'];
@@ -12060,17 +12074,15 @@ function BenchmarkingClientModal({
                       {/* Report Content - New Components */}
                       {viewMode === 'client' ? (
                         report ? (
-                          // Match client portal styling: bg-slate-50 + max-w wrapper
-                          <div className="bg-slate-50 rounded-xl -mx-2 px-2 py-6">
-                            <div className="max-w-5xl mx-auto">
-                              <BenchmarkingClientReport 
-                                data={{
-                                  ...report,
-                                  created_at: report?.created_at
-                                }}
-                                clientName={clientName}
-                              />
-                            </div>
+                          // Dashboard has its own full-width layout with sidebar nav
+                          <div className="rounded-xl overflow-hidden -mx-2" style={{ height: '85vh' }}>
+                            <BenchmarkingClientDashboard
+                              data={{
+                                ...report,
+                                created_at: report?.created_at
+                              }}
+                              clientName={clientName}
+                            />
                           </div>
                         ) : (
                           <div className="text-center py-8 text-gray-500">
@@ -12432,6 +12444,8 @@ function SystemsAuditClientModal({
   const [serviceLineAssessmentResponses, setServiceLineAssessmentResponses] = useState<Record<string, unknown> | null>(null);
   const [stage2Inventory, setStage2Inventory] = useState<any[]>([]);
   const [stage3DeepDives, setStage3DeepDives] = useState<any[]>([]);
+  const [saCustomChains, setSaCustomChains] = useState<any[]>([]);
+  const [suggestChainsLoading, setSuggestChainsLoading] = useState(false);
   const [report, setReport] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
   const [saReportPollingAfterError, setSaReportPollingAfterError] = useState(false);
@@ -12550,15 +12564,41 @@ function SystemsAuditClientModal({
         return;
       }
 
-      if (engagementData) {
-        console.log('[Systems Audit Modal] Found engagement:', engagementData.id, 'Status:', engagementData.status);
-        setEngagement(engagementData);
+      // If no engagement exists but client is in our practice, create one (e.g. client has
+      // progress in service_line_assessments but never completed the flow that creates sa_engagements)
+      let engagementToUse = engagementData;
+      if (!engagementToUse && currentMember?.practice_id) {
+        const { data: newEngagement, error: createError } = await supabase
+          .from('sa_engagements')
+          .insert({
+            client_id: clientId,
+            practice_id: currentMember.practice_id,
+            status: 'pending',
+            engagement_type: 'diagnostic', // required by schema if default not applied
+          })
+          .select('*')
+          .single();
+        if (createError) {
+          console.error('[Systems Audit Modal] Create engagement failed:', createError.code, createError.message, createError.details);
+          alert(`Could not create Systems Audit engagement: ${createError.message}. Check the console for details. This may be an RLS/permissions issue.`);
+          setLoading(false);
+          return;
+        } else if (newEngagement) {
+          engagementToUse = newEngagement;
+          setEngagement(newEngagement);
+          console.log('[Systems Audit Modal] Created new engagement for client:', newEngagement.id);
+        }
+      }
+
+      if (engagementToUse) {
+        console.log('[Systems Audit Modal] Found engagement:', engagementToUse.id, 'Status:', engagementToUse.status);
+        setEngagement(engagementToUse);
 
         // Fetch Stage 1 responses - single row per engagement (UNIQUE constraint)
         const { data: stage1Data, error: stage1Error } = await supabase
           .from('sa_discovery_responses')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .maybeSingle();
 
         console.log('[Systems Audit Modal] Stage 1 responses:', { 
@@ -12603,7 +12643,7 @@ function SystemsAuditClientModal({
         const { data: stage2Data, error: stage2Error } = await supabase
           .from('sa_system_inventory')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at');
 
         console.log('[Systems Audit Modal] Stage 2 inventory:', { count: stage2Data?.length || 0, error: stage2Error });
@@ -12624,7 +12664,7 @@ function SystemsAuditClientModal({
         const { data: stage3Data, error: stage3Error } = await supabase
           .from('sa_process_deep_dives')
           .select('*')
-          .eq('engagement_id', engagementData.id);
+          .eq('engagement_id', engagementToUse.id);
 
         console.log('[Systems Audit Modal] Stage 3 deep dives:', { count: stage3Data?.length || 0, error: stage3Error });
         if (stage3Error) {
@@ -12633,11 +12673,18 @@ function SystemsAuditClientModal({
           setStage3DeepDives(stage3Data || []);
         }
 
+        // Fetch engagement-specific process chains (for custom/suggested chains management)
+        const { data: customChainsData } = await supabase
+          .from('sa_process_chains')
+          .select('*')
+          .eq('engagement_id', engagementToUse.id);
+        setSaCustomChains(customChainsData || []);
+
         // Fetch report
         const { data: reportData, error: reportError } = await supabase
           .from('sa_audit_reports')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -12653,7 +12700,7 @@ function SystemsAuditClientModal({
         const { data: findingsData, error: findingsError } = await supabase
           .from('sa_findings')
           .select('*')
-          .eq('engagement_id', engagementData.id);
+          .eq('engagement_id', engagementToUse.id);
         
         // Sort findings by severity order (critical first)
         const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -12675,7 +12722,7 @@ function SystemsAuditClientModal({
         const { data: recsData, error: recsError } = await supabase
           .from('sa_recommendations')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('priority_rank');
 
         if (recsError) {
@@ -12688,7 +12735,7 @@ function SystemsAuditClientModal({
         const { data: docsData, error: docsError } = await supabase
           .from('sa_uploaded_documents')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: false });
         
         if (docsError) {
@@ -12701,7 +12748,7 @@ function SystemsAuditClientModal({
         const { data: contextData, error: contextError } = await supabase
           .from('sa_context_notes')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: false });
         
         if (contextError) {
@@ -12714,11 +12761,11 @@ function SystemsAuditClientModal({
         const { count: staffTotal } = await supabase
           .from('sa_staff_interviews')
           .select('*', { count: 'exact', head: true })
-          .eq('engagement_id', engagementData.id);
+          .eq('engagement_id', engagementToUse.id);
         const { count: staffComplete } = await supabase
           .from('sa_staff_interviews')
           .select('*', { count: 'exact', head: true })
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .eq('status', 'complete');
         setStaffInterviewCompleteCount(staffComplete ?? 0);
         setStaffInterviewTotalCount(staffTotal ?? 0);
@@ -12727,7 +12774,7 @@ function SystemsAuditClientModal({
         const { data: gapsData, error: gapsError } = await supabase
           .from('sa_engagement_gaps')
           .select('*')
-          .eq('engagement_id', engagementData.id)
+          .eq('engagement_id', engagementToUse.id)
           .order('created_at', { ascending: true });
         if (!gapsError) setGaps((gapsData || []) as SAEngagementGap[]);
         const { data: tagData } = await supabase
@@ -12752,11 +12799,11 @@ function SystemsAuditClientModal({
         setGapTrends(sortedTrends);
 
         // Fetch client name
-        if (engagementData.client_id) {
+        if (engagementToUse.client_id) {
           const { data: clientData } = await supabase
             .from('practice_members')
             .select('client_company, company, name')
-            .eq('id', engagementData.client_id)
+            .eq('id', engagementToUse.client_id)
             .maybeSingle();
           
           if (clientData) {
@@ -12836,77 +12883,65 @@ function SystemsAuditClientModal({
         });
       };
 
-      // ── Phase 1: Extract core facts ──
-      console.log('[SA Report] Starting Phase 1/8: Extracting facts...', { engagementId: engagement.id });
+      // ── Fire once: edge function creates job, Railway worker runs all 8 phases ──
+      console.log('[SA Report] Starting report generation...', { engagementId: engagement.id });
       firePhase(1);
+
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase1;
-      }, 'Phase 1');
+      }, 'Phase 1', 120, 5000);
       console.log('[SA Report] Phase 1 complete');
 
-      // ── Phase 2: Analyse processes ──
-      console.log('[SA Report] Starting Phase 2/8: Analysing processes...');
-      firePhase(2);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase2;
-      }, 'Phase 2');
+      }, 'Phase 2', 120, 5000);
       console.log('[SA Report] Phase 2 complete');
 
-      // ── Phase 3: Critical + High findings ──
-      console.log('[SA Report] Starting Phase 3/8: Identifying critical findings...');
-      firePhase(3);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase3;
-      }, 'Phase 3');
+      }, 'Phase 3', 60, 5000);
       console.log('[SA Report] Phase 3 complete');
 
-      // ── Phase 4: Medium/Low findings + Quick wins ──
-      console.log('[SA Report] Starting Phase 4/8: Completing findings and quick wins...');
-      firePhase(4);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase4;
-      }, 'Phase 4');
+      }, 'Phase 4', 60, 5000);
       console.log('[SA Report] Phase 4 complete');
 
-      // ── Phase 5: Recommendations ──
-      console.log('[SA Report] Starting Phase 5/8: Building recommendations...');
-      firePhase(5);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase5;
-      }, 'Phase 5');
+      }, 'Phase 5', 60, 5000);
       console.log('[SA Report] Phase 5 complete');
 
-      // ── Phase 6: Systems maps ──
-      console.log('[SA Report] Starting Phase 6/8: Generating technology roadmap...');
-      firePhase(6);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase6;
-      }, 'Phase 6');
+      }, 'Phase 6', 60, 5000);
       console.log('[SA Report] Phase 6 complete');
 
-      // ── Phase 7: Admin guidance ──
-      console.log('[SA Report] Starting Phase 7/8: Preparing practice team guidance...');
-      firePhase(7);
       await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagement.id).maybeSingle();
+        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
         return !!data?.pass1_data?.phase7;
-      }, 'Phase 7');
+      }, 'Phase 7', 60, 5000);
       console.log('[SA Report] Phase 7 complete');
 
-      // ── Phase 8: Client presentation + assembly ──
-      console.log('[SA Report] Starting Phase 8/8: Finalising report...');
-      firePhase(8);
       await pollDB(async () => {
         const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
-        return data?.status === 'pass1_complete';
-      }, 'Phase 8');
-      console.log('[SA Report] All 8 phases complete. Starting narrative generation (Pass 2)...');
+        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
+        return data?.status === 'pass1_complete' || data?.status === 'generated';
+      }, 'Phase 8 (assembly)', 60, 5000);
+      console.log('[SA Report] Pass 1 complete. Starting narrative generation (Pass 2)...');
 
       // ── Pass 2: Narrative generation (Opus) ──
       const { data: reportRow } = await supabase
@@ -13835,6 +13870,90 @@ function SystemsAuditClientModal({
                       )}
                     </div>
                   </div>
+
+                  {/* Process chains (custom / suggested) — after Stage 1 */}
+                  {(engagement?.stage_1_completed_at || stage1Responses?.length > 0) && (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <div className="bg-purple-50 px-6 py-4 border-b border-gray-200">
+                        <h3 className="font-semibold text-gray-900">Process Chains</h3>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {engagement?.chain_suggestions_generated_at
+                            ? `Suggested at ${new Date(engagement.chain_suggestions_generated_at).toLocaleString()}`
+                            : 'AI can suggest industry-specific chains from Stage 1.'}
+                        </p>
+                      </div>
+                      <div className="p-6">
+                        {!engagement?.chain_suggestions_generated_at ? (
+                          <button
+                            type="button"
+                            disabled={suggestChainsLoading}
+                            onClick={async () => {
+                              if (!engagement?.id) return;
+                              setSuggestChainsLoading(true);
+                              try {
+                                const { data, error } = await supabase.functions.invoke('suggest-sa-process-chains', {
+                                  body: { engagementId: engagement.id },
+                                });
+                                if (error) throw new Error(error.message || 'Suggest chains failed');
+                                const count = (data?.suggestedChains ?? 0);
+                                alert(count > 0 ? `${count} chain(s) suggested. Accept or reject below.` : 'No industry-specific chains suggested.');
+                                const { data: eng } = await supabase.from('sa_engagements').select('suggested_chains, chain_suggestions_generated_at').eq('id', engagement.id).single();
+                                if (eng) setEngagement((prev: any) => ({ ...prev, ...eng }));
+                                const { data: chains } = await supabase.from('sa_process_chains').select('*').eq('engagement_id', engagement.id);
+                                setSaCustomChains(chains || []);
+                              } catch (e: any) {
+                                alert(e?.message || 'Failed to suggest chains');
+                              } finally {
+                                setSuggestChainsLoading(false);
+                              }
+                            }}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 text-sm font-medium"
+                          >
+                            {suggestChainsLoading ? 'Suggesting…' : 'Suggest chains'}
+                          </button>
+                        ) : (
+                          <div className="space-y-3">
+                            {saCustomChains.filter((c: any) => c.chain_status === 'suggested').length === 0 ? (
+                              <p className="text-gray-500 text-sm">No suggested chains pending, or all have been accepted/rejected.</p>
+                            ) : (
+                              saCustomChains.filter((c: any) => c.chain_status === 'suggested').map((chain: any) => (
+                                <div key={chain.id} className="flex items-center justify-between gap-4 py-2 px-4 bg-gray-50 rounded-lg border border-gray-200">
+                                  <div>
+                                    <p className="font-medium text-gray-900">{chain.chain_name}</p>
+                                    <p className="text-xs text-gray-600">{chain.description}</p>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const { error } = await supabase.from('sa_process_chains').update({ chain_status: 'active' }).eq('id', chain.id);
+                                        if (error) alert(error.message);
+                                        else setSaCustomChains((prev: any[]) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'active' } : c));
+                                      }}
+                                      className="px-3 py-1 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        const { error } = await supabase.from('sa_process_chains').update({ chain_status: 'rejected' }).eq('id', chain.id);
+                                        if (error) alert(error.message);
+                                        else setSaCustomChains((prev: any[]) => prev.map((c: any) => c.id === chain.id ? { ...c, chain_status: 'rejected' } : c));
+                                      }}
+                                      className="px-3 py-1 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Stage 3 */}
                   <div className="border border-gray-200 rounded-xl overflow-hidden">

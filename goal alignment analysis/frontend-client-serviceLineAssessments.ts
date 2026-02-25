@@ -8,7 +8,7 @@ export interface AssessmentQuestion {
   id: string;
   section: string;
   question: string;
-  type: 'single' | 'multi' | 'text' | 'rank' | 'slider';
+  type: 'single' | 'multi' | 'text' | 'rank' | 'slider' | 'staff_roster';
   options?: string[];
   maxSelections?: number;
   placeholder?: string;
@@ -346,9 +346,9 @@ export const MANAGEMENT_ACCOUNTS_ASSESSMENT: ServiceLineAssessment = {
 };
 
 // ============================================================================
-// SYSTEMS AUDIT - Operations Health Check (19 questions, 6 sections)
+// SYSTEMS AUDIT - Operations Health Check (32 questions, 8 sections)
 // ============================================================================
-// Aligned with sa_discovery_responses DB columns and 19q admin config.
+// Aligned with sa_discovery_responses DB columns and admin AssessmentPreviewPage.
 // ============================================================================
 
 export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
@@ -361,9 +361,10 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
     'Impact Quantification',
     'Tech Stack',
     'Focus Areas',
-    'Your Vision',
-    'Readiness',
-    'Context'
+    'What Good Looks Like',
+    "Where You're Going",
+    'Your Business',
+    'Readiness'
   ],
   questions: [
     {
@@ -372,7 +373,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'What broke – or is about to break – that made you think about systems?',
       type: 'text',
       placeholder: 'Be specific – the incident, the near-miss, the frustration that tipped you over...',
-      charLimit: 400,
+      charLimit: 1200,
       emotionalAnchor: 'systems_breaking_point',
       required: true
     },
@@ -397,7 +398,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'If I followed you through a typical month-end, what would embarrass you most?',
       type: 'text',
       placeholder: "The workaround you're ashamed of, the process you'd never show an investor...",
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'month_end_shame',
       required: true
     },
@@ -452,7 +453,7 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: "What's the most expensive mistake caused by a systems/process gap in the last 2 years?",
       type: 'text',
       placeholder: 'Lost client, tax penalty, missed opportunity, overpayment...',
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'expensive_systems_mistake',
       required: true
     },
@@ -547,14 +548,14 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       question: 'If you could fix ONE process by magic, which would have the biggest impact?',
       type: 'text',
       placeholder: 'Describe the process and why fixing it would matter...',
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'magic_process_fix',
       required: true
     },
-    // Section 5: Your Vision
+    // Section 5: What Good Looks Like
     {
       id: 'sa_desired_outcomes',
-      section: 'Your Vision',
+      section: 'What Good Looks Like',
       question: 'What specific outcomes do you most want from fixing your systems?',
       type: 'multi',
       maxSelections: 3,
@@ -575,17 +576,17 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
     },
     {
       id: 'sa_monday_morning',
-      section: 'Your Vision',
+      section: 'What Good Looks Like',
       question: 'When your systems are working properly, what does your Monday morning look like?',
       type: 'text',
       placeholder: 'What do you see when you open your laptop? What questions can you answer instantly? What meetings do you no longer need?',
-      charLimit: 800,
+      charLimit: 1200,
       emotionalAnchor: 'monday_morning_vision',
       required: true
     },
     {
       id: 'sa_time_freedom',
-      section: 'Your Vision',
+      section: 'What Good Looks Like',
       question: 'If you got 10+ hours a week back, what would you actually spend that time on?',
       type: 'single',
       options: [
@@ -599,6 +600,154 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
       emotionalAnchor: 'time_freedom_priority',
       required: true
     },
+    // Section 6: Where You're Going (6 questions)
+    {
+      id: 'sa_growth_shape',
+      section: "Where You're Going",
+      question: "When you picture the business in 12\u201318 months, what's actually different? Not revenue targets \u2014 what does the team look like, what are you doing that you're not doing today?",
+      type: 'text',
+      placeholder: "e.g., We've hired a senior PM so I'm not managing every project. We've launched a retainer product. We've opened a second office...",
+      charLimit: 1200,
+      emotionalAnchor: 'growth_vision',
+      required: true
+    },
+    {
+      id: 'sa_next_hires',
+      section: "Where You're Going",
+      question: "What are the next 2\u20133 roles you'll hire for \u2014 and what's stopping you hiring them now?",
+      type: 'text',
+      placeholder: "e.g., Senior developer (can't because project scoping is too messy), Office manager (because Maria is doing 3 jobs)...",
+      charLimit: 1200,
+      emotionalAnchor: 'hiring_blockers',
+      required: true
+    },
+    {
+      id: 'sa_growth_type',
+      section: "Where You're Going",
+      question: 'Which best describes what growth looks like for you?',
+      type: 'single',
+      options: [
+        'More of the same \u2014 same services, more clients, bigger team',
+        'Higher value \u2014 same-ish team, better clients, higher prices',
+        "New offerings \u2014 launching services or products we don't do yet",
+        'Geographic \u2014 new locations, markets, or remote expansion',
+        'Acquisition \u2014 buying or merging with another business',
+        "Honestly not sure \u2014 we're just trying to stabilise first"
+      ],
+      technicalField: 'growth_type',
+      required: true
+    },
+    {
+      id: 'sa_capacity_ceiling',
+      section: "Where You're Going",
+      question: "What's the first thing that would break if you won 3 new clients next month?",
+      type: 'text',
+      placeholder: 'Be specific \u2014 who gets overwhelmed, which process buckles, what falls through the cracks...',
+      charLimit: 1200,
+      emotionalAnchor: 'capacity_ceiling',
+      required: true
+    },
+    {
+      id: 'sa_tried_and_failed',
+      section: "Where You're Going",
+      question: "What systems or tools have you tried and abandoned in the last 2 years \u2014 and why did they fail?",
+      type: 'text',
+      placeholder: "e.g., We tried Monday.com as a CRM but nobody used it. We bought HubSpot but it was overkill...",
+      charLimit: 1200,
+      emotionalAnchor: 'failed_tools',
+      required: true
+    },
+    {
+      id: 'sa_non_negotiables',
+      section: "Where You're Going",
+      question: "What must NOT change? Which tools, processes, or ways of working does your team love?",
+      type: 'text',
+      placeholder: "e.g., The team loves Slack \u2014 any solution needs to work with it. Maria's month-end checklist is sacred. The dev team will revolt if we change their IDE...",
+      charLimit: 1200,
+      emotionalAnchor: 'non_negotiables',
+      required: true
+    },
+    // Section 7: Your Business
+    {
+      id: 'sa_team_size',
+      section: 'Your Business',
+      question: 'How many people work in your business currently?',
+      type: 'text',
+      placeholder: 'Enter number',
+      technicalField: 'team_size',
+      required: true
+    },
+    {
+      id: 'sa_expected_team_size',
+      section: 'Your Business',
+      question: 'How many people do you expect in 12 months?',
+      type: 'text',
+      placeholder: 'Enter number',
+      technicalField: 'expected_team_size_12mo',
+      required: true
+    },
+    {
+      id: 'sa_industry',
+      section: 'Your Business',
+      question: 'What industry are you in?',
+      type: 'text',
+      charLimit: 1200,
+      placeholder: 'e.g., Professional services, Manufacturing, Retail, Tech...',
+      technicalField: 'industry_sector',
+      required: true
+    },
+    {
+      id: 'sa_business_model',
+      section: 'Your Business',
+      question: 'How does your business make money? (Select the closest match)',
+      type: 'single',
+      options: [
+        'Project-based \u2014 quoted work with defined scope',
+        'Retainer/recurring \u2014 monthly fees for ongoing services',
+        'Mixed \u2014 some project, some retainer',
+        'Product sales \u2014 physical or digital goods',
+        'Subscription \u2014 SaaS or membership model',
+        'Hourly/day rate \u2014 time-based billing',
+        'Commission-based \u2014 earn on transactions or referrals'
+      ],
+      technicalField: 'business_model',
+      required: true
+    },
+    {
+      id: 'sa_staff_roster',
+      section: 'Your Business',
+      question: "Who are the key people involved in running your business operations and systems?",
+      type: 'staff_roster',
+      placeholder: "You don't need to list everyone — just the people who touch your core systems and processes. We'll use this to understand where time is being spent and what it's costing.",
+      required: true,
+      technicalField: 'staff_roster',
+    },
+    {
+      id: 'sa_locations',
+      section: 'Your Business',
+      question: 'Where does your team work?',
+      type: 'single',
+      options: [
+        "Single office \u2014 everyone's in the same place",
+        'Hybrid \u2014 mix of office and remote',
+        'Fully remote \u2014 no shared office',
+        'Multiple offices/sites',
+        'Field-based \u2014 team is out at client sites or on the road'
+      ],
+      technicalField: 'work_location',
+      required: true
+    },
+    {
+      id: 'sa_key_people_dependencies',
+      section: 'Your Business',
+      question: "If one person went on holiday for 2 weeks with no phone, what would break? Who is that person and what would break?",
+      type: 'text',
+      placeholder: "e.g., If Maria's off, nobody can do invoicing, payroll, or month-end. If Sophie's off, no proposals go out...",
+      charLimit: 1200,
+      emotionalAnchor: 'key_person_dependency',
+      required: true
+    },
+    // Section 8: Readiness
     {
       id: 'sa_change_appetite',
       section: 'Readiness',
@@ -644,51 +793,6 @@ export const SYSTEMS_AUDIT_ASSESSMENT: ServiceLineAssessment = {
         'Other'
       ],
       technicalField: 'internal_champion',
-      required: true
-    },
-    {
-      id: 'sa_team_size',
-      section: 'Context',
-      question: 'How many people work in your business currently?',
-      type: 'text',
-      placeholder: 'Enter number',
-      technicalField: 'team_size',
-      required: true
-    },
-    {
-      id: 'sa_expected_team_size',
-      section: 'Context',
-      question: 'How many people do you expect in 12 months?',
-      type: 'text',
-      placeholder: 'Enter number',
-      technicalField: 'expected_team_size_12mo',
-      required: true
-    },
-    {
-      id: 'sa_revenue_band',
-      section: 'Context',
-      question: "What's your annual revenue band?",
-      type: 'single',
-      options: [
-        'Under £250k',
-        '£250k - £500k',
-        '£500k - £1m',
-        '£1m - £2m',
-        '£2m - £5m',
-        '£5m - £10m',
-        '£10m+'
-      ],
-      technicalField: 'revenue_band',
-      required: true
-    },
-    {
-      id: 'sa_industry',
-      section: 'Context',
-      question: 'What industry are you in?',
-      type: 'text',
-      charLimit: 100,
-      placeholder: 'e.g., Professional services, Manufacturing, Retail, Tech...',
-      technicalField: 'industry_sector',
       required: true
     }
   ]

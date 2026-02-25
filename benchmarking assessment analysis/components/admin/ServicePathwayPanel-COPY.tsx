@@ -4,8 +4,9 @@
  */
 
 import React, { useState } from 'react';
-import { ChevronDown, ChevronUp, AlertTriangle, TrendingUp, Clock, PoundSterling, Target, Copy, Check, MessageSquare } from 'lucide-react';
+import { ChevronDown, ChevronUp, AlertTriangle, TrendingUp, Clock, PoundSterling, Target, Copy, Check, MessageSquare, Info } from 'lucide-react';
 import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
+import { ServiceRecommendationPopup } from '../../shared/ServiceRecommendationPopup';
 
 interface ServicePathwayPanelProps {
   issues: DetectedIssue[];
@@ -23,6 +24,18 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
     issues.length > 0 ? (issues[0].issueType || issues[0].code || null) : null
   );
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [popupServiceCode, setPopupServiceCode] = useState<string | null>(null);
+
+  const serviceNameToCode = (name: string): string => {
+    const n = (name || '').toLowerCase();
+    if (n.includes('benchmark')) return 'benchmarking';
+    if (n.includes('systems') || n.includes('audit')) return 'systems_audit';
+    if (n.includes('goal') || n.includes('alignment') || n.includes('365')) return 'goal_alignment';
+    if (n.includes('fractional cfo')) return 'fractional_cfo';
+    if (n.includes('profit extraction')) return 'profit_extraction';
+    if (n.includes('business intelligence') || n.includes('quarterly bi')) return 'quarterly_bi';
+    return 'benchmarking';
+  };
 
   const getSeverityBadge = (severity: string) => {
     switch (severity) {
@@ -177,6 +190,14 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
                           <h6 className="font-semibold text-slate-900">
                             {service.serviceName}
                           </h6>
+                          <button
+                            type="button"
+                            onClick={() => setPopupServiceCode(service.serviceCode || serviceNameToCode(service.serviceName))}
+                            className="flex-shrink-0 p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Learn more"
+                          >
+                            <Info className="w-4 h-4" />
+                          </button>
                           <span className={`text-xs font-medium px-2 py-1 rounded-full ${
                             service.priority === 'immediate' ? 'bg-red-100 text-red-700' :
                             service.priority === 'short-term' ? 'bg-amber-100 text-amber-700' :
@@ -241,6 +262,12 @@ export const ServicePathwayPanel: React.FC<ServicePathwayPanelProps> = ({
           </p>
         </div>
       )}
+
+      <ServiceRecommendationPopup
+        isOpen={!!popupServiceCode}
+        onClose={() => setPopupServiceCode(null)}
+        serviceCode={popupServiceCode || ''}
+      />
     </div>
   );
 };

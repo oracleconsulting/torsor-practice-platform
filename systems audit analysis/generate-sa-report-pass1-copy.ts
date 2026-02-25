@@ -78,12 +78,17 @@ async function callSonnet(
   prompt: string,
   maxTokens: number,
   phase: number,
-  openRouterKey: string
+  openRouterKey: string,
+  retries: number = 1
 ): Promise<{ data: any; tokensUsed: number; cost: number; generationTime: number }> {
-  const startTime = Date.now();
-  console.log(`[SA Pass 1] Phase ${phase}: Calling Sonnet (streaming, max_tokens=${maxTokens})...`);
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const startTime = Date.now();
+    if (attempt > 0) {
+      console.warn(`[SA Pass 1] Phase ${phase}: Retry attempt ${attempt}/${retries}...`);
+    }
+    console.log(`[SA Pass 1] Phase ${phase}: Calling Sonnet (streaming, max_tokens=${maxTokens})...`);
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${openRouterKey}`,
@@ -171,6 +176,22 @@ async function callSonnet(
     let repaired = cleanContent;
     repaired = repaired.replace(/,\s*"[^"]*"?\s*:\s*("[^"]*)?$/, '');
     repaired = repaired.replace(/,\s*"[^"]*"?\s*:\s*\[?\s*(\{[^}]*)?$/, '');
+    // Handle unterminated strings (LLM cut mid-string)
+    let inStr = false, escChar = false;
+    for (let ci = 0; ci < repaired.length; ci++) {
+      if (escChar) { escChar = false; continue; }
+      if (repaired[ci] === '\\') { escChar = true; continue; }
+      if (repaired[ci] === '"') inStr = !inStr;
+    }
+    if (inStr) {
+      const lastQuote = repaired.lastIndexOf('"');
+      let cutAt = lastQuote;
+      while (cutAt > 0 && repaired[cutAt] !== ',') cutAt--;
+      if (cutAt > 0) {
+        repaired = repaired.substring(0, cutAt);
+        console.log(`[SA Pass 1] Phase ${phase}: Truncated unterminated string at pos ${lastQuote}, cut to ${cutAt}`);
+      }
+    }
     let openBraces = 0, openBrackets = 0, inString = false, escape = false;
     for (let i = 0; i < repaired.length; i++) {
       if (escape) { escape = false; continue; }
@@ -189,15 +210,24 @@ async function callSonnet(
     try {
       data = JSON.parse(repaired);
       console.log(`[SA Pass 1] Phase ${phase}: Repaired JSON parsed successfully`);
+      const cost = (tokensUsed / 1000000) * 3;
+      return { data, tokensUsed, cost, generationTime: elapsed };
     } catch (repairErr) {
-      console.error(`[SA Pass 1] Phase ${phase}: JSON repair failed. First 500 chars: ${cleanContent.substring(0, 500)}`);
+      if (attempt < retries) {
+        console.warn(`[SA Pass 1] Phase ${phase}: Repair failed, will retry (attempt ${attempt + 1}/${retries})`);
+        continue;
+      }
+      console.error(`[SA Pass 1] Phase ${phase}: JSON repair failed after ${retries + 1} attempts`);
+      console.error(`[SA Pass 1] Phase ${phase}: First 500 chars: ${cleanContent.substring(0, 500)}`);
       console.error(`[SA Pass 1] Phase ${phase}: Last 500 chars: ${cleanContent.substring(cleanContent.length - 500)}`);
-      throw new Error(`Phase ${phase} JSON parse failed: ${(parseErr as Error).message}`);
+      throw new Error(`Phase ${phase} JSON parse failed after ${retries + 1} attempts: ${(parseErr as Error).message}`);
     }
   }
 
   const cost = (tokensUsed / 1000000) * 3;
   return { data, tokensUsed, cost, generationTime: elapsed };
+  }
+  throw new Error(`Phase ${phase}: exhausted retries`);
 }
 
 // ---------- Phase 4b: Systems map deterministic builder + optional Map 4 AI ----------
@@ -230,6 +260,7 @@ interface SystemsMap {
   goalsCoverage?: Record<string, string[]>;
   implementationStages?: { stage: number; title: string; description: string; tools: string[] }[];
   consolidations?: { newTool: string; replaces: string[]; hoursSavedByConsolidation: number }[];
+  changes?: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[];
   metrics: {
     monthlySoftware: number;
     manualHours: number;
@@ -409,23 +440,9 @@ function calculateMetrics(
     });
   }
 
-  // Map 4 bonus: tool consolidation reduces context-switching and manual reconciliation.
-  if (mapLevel === 4) {
-    const map1NodeCount = Object.keys(map1Metrics.map1Nodes || {}).length || map1Metrics.systemCount || 0;
-    const map4NodeCount = Object.keys(nodes).length;
-    const toolsConsolidated = Math.max(0, map1NodeCount - map4NodeCount);
-    const consolidationHoursSaved = toolsConsolidated * 1.5;
-    hoursSaved += consolidationHoursSaved;
-
-    const map1SoftwareCost = map1Metrics.monthlySoftwareCost || 0;
-    const map4SoftwareCost = Object.values(nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
-    const monthlySoftwareSaving = Math.max(0, map1SoftwareCost - map4SoftwareCost);
-    (map1Metrics as any)._map4SoftwareSavingAnnual = monthlySoftwareSaving * 12;
-    (map1Metrics as any)._map4ConsolidationHours = consolidationHoursSaved;
-  }
-
-  // Map 4 bonuses: consolidation removes context-switching, native integrations remove middleware overhead
+  // Map 4 bonuses: consolidation (replaces), native integrations, density; plus software cost delta
   let map4Bonus = 0;
+  let softwareSavingAnnual = 0;
   if (mapLevel === 4) {
     const map4Nodes = nodes as Record<string, any>;
     let toolsReplaced = 0;
@@ -443,15 +460,17 @@ function calculateMetrics(
     const densityBonus = integrationDensity > 20 ? 2.0 : integrationDensity > 15 ? 1.5 : integrationDensity > 10 ? 1.0 : 0;
 
     map4Bonus = consolidationBonus + nativeBonus + densityBonus;
+    const map1SoftwareCost = map1Metrics.monthlySoftwareCost || 0;
+    const map4SoftwareCost = Object.values(nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
+    softwareSavingAnnual = Math.max(0, map1SoftwareCost - map4SoftwareCost) * 12;
     console.log(`[SA Pass 1] Map 4 bonuses: ${toolsReplaced} tools replaced (${consolidationBonus}h), native=${allGreen} (${nativeBonus}h), density=${integrationDensity} (${densityBonus}h), total bonus=${map4Bonus}h`);
   }
 
   const manualHours = Math.max(0, map1Metrics.manualHours - hoursSaved - map4Bonus);
   const annualWaste = mapLevel === 1 ? map1Metrics.annualWaste : Math.round(manualHours * rate * 52);
   let annualSavings = mapLevel === 1 ? 0 : map1Metrics.annualWaste - annualWaste;
-
-  if (mapLevel === 4 && (map1Metrics as any)._map4SoftwareSavingAnnual > 0) {
-    annualSavings += (map1Metrics as any)._map4SoftwareSavingAnnual;
+  if (mapLevel === 4 && softwareSavingAnnual > 0) {
+    annualSavings += softwareSavingAnnual;
   }
 
   let payback = '—';
@@ -541,6 +560,44 @@ function buildSystemsMaps(
     middlewareHub: null,
     metrics: calculateMetrics(nodes, map1Edges, map1Metrics, recommendations, 1, rate),
   };
+  const map1Changes: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[] = [];
+  map1Edges.filter(e => e.status === 'red').forEach(e => {
+    const fromNode = nodes[e.from];
+    const toNode = nodes[e.to];
+    if (!fromNode || !toNode) return;
+    map1Changes.push({
+      system: `${fromNode.name} ↔ ${toNode.name}`,
+      action: 'broken',
+      description: `No integration between ${fromNode.name} and ${toNode.name}. ${e.label || 'Manual data transfer required'}.`,
+      impact: e.person ? `${e.person} handles this manually` : 'Manual workaround in use',
+    });
+  });
+  map1Edges.filter(e => e.status === 'amber').forEach(e => {
+    const fromNode = nodes[e.from];
+    const toNode = nodes[e.to];
+    if (!fromNode || !toNode) return;
+    map1Changes.push({
+      system: `${fromNode.name} ↔ ${toNode.name}`,
+      action: 'broken',
+      description: `Partial connection: ${e.label || 'Known issues with this integration'}.`,
+      impact: 'Unreliable data flow requiring manual checks',
+    });
+  });
+  findings.filter((f: any) => f.severity === 'critical' || f.severity === 'high').slice(0, 3).forEach((f: any) => {
+    const affected = f.affectedSystems || f.affected_systems || [];
+    const systemName = (affected[0] || 'Multiple systems') as string;
+    const alreadyCovered = map1Changes.some(c => c.system.toLowerCase().includes(String(systemName).toLowerCase()));
+    if (!alreadyCovered) {
+      map1Changes.push({
+        system: systemName,
+        action: 'broken',
+        description: f.title || f.description || 'Critical issue identified',
+        impact: f.hoursWastedWeekly ? `${f.hoursWastedWeekly}h/wk wasted` : undefined,
+      });
+    }
+  });
+  map1.changes = map1Changes;
+
   const map2Edges = buildEdgesMap2(map1Edges, recommendations);
   const map2: SystemsMap = {
     title: 'Native Fixes',
@@ -551,6 +608,36 @@ function buildSystemsMaps(
     middlewareHub: null,
     metrics: calculateMetrics(nodes, map2Edges, map1Metrics, recommendations, 2, rate),
   };
+  const map2Changes: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[] = [];
+  map2Edges.forEach((edge, i) => {
+    if (edge.changed) {
+      const fromNode = nodes[edge.from];
+      const toNode = nodes[edge.to];
+      if (!fromNode || !toNode) return;
+      const wasRed = map1Edges[i]?.status === 'red';
+      const wasAmber = map1Edges[i]?.status === 'amber';
+      map2Changes.push({
+        system: `${fromNode.name} ↔ ${toNode.name}`,
+        action: 'fixed',
+        description: wasAmber
+          ? 'Enabled native integration feature that was turned off or misconfigured.'
+          : 'Improved connection — native settings activated to reduce manual work.',
+        impact: 'Zero cost — uses existing software capabilities',
+        cost: '£0',
+        why: 'This integration already exists in your current subscriptions but wasn\'t activated.',
+      });
+    }
+  });
+  if (map2Changes.length === 0) {
+    map2Changes.push({
+      system: 'Current stack',
+      action: 'kept',
+      description: 'No additional native integrations available with current configuration.',
+      why: 'Your current tools have limited native connection options — middleware needed for further improvement.',
+    });
+  }
+  map2.changes = map2Changes;
+
   const { edges: map3Edges, hub } = buildEdgesMap3(map2Edges, recommendations);
   const map3: SystemsMap = {
     title: 'Fully Connected',
@@ -561,6 +648,32 @@ function buildSystemsMaps(
     middlewareHub: hub,
     metrics: calculateMetrics(nodes, map3Edges, map1Metrics, recommendations, 3, rate),
   };
+  const map3Changes: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[] = [];
+  if (hub) {
+    map3Changes.push({
+      system: hub.name,
+      action: 'added',
+      description: `${hub.name} middleware added as central integration hub connecting previously disconnected systems.`,
+      impact: 'Eliminates manual data transfers between disconnected tools',
+      cost: `£${hub.cost}/mo`,
+      why: 'Middleware bridges the gaps where native integrations don\'t exist between your current tools.',
+    });
+  }
+  map3Edges.forEach((edge, i) => {
+    if (edge.changed && edge.status === 'blue') {
+      const fromNode = nodes[edge.from];
+      const toNode = nodes[edge.to];
+      if (!fromNode || !toNode) return;
+      map3Changes.push({
+        system: `${fromNode.name} ↔ ${toNode.name}`,
+        action: 'connected',
+        description: `${hub?.name || 'Middleware'} bridges ${fromNode.name} to ${toNode.name} automatically.`,
+        impact: map1Edges[i]?.person ? `Removes manual work from ${map1Edges[i].person}` : 'Automated data flow',
+      });
+    }
+  });
+  map3.changes = map3Changes;
+
   const maps: SystemsMap[] = [map1, map2, map3];
   if (aiMap4?.nodes && aiMap4.edges) {
     const map4Nodes = { ...aiMap4.nodes };
@@ -589,6 +702,27 @@ function buildSystemsMaps(
       implementationStages: aiMap4.implementationStages || undefined,
       consolidations: aiMap4.consolidations || undefined,
     };
+    const map4Changes: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[] = [];
+    Object.values(map4Nodes).forEach((node: any) => {
+      if (node.status === 'new' && node.replaces && node.replaces.length > 0) {
+        map4Changes.push({
+          system: node.name,
+          action: 'added',
+          description: `Replaces ${node.replaces.join(' and ')} with a single best-in-class platform.`,
+          impact: `Consolidates ${node.replaces.length} tools into one — fewer logins, unified data`,
+          cost: node.cost ? `£${node.cost}/mo` : undefined,
+          why: node.advancesGoals ? `Directly advances: ${Array.isArray(node.advancesGoals) ? node.advancesGoals.join(', ') : node.advancesGoals}` : undefined,
+        });
+      } else if (node.status === 'reconfigure' || node.status === 'reconfigured') {
+        map4Changes.push({
+          system: node.name,
+          action: 'reconfigured',
+          description: `${node.name} kept but reconfigured for optimal integration with the new stack.`,
+        });
+      }
+    });
+    // Nodes are the authoritative source for changes; consolidations are redundant (same replacements).
+    map4.changes = map4Changes;
     maps.push(map4);
   } else if (pass1DataFallback?.systemsMaps) {
     const aiMaps = Array.isArray(pass1DataFallback.systemsMaps) ? pass1DataFallback.systemsMaps : [];
@@ -621,6 +755,12 @@ function buildSystemsMaps(
         middlewareHub: null,
         metrics: calculateMetrics(aiNodes, map4Edges, map1Metrics, recommendations, 4, rate),
       };
+      map4.changes = [{
+        system: 'Optimal Stack',
+        action: 'added',
+        description: 'Best-in-class tool replacements selected for maximum native integration and goal coverage.',
+        impact: 'Eliminates middleware dependency and reduces total tool count',
+      }];
       maps.push(map4);
       console.log('[SA Pass 1] Map 4 built from AI-generated data (Phase 4.5 fallback)');
     } else {
@@ -781,6 +921,7 @@ function buildPhase1Prompt(
 ): string {
   const MAX_SYSTEMS = 20;
   const MAX_TEXT = 600;
+  const MAX_VISION = 1000; // Client vision quotes (e.g. Monday morning) must not be cut mid-sentence
   const systemsSlice = systems.slice(0, MAX_SYSTEMS);
 
   const systemDetails = systemsSlice.map((s: any) => {
@@ -856,8 +997,8 @@ WHERE YOU'RE GOING / YOUR BUSINESS:
 
 TARGET STATE:
 - Desired outcomes: ${mapDesiredOutcomes(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
-- Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
-- Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_TEXT)}"
+- Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_VISION)}"
+- Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_VISION)}"
 - Magic fix (Focus Areas): "${TRUNCATE(discovery.magic_process_fix || 'Not specified', MAX_TEXT)}"
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -955,6 +1096,7 @@ function buildPhase2AnalysePrompt(
 ): string {
   const MAX_DEEP_DIVES = 12;
   const MAX_TEXT = 600;
+  const MAX_VISION = 1000;
   const deepDivesSlice = deepDives.slice(0, MAX_DEEP_DIVES);
 
   const deepDiveDetails = deepDivesSlice.map((dd: any) => {
@@ -1001,8 +1143,8 @@ Integration gaps: ${(phase1Facts.integrationGaps || []).join('; ')}
 
 TARGET STATE:
 - Desired outcomes: ${mapDesiredOutcomes(discovery.desired_outcomes || []).join(' | ') || 'Not specified'}
-- Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_TEXT)}"
-- Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_TEXT)}"
+- Monday morning vision: "${TRUNCATE(discovery.monday_morning_vision || 'Not specified', MAX_VISION)}"
+- Time freedom priority: "${TRUNCATE(discovery.time_freedom_priority || 'Not specified', MAX_VISION)}"
 - Magic fix: "${TRUNCATE(discovery.magic_process_fix || 'Not specified', MAX_TEXT)}"
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -1070,24 +1212,49 @@ async function runPhase1(
   preliminaryAnalysis?: { confidenceScores?: { area: string; confidence: string; reason: string }[] }
 ): Promise<{ success: boolean; phase: number }> {
   const prompt = buildPhase1Prompt(discovery, systems || [], clientName, hourlyRate, additionalContext, preliminaryAnalysis);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 1, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 1, openRouterKey);
 
   console.log('[SA Pass 1] Phase 1: Writing to DB...');
-  await supabaseClient.from('sa_audit_reports').upsert(
-    {
-      engagement_id: engagementId,
-      status: 'generating',
-      executive_summary: 'Phase 1/6: Extracting facts and analysing systems...',
-      pass1_data: { phase1: data },
-      systems_count: (data.facts?.systems || []).length,
-      llm_model: 'claude-sonnet-4.5',
-      llm_tokens_used: tokensUsed,
-      llm_cost: cost,
-      generation_time_ms: generationTime,
-      prompt_version: 'v7-5phase',
-    },
-    { onConflict: 'engagement_id' }
-  );
+
+  const { data: existingReport } = await supabaseClient
+    .from('sa_audit_reports')
+    .select('pass1_data, status')
+    .eq('engagement_id', engagementId)
+    .maybeSingle();
+
+  const isRegenerating = existingReport?.pass1_data?.facts && existingReport?.pass1_data?.findings;
+
+  if (isRegenerating && existingReport?.pass1_data && typeof existingReport.pass1_data === 'object') {
+    console.log('[SA Pass 1] Phase 1: Regenerating — preserving existing top-level assembly');
+    await supabaseClient.from('sa_audit_reports')
+      .update({
+        status: 'regenerating',
+        pass1_data: { ...existingReport.pass1_data, phase1: data },
+        systems_count: (data.facts?.systems || []).length,
+        llm_model: 'claude-sonnet-4.5',
+        llm_tokens_used: tokensUsed,
+        llm_cost: cost,
+        generation_time_ms: generationTime,
+        prompt_version: 'v7-5phase',
+      })
+      .eq('engagement_id', engagementId);
+  } else {
+    await supabaseClient.from('sa_audit_reports').upsert(
+      {
+        engagement_id: engagementId,
+        status: 'generating',
+        executive_summary: 'Phase 1/8: Extracting facts and analysing systems...',
+        pass1_data: { phase1: data },
+        systems_count: (data.facts?.systems || []).length,
+        llm_model: 'claude-sonnet-4.5',
+        llm_tokens_used: tokensUsed,
+        llm_cost: cost,
+        generation_time_ms: generationTime,
+        prompt_version: 'v7-5phase',
+      },
+      { onConflict: 'engagement_id' }
+    );
+  }
   console.log('[SA Pass 1] Phase 1: DB write complete');
 
   return { success: true, phase: 1 };
@@ -1121,7 +1288,7 @@ async function runPhase2Analyse(
 
   const clientName = phase1Facts.companyName || 'the business';
   const prompt = buildPhase2AnalysePrompt(phase1Facts, discoveryRes.data, deepDivesRes.data || [], clientName, hourlyRate);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 2, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 2, openRouterKey);
 
   const expectedAnnual = Math.round(data.hoursWastedWeekly * hourlyRate * 52);
   const expectedScale = Math.round(expectedAnnual * phase1Facts.growthMultiplier * 1.3);
@@ -1427,7 +1594,7 @@ async function runPhase4MediumLowQuickWins(
   const phase3 = report.pass1_data.phase3;
   const clientName = phase1.facts.companyName || 'the business';
   const prompt = buildPhase4MediumLowQuickWinsPrompt(phase1, phase2, phase3, clientName);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 4, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 4, openRouterKey);
 
   const existingPass1 = report.pass1_data as any;
   const combinedFindings = [...(existingPass1.phase3?.findings || []), ...(data.findings || [])];
@@ -1713,7 +1880,7 @@ async function runPhase5Recommendations(
   const clientName = phase1.facts.companyName || 'the business';
 
   const prompt = buildPhase4Prompt(phase1, phase2, phase3, clientName);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 5, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 5, openRouterKey);
 
   console.log('[SA Pass 1] Phase 5: Writing recommendations to DB...');
   await supabaseClient.from('sa_audit_reports').update({
@@ -1757,9 +1924,10 @@ async function runPhase6SystemsMaps(
   const phase1 = report.pass1_data.phase1;
   const phase5 = report.pass1_data.phase5;
 
+  // Generate optimal stack (Map 4 data) via Phase 4b — no AI maps call (fixes timeout)
   let optimalStack: any = null;
   try {
-    console.log('[SA Pass 1] Phase 6: Generating optimal stack hint...');
+    console.log('[SA Pass 1] Phase 6: Generating optimal stack for Map 4...');
     const { data: discoveryRow } = await supabaseClient
       .from('sa_discovery_responses')
       .select('growth_vision, hiring_blockers, growth_type, capacity_ceiling, failed_tools, non_negotiables')
@@ -1767,48 +1935,38 @@ async function runPhase6SystemsMaps(
       .single();
     const phase2 = report.pass1_data.phase2 || {};
     const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow);
-    const phase4bResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openRouterKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://torsor.co.uk',
-        'X-Title': 'Torsor SA Pass 1 Phase 6 Optimal Stack',
-      },
-      body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4',
-        messages: [{ role: 'user', content: phase4bPrompt }],
-        temperature: 0.2,
-        max_tokens: 2000,
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
-    if (phase4bResponse.ok) {
-      const phase4bJson = await phase4bResponse.json();
-      let content = (phase4bJson.choices?.[0]?.message?.content ?? '').trim();
-      content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
-      optimalStack = JSON.parse(content);
-      console.log('[SA Pass 1] Phase 6: Optimal stack generated:', Object.keys(optimalStack?.nodes || {}).length, 'systems,', (optimalStack?.edges || []).length, 'edges');
+
+    const { data: phase4bData, tokensUsed, generationTime } = await callSonnet(phase4bPrompt, 4000, 6, openRouterKey);
+    if (phase4bData?.nodes) {
+      optimalStack = phase4bData;
+      console.log(`[SA Pass 1] Phase 6: Optimal stack generated in ${Math.round(generationTime / 1000)}s:`,
+        Object.keys(optimalStack.nodes || {}).length, 'systems,',
+        (optimalStack.edges || []).length, 'edges,',
+        tokensUsed, 'tokens');
+    } else {
+      console.warn('[SA Pass 1] Phase 6: Optimal stack response parsed but missing nodes — Map 4 will be unavailable');
     }
   } catch (e: any) {
     console.warn('[SA Pass 1] Phase 6: Optimal stack generation failed (non-blocking):', e?.message ?? e);
+    console.warn('[SA Pass 1] Phase 6: Map 4 (Optimal Stack) will not be available in this report');
   }
 
-  let phase6Data: any = { systemsMaps: null, techStackSummary: null, hoursBreakdown: null, optimalStack };
-  try {
-    const mapsResult = await runPhase4SystemsMaps(supabaseClient, engagementId, openRouterKey);
-    phase6Data = { ...mapsResult, optimalStack };
-    console.log(`[SA Pass 1] Phase 6: Systems maps: ${mapsResult.systemsMaps?.length || 0} levels`);
-  } catch (mapsErr: any) {
-    console.warn('[SA Pass 1] Phase 6: Systems maps generation failed:', mapsErr?.message ?? mapsErr);
-  }
-
+  // Store Phase 6 result — Maps 1-3 are built deterministically in Phase 8
   const existingPass1 = report.pass1_data as any;
+  const phase6Data = {
+    systemsMaps: null,
+    techStackSummary: null,
+    hoursBreakdown: null,
+    optimalStack,
+  };
+
+  console.log(`[SA Pass 1] Phase 6: Summary — optimalStack: ${optimalStack ? Object.keys(optimalStack.nodes || {}).length + ' nodes' : 'FAILED (Map 4 unavailable)'}`);
+
   await supabaseClient
     .from('sa_audit_reports')
     .update({
       pass1_data: { ...existingPass1, phase6: phase6Data },
-      executive_summary: 'Phase 6/8: Generating technology roadmap...',
+      executive_summary: 'Phase 6/8: Technology roadmap complete.',
     })
     .eq('engagement_id', engagementId);
 
@@ -1876,7 +2034,7 @@ async function runPhase4SystemsMaps(
   const techContextStr = buildTechContext(matchedProducts, relevantIntegrations, alternativeProducts, relevantMiddleware, discoveryRes);
   const mapsPrompt = buildPhase4SystemsMapsPrompt(phase1, phase2, phase3, phase4, techContextStr, clientName);
 
-  const { data: mapsData, tokensUsed, cost, generationTime } = await callSonnet(mapsPrompt, 12000, 6, openRouterKey);
+  const { data: mapsData, tokensUsed, cost, generationTime } = await callSonnet(mapsPrompt, 32000, 6, openRouterKey);
 
   const wasTruncated = typeof mapsData?.systemsMaps === 'undefined' || (Array.isArray(mapsData.systemsMaps) && mapsData.systemsMaps.length < 4);
   if (wasTruncated) {
@@ -1951,7 +2109,7 @@ async function runPhase7AdminGuidance(
   const phase5 = report.pass1_data.phase5;
   const clientName = phase1.facts.companyName || 'the business';
   const prompt = buildPhase7AdminGuidancePrompt(phase1, phase2, phase3, phase5, clientName);
-  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 12000, 7, openRouterKey);
+  const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 7, openRouterKey);
 
   const existingPass1 = report.pass1_data as any;
   await supabaseClient
@@ -2018,12 +2176,18 @@ async function runPhase8Presentation(
   const phase7 = reportRow.pass1_data.phase7;
   const clientName = phase1.facts.companyName || 'the business';
 
-  const prompt = buildPhase8ClientPresentationPrompt(phase1, phase2, phase3, phase5Recs, clientName);
-  let phase8Result = await callSonnet(prompt, 8000, 8, openRouterKey);
-  let { data: phase8, tokensUsed, cost, generationTime } = phase8Result;
-  if (!phase8) {
-    console.error('[SA Pass 1] Phase 8: Response did not parse');
-    phase8 = { clientPresentation: null };
+  let phase8: any = { clientPresentation: null };
+  let tokensUsed = 0, cost = 0, generationTime = 0;
+  try {
+    const prompt = buildPhase8ClientPresentationPrompt(phase1, phase2, phase3, phase5Recs, clientName);
+    const phase8Result = await callSonnet(prompt, 8000, 8, openRouterKey, 0);
+    phase8 = phase8Result.data || { clientPresentation: null };
+    tokensUsed = phase8Result.tokensUsed;
+    cost = phase8Result.cost;
+    generationTime = phase8Result.generationTime;
+  } catch (aiErr: any) {
+    console.warn(`[SA Pass 1] Phase 8: AI call failed (non-blocking): ${aiErr?.message ?? aiErr}`);
+    console.warn('[SA Pass 1] Phase 8: Continuing with deterministic assembly — clientPresentation will be null');
   }
 
   const allQuotes = [
@@ -2071,28 +2235,9 @@ async function runPhase8Presentation(
   const { data: engRow } = await supabaseClient.from('sa_engagements').select('hourly_rate').eq('id', engagementId).single();
   const hourlyRate = engRow?.hourly_rate != null ? Number(engRow.hourly_rate) : 45;
 
-  // ALWAYS run deterministic builder for Maps 1-3 (correct metrics format).
-  // AI-generated optimal stack (phase4b) provides Map 4 nodes/edges only.
-  const phase4b = phase6?.optimalStack ?? pass1Data.phase4b ?? null;
-  console.log('[SA Pass 1] Phase 8: Building deterministic systems maps...');
-  const systemsMaps = buildSystemsMaps(
-    finalPass1Data.facts,
-    finalPass1Data.findings || [],
-    finalPass1Data.recommendations || [],
-    phase4b,
-    hourlyRate,
-    { ...pass1Data, systemsMaps: phase6?.systemsMaps },
-  );
-  if (systemsMaps.length > 0) {
-    finalPass1Data.systemsMaps = systemsMaps;
-    console.log(`[SA Pass 1] Phase 8: Built ${systemsMaps.length} systems maps (deterministic)`);
-  } else {
-    console.warn('[SA Pass 1] Phase 8: Deterministic builder returned 0 maps — falling back to AI maps');
-    finalPass1Data.systemsMaps = (phase6?.systemsMaps ?? pass1Data.systemsMaps) || null;
-  }
-
   // ─── McKinsey Number Reconciliation Layer ──────────────────────────
   // Every number must trace to ONE calculation chain. pass1_data is the single source of truth.
+  // Must run BEFORE buildSystemsMaps so Map 1 annualWaste uses reconciled annualCostOfChaos.
   const f = finalPass1Data.facts;
   const recs = finalPass1Data.recommendations || [];
   const qwins = finalPass1Data.quickWins || [];
@@ -2146,6 +2291,26 @@ async function runPhase8Presentation(
     payback: ${paybackMonths} months | ROI: ${roiRatio}
     findings: ${findingCounts.critical}C/${findingCounts.high}H/${findingCounts.medium}M/${findingCounts.low}L
     quickWins: ${qwins.length}`);
+
+  // ALWAYS run deterministic builder for Maps 1-3 (correct metrics format).
+  // AI-generated optimal stack (phase4b) provides Map 4 nodes/edges only.
+  const phase4b = phase6?.optimalStack ?? pass1Data.phase4b ?? null;
+  console.log('[SA Pass 1] Phase 8: Building deterministic systems maps...');
+  const systemsMaps = buildSystemsMaps(
+    finalPass1Data.facts,
+    finalPass1Data.findings || [],
+    finalPass1Data.recommendations || [],
+    phase4b,
+    hourlyRate,
+    { ...pass1Data, systemsMaps: phase6?.systemsMaps },
+  );
+  if (systemsMaps.length > 0) {
+    finalPass1Data.systemsMaps = systemsMaps;
+    console.log(`[SA Pass 1] Phase 8: Built ${systemsMaps.length} systems maps (deterministic)`);
+  } else {
+    console.warn('[SA Pass 1] Phase 8: Deterministic builder returned 0 maps — falling back to AI maps');
+    finalPass1Data.systemsMaps = (phase6?.systemsMaps ?? pass1Data.systemsMaps) || null;
+  }
 
   console.log('[SA Pass 1] Phase 8: Writing final report to DB...');
   const updatePayload: any = {
@@ -2256,101 +2421,85 @@ serve(async (req) => {
 
     console.log(`[SA Pass 1] Phase ${phase} starting for: ${engagementId}`);
 
-    let result: { success: boolean; phase: number; reportId?: string };
+    let result: { success: boolean; phase: number; reportId?: string; jobId?: string };
 
-    switch (phase) {
-      case 1: {
+    // ─── Create report job for Railway worker ───────────────
+    if (phase === 1) {
+      const { data: existingReport } = await supabaseClient
+        .from('sa_audit_reports')
+        .select('status')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+
+      if (!existingReport) {
         await supabaseClient.from('sa_audit_reports').upsert(
-          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/8: Extracting facts...' },
+          { engagement_id: engagementId, status: 'generating', executive_summary: 'Phase 1/8: Queued for processing...' },
           { onConflict: 'engagement_id' }
         );
-        const [discoveryRes, systemsRes] = await Promise.all([
-          supabaseClient.from('sa_discovery_responses').select('*').eq('engagement_id', engagementId).single(),
-          supabaseClient.from('sa_system_inventory').select('*').eq('engagement_id', engagementId),
-        ]);
-        if (discoveryRes.error || !discoveryRes.data) {
-          throw new Error(`Discovery not found: ${discoveryRes.error?.message}`);
-        }
-        const additionalContext = Array.isArray(body.additionalContext) ? body.additionalContext : undefined;
-        const preliminaryAnalysis = body.preliminaryAnalysis && typeof body.preliminaryAnalysis === 'object' ? body.preliminaryAnalysis : undefined;
-        result = await runPhase1(
-          supabaseClient,
-          engagementId,
-          engagement,
-          discoveryRes.data,
-          systemsRes.data || [],
-          clientName,
-          hourlyRate,
-          openRouterKey,
-          additionalContext,
-          preliminaryAnalysis
-        );
-        break;
-      }
-      case 2: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 2/8: Analysing processes...' })
+      } else {
+        const isRegen = ['generated', 'pass1_complete', 'approved', 'published', 'delivered'].includes(existingReport.status);
+        const newStatus = isRegen ? 'regenerating' : 'generating';
+        await supabaseClient.from('sa_audit_reports')
+          .update({ status: newStatus, executive_summary: 'Phase 1/8: Queued for processing...' })
           .eq('engagement_id', engagementId);
-        result = await runPhase2Analyse(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
-        break;
       }
-      case 3: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 3/8: Identifying critical findings...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase3CriticalHigh(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
-        break;
+
+      await supabaseClient.from('sa_report_jobs')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('engagement_id', engagementId)
+        .in('status', ['pending', 'claimed', 'processing']);
+
+      const jobConfig: Record<string, unknown> = {};
+      if (Array.isArray(body.additionalContext) && body.additionalContext.length > 0) jobConfig.additionalContext = body.additionalContext;
+      if (body.preliminaryAnalysis && typeof body.preliminaryAnalysis === 'object') jobConfig.preliminaryAnalysis = body.preliminaryAnalysis;
+
+      const { data: newJob, error: jobError } = await supabaseClient
+        .from('sa_report_jobs')
+        .insert({
+          engagement_id: engagementId,
+          job_type: 'pass1_full',
+          start_phase: phase,
+          config: jobConfig,
+          status: 'pending',
+        })
+        .select('id')
+        .single();
+
+      if (jobError) {
+        throw new Error(`Failed to create report job: ${jobError.message}`);
       }
-      case 4: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 4/8: Completing findings and quick wins...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase4MediumLowQuickWins(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
-        break;
-      }
-      case 5: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 5/8: Building recommendations...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase5Recommendations(supabaseClient, engagementId, openRouterKey);
-        break;
-      }
-      case 6: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 6/8: Generating technology roadmap...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase6SystemsMaps(supabaseClient, engagementId, openRouterKey);
-        break;
-      }
-      case 7: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 7/8: Preparing practice team guidance...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase7AdminGuidance(supabaseClient, engagementId, openRouterKey);
-        break;
-      }
-      case 8: {
-        await supabaseClient
-          .from('sa_audit_reports')
-          .update({ executive_summary: 'Phase 8/8: Finalising report...' })
-          .eq('engagement_id', engagementId);
-        result = await runPhase8Presentation(supabaseClient, engagementId, openRouterKey);
-        break;
-      }
-      default:
-        throw new Error(`Invalid phase: ${phase}`);
+
+      console.log(`[SA Pass 1] Created job ${newJob.id} for engagement ${engagementId}`);
+      result = { success: true, phase: 1, jobId: newJob.id };
+    } else {
+      await supabaseClient.from('sa_report_jobs')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('engagement_id', engagementId)
+        .in('status', ['pending', 'claimed', 'processing']);
+
+      const { data: retryJob, error: retryError } = await supabaseClient
+        .from('sa_report_jobs')
+        .insert({
+          engagement_id: engagementId,
+          job_type: 'pass1_from_phase',
+          start_phase: phase,
+          config: {},
+          status: 'pending',
+        })
+        .select('id')
+        .single();
+
+      if (retryError) throw new Error(`Failed to create retry job: ${retryError.message}`);
+
+      console.log(`[SA Pass 1] Created retry job ${retryJob.id} from phase ${phase}`);
+      result = { success: true, phase, jobId: retryJob.id };
     }
 
     return new Response(
       JSON.stringify({
         success: true,
         phase: result.phase,
+        jobId: result.jobId,
         reportId: (result as any).reportId,
         nextPhase: phase < 8 ? phase + 1 : null,
       }),
@@ -2365,14 +2514,33 @@ serve(async (req) => {
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
       );
-      const status = `phase${phase}_failed`;
-      await supabaseClient
+
+      const { data: existingReport } = await supabaseClient
         .from('sa_audit_reports')
-        .update({
-          status,
-          executive_summary: `Report generation failed at phase ${phase}: ${errMsg}. Retry from admin.`,
-        })
-        .eq('engagement_id', engagementId);
+        .select('pass1_data, status')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+
+      const hadCompletedReport = existingReport?.pass1_data?.systemsMaps
+        && existingReport?.pass1_data?.findings
+        && existingReport?.pass1_data?.recommendations;
+
+      if (hadCompletedReport) {
+        console.warn(`[SA Pass 1] Phase ${phase} failed but report has complete data from previous run. Restoring status to 'generated'.`);
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({ status: 'generated' })
+          .eq('engagement_id', engagementId);
+      } else {
+        const status = `phase${phase}_failed`;
+        await supabaseClient
+          .from('sa_audit_reports')
+          .update({
+            status,
+            executive_summary: `Report generation failed at phase ${phase}: ${errMsg}. Retry from admin.`,
+          })
+          .eq('engagement_id', engagementId);
+      }
     }
 
     return new Response(

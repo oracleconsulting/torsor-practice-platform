@@ -3,6 +3,11 @@
 // ============================================================================
 // Mirror of supabase/functions/_shared/service-registry.ts
 // To change a price: change it in _shared/service-registry.ts and sync here.
+//
+// SHARED FILE — identical copy exists in:
+//   - src/lib/service-registry.ts (admin)
+//   - apps/client-portal/src/lib/service-registry.ts (client portal)
+// Edit BOTH files when making changes, or move to a shared package.
 // ============================================================================
 
 // === TYPES ===

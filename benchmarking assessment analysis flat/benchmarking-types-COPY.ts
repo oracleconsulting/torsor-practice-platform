@@ -25,6 +25,9 @@ export interface ValueAnalysis {
   
   // Value suppressors from HVA
   suppressors: ValueSuppressor[];
+
+  // Adjusted EV = enterprise value after operating-risk discounts (before adding surplus cash)
+  adjustedEV?: { low: number; mid: number; high: number };
   
   // Aggregate calculations (handles overlapping discounts)
   aggregateDiscount: {
@@ -75,6 +78,13 @@ export interface ValueSuppressor {
   remediationTimeMonths?: number;
   talkingPoint?: string;      // For adviser
   questionToAsk?: string;     // Discovery question
+  /** Evidence basis for the discount range */
+  methodology?: {
+    sources: string[];
+    calibrationNote: string;
+    confidenceLevel: 'strong' | 'moderate' | 'limited';
+    limitationsNote: string;
+  };
 }
 
 /**

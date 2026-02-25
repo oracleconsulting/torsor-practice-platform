@@ -661,7 +661,7 @@ export function BenchmarkingAdminView({
                 )}
                 
                 {activeTab === 'valuation' && data.value_analysis && (
-                  <ValueAnalysisPanel 
+                  <ValueAnalysisPanel
                     valueAnalysis={data.value_analysis}
                     clientName={clientName}
                   />

@@ -14,21 +14,21 @@ const corsHeaders = {
 // =============================================================================
 
 function buildNumberLock(pass1Data: any, report: any): string {
-  // Use Phase 8 reconciled DB columns as the SINGLE SOURCE OF TRUTH.
+  // Use Phase 8 reconciled DB columns as the SINGLE SOURCE OF TRUTH. Round before embedding.
   const recs = pass1Data.recommendations || [];
   const qwins = pass1Data.quickWins || [];
   const scores = pass1Data.scores || {};
   const f = pass1Data.facts || {};
 
-  const totalBenefit = report.total_annual_benefit ?? recs.reduce((s: number, r: any) => s + (r.annualBenefit || 0), 0);
-  const totalInvestment = report.total_recommended_investment ?? recs.reduce((s: number, r: any) => s + (r.estimatedCost || 0), 0);
-  const hoursReclaimable = report.hours_reclaimable_weekly ?? recs.reduce((s: number, r: any) => s + (parseFloat(r.hoursSavedWeekly) || 0), 0);
+  const totalBenefit = Math.round(report.total_annual_benefit ?? recs.reduce((s: number, r: any) => s + (r.annualBenefit || 0), 0));
+  const totalInvestment = Math.round(report.total_recommended_investment ?? recs.reduce((s: number, r: any) => s + (r.estimatedCost || 0), 0));
+  const hoursReclaimable = Math.round(report.hours_reclaimable_weekly ?? recs.reduce((s: number, r: any) => s + (parseFloat(r.hoursSavedWeekly) || 0), 0));
   const paybackMonths = report.overall_payback_months ?? 0;
   const roiRatio = report.roi_ratio || (totalInvestment > 0 ? `${Math.round(totalBenefit / totalInvestment)}:1` : 'Infinite');
-  const annualCostOfChaos = report.total_annual_cost_of_chaos ?? f.annualCostOfChaos ?? 0;
+  const annualCostOfChaos = Math.round(report.total_annual_cost_of_chaos ?? f.annualCostOfChaos ?? 0);
   const hoursWastedWeekly = report.total_hours_wasted_weekly ?? f.hoursWastedWeekly ?? 0;
   const growthMultiplier = report.growth_multiplier ?? f.growthMultiplier ?? 1.3;
-  const projectedCostAtScale = report.projected_cost_at_scale ?? f.projectedCostAtScale ?? 0;
+  const projectedCostAtScale = Math.round(report.projected_cost_at_scale ?? f.projectedCostAtScale ?? 0);
 
   const qwinHours = qwins.reduce((sum: number, q: any) =>
     sum + (parseFloat(q.hoursSavedWeekly) || 0), 0);
@@ -210,7 +210,7 @@ YOUR OUTPUT
 Write these four narrative sections as a JSON object:
 
 {
-  "headline": "Under 25 words. Include the annual cost (£${(f.annualCostOfChaos || 0).toLocaleString()}) AND their goal phrase. Make it quotable for a proposal.",
+  "headline": "Under 25 words. Include the annual cost (£${Math.round(f.annualCostOfChaos || 0).toLocaleString()}) AND their goal phrase. Make it quotable for a proposal.",
   
   "executiveSummary": "Three paragraphs that tell the story:
     
@@ -621,6 +621,56 @@ serve(async (req) => {
         console.warn(`[SA McKinsey] Executive summary contains unrecognised amount: ${amt}`);
       }
     }
+
+    // Post-generation number correction: fix LLM hallucinations in headline/executiveSummary
+    const correctNumbers = {
+      annualCost: Math.round(f2.annualCostOfChaos || 0),
+      benefit: Math.round(totalBenefit2),
+      investment: Math.round(recs2.reduce((s: number, r: any) => s + (r.estimatedCost || 0), 0)),
+      hours: Math.round(recs2.reduce((s: number, r: any) => s + (parseFloat(r.hoursSavedWeekly) || 0), 0)),
+      recsCount: recs2.length,
+    };
+
+    const fixNumbers = (text: string): string => {
+      if (!text) return text;
+      let fixed = text;
+
+      const costRegex = /£([\d,]+(?:\.\d+)?)/g;
+      fixed = fixed.replace(costRegex, (match, numStr) => {
+        const num = parseInt(numStr.replace(/,/g, ''), 10);
+        if (isNaN(num) || num < 1000) return match;
+
+        if (Math.abs(num - correctNumbers.annualCost) < correctNumbers.annualCost * 0.15 && num !== correctNumbers.annualCost) {
+          console.log(`[SA McKinsey] Fixed annual cost: £${numStr} → £${correctNumbers.annualCost.toLocaleString()}`);
+          return `£${correctNumbers.annualCost.toLocaleString()}`;
+        }
+        if (correctNumbers.benefit > 0 && Math.abs(num - correctNumbers.benefit) < correctNumbers.benefit * 0.15 && num !== correctNumbers.benefit) {
+          console.log(`[SA McKinsey] Fixed benefit: £${numStr} → £${correctNumbers.benefit.toLocaleString()}`);
+          return `£${correctNumbers.benefit.toLocaleString()}`;
+        }
+        if (correctNumbers.investment > 0 && Math.abs(num - correctNumbers.investment) < correctNumbers.investment * 0.30 && num !== correctNumbers.investment) {
+          console.log(`[SA McKinsey] Fixed investment: £${numStr} → £${correctNumbers.investment.toLocaleString()}`);
+          return `£${correctNumbers.investment.toLocaleString()}`;
+        }
+        return match;
+      });
+
+      const hoursRegex = /(\d+)\s*hours?\s*(reclaimed|reclaimable|saved|recovered|freed|back|weekly|per week|every week)/gi;
+      fixed = fixed.replace(hoursRegex, (match, numStr, suffix) => {
+        const num = parseInt(numStr, 10);
+        if (num !== correctNumbers.hours && num > 10 && Math.abs(num - correctNumbers.hours) > 2) {
+          console.log(`[SA McKinsey] Fixed hours: ${numStr} hours → ${correctNumbers.hours} hours`);
+          return `${correctNumbers.hours} hours ${suffix}`;
+        }
+        return match;
+      });
+
+      return fixed;
+    };
+
+    if (narratives.headline) narratives.headline = fixNumbers(narratives.headline);
+    if (narratives.executiveSummary) narratives.executiveSummary = fixNumbers(narratives.executiveSummary);
+    console.log('[SA McKinsey] Post-generation number correction applied');
 
     // Calculate totals
     const totalTokens = (report.llm_tokens_used || 0) + tokensUsed;

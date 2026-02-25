@@ -8,6 +8,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Layout } from '@/components/Layout';
+import { PageSkeleton } from '@/components/ui';
 import { useRoadmap, useTasks } from '@/hooks/useAnalysis';
 import { useWeeklyCheckIn, type LifeAlignmentSummary, type WeeklyCheckIn } from '@/hooks/useWeeklyCheckIn';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +41,10 @@ import { QuarterlyLifeCheck } from '@/components/sprint/QuarterlyLifeCheck';
 import { QuarterlyLifeCheckForm } from '@/components/QuarterlyLifeCheckForm';
 import { SprintSummaryClientView } from '@/components/SprintSummaryClientView';
 import { TuesdayCheckInCard } from '@/components/sprint/TuesdayCheckInCard';
+import { LifePulseCard } from '@/components/sprint/LifePulseCard';
+import { LifeAlignmentCard } from '@/components/sprint/LifeAlignmentCard';
+import { useLifeAlignment } from '@/hooks/useLifeAlignment';
+import { useProgress } from '@/hooks/useProgress';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
 import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
@@ -290,7 +295,7 @@ function HeroMetrics({
         <p className="text-4xl font-bold text-indigo-900">{sprintProgress.percentage}%</p>
         <div className="h-2 bg-indigo-200 rounded-full mt-3 overflow-hidden">
           <div
-            className="h-full bg-indigo-500 rounded-full transition-all duration-500"
+            className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-teal transition-all duration-700 ease-out"
             style={{ width: `${sprintProgress.percentage}%` }}
           />
         </div>
@@ -1059,6 +1064,7 @@ export default function SprintDashboardPage() {
   const { clientSession } = useAuth();
   const { roadmap, fetchRoadmap, loading: roadmapLoading } = useRoadmap();
   const { tasks, fetchTasks, updateTaskStatus } = useTasks();
+  const { recalculate: recalculateProgress } = useProgress();
   const {
     submit: submitCheckIn,
     fetchCheckIn,
@@ -1069,7 +1075,7 @@ export default function SprintDashboardPage() {
   } = useWeeklyCheckIn();
 
   const [scrollToWeek, setScrollToWeek] = useState<number | null>(null);
-  const [completingTask, setCompletingTask] = useState<{ id: string; title: string; week_number: number } | null>(null);
+  const [completingTask, setCompletingTask] = useState<{ id: string; title: string; week_number: number; category?: string } | null>(null);
   const [skippingTask, setSkippingTask] = useState<{
     dbTaskId: string | null;
     generatedTask: any;
@@ -1100,6 +1106,17 @@ export default function SprintDashboardPage() {
   const showSprintSummary = !!sprintSummaryFromRoadmap && allWeeksResolved;
 
   const gating = computeWeekGating(weeks, tasks);
+  const {
+    scores: lifeScores,
+    currentScore: lifeScore,
+    trend: lifeTrend,
+    categoryScores,
+    submitPulse,
+    hasPulseThisWeek,
+    recalculateScore,
+    loading: lifeLoading,
+  } = useLifeAlignment(currentSprintNumber, gating.activeWeek);
+
   const calendarWeek = getCalendarWeek(sprintStartDate);
   const catchUpState = useCatchUpDetection(
     sprintStartDate,
@@ -1343,7 +1360,12 @@ export default function SprintDashboardPage() {
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed', task?: any) => {
       if (newStatus === 'completed' && task) {
-        setCompletingTask({ id: taskId, title: task.title, week_number: task.week_number || 1 });
+        setCompletingTask({
+          id: taskId,
+          title: task.title,
+          week_number: task.week_number || 1,
+          category: task?.category,
+        });
       } else {
         await updateTaskStatus(taskId, newStatus);
       }
@@ -1353,10 +1375,40 @@ export default function SprintDashboardPage() {
 
   const handleTaskComplete = useCallback(
     async (taskId: string, feedback: { whatWentWell: string; whatDidntWork: string; additionalNotes: string }) => {
+      const task = completingTask;
+      const wasLifeTask = task?.category?.startsWith?.('life_');
       await updateTaskStatus(taskId, 'completed', feedback);
       setCompletingTask(null);
+      if (wasLifeTask && recalculateScore) {
+        recalculateScore();
+      }
+      try {
+        await recalculateProgress();
+      } catch (e) {
+        console.warn('Progress snapshot recalculate failed', e);
+      }
+      if (task && (clientSession?.clientId && clientSession?.practiceId)) {
+        const isMilestone =
+          task.title?.toLowerCase().includes('milestone') ||
+          (task as { deliverable?: boolean }).deliverable === true;
+        if (isMilestone) {
+          try {
+            await supabase.from('client_wins').insert({
+              client_id: clientSession.clientId,
+              practice_id: clientSession.practiceId,
+              sprint_number: currentSprintNumber,
+              week_number: task.week_number ?? undefined,
+              title: `Completed: ${task.title}`,
+              category: task.category?.startsWith('life_') ? 'life' : 'general',
+              source: 'auto',
+            });
+          } catch (err) {
+            console.warn('Auto-add client win failed', err);
+          }
+        }
+      }
     },
-    [updateTaskStatus]
+    [updateTaskStatus, completingTask, recalculateScore, recalculateProgress, clientSession?.clientId, clientSession?.practiceId, currentSprintNumber]
   );
 
   const lifeAlignment = getLifeAlignmentSummary();
@@ -1390,10 +1442,8 @@ export default function SprintDashboardPage() {
 
   if (roadmapLoading && !roadmap) {
     return (
-      <Layout title="Your Sprint" subtitle="Loading...">
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-        </div>
+      <Layout title="Your Sprint">
+        <PageSkeleton />
       </Layout>
     );
   }
@@ -1543,6 +1593,28 @@ export default function SprintDashboardPage() {
                 ].filter(Boolean).join(', ')}
               </span>
             </div>
+          )}
+          {/* Life Alignment — before Tuesday Check-In */}
+          {!isBehind && !completionState.isSprintComplete && (
+            <>
+              <LifeAlignmentCard
+                scores={lifeScores}
+                currentScore={lifeScore}
+                trend={lifeTrend}
+                categoryScores={categoryScores}
+              />
+              {!hasPulseThisWeek && (
+                <LifePulseCard
+                  sprintNumber={currentSprintNumber}
+                  weekNumber={gating.activeWeek}
+                  isCatchUp={isBehind}
+                  isSprintComplete={completionState.isSprintComplete}
+                  onSubmit={submitPulse}
+                  currentScore={lifeScore}
+                  loading={lifeLoading}
+                />
+              )}
+            </>
           )}
           {displayWeekData?.tuesdayCheckIn && !showSprintSummary && (
             <TuesdayCheckInCard
