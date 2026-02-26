@@ -18,6 +18,9 @@
 | [docs-DISCOVERY_ASSESSMENT_SYSTEM.md](./docs-DISCOVERY_ASSESSMENT_SYSTEM.md) | Assessment structure and questions |
 | [docs-DISCOVERY_AND_ANALYSIS_ARCHITECTURE.md](./docs-DISCOVERY_AND_ANALYSIS_ARCHITECTURE.md) | Data flow and analysis architecture |
 | [docs-DISCOVERY_ASSESSMENT_OVERVIEW.md](./docs-DISCOVERY_ASSESSMENT_OVERVIEW.md) | Service lines and skills mapping |
+| [BENCHMARKING_SERVICE_LINE_SUMMARY-COPY.md](./BENCHMARKING_SERVICE_LINE_SUMMARY-COPY.md) | Benchmarking service line (copy from benchmarking assessment analysis) |
+| [GOAL_ALIGNMENT_SUMMARY-COPY.md](./GOAL_ALIGNMENT_SUMMARY-COPY.md) | Goal Alignment architecture & workflows (copy from goal alignment analysis) |
+| [BUSINESS_INTELLIGENCE_SERVICE_LINE_SUMMARY.md](./BUSINESS_INTELLIGENCE_SERVICE_LINE_SUMMARY.md) | Business Intelligence service: tiers, Discovery→popup mapping |
 
 ---
 
@@ -38,6 +41,9 @@
 | `docs-DISCOVERY_LLM_OVERVIEW.md` | LLM integration details |
 | `docs-DISCOVERY_ANALYSIS_REFINEMENT.md` | Refinement history |
 | `SERVICE_LINE_FILES_REFERENCE.md` | Service line creation, allocation, pricing (all files + summaries) |
+| `BENCHMARKING_SERVICE_LINE_SUMMARY-COPY.md` | Benchmarking service line summary (copy from benchmarking assessment analysis) |
+| `GOAL_ALIGNMENT_SUMMARY-COPY.md` | Goal Alignment architecture & workflows (copy from goal alignment analysis) |
+| `BUSINESS_INTELLIGENCE_SERVICE_LINE_SUMMARY.md` | Business Intelligence: catalogue code, tiers, Discovery popup mapping |
 
 ### ⚡ Edge Functions - Main (9 files)
 

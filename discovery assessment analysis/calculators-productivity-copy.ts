@@ -15,6 +15,9 @@ import { IndustryBenchmark, getRevenuePerHeadStatus } from '../benchmarks/indust
 type ClientBusinessType = 
   | 'trading_product'
   | 'trading_agency'
+  | 'trading_construction'
+  | 'trading_recruitment'
+  | 'trading_hospitality'
   | 'professional_practice'
   | 'investment_vehicle'
   | 'funded_startup'

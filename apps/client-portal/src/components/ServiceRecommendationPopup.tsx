@@ -34,6 +34,21 @@ export interface ServiceRecommendationPopupProps {
   serviceData?: ServiceRecommendationPopupData;
 }
 
+/** Static fallback when service_catalogue has no row for this code (e.g. business_intelligence). */
+const STATIC_SERVICE_FALLBACK: Record<string, ServiceRecommendationPopupData> = {
+  business_intelligence: {
+    name: 'Business Intelligence',
+    displayName: 'Business Intelligence',
+    tagline: 'Know Your Numbers — Before It\'s Too Late',
+    shortDescription: 'Monthly financial clarity with P&L, True Cash position, project-level margin tracking, and a 90-day cash flow forecast. Delivered as a concise pack you can review in 10 minutes, plus a monthly call to turn the numbers into decisions.',
+    tiers: [
+      { tierCode: 'clarity', tierName: 'Clarity', shortDescription: 'Monthly reporting, True Cash, rolling KPI dashboard benchmarked against industry', priceDisplay: '£3,500/month' },
+      { tierCode: 'foresight', tierName: 'Foresight', shortDescription: 'Everything in Clarity plus rolling 90-day forecasts and scenario modelling', priceDisplay: '£4,500/month' },
+      { tierCode: 'strategic', tierName: 'Strategic', shortDescription: 'Full CFO-level financial partnership — strategy, forecasting, and board-level reporting', priceDisplay: 'from £7,000/month' },
+    ],
+  },
+};
+
 function getExampleUrl(url: string | undefined): string | null {
   if (!url) return null;
   if (url.startsWith('http')) return url;
@@ -74,6 +89,14 @@ export function ServiceRecommendationPopup({
     setError(null);
     (async () => {
       try {
+        if (STATIC_SERVICE_FALLBACK[code]) {
+          if (!cancelled) {
+            setServiceData(STATIC_SERVICE_FALLBACK[code]);
+            setError(null);
+            setLoading(false);
+          }
+          return;
+        }
         const { data: catalog, error: catalogError } = await supabase
           .from('service_catalogue')
           .select('id, code, name, display_name, tagline, short_description')
