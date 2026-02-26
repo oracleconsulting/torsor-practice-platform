@@ -1139,7 +1139,7 @@ export default function DiscoveryReportPage() {
                           </span>
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
+                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number; clientExplanation?: string }, idx: number) => {
                             const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
                             const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca, ratio.clientExplanation) || ratio.whatItMeans;
                             const hasExplanation = !!plainEnglish;
@@ -2039,7 +2039,7 @@ export default function DiscoveryReportPage() {
                       </span>
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
+                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number; clientExplanation?: string }, idx: number) => {
                         const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
                         const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca, ratio.clientExplanation) || ratio.whatItMeans;
                         return (
