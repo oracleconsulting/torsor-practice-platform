@@ -30,67 +30,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load client session data
   const loadClientSession = async (userId: string, force = false): Promise<boolean> => {
+    if (!userId) return false;
+
+    // Verify we have an active session before querying (avoids RLS timeout when auth not ready)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return false;
+    }
+
     // Skip if already loaded and not forcing refresh
     if (sessionLoadedRef.current && clientSession && !force) {
-      console.log('Client session already loaded, skipping query');
       return true;
     }
 
     // Prevent concurrent loads
     if (loadingRef.current) {
-      console.log('Already loading client session, skipping');
       return false;
     }
 
     loadingRef.current = true;
     setClientSessionLoading(true);
-    console.log('Loading client session for user:', userId);
 
     try {
-      console.log('Querying practice_members...');
-      
-      // Add timeout to prevent infinite hanging
-      const queryPromise = supabase
+      const { data, error } = await supabase
         .from('practice_members')
-        .select(`
-          id,
-          practice_id,
-          name,
-          email,
-          member_type,
-          program_status,
-          program_enrolled_at,
-          client_company,
-          assigned_advisor_id
-        `)
+        .select('id, practice_id, name, email, member_type, program_status, program_enrolled_at, client_company, assigned_advisor_id')
         .eq('user_id', userId)
         .eq('member_type', 'client')
         .maybeSingle();
-      
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Query timeout after 25s')), 25000)
-      );
-      
-      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-
-      console.log('Query result:', { data, error });
 
       if (error) {
         console.error('Client session query error:', error);
-        // Don't clear existing session on error - keep what we have
-        if (!clientSession) {
-          setClientSession(null);
-        }
+        if (!clientSession) setClientSession(null);
         return false;
       }
 
       if (!data) {
-        console.log('No client record found for user - they may be a team member');
         setClientSession(null);
         return false;
       }
-
-      console.log('Client data found:', data);
 
       // Get advisor data if assigned (don't block on this)
       let advisor = null;
@@ -102,8 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .eq('id', data.assigned_advisor_id)
             .maybeSingle();
           advisor = advisorData;
-        } catch (e) {
-          console.log('Could not load advisor data:', e);
+        } catch {
+          // ignore
         }
       }
 
@@ -119,10 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         enrolledServices = (enrollments || [])
           .filter((e: any) => e.service_line?.code)
           .map((e: any) => e.service_line.code);
-        
-        console.log('Enrolled services:', enrolledServices);
-      } catch (e) {
-        console.log('Could not load enrolled services:', e);
+      } catch {
+        // ignore
       }
 
       const newSession: ClientSession = {
@@ -140,8 +116,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setClientSession(newSession);
       sessionLoadedRef.current = true;
 
-      console.log('Client session set successfully');
-
       // Update last login (don't await, fire and forget)
       // REVERT: Original working code only used .eq('id', data.id)
       // The RLS policy handles user_id check automatically via auth.uid()
@@ -149,26 +123,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('practice_members')
         .update({ last_portal_login: new Date().toISOString() })
         .eq('id', data.id)
-        .then(
-          (result) => {
-            if (result.error) {
-              console.error('Failed to update last login:', result.error);
-            } else {
-              console.log('Updated last login');
-            }
-          },
-          (err) => console.error('Last login update exception:', err)
-        );
+        .then((result) => { if (result.error) console.error('Failed to update last login:', result.error); }, () => {});
 
       return true;
     } catch (error) {
       console.error('Error loading client session:', error);
-      // On timeout/error, DON'T clear existing session - keep what we have
-      if (!clientSession) {
-        console.log('No existing session to preserve');
-      } else {
-        console.log('Preserving existing client session despite error');
-      }
+      if (!clientSession) setClientSession(null);
       return false;
     } finally {
       loadingRef.current = false;
@@ -188,29 +148,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function initAuth() {
       try {
-        console.log('Initializing auth...');
         const { data: { session }, error } = await supabase.auth.getSession();
-        
         if (!isMounted) return;
-        
         if (error) {
           console.error('Auth error:', error);
           setLoading(false);
           return;
         }
-
-        console.log('Got session:', session?.user?.id);
         setSession(session);
         setUser(session?.user ?? null);
-
-        if (session?.user) {
+        if (session?.user?.id) {
           await loadClientSession(session.user.id);
         }
-        
-        if (isMounted) {
-          console.log('Init complete, setting loading false');
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       } catch (error) {
         console.error('Init auth error:', error);
         if (isMounted) {
@@ -224,31 +174,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for subsequent auth changes (sign in/out)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id);
-        
         if (!isMounted) return;
-        
-        // Always update the auth session
         setSession(session);
         setUser(session?.user ?? null);
-        
-        // Only reload client session on actual sign in/out, NOT token refreshes
-        if (event === 'SIGNED_IN') {
-          // New sign in - need to load client session
-          if (session?.user) {
-            await loadClientSession(session.user.id);
-          }
+        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && session?.user?.id) {
+          await loadClientSession(session.user.id);
           setLoading(false);
         } else if (event === 'SIGNED_OUT') {
-          // Clear everything on sign out
           setClientSession(null);
           sessionLoadedRef.current = false;
           setLoading(false);
-        } else if (event === 'TOKEN_REFRESHED') {
-          // Don't re-query on token refresh - keep existing session
-          console.log('Token refreshed, keeping existing client session');
-        } else if (event === 'INITIAL_SESSION') {
-          // Skip - handled in initAuth
         }
       }
     );

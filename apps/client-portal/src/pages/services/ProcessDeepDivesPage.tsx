@@ -153,78 +153,62 @@ export default function ProcessDeepDivesPage() {
       setSaSubmissionLocked((engagement as any)?.submission_status === 'submitted');
       setSaSubmittedAt((engagement as any)?.submitted_at ?? null);
 
-      // Check if Stage 3 is complete - if so, check report status
-      if (engagement.status === 'stage_3_complete' || engagement.status === 'analysis_complete' || engagement.status === 'completed') {
-        const { data: reportData, error: reportError } = await supabase
-          .from('sa_audit_reports')
+      const needsReportCheck = engagement.status === 'stage_3_complete' || engagement.status === 'analysis_complete' || engagement.status === 'completed';
+      const [chainsResult, divesResult, reportResult] = await Promise.all([
+        supabase
+          .from('sa_process_chains')
           .select('*')
-          .eq('engagement_id', engagement.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        console.log('🔍 ProcessDeepDivesPage - Report check:', {
-          reportData,
-          reportError,
-          engagementId: engagement.id,
-          hasReport: !!reportData,
-          reportStatus: reportData?.status
-        });
-        
-        if (reportError) {
-          console.error('❌ Error fetching report in ProcessDeepDivesPage:', reportError);
-        }
-        
-        if (reportData) {
-          setReport(reportData);
-          setReportStatus(reportData.status);
-          console.log('✅ Report loaded. Status:', reportData.status, 'Approved?', 
-            reportData.status === 'approved' || reportData.status === 'published' || reportData.status === 'delivered');
+          .or(`is_core.eq.true,and(engagement_id.eq.${engagement.id},chain_status.eq.active)`)
+          .order('display_order', { ascending: true }),
+        supabase
+          .from('sa_process_deep_dives')
+          .select('*')
+          .eq('engagement_id', engagement.id),
+        needsReportCheck
+          ? supabase
+              .from('sa_audit_reports')
+              .select('*')
+              .eq('engagement_id', engagement.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
 
-          // If report is shared with client, redirect to the dedicated report page (not Stage 3)
-          const reportAvailable = ['approved', 'published', 'delivered'].includes(reportData.status);
-          if (engagement.is_shared_with_client && reportAvailable) {
-            navigate('/service/systems_audit/report', { replace: true });
-            return;
-          }
-        } else {
-          console.log('⚠️ No report found for engagement', reportError ? { error: reportError.message, code: reportError.code } : '(no error – RLS may block client select)');
-          setReportStatus(null);
-          // If report is shared but we got no report (e.g. RLS or timing), still send client to report page so they see the proper UI and any error there
-          if (engagement.is_shared_with_client) {
-            navigate('/service/systems_audit/report', { replace: true });
-            return;
-          }
-        }
-      }
-
-      // Fetch process chains: core (global) + engagement-specific active custom chains
-      const { data: chains, error: chainsError } = await supabase
-        .from('sa_process_chains')
-        .select('*')
-        .or(`is_core.eq.true,and(engagement_id.eq.${engagement.id},chain_status.eq.active)`)
-        .order('display_order', { ascending: true });
-
-      if (chainsError) {
-        console.error('Error fetching process chains:', chainsError);
+      if (chainsResult.error) {
+        console.error('Error fetching process chains:', chainsResult.error);
       } else {
-        setProcessChains(chains || []);
+        setProcessChains(chainsResult.data || []);
       }
-
-      // Fetch existing deep dives
-      const { data: dives, error: divesError } = await supabase
-        .from('sa_process_deep_dives')
-        .select('*')
-        .eq('engagement_id', engagement.id);
-
-      if (divesError) {
-        console.error('Error fetching deep dives:', divesError);
+      if (divesResult.error) {
+        console.error('Error fetching deep dives:', divesResult.error);
       } else {
         const divesMap: Record<string, ProcessDeepDive> = {};
-        (dives || []).forEach(dive => {
+        (divesResult.data || []).forEach((dive: any) => {
           divesMap[dive.chain_code] = dive;
         });
         setDeepDives(divesMap);
+      }
+
+      const reportData = reportResult.data;
+      const reportError = reportResult.error;
+      if (reportError) {
+        console.error('Error fetching report:', reportError);
+      }
+      if (reportData) {
+        setReport(reportData);
+        setReportStatus(reportData.status);
+        const reportAvailable = ['approved', 'published', 'delivered'].includes(reportData.status);
+        if (engagement.is_shared_with_client && reportAvailable) {
+          navigate('/service/systems_audit/report', { replace: true });
+          return;
+        }
+      } else if (needsReportCheck) {
+        setReportStatus(null);
+        if (engagement.is_shared_with_client) {
+          navigate('/service/systems_audit/report', { replace: true });
+          return;
+        }
       }
 
     } catch (err) {
