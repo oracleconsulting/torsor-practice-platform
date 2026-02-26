@@ -31,10 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Load client session data
   const loadClientSession = async (userId: string, force = false): Promise<boolean> => {
     if (!userId) return false;
+    console.log('Loading client session for:', userId?.slice(0, 8));
 
     // Verify we have an active session before querying (avoids RLS timeout when auth not ready)
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
+      console.log('No active session, skipping');
       return false;
     }
 
@@ -58,6 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('user_id', userId)
         .eq('member_type', 'client')
         .maybeSingle();
+
+      console.log('Client session result:', !!data, error?.message);
 
       if (error) {
         console.error('Client session query error:', error);
@@ -149,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function initAuth() {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
+        console.log('Auth session:', !!session, session?.user?.id?.slice(0, 8));
         if (!isMounted) return;
         if (error) {
           console.error('Auth error:', error);

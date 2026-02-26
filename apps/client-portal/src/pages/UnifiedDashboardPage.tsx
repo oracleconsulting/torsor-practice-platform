@@ -75,7 +75,7 @@ const SERVICE_COLORS: Record<string, { bg: string; text: string; border: string 
 const isBIService = (code: string) => code === 'management_accounts' || code === 'business_intelligence';
 
 export default function UnifiedDashboardPage() {
-  const { clientSession } = useAuth();
+  const { clientSession, clientSessionLoading } = useAuth();
   const { progress: assessmentProgress, loading: progressLoading } = useAssessmentProgress();
   const navigate = useNavigate();
   
@@ -128,6 +128,13 @@ export default function UnifiedDashboardPage() {
       loadDashboardData();
     }
   }, [clientId]);
+
+  // Safety net: if auth completes but no client session, stop loading
+  useEffect(() => {
+    if (!clientSessionLoading && !clientId) {
+      setLoading(false);
+    }
+  }, [clientSessionLoading, clientId]);
 
   const loadDashboardData = async () => {
     const startTime = performance.now();
