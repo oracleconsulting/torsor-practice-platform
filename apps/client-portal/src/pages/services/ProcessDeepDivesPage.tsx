@@ -114,12 +114,11 @@ export default function ProcessDeepDivesPage() {
 
       if (engError && (engError as { code?: string }).code !== 'PGRST116') {
         console.error('Error fetching engagement:', engError);
-        setError('Failed to load engagement');
         setLoading(false);
         return;
       }
 
-      let engagement = engagementData;
+      let engagement: NonNullable<typeof engagementData> | null = engagementData;
       if (!engagement) {
         console.log('📝 No engagement found, creating one for Stage 3 access...');
         const { data: newEngagement, error: createError } = await supabase
@@ -134,11 +133,15 @@ export default function ProcessDeepDivesPage() {
 
         if (createError || !newEngagement) {
           console.error('Error creating engagement:', createError);
-          setError('Failed to initialize engagement');
           setLoading(false);
           return;
         }
-        engagement = newEngagement as typeof engagementData;
+        engagement = newEngagement as NonNullable<typeof engagementData>;
+      }
+
+      if (!engagement) {
+        setLoading(false);
+        return;
       }
 
       setEngagementId(engagement.id);
