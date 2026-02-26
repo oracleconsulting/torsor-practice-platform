@@ -2,7 +2,7 @@
 // SYSTEMS AUDIT - STAGE 3: PROCESS DEEP DIVES
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -93,6 +93,10 @@ export default function ProcessDeepDivesPage() {
   const [saSubmittedAt, setSaSubmittedAt] = useState<string | null>(null);
   const [reportStatus, setReportStatus] = useState<string | null>(null);
   const [report, setReport] = useState<any>(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
 
   useEffect(() => {
     loadData();
@@ -230,17 +234,51 @@ export default function ProcessDeepDivesPage() {
     }
   };
 
+  const autoSaveDraft = async () => {
+    if (!engagementId || !selectedChain || Object.keys(responses).length === 0) return;
+    try {
+      const { error } = await supabase
+        .from('sa_process_deep_dives')
+        .upsert({
+          engagement_id: engagementId,
+          chain_code: selectedChain,
+          responses,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'engagement_id,chain_code' });
+      if (!error) {
+        setLastSaved(new Date());
+      } else {
+        console.error('Auto-save error:', error);
+      }
+    } catch (err) {
+      console.error('Auto-save failed:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isInitialLoadRef.current || !selectedChain || !engagementId) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (Object.keys(responses).length > 0) autoSaveDraft();
+    }, 2000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [responses, selectedChain, engagementId]);
+
   const handleSelectChain = (chainCode: string) => {
     setSelectedChain(chainCode);
     setCurrentSection(0);
-    
-    // Load existing responses if available
+    setLastSaved(null);
     const existingDive = deepDives[chainCode];
     if (existingDive && existingDive.responses) {
       setResponses(existingDive.responses);
     } else {
       setResponses({});
     }
+    setTimeout(() => {
+      isInitialLoadRef.current = false;
+    }, 100);
   };
 
   const handleResponseChange = (field: string, value: any) => {
@@ -376,11 +414,12 @@ export default function ProcessDeepDivesPage() {
     );
   }
 
-  // Show "coming soon" if Stage 3 is complete but report is not approved
-  if ((engagementStatus === 'stage_3_complete' || engagementStatus === 'analysis_complete' || engagementStatus === 'completed') && 
-      reportStatus && 
-      reportStatus !== 'approved' && 
-      reportStatus !== 'published' && 
+  // Show "coming soon" if Stage 3 is complete but report is not approved (unless user chose Edit My Answers)
+  if (!editMode &&
+      (engagementStatus === 'stage_3_complete' || engagementStatus === 'analysis_complete' || engagementStatus === 'completed') &&
+      reportStatus &&
+      reportStatus !== 'approved' &&
+      reportStatus !== 'published' &&
       reportStatus !== 'delivered') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -389,19 +428,27 @@ export default function ProcessDeepDivesPage() {
             <Clock className="w-16 h-16 text-indigo-600 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Systems Audit Report is Coming Soon</h2>
             <p className="text-gray-600 mb-4">
-              Thank you for completing all three stages of the Systems Audit assessment. 
-              Our team is currently reviewing your responses and generating your personalized report.
+              Thank you for completing all three stages. Our team is currently reviewing
+              your responses and generating your personalized report.
             </p>
             <p className="text-gray-500 text-sm">
               You'll be notified as soon as your report is ready for review.
             </p>
           </div>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-          >
-            Return to Dashboard
-          </button>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => setEditMode(true)}
+              className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              Edit My Answers
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+              Return to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -649,6 +696,8 @@ export default function ProcessDeepDivesPage() {
                 setSelectedChain(null);
                 setResponses({});
                 setCurrentSection(0);
+                isInitialLoadRef.current = true;
+                setLastSaved(null);
               }}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
             >
@@ -661,6 +710,12 @@ export default function ProcessDeepDivesPage() {
                 <p className="text-gray-600">{config.description}</p>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-500">
+                {lastSaved && (
+                  <span className="text-xs text-slate-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+                    Progress saved
+                  </span>
+                )}
                 <Clock className="w-4 h-4" />
                 <span>~{config.estimatedMins} minutes</span>
               </div>
@@ -773,7 +828,10 @@ export default function ProcessDeepDivesPage() {
           {/* Navigation */}
           <div className="flex justify-between">
             <button
-              onClick={() => setCurrentSection(Math.max(0, currentSection - 1))}
+              onClick={() => {
+                autoSaveDraft();
+                setCurrentSection(Math.max(0, currentSection - 1));
+              }}
               disabled={isFirstSection || saSubmissionLocked}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -796,7 +854,10 @@ export default function ProcessDeepDivesPage() {
               </button>
             ) : (
               <button
-                onClick={() => setCurrentSection(currentSection + 1)}
+                onClick={() => {
+                  autoSaveDraft();
+                  setCurrentSection(currentSection + 1);
+                }}
                 disabled={saSubmissionLocked}
                 className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
               >
@@ -820,6 +881,12 @@ export default function ProcessDeepDivesPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto p-6">
+        {editMode && (engagementStatus === 'stage_3_complete' || engagementStatus === 'analysis_complete') && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-amber-700">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span className="text-sm">You're editing completed answers. Changes will be saved but may not be reflected in a report that's already been generated.</span>
+          </div>
+        )}
         {/* Header */}
         <div className="mb-6">
           <button

@@ -320,6 +320,7 @@ export default function ServiceAssessmentPage() {
     } catch (err) {
       console.log('No existing assessment');
     } finally {
+      isInitialLoadRef.current = false;
       setLoading(false);
     }
   };
@@ -946,8 +947,10 @@ export default function ServiceAssessmentPage() {
     return false;
   };
 
-  if (completed) {
-    // Check if this is Systems Audit and Stage 1 is complete
+  const showCompletionBanner = completed && serviceCode === 'systems_audit';
+
+  // Only show the locked completion screen for NON-SA services
+  if (completed && serviceCode !== 'systems_audit') {
     const isSystemsAudit = serviceCode === 'systems_audit';
     
     return (
@@ -998,6 +1001,14 @@ export default function ServiceAssessmentPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {showCompletionBanner && (
+        <div className="bg-emerald-50 border-b border-emerald-200">
+          <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-2 text-emerald-700">
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            <span className="text-sm font-medium">Stage 1 submitted — you can still edit your answers</span>
+          </div>
+        </div>
+      )}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
@@ -1060,17 +1071,31 @@ export default function ServiceAssessmentPage() {
             <ArrowLeft className="w-4 h-4" />Previous
           </button>
           {currentSection === assessment.sections.length - 1 ? (
-            <button 
-              onClick={() => {
-                console.log('🖱️ Complete button clicked!');
-                console.log('📋 Button state:', { isAllComplete, saving, assessmentCode: assessment.code });
-                handleComplete();
-              }} 
-              disabled={!isAllComplete || saving || (serviceCode === 'systems_audit' && saSubmissionLocked)} 
-              className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg disabled:bg-gray-300"
-            >
-              {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Submitting...</> : <><Check className="w-4 h-4" />Complete</>}
-            </button>
+            showCompletionBanner ? (
+              <button
+                onClick={async () => {
+                  await saveProgress();
+                  setSaving(true);
+                  setTimeout(() => setSaving(false), 1000);
+                }}
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300"
+              >
+                {saving ? 'Saving...' : 'Update Answers'}
+              </button>
+            ) : (
+              <button 
+                onClick={() => {
+                  console.log('🖱️ Complete button clicked!');
+                  console.log('📋 Button state:', { isAllComplete, saving, assessmentCode: assessment.code });
+                  handleComplete();
+                }} 
+                disabled={!isAllComplete || saving || (serviceCode === 'systems_audit' && saSubmissionLocked)} 
+                className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-lg disabled:bg-gray-300"
+              >
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Submitting...</> : <><Check className="w-4 h-4" />Complete</>}
+              </button>
+            )
           ) : (
             <button onClick={() => handleNav(1)} disabled={!isSectionComplete} className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg disabled:bg-gray-300">
               Next<ArrowRight className="w-4 h-4" />
