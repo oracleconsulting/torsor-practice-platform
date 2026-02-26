@@ -138,8 +138,10 @@ function getPlainEnglish(
   label: string,
   value: number | string | null,
   status: string,
-  ca: any
+  ca: any,
+  clientExplanation?: string
 ): string {
+  if (clientExplanation) return clientExplanation;
   const numValue = typeof value === 'number' ? value : value != null ? parseFloat(String(value).replace(/[^\d.-]/g, '')) : NaN;
   if (label === 'Current Ratio') {
     const pence = Number.isFinite(numValue) ? Math.round(numValue * 100) : 52;
@@ -1139,7 +1141,7 @@ export default function DiscoveryReportPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
                             const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
-                            const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca) || ratio.whatItMeans;
+                            const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca, ratio.clientExplanation) || ratio.whatItMeans;
                             const hasExplanation = !!plainEnglish;
                             return (
                               <div key={idx} className="bg-white/60 rounded-lg p-3">
@@ -2039,7 +2041,7 @@ export default function DiscoveryReportPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
                         const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
-                        const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca) || ratio.whatItMeans;
+                        const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca, ratio.clientExplanation) || ratio.whatItMeans;
                         return (
                           <div key={idx} className="bg-white/60 rounded-lg p-3">
                             <div className="flex items-center justify-between mb-1">
