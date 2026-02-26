@@ -48,8 +48,8 @@ function journeyPhaseToCatalogueCode(phase: { enabledBy?: string; enabledByCode?
   const map: Record<string, string> = {
     'BENCHMARKING': 'benchmarking', 'BENCHMARKING_DEEP_DIVE': 'benchmarking',
     'SYSTEMS_AUDIT': 'systems_audit', 'GOAL_ALIGNMENT': 'goal_alignment', '365_METHOD': 'goal_alignment',
-    'FRACTIONAL_CFO': 'fractional_cfo', 'PROFIT_EXTRACTION': 'profit_extraction', 'QUARTERLY_BI': 'quarterly_bi',
-    'MANAGEMENT_ACCOUNTS': 'quarterly_bi', 'HIDDEN_VALUE_AUDIT': 'benchmarking',
+    'FRACTIONAL_CFO': 'fractional_cfo', 'PROFIT_EXTRACTION': 'profit_extraction', 'BUSINESS_INTELLIGENCE': 'business_intelligence',
+    'QUARTERLY_BI': 'quarterly_bi', 'MANAGEMENT_ACCOUNTS': 'business_intelligence', 'HIDDEN_VALUE_AUDIT': 'benchmarking',
     'IHT_PLANNING': 'iht_planning', 'PROPERTY_HEALTH_CHECK': 'property_health_check',
     'WEALTH_TRANSFER_STRATEGY': 'wealth_transfer_strategy', 'PROPERTY_MANAGEMENT_SOURCING': 'property_management_sourcing',
   };
@@ -60,7 +60,8 @@ function journeyPhaseToCatalogueCode(phase: { enabledBy?: string; enabledByCode?
   if (name.includes('goal') || name.includes('alignment') || name.includes('365')) return 'goal_alignment';
   if (name.includes('fractional cfo')) return 'fractional_cfo';
   if (name.includes('profit extraction')) return 'profit_extraction';
-  if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+  if (name.includes('business intelligence') || name.includes('management account')) return 'business_intelligence';
+  if (name.includes('quarterly') || name.includes('bi ')) return 'quarterly_bi';
   if (name.includes('iht') || name.includes('inheritance')) return 'iht_planning';
   if (name.includes('property') && name.includes('health')) return 'property_health_check';
   if (name.includes('wealth') && name.includes('transfer')) return 'wealth_transfer_strategy';
