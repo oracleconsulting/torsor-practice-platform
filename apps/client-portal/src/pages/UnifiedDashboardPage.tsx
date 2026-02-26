@@ -220,25 +220,25 @@ export default function UnifiedDashboardPage() {
       if (engagement?.id) {
         batch2Keys.push('maPeriod', 'biPeriod', 'monthlyInsight');
         batch2Promises.push(
-          supabase.from('ma_periods').select('id, status, period_label, delivered_at').eq('engagement_id', engagement.id).eq('status', 'delivered').order('period_end', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('bi_periods').select('id, status, period_label, delivered_at').eq('engagement_id', engagement.id).eq('status', 'delivered').order('period_end', { ascending: false }).limit(1).maybeSingle(),
-          supabase.from('ma_monthly_insights').select('*').eq('engagement_id', engagement.id).eq('shared_with_client', true).is('snapshot_id', null).order('period_end_date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          Promise.resolve(supabase.from('ma_periods').select('id, status, period_label, delivered_at').eq('engagement_id', engagement.id).eq('status', 'delivered').order('period_end', { ascending: false }).limit(1).maybeSingle()),
+          Promise.resolve(supabase.from('bi_periods').select('id, status, period_label, delivered_at').eq('engagement_id', engagement.id).eq('status', 'delivered').order('period_end', { ascending: false }).limit(1).maybeSingle()),
+          Promise.resolve(supabase.from('ma_monthly_insights').select('*').eq('engagement_id', engagement.id).eq('shared_with_client', true).is('snapshot_id', null).order('period_end_date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle()),
         );
       }
       if (saEngagement?.stage_3_completed_at) {
         batch2Keys.push('saReports');
         batch2Promises.push(
-          supabase.from('sa_audit_reports').select('id, status, created_at, engagement_id').eq('engagement_id', saEngagement.id).in('status', ['approved', 'published', 'delivered']).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          Promise.resolve(supabase.from('sa_audit_reports').select('id, status, created_at, engagement_id').eq('engagement_id', saEngagement.id).in('status', ['approved', 'published', 'delivered']).order('created_at', { ascending: false }).limit(1).maybeSingle()),
         );
       }
       if (!discovery && practiceId) {
         batch2Keys.push('discoveryFallback');
-        batch2Promises.push(supabase.from('destination_discovery').select('id, client_id, completed_at, created_at, practice_id').eq('practice_id', practiceId));
+        batch2Promises.push(Promise.resolve(supabase.from('destination_discovery').select('id, client_id, completed_at, created_at, practice_id').eq('practice_id', practiceId)));
       }
       const hasGA = enrollments?.some((e: any) => e.service_line?.code === '365_method' || e.service_line?.code === '365_alignment');
       if (hasGA) {
         batch2Keys.push('gaServiceLine');
-        batch2Promises.push(supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle());
+        batch2Promises.push(Promise.resolve(supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle()));
       }
       const batch2Results = batch2Promises.length > 0 ? await Promise.all(batch2Promises) : [];
       const batch2Map: Record<string, any> = {};
