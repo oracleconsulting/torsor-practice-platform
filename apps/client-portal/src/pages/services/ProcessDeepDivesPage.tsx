@@ -106,16 +106,39 @@ export default function ProcessDeepDivesPage() {
 
     try {
       // Fetch engagement (include is_shared_with_client for redirect when report is shared)
-      const { data: engagement, error: engError } = await supabase
+      const { data: engagementData, error: engError } = await supabase
         .from('sa_engagements')
         .select('id, status, is_shared_with_client, submission_status, submitted_at')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
 
-      if (engError || !engagement) {
+      if (engError && (engError as { code?: string }).code !== 'PGRST116') {
         console.error('Error fetching engagement:', engError);
+        setError('Failed to load engagement');
         setLoading(false);
         return;
+      }
+
+      let engagement = engagementData;
+      if (!engagement) {
+        console.log('📝 No engagement found, creating one for Stage 3 access...');
+        const { data: newEngagement, error: createError } = await supabase
+          .from('sa_engagements')
+          .insert({
+            client_id: clientSession.clientId,
+            practice_id: clientSession.practiceId,
+            status: 'in_progress',
+          })
+          .select('id, status, is_shared_with_client')
+          .single();
+
+        if (createError || !newEngagement) {
+          console.error('Error creating engagement:', createError);
+          setError('Failed to initialize engagement');
+          setLoading(false);
+          return;
+        }
+        engagement = newEngagement as typeof engagementData;
       }
 
       setEngagementId(engagement.id);

@@ -1130,19 +1130,15 @@ export default function UnifiedDashboardPage() {
       if (saReportShared) {
         return { label: 'Report Ready', color: 'emerald', icon: FileText };
       }
-      if (systemsAuditStage?.submissionStatus === 'submitted') {
-        return { label: 'Submitted — awaiting analysis', color: 'blue', icon: Clock };
-      }
-      if (systemsAuditStage?.stage3Complete && systemsAuditStage?.reportApproved) {
-        return { label: 'View Report', color: 'emerald', icon: FileText };
-      } else if (systemsAuditStage?.stage3Complete) {
-        return { label: 'Ready to review & submit', color: 'amber', icon: Clock };
-      } else if (systemsAuditStage?.stage2Complete) {
-        return { label: 'Continue to Stage 3', color: 'cyan', icon: ArrowRight };
-      } else if (systemsAuditStage?.stage1Complete) {
-        return { label: 'Continue to Stage 2', color: 'cyan', icon: ArrowRight };
+      const stagesComplete = (systemsAuditStage?.stage1Complete ? 1 : 0) +
+        (systemsAuditStage?.stage2Complete ? 1 : 0) +
+        (systemsAuditStage?.stage3Complete ? 1 : 0);
+      if (stagesComplete === 3) {
+        return { label: 'All Stages Complete', color: 'emerald', icon: CheckCircle };
+      } else if (stagesComplete > 0) {
+        return { label: `${stagesComplete}/3 Stages Complete`, color: 'cyan', icon: ArrowRight };
       } else {
-        return { label: 'Start Stage 1', color: 'indigo', icon: Play };
+        return { label: 'Get Started', color: 'indigo', icon: Play };
       }
     }
     
@@ -1263,6 +1259,125 @@ export default function UnifiedDashboardPage() {
                     {service.serviceDescription || 'Complete your assessment to unlock personalized insights.'}
                   </p>
 
+                  {/* Systems Audit Stage Breakdown */}
+                  {service.serviceCode === 'systems_audit' && !saReportShared && (
+                    <div className="space-y-2 mb-4">
+                      {/* Stage 1: Discovery Assessment */}
+                      <Link
+                        to="/service/systems_audit/assessment"
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                          systemsAuditStage?.stage1Complete
+                            ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            systemsAuditStage?.stage1Complete
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-purple-100 text-purple-600'
+                          }`}>
+                            {systemsAuditStage?.stage1Complete ? '✓' : '1'}
+                          </div>
+                          <div>
+                            <p className={`text-sm font-medium ${
+                              systemsAuditStage?.stage1Complete ? 'text-emerald-800' : 'text-slate-800'
+                            }`}>
+                              Discovery Assessment
+                            </p>
+                            <p className="text-xs text-slate-500">Your business, goals & pain points</p>
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 ${
+                          systemsAuditStage?.stage1Complete ? 'text-emerald-400' : 'text-slate-400'
+                        }`} />
+                      </Link>
+
+                      {/* Stage 2: System Inventory */}
+                      <Link
+                        to="/service/systems_audit/inventory"
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                          systemsAuditStage?.stage2Complete
+                            ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            systemsAuditStage?.stage2Complete
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-purple-100 text-purple-600'
+                          }`}>
+                            {systemsAuditStage?.stage2Complete ? '✓' : '2'}
+                          </div>
+                          <div>
+                            <p className={`text-sm font-medium ${
+                              systemsAuditStage?.stage2Complete ? 'text-emerald-800' : 'text-slate-800'
+                            }`}>
+                              System Inventory
+                            </p>
+                            <p className="text-xs text-slate-500">Map your current tech stack</p>
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 ${
+                          systemsAuditStage?.stage2Complete ? 'text-emerald-400' : 'text-slate-400'
+                        }`} />
+                      </Link>
+
+                      {/* Stage 3: Process Deep Dives */}
+                      <Link
+                        to="/service/systems_audit/process-deep-dives"
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                          systemsAuditStage?.stage3Complete
+                            ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            systemsAuditStage?.stage3Complete
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-purple-100 text-purple-600'
+                          }`}>
+                            {systemsAuditStage?.stage3Complete ? '✓' : '3'}
+                          </div>
+                          <div>
+                            <p className={`text-sm font-medium ${
+                              systemsAuditStage?.stage3Complete ? 'text-emerald-800' : 'text-slate-800'
+                            }`}>
+                              Process Deep Dives
+                            </p>
+                            <p className="text-xs text-slate-500">How your key workflows actually run</p>
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 ${
+                          systemsAuditStage?.stage3Complete ? 'text-emerald-400' : 'text-slate-400'
+                        }`} />
+                      </Link>
+
+                      {/* Progress summary */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                            style={{
+                              width: `${(
+                                (systemsAuditStage?.stage1Complete ? 1 : 0) +
+                                (systemsAuditStage?.stage2Complete ? 1 : 0) +
+                                (systemsAuditStage?.stage3Complete ? 1 : 0)
+                              ) / 3 * 100}%`
+                            }}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500 whitespace-nowrap">
+                          {(systemsAuditStage?.stage1Complete ? 1 : 0) +
+                           (systemsAuditStage?.stage2Complete ? 1 : 0) +
+                           (systemsAuditStage?.stage3Complete ? 1 : 0)}/3 complete
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Goal Alignment card body */}
                   {(service.serviceCode === '365_method' || service.serviceCode === '365_alignment') && (
                     <>
@@ -1353,7 +1468,8 @@ export default function UnifiedDashboardPage() {
                     </>
                   )}
 
-                  {/* Action Button */}
+                  {/* Action Button — hide for SA when sub-stages are shown (report not shared) */}
+                  {(service.serviceCode !== 'systems_audit' || saReportShared) && (
                   <Link
                     to={link}
                     className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${
@@ -1401,6 +1517,7 @@ export default function UnifiedDashboardPage() {
                       </>
                     )}
                   </Link>
+                  )}
                 </div>
               </div>
             );
