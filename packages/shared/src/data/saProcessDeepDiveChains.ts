@@ -48,6 +48,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'pdf_template', label: 'PDF template' },
             { value: 'from_scratch', label: 'From scratch each time' },
             { value: 'accounting_software', label: 'Within accounting software' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -74,6 +75,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'mostly_standard', label: 'Mostly standard with some customisation' },
             { value: 'project_based', label: 'Project-based estimates each time' },
             { value: 'fully_custom', label: 'Fully custom every time' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -120,6 +122,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'yes_one_backup', label: 'Yes — one backup person' },
             { value: 'no_single_point', label: 'No — only one person can do it' },
             { value: 'templates_help', label: 'Templates exist but nobody else has done it' },
+            { value: 'other', label: 'Other' },
           ],
         },
       ],
@@ -144,6 +147,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'completion', label: 'Work completion' },
             { value: 'recurring', label: 'Recurring schedule' },
             { value: 'manual', label: 'Manual decision' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -156,6 +160,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'word_excel', label: 'Word/Excel template' },
             { value: 'crm_integration', label: 'Auto-generated from CRM' },
             { value: 'project_tool', label: 'From project management tool' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -174,6 +179,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'email_auto', label: 'Email - automated from system' },
             { value: 'portal', label: 'Client portal' },
             { value: 'post', label: 'Post' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -214,6 +220,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: '30_days', label: '30 days' },
             { value: '60_days', label: '60 days' },
             { value: 'varies', label: 'Varies by client' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -227,6 +234,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'card', label: 'Card payment' },
             { value: 'cheque', label: 'Cheque' },
             { value: 'cash', label: 'Cash' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -239,6 +247,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'semi_automated', label: 'Semi-automated (triggered manually)' },
             { value: 'manual', label: 'No - all manual' },
             { value: 'none', label: 'We don\'t send reminders' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -263,6 +272,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'yes_regularly', label: 'Yes - regularly' },
             { value: 'yes_rarely', label: 'Yes - rarely' },
             { value: 'no', label: 'No' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -295,6 +305,7 @@ const quoteToCashConfig: ProcessChainConfig = {
             { value: 'partially', label: 'Partially — some notes exist but gaps' },
             { value: 'tribal', label: 'No — it\'s all in people\'s heads' },
             { value: 'chaos', label: 'No — and honestly even we struggle with it' },
+            { value: 'other', label: 'Other' },
           ],
           aiAnchor: true,
         },
@@ -336,6 +347,7 @@ const procureToPayConfig: ProcessChainConfig = {
             { value: 'over_threshold', label: 'Yes - over a certain value' },
             { value: 'rarely', label: 'Rarely' },
             { value: 'never', label: 'Never' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -372,6 +384,7 @@ const procureToPayConfig: ProcessChainConfig = {
             { value: 'post', label: 'Post' },
             { value: 'portal', label: 'Supplier portal' },
             { value: 'app', label: 'Via app (Dext, etc.)' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -389,6 +402,7 @@ const procureToPayConfig: ProcessChainConfig = {
             { value: 'always', label: 'Yes - always' },
             { value: 'sometimes', label: 'Sometimes' },
             { value: 'never', label: 'No' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -433,6 +447,7 @@ const procureToPayConfig: ProcessChainConfig = {
             { value: 'fortnightly', label: 'Fortnightly' },
             { value: 'monthly', label: 'Monthly' },
             { value: 'ad_hoc', label: 'Ad-hoc' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -452,6 +467,7 @@ const procureToPayConfig: ProcessChainConfig = {
             { value: 'direct_debit', label: 'Direct Debit' },
             { value: 'card', label: 'Company card' },
             { value: 'cheque', label: 'Cheque' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -463,6 +479,7 @@ const procureToPayConfig: ProcessChainConfig = {
             { value: 'yes_actively', label: 'Yes - actively managed' },
             { value: 'sometimes', label: 'Sometimes - if we notice' },
             { value: 'no', label: 'No' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -482,6 +499,7 @@ const procureToPayConfig: ProcessChainConfig = {
             { value: 'partially', label: 'Partially — some notes exist but gaps' },
             { value: 'tribal', label: 'No — it\'s all in people\'s heads' },
             { value: 'chaos', label: 'No — and honestly even we struggle with it' },
+            { value: 'other', label: 'Other' },
           ],
           aiAnchor: true,
         },
@@ -511,6 +529,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'clock_in', label: 'Clock in/out system' },
             { value: 'honour', label: 'Honour system (contracted hours)' },
             { value: 'project_tool', label: 'Within project management tool' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -522,6 +541,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'yes_required', label: 'Yes - required' },
             { value: 'yes_optional', label: 'Yes - optional' },
             { value: 'no', label: 'No' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -559,6 +579,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'form', label: 'Paper/digital form' },
             { value: 'slack_teams', label: 'Slack/Teams message' },
             { value: 'shared_calendar', label: 'Shared calendar' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -588,6 +609,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'yes_automated', label: 'Yes - system alerts us' },
             { value: 'yes_manual', label: 'Yes - manually reviewed' },
             { value: 'no', label: 'No' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -612,6 +634,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'spreadsheet', label: 'Spreadsheet' },
             { value: 'paper', label: 'Paper form' },
             { value: 'email', label: 'Email receipts' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -636,6 +659,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'next_payroll', label: 'Next payroll' },
             { value: 'month_end', label: 'End of month' },
             { value: 'variable', label: 'Variable' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -647,6 +671,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'yes_enforced', label: 'Yes - and it\'s enforced' },
             { value: 'yes_loosely', label: 'Yes - but loosely followed' },
             { value: 'no', label: 'No formal policy' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -694,6 +719,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'portal', label: 'Online portal' },
             { value: 'email', label: 'Email' },
             { value: 'paper', label: 'Paper' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -705,6 +731,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'bacs', label: 'BACS' },
             { value: 'faster_payments', label: 'Faster Payments' },
             { value: 'cheque', label: 'Cheque' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -715,6 +742,7 @@ const hireToRetireConfig: ProcessChainConfig = {
           options: [
             { value: 'direct_debit', label: 'Direct Debit' },
             { value: 'manual', label: 'Manual payment' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -726,6 +754,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'fully_automated', label: 'Fully automated' },
             { value: 'semi_automated', label: 'Semi-automated' },
             { value: 'manual', label: 'Manual' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -786,6 +815,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'limited_access', label: 'Limited access — specific systems only' },
             { value: 'no_system_access', label: 'No system access — they use their own tools' },
             { value: 'varies', label: 'Varies — no consistent approach' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -798,6 +828,7 @@ const hireToRetireConfig: ProcessChainConfig = {
             { value: 'partially', label: 'Partially — some notes exist but gaps' },
             { value: 'tribal', label: 'No — it\'s all in people\'s heads' },
             { value: 'chaos', label: 'No — and honestly even we struggle with it' },
+            { value: 'other', label: 'Other' },
           ],
           aiAnchor: true,
         },
@@ -832,6 +863,7 @@ const recordToReportConfig: ProcessChainConfig = {
             { value: 'preset_rules', label: 'Preset rules in accounting system' },
             { value: 'manual', label: 'Manual each time' },
             { value: 'mixed', label: 'Mix of automated and manual' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -843,6 +875,7 @@ const recordToReportConfig: ProcessChainConfig = {
             { value: 'yes_extensively', label: 'Yes - extensively' },
             { value: 'yes_basic', label: 'Yes - basic (department/location)' },
             { value: 'no', label: 'No' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -855,6 +888,7 @@ const recordToReportConfig: ProcessChainConfig = {
             { value: 'weekly', label: 'Weekly' },
             { value: 'monthly', label: 'Monthly' },
             { value: 'rarely', label: 'Rarely / when we remember' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -891,6 +925,7 @@ const recordToReportConfig: ProcessChainConfig = {
             { value: 'yes_followed', label: 'Yes - followed consistently' },
             { value: 'yes_loosely', label: 'Yes - but loosely followed' },
             { value: 'no', label: 'No formal checklist' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -908,6 +943,7 @@ const recordToReportConfig: ProcessChainConfig = {
             { value: 'templated', label: 'Templated / recurring' },
             { value: 'recreated', label: 'Recreated each month' },
             { value: 'varies', label: 'Varies' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -961,6 +997,7 @@ const recordToReportConfig: ProcessChainConfig = {
             { value: 'aged_debtors', label: 'Aged Debtors' },
             { value: 'aged_creditors', label: 'Aged Creditors' },
             { value: 'budget_vs_actual', label: 'Budget vs Actual' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -979,6 +1016,7 @@ const recordToReportConfig: ProcessChainConfig = {
             { value: 'portal', label: 'Client/board portal' },
             { value: 'meeting', label: 'Presented in meeting' },
             { value: 'shared_drive', label: 'Shared drive' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1004,6 +1042,7 @@ const recordToReportConfig: ProcessChainConfig = {
             { value: 'yes_quarterly', label: 'Yes - quarterly' },
             { value: 'rarely', label: 'Rarely' },
             { value: 'no_budget', label: 'No budget exists' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1052,6 +1091,7 @@ const recordToReportConfig: ProcessChainConfig = {
             { value: 'partially', label: 'Partially — some notes exist but gaps' },
             { value: 'tribal', label: 'No — it\'s all in people\'s heads' },
             { value: 'chaos', label: 'No — and honestly even we struggle with it' },
+            { value: 'other', label: 'Other' },
           ],
           aiAnchor: true,
         },
@@ -1083,6 +1123,7 @@ const leadToClientConfig: ProcessChainConfig = {
             { value: 'paid_ads', label: 'Paid advertising' },
             { value: 'cold_outreach', label: 'Cold outreach' },
             { value: 'partnerships', label: 'Partnerships' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1102,6 +1143,7 @@ const leadToClientConfig: ProcessChainConfig = {
             { value: 'email', label: 'Email inbox' },
             { value: 'slack_teams', label: 'Slack/Teams channel' },
             { value: 'none', label: 'No central location' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1127,6 +1169,7 @@ const leadToClientConfig: ProcessChainConfig = {
             { value: 'within_week', label: 'Within a week' },
             { value: 'variable', label: 'Variable' },
             { value: 'often_missed', label: 'Often missed' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1150,6 +1193,7 @@ const leadToClientConfig: ProcessChainConfig = {
             { value: 'yes_clear', label: 'Yes - clear and followed' },
             { value: 'yes_loose', label: 'Yes - but loosely defined' },
             { value: 'no', label: 'No formal stages' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1189,6 +1233,7 @@ const leadToClientConfig: ProcessChainConfig = {
             { value: 'informal', label: 'Informal — we just ask in conversation' },
             { value: 'reactive', label: 'Only when there\'s a problem' },
             { value: 'none', label: 'We don\'t systematically track it' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1201,6 +1246,7 @@ const leadToClientConfig: ProcessChainConfig = {
             { value: 'yes_informal', label: 'Yes — we ask happy clients informally' },
             { value: 'no_organic', label: 'No — referrals just happen organically' },
             { value: 'no', label: 'No — we don\'t ask' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1250,6 +1296,7 @@ const leadToClientConfig: ProcessChainConfig = {
             { value: 'yes_detailed', label: 'Yes - detailed' },
             { value: 'yes_basic', label: 'Yes - basic' },
             { value: 'no', label: 'No' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1281,6 +1328,7 @@ const leadToClientConfig: ProcessChainConfig = {
             { value: 'partially', label: 'Partially — some notes exist but gaps' },
             { value: 'tribal', label: 'No — it\'s all in people\'s heads' },
             { value: 'chaos', label: 'No — and honestly even we struggle with it' },
+            { value: 'other', label: 'Other' },
           ],
           aiAnchor: true,
         },
@@ -1312,7 +1360,8 @@ const complyToConfirmConfig: ProcessChainConfig = {
             { value: 'pensions', label: 'Pension contributions' },
             { value: 'confirmation_statement', label: 'Confirmation Statement' },
             { value: 'annual_accounts', label: 'Annual Accounts' },
-            { value: 'other', label: 'Other regulatory filings' },
+            { value: 'other_regulatory', label: 'Other regulatory filings' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1326,6 +1375,7 @@ const complyToConfirmConfig: ProcessChainConfig = {
             { value: 'spreadsheet', label: 'Spreadsheet' },
             { value: 'memory', label: 'Memory / manual tracking' },
             { value: 'accountant', label: 'Outsourced to accountant' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1350,6 +1400,7 @@ const complyToConfirmConfig: ProcessChainConfig = {
             { value: 'semi', label: 'Semi-automated' },
             { value: 'manual', label: 'Manual' },
             { value: 'outsourced', label: 'Outsourced' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1362,6 +1413,7 @@ const complyToConfirmConfig: ProcessChainConfig = {
             { value: 'once', label: 'Once' },
             { value: 'occasionally', label: 'Occasionally' },
             { value: 'yes', label: 'Yes - and it was costly' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1381,6 +1433,7 @@ const complyToConfirmConfig: ProcessChainConfig = {
             { value: 'partially', label: 'Partially — some notes exist but gaps' },
             { value: 'tribal', label: 'No — it\'s all in people\'s heads' },
             { value: 'chaos', label: 'No — and honestly even we struggle with it' },
+            { value: 'other', label: 'Other' },
           ],
           aiAnchor: true,
         },
@@ -1449,6 +1502,7 @@ const projectToDeliveryConfig: ProcessChainConfig = {
             { value: 'roughly', label: 'Roughly — we check calendars and ask around' },
             { value: 'gut_feel', label: 'Not really — gut feel and who seems least busy' },
             { value: 'no', label: 'No — we just assign and hope' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1506,6 +1560,7 @@ const projectToDeliveryConfig: ProcessChainConfig = {
             { value: 'track_no_pushback', label: 'We track it but rarely push back' },
             { value: 'absorb', label: 'We absorb it and lose money' },
             { value: 'no_tracking', label: 'We don\'t really track it' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1537,6 +1592,7 @@ const projectToDeliveryConfig: ProcessChainConfig = {
             { value: 'big_only', label: 'Sometimes — big projects only' },
             { value: 'rarely', label: 'Rarely' },
             { value: 'never', label: 'Never' },
+            { value: 'other', label: 'Other' },
           ],
         },
         {
@@ -1563,6 +1619,7 @@ const projectToDeliveryConfig: ProcessChainConfig = {
             { value: 'partially', label: 'Partially — some notes exist but gaps' },
             { value: 'tribal', label: 'No — it\'s all in people\'s heads' },
             { value: 'chaos', label: 'No — and honestly even we struggle with it' },
+            { value: 'other', label: 'Other' },
           ],
           aiAnchor: true,
         },
