@@ -54,13 +54,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setClientSessionLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from('practice_members')
-        .select('id, practice_id, name, email, member_type, program_status, program_enrolled_at, client_company, assigned_advisor_id')
-        .eq('user_id', userId)
-        .eq('member_type', 'client')
-        .maybeSingle();
+      const withTimeout = (p: Promise<{ data: any; error: any }>, ms: number): Promise<{ data: any; error: any }> => {
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const timeout = new Promise<{ data: any; error: any }>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('Query timeout')), ms);
+        });
+        return Promise.race([p, timeout]).finally(() => clearTimeout(timeoutId!));
+      };
 
+      const queryWithTimeout = async (attempt = 1): Promise<{ data: any; error: any }> => {
+        try {
+          const result = await withTimeout(
+            Promise.resolve(
+              supabase
+                .from('practice_members')
+                .select('id, practice_id, name, email, member_type, program_status, program_enrolled_at, client_company, assigned_advisor_id')
+                .eq('user_id', userId)
+                .eq('member_type', 'client')
+                .maybeSingle()
+            ),
+            8000
+          );
+          return result;
+        } catch (err: any) {
+          if (attempt < 3) {
+            console.log(`Client session query timeout, retrying (attempt ${attempt + 1})...`);
+            await new Promise((r) => setTimeout(r, 1000));
+            return queryWithTimeout(attempt + 1);
+          }
+          return { data: null, error: err };
+        }
+      };
+
+      const { data, error } = await queryWithTimeout();
       console.log('Client session result:', !!data, error?.message);
 
       if (error) {
