@@ -475,6 +475,7 @@ function classifyBusinessType(
   adminBusinessType?: string | null,
   adminContextNote?: string | null,
   adminFlags?: Record<string, any> | null,
+  companyName?: string | null,
   contextNotes: any[] = []
 ): ClientTypeClassification {
   
@@ -507,7 +508,7 @@ function classifyBusinessType(
     ? contextNotes.filter((n: any) => n && (typeof n === 'string' ? n.trim() : true))
     : [];
   
-  const allText = JSON.stringify({ ...responses, contextNotes: contextNoteTexts, adminContextNote }).toLowerCase();
+  const allText = JSON.stringify({ ...responses, companyName, contextNotes: contextNoteTexts, adminContextNote }).toLowerCase();
   const financialText = JSON.stringify(financials || {}).toLowerCase();
 
   // ========================================================================
@@ -677,8 +678,8 @@ function classifyBusinessType(
     
     if (type === 'trading_product') {
       const isProfessional = allText.includes('accountan') || allText.includes('solicitor') ||
-                             allText.includes('law firm') || allText.includes('practice') ||
-                             allText.includes('partner') || allText.includes('barrister');
+                             allText.includes('law firm') ||
+                             allText.includes('barrister');
       
       if (isProfessional) {
         type = 'professional_practice';
@@ -4725,6 +4726,7 @@ serve(async (req) => {
       adminBusinessType,
       adminContextNote,
       adminFlags,
+      engagement.client?.client_company,
       contextNoteTexts
     );
 

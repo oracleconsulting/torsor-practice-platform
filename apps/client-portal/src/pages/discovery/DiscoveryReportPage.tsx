@@ -28,6 +28,7 @@ function discoveryServiceToCatalogueCode(rec: { serviceCode?: string; code?: str
     '365_METHOD': 'goal_alignment',
     'FRACTIONAL_CFO': 'fractional_cfo',
     'PROFIT_EXTRACTION': 'profit_extraction',
+    'BUSINESS_INTELLIGENCE': 'business_intelligence',
     'QUARTERLY_BI': 'quarterly_bi',
   };
   if (map[code]) return map[code];
@@ -37,7 +38,8 @@ function discoveryServiceToCatalogueCode(rec: { serviceCode?: string; code?: str
   if (name.includes('goal') || name.includes('alignment') || name.includes('365')) return 'goal_alignment';
   if (name.includes('fractional cfo')) return 'fractional_cfo';
   if (name.includes('profit extraction')) return 'profit_extraction';
-  if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+  if (name.includes('business intelligence') || name.includes('management account')) return 'business_intelligence';
+  if (name.includes('quarterly') || name.includes('bi ')) return 'quarterly_bi';
   return 'benchmarking';
 }
 
