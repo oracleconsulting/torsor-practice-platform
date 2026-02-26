@@ -27,7 +27,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Track if we've successfully loaded the session to avoid re-querying on token refresh
   const sessionLoadedRef = useRef(false);
   const loadingRef = useRef(false);
-  const initCompletedRef = useRef(false);
 
   // Load client session data
   const loadClientSession = async (userId: string, force = false): Promise<boolean> => {
@@ -197,7 +196,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) {
           console.error('Auth error:', error);
           setLoading(false);
-          initCompletedRef.current = true;
           return;
         }
 
@@ -212,13 +210,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isMounted) {
           console.log('Init complete, setting loading false');
           setLoading(false);
-          initCompletedRef.current = true;
         }
       } catch (error) {
         console.error('Init auth error:', error);
         if (isMounted) {
           setLoading(false);
-          initCompletedRef.current = true;
         }
       }
     }
@@ -238,10 +234,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Only reload client session on actual sign in/out, NOT token refreshes
         if (event === 'SIGNED_IN') {
-          // During init, skip — initAuth handles the first load.
-          // This prevents the 25s RLS timeout race condition.
-          if (!initCompletedRef.current) return;
-
+          // Only handle post-init sign-ins (e.g. magic link redirect)
+          // During init, initAuth() handles the first load via getSession()
+          if (sessionLoadedRef.current || loadingRef.current) return;
           if (session?.user) {
             await loadClientSession(session.user.id);
           }
