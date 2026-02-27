@@ -185,6 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true;
+    let initDone = false;
 
     async function initAuth() {
       try {
@@ -210,44 +211,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isMounted) {
           console.log('Init complete, setting loading false');
           setLoading(false);
+          initDone = true;
         }
       } catch (error) {
         console.error('Init auth error:', error);
         if (isMounted) {
           setLoading(false);
+          initDone = true;
         }
       }
     }
 
     initAuth();
 
-    // Listen for subsequent auth changes (sign in/out)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
         
         if (!isMounted) return;
         
-        // Always update the auth session
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Only reload client session on actual sign in/out, NOT token refreshes
         if (event === 'SIGNED_IN') {
-          // Only handle post-init sign-ins (e.g. magic link redirect)
-          // During init, initAuth() handles the first load via getSession()
-          if (sessionLoadedRef.current || loadingRef.current) return;
+          // During init, skip — initAuth handles the first load via getSession().
+          // This prevents a 25s RLS timeout from a premature practice_members query.
+          if (!initDone) {
+            console.log('Skipping SIGNED_IN during init — initAuth will handle it');
+            return;
+          }
           if (session?.user) {
             await loadClientSession(session.user.id);
           }
           setLoading(false);
         } else if (event === 'SIGNED_OUT') {
-          // Clear everything on sign out
           setClientSession(null);
           sessionLoadedRef.current = false;
           setLoading(false);
         } else if (event === 'TOKEN_REFRESHED') {
-          // Don't re-query on token refresh - keep existing session
           console.log('Token refreshed, keeping existing client session');
         } else if (event === 'INITIAL_SESSION') {
           // Skip - handled in initAuth
