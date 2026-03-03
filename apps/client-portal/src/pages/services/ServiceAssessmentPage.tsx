@@ -2,7 +2,7 @@
 // SERVICE LINE ASSESSMENT PAGE
 // ============================================================================
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -14,7 +14,7 @@ import {
 import { StaffRosterBuilder, type StaffRosterPerson } from '@/components/assessment/StaffRosterBuilder';
 import { 
   ArrowLeft, ArrowRight, Check, Loader2, CheckCircle,
-  Target, LineChart, Settings, Users, BarChart3
+  Target, LineChart, Settings, Users, BarChart3, AlertCircle
 } from 'lucide-react';
 
 const serviceIcons: Record<string, React.ComponentType<any>> = {
@@ -47,6 +47,17 @@ function isMeaningfulResponse(value: unknown, questionId: string): boolean {
   return true;
 }
 
+/** "X s ago" / "X min ago" for save indicator */
+function formatDistanceToNow(date: Date): string {
+  const sec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (sec < 10) return 'just now';
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  return `${hr}h ago`;
+}
+
 /** Completion % from required questions that have meaningful answers only. */
 function completionFromMeaningfulResponses(
   responses: Record<string, any>,
@@ -72,16 +83,26 @@ export default function ServiceAssessmentPage() {
   const [generatingProposal, setGeneratingProposal] = useState(false);
   const [saSubmissionLocked, setSaSubmissionLocked] = useState(false);
   const [saSubmittedAt, setSaSubmittedAt] = useState<string | null>(null);
+  const [bmEngagementId, setBmEngagementId] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const checkingSharedInsightRef = useRef(false);
   const hasCheckedSharedInsightRef = useRef(false);
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialLoadRef = useRef(true);
+  const responsesRef = useRef(responses);
+
+  useEffect(() => {
+    responsesRef.current = responses;
+  }, [responses]);
 
   useEffect(() => {
     if (serviceCode) {
       // Reset refs when service code changes
       hasCheckedSharedInsightRef.current = false;
       checkingSharedInsightRef.current = false;
+      if (serviceCode !== 'benchmarking') setBmEngagementId(null);
       
       const config = getAssessmentByCode(serviceCode);
       if (config) {
@@ -244,35 +265,84 @@ export default function ServiceAssessmentPage() {
     }
   };
 
+  const findOrCreateEngagement = useCallback(async (): Promise<string | null> => {
+    const clientId = clientSession?.clientId;
+    const practiceId = clientSession?.practiceId;
+    if (!clientId || !practiceId) return null;
+    try {
+      const { data: existing } = await supabase
+        .from('bm_engagements')
+        .select('id, status')
+        .eq('client_id', clientId)
+        .eq('practice_id', practiceId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        setBmEngagementId(existing.id);
+        if (existing.status === 'draft') {
+          await supabase
+            .from('bm_engagements')
+            .update({ status: 'in_progress', updated_at: new Date().toISOString() })
+            .eq('id', existing.id);
+        }
+        return existing.id;
+      }
+
+      const { data: newEng, error } = await supabase
+        .from('bm_engagements')
+        .insert({
+          client_id: clientId,
+          practice_id: practiceId,
+          status: 'in_progress',
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('[Autosave] Failed to create engagement:', error);
+        return null;
+      }
+      setBmEngagementId(newEng.id);
+      return newEng.id;
+    } catch (err) {
+      console.error('[Autosave] findOrCreateEngagement error:', err);
+      return null;
+    }
+  }, [clientSession?.clientId, clientSession?.practiceId]);
+
   const loadExistingResponses = async (code: string) => {
     if (!clientSession?.clientId) { setLoading(false); return; }
     try {
-      // For benchmarking, check bm_assessment_responses table instead
+      // For benchmarking: find or create engagement first, then load responses
       if (code === 'benchmarking') {
-        const { data: engagement } = await supabase
-          .from('bm_engagements')
-          .select('id, status, assessment_completed_at')
-          .eq('client_id', clientSession.clientId)
-          .maybeSingle();
-        
-        if (engagement) {
-          const { data: responses } = await supabase
-            .from('bm_assessment_responses')
-            .select('responses')
-            .eq('engagement_id', engagement.id)
-            .maybeSingle();
-          
-          if (responses) {
-            setResponses(responses.responses || {});
-            // Only mark as complete if engagement status is explicitly 'assessment_complete' 
-            // AND we have a completed_at timestamp (to avoid false positives from auto-save)
-            if (engagement.status === 'assessment_complete' && engagement.assessment_completed_at) {
-              setCompleted(true);
-            }
-            // Mark initial load as complete after responses are loaded
-            isInitialLoadRef.current = false;
-          }
+        const engagementId = await findOrCreateEngagement();
+        if (!engagementId) {
+          setLoading(false);
+          return;
         }
+        const { data: row } = await supabase
+          .from('bm_assessment_responses')
+          .select('responses, updated_at')
+          .eq('engagement_id', engagementId)
+          .maybeSingle();
+
+        const { data: eng } = await supabase
+          .from('bm_engagements')
+          .select('status, assessment_completed_at')
+          .eq('id', engagementId)
+          .single();
+
+        if (row?.responses && Object.keys(row.responses).length > 0) {
+          setResponses(row.responses);
+          setLastSaved(row.updated_at ? new Date(row.updated_at) : null);
+          setSaveStatus('saved');
+        }
+        if (eng?.status === 'assessment_complete' && eng?.assessment_completed_at) {
+          setCompleted(true);
+        }
+        isInitialLoadRef.current = false;
       } else {
         // For Systems Audit: ensure an sa_engagements row exists so dashboard and admin see the client.
         // Progress is stored in service_line_assessments; engagement is only created on "Complete" otherwise.
@@ -325,75 +395,70 @@ export default function ServiceAssessmentPage() {
     }
   };
 
-  const saveProgress = async (showSavingIndicator = true) => {
+  const saveProgress = useCallback(async (immediate = false, showSavingIndicator = true) => {
     if (!clientSession?.clientId || !assessment) return;
-    if (showSavingIndicator) {
-      setSaving(true);
-    }
-    try {
-      // For benchmarking, save to bm_assessment_responses
-      if (assessment.code === 'benchmarking') {
-        // Find or create engagement
-        let { data: engagement, error: fetchError } = await supabase
-          .from('bm_engagements')
-          .select('id')
-          .eq('client_id', clientSession.clientId)
-          .maybeSingle();
-        
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          console.error('[saveProgress] Error fetching engagement:', fetchError);
-          // Don't throw - just log, continue to try insert if engagement is null
-        }
-        
-        if (!engagement) {
-          console.log('[saveProgress] Creating engagement for progress save...');
-          const { data: newEngagement, error: createError } = await supabase
-            .from('bm_engagements')
-            .insert({
-              client_id: clientSession.clientId,
-              practice_id: clientSession.practiceId,
-              status: 'assessment_in_progress'
-            })
-            .select('id')
-            .single();
-          
-          if (createError) {
-            console.error('[saveProgress] Error creating engagement:', createError);
-            // Don't throw - allow progress to continue without engagement for now
-          } else {
-            engagement = newEngagement;
-          }
-        }
-        
-        if (engagement) {
-          const { error: responsesError } = await supabase.from('bm_assessment_responses').upsert({
-            engagement_id: engagement.id,
-            responses,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'engagement_id' });
-          
-          if (responsesError) {
-            console.error('[saveProgress] Error saving responses:', responsesError);
-          }
-        }
-      } else {
-        const completionPct = completionFromMeaningfulResponses(responses, assessment.questions);
-        await supabase.from('service_line_assessments').upsert({
-          client_id: clientSession.clientId,
-          practice_id: clientSession.practiceId,
-          service_line_code: assessment.code,
-          responses,
-          completion_percentage: completionPct,
-          started_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'client_id,service_line_code' });
+    if (assessment.code === 'benchmarking') {
+      let engagementId = bmEngagementId;
+      if (!engagementId) {
+        engagementId = await findOrCreateEngagement();
+        if (!engagementId) return;
       }
+      if (showSavingIndicator) setSaveStatus('saving');
+      setSaving(true);
+      try {
+        const payload = responsesRef.current;
+        const { error: responsesError } = await supabase
+          .from('bm_assessment_responses')
+          .upsert({
+            engagement_id: engagementId,
+            responses: payload,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'engagement_id' });
+
+        if (responsesError) throw responsesError;
+
+        const completionPct = assessment?.questions
+          ? completionFromMeaningfulResponses(payload, assessment.questions)
+          : 0;
+        await supabase
+          .from('service_line_assessments')
+          .upsert({
+            client_id: clientSession.clientId,
+            practice_id: clientSession.practiceId!,
+            service_line_code: 'benchmarking',
+            responses: payload,
+            completion_percentage: completionPct,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'client_id,service_line_code' });
+
+        setSaveStatus('saved');
+        setLastSaved(new Date());
+      } catch (err) {
+        console.error('[Autosave] Save failed:', err);
+        setSaveStatus('error');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    if (showSavingIndicator) setSaving(true);
+    try {
+      const completionPct = completionFromMeaningfulResponses(responses, assessment.questions);
+      await supabase.from('service_line_assessments').upsert({
+        client_id: clientSession.clientId,
+        practice_id: clientSession.practiceId,
+        service_line_code: assessment.code,
+        responses,
+        completion_percentage: completionPct,
+        started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'client_id,service_line_code' });
     } catch (err) {
       console.error('Error saving:', err);
     } finally {
       setSaving(false);
     }
-  };
+  }, [assessment, clientSession?.clientId, clientSession?.practiceId, bmEngagementId, findOrCreateEngagement]);
 
   const handleComplete = async () => {
     console.log('🎯 handleComplete CALLED!');
@@ -426,59 +491,27 @@ export default function ServiceAssessmentPage() {
       // Special handling for Benchmarking
       if (assessment.code === 'benchmarking') {
         console.log('✅ Benchmarking detected! Completing assessment...');
-        
-        // Find or create engagement
-        let { data: engagement, error: engagementError } = await supabase
-          .from('bm_engagements')
-          .select('id')
-          .eq('client_id', clientSession.clientId)
-          .maybeSingle();
-        
-        if (engagementError && engagementError.code !== 'PGRST116') {
-          console.error('Error fetching engagement:', engagementError);
-          throw engagementError;
+        let engagementId = bmEngagementId;
+        if (!engagementId) {
+          engagementId = await findOrCreateEngagement();
         }
-        
-        if (!engagement) {
-          console.log('📝 Creating new bm_engagement for client:', clientSession.clientId);
-          const { data: newEngagement, error: createError } = await supabase
-            .from('bm_engagements')
-            .insert({
-              client_id: clientSession.clientId,
-              practice_id: clientSession.practiceId,
-              status: 'assessment_complete',
-              assessment_completed_at: new Date().toISOString()
-            })
-            .select('id')
-            .single();
-          
-          if (createError) {
-            console.error('❌ Error creating engagement:', createError);
-            console.error('Details:', {
-              clientId: clientSession.clientId,
-              practiceId: clientSession.practiceId,
-              error: createError
-            });
-            throw createError;
-          }
-          engagement = newEngagement;
-          console.log('✅ Created engagement:', engagement.id);
-        } else {
-          console.log('📝 Updating existing engagement:', engagement.id);
-          // Update engagement status
-          const { error: updateError } = await supabase
-            .from('bm_engagements')
-            .update({
-              status: 'assessment_complete',
-              assessment_completed_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', engagement.id);
-          
-          if (updateError) {
-            console.error('Error updating engagement:', updateError);
-            throw updateError;
-          }
+        if (!engagementId) {
+          throw new Error('Could not find or create benchmarking engagement');
+        }
+        const engagement = { id: engagementId };
+        console.log('📝 Updating engagement:', engagement.id);
+        const { error: updateError } = await supabase
+          .from('bm_engagements')
+          .update({
+            status: 'assessment_complete',
+            assessment_completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', engagement.id);
+
+        if (updateError) {
+          console.error('Error updating engagement:', updateError);
+          throw updateError;
         }
         
         // Save completed responses
@@ -849,32 +882,63 @@ export default function ServiceAssessmentPage() {
     window.scrollTo(0, 0);
   };
 
-  // Auto-save responses when they change (debounced)
-  useEffect(() => {
-    // Skip auto-save during initial load
-    if (isInitialLoadRef.current || loading || !assessment) return;
-    
-    // Clear existing timer
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-    
-    // Set new timer to save after 2 seconds of inactivity
-    autoSaveTimerRef.current = setTimeout(() => {
-      if (Object.keys(responses).length > 0) {
-        saveProgress(false); // Don't show saving indicator for auto-save
-      }
+  const debouncedSave = useCallback(() => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveProgress(false, true);
+      saveTimeoutRef.current = null;
     }, 2000);
-    
+  }, [saveProgress]);
+
+  // Auto-save: for benchmarking use debounced save; for others use existing timer
+  useEffect(() => {
+    if (isInitialLoadRef.current || loading || !assessment) return;
+    if (assessment.code === 'benchmarking') {
+      if (Object.keys(responses).length > 0 && bmEngagementId) debouncedSave();
+      return () => {
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current);
+          saveTimeoutRef.current = null;
+        }
+      };
+    }
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (Object.keys(responses).length > 0) saveProgress(false, false);
+    }, 2000);
     return () => {
       if (autoSaveTimerRef.current) {
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  }, [responses, loading, assessment]);
+  }, [responses, loading, assessment, bmEngagementId, debouncedSave, saveProgress]);
+
+  // Save on tab switch (visibility hidden) and on page unload; prevent leave if save in progress
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (assessment?.code === 'benchmarking' && bmEngagementId) {
+        saveProgress(false, false);
+        if (saveStatus === 'saving') {
+          e.preventDefault();
+          e.returnValue = '';
+        }
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && assessment?.code === 'benchmarking' && bmEngagementId) {
+        saveProgress(false, false);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [assessment?.code, bmEngagementId, saveStatus, saveProgress]);
 
   const handleSaveAndExit = async () => {
-    await saveProgress(true);
+    await saveProgress(false, true);
     navigate('/dashboard');
   };
 
@@ -1018,7 +1082,30 @@ export default function ServiceAssessmentPage() {
               <p className="text-sm text-gray-500">{assessment.subtitle}</p>
             </div>
             <div className="flex items-center gap-3">
-              {saving && <span className="text-gray-500 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Saving...</span>}
+              {serviceCode === 'benchmarking' ? (
+                <div className="flex items-center gap-2 text-sm">
+                  {saveStatus === 'saving' && (
+                    <span className="text-gray-400 flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      Saving...
+                    </span>
+                  )}
+                  {saveStatus === 'saved' && lastSaved && (
+                    <span className="text-emerald-500 flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      Saved {formatDistanceToNow(lastSaved)}
+                    </span>
+                  )}
+                  {saveStatus === 'error' && (
+                    <span className="text-red-500 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Save failed — retrying...
+                    </span>
+                  )}
+                </div>
+              ) : saving ? (
+                <span className="text-gray-500 text-sm flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Saving...</span>
+              ) : null}
               <button
                 onClick={handleSaveAndExit}
                 disabled={saving || (serviceCode === 'systems_audit' && saSubmissionLocked)}
