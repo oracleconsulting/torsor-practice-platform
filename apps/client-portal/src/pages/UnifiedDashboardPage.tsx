@@ -103,6 +103,12 @@ export default function UnifiedDashboardPage() {
     reportGenerated: boolean;
     reportShared: boolean;
   } | null>(null);
+  const [hvaAssessment, setHvaAssessment] = useState<{
+    id: string;
+    responses: Record<string, any> | null;
+    created_at?: string;
+    updated_at?: string;
+  } | null>(null);
   const [gaSprintData, setGASprintData] = useState<{
     hasRoadmap: boolean;
     hasSprint: boolean;
@@ -219,6 +225,20 @@ export default function UnifiedDashboardPage() {
         });
       } else {
         setBenchmarkingStatus({ hasEngagement: false, assessmentComplete: false, reportGenerated: false, reportShared: false });
+      }
+
+      // HVA (Part 3) assessment — shown when benchmarking is enrolled
+      const hasBenchmarking = enrollments?.some((e: any) => e.service_line?.code === 'benchmarking');
+      if (hasBenchmarking && clientId) {
+        const { data: hva } = await supabase
+          .from('client_assessments')
+          .select('id, responses, created_at, updated_at')
+          .eq('client_id', clientId)
+          .eq('assessment_type', 'part3')
+          .maybeSingle();
+        setHvaAssessment(hva ?? null);
+      } else {
+        setHvaAssessment(null);
       }
 
       // Batch 2: depend on Batch 1
@@ -885,7 +905,9 @@ export default function UnifiedDashboardPage() {
                 {/* Card Body */}
                 <div className="px-6 py-4">
                   <p className="text-gray-600 text-sm mb-4">
-                    {service.serviceDescription || 'Complete your assessment to unlock personalized insights.'}
+                    {service.serviceCode === 'benchmarking' && services.some(s => s.serviceCode === 'benchmarking')
+                      ? 'Part 1 of 2: Performance benchmarking and gap analysis. Complete your assessment to unlock your benchmark report.'
+                      : (service.serviceDescription || 'Complete your assessment to unlock personalized insights.')}
                   </p>
 
                   {/* Systems Audit Stage Breakdown */}
@@ -1151,6 +1173,41 @@ export default function UnifiedDashboardPage() {
               </div>
             );
           })}
+          {/* HVA tile — shown when benchmarking is enrolled */}
+          {services.some(s => s.serviceCode === 'benchmarking') && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-50 rounded-lg">
+                    <Award className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900">Hidden Value Audit</h3>
+                </div>
+                {hvaAssessment?.responses && Object.keys(hvaAssessment.responses).length > 0 ? (
+                  <span className="text-xs font-medium px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full">
+                    ✓ Complete
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium px-2 py-1 bg-amber-50 text-amber-700 rounded-full">
+                    ↻ Start Assessment
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-500 mb-4">
+                Part 2 of 2: Identify hidden value drivers, founder dependencies, and strategic risks in your business
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/service/benchmarking/hva')}
+                className="w-full py-2 px-4 bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-lg border border-gray-200 transition-colors flex items-center justify-center gap-2"
+              >
+                {hvaAssessment?.responses && Object.keys(hvaAssessment.responses).length > 0
+                  ? 'Review Responses'
+                  : 'Get Started'}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Quick Links */}

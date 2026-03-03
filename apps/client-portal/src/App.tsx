@@ -94,6 +94,7 @@ function App() {
               <Route path="/service/systems_audit/report" element={<SAReportPage />} />
               <Route path="/service/benchmarking/report" element={<BenchmarkingReportPage />} />
               <Route path="/service/benchmarking/report/preview" element={<BenchmarkingReportPreviewPage />} />
+              <Route path="/service/benchmarking/hva" element={<AssessmentPart3Page />} />
               <Route path="/discovery" element={<DestinationDiscoveryPage />} />
               <Route path="/discovery/follow-up" element={<DiscoveryFollowUpPage />} />
               <Route path="/discovery/complete" element={<DiscoveryCompletePage />} />
