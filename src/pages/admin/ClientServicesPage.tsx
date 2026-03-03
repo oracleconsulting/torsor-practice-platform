@@ -11621,6 +11621,27 @@ function BenchmarkingClientModal({
     }
   };
 
+  const handleRequestUpdatedHVA = async () => {
+    if (!engagement?.id) return;
+    if (!confirm('Reset HVA responses and set status to Awaiting Client? The client will need to complete the Hidden Value Audit again.')) return;
+    try {
+      const { error: engError } = await supabase
+        .from('bm_engagements')
+        .update({ hva_status: 'pending', hva_completed_at: null })
+        .eq('id', engagement.id);
+      if (engError) throw engError;
+      const { error: respError } = await supabase
+        .from('bm_assessment_responses')
+        .update({ responses: {} })
+        .eq('engagement_id', engagement.id);
+      if (respError) throw respError;
+      await fetchData();
+    } catch (error: any) {
+      console.error('[Benchmarking] Error requesting updated HVA:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+    }
+  };
+
   const canGenerate = engagement?.status === 'assessment_complete' || engagement?.status === 'pass1_complete' || engagement?.status === 'cancelled';
   // Report exists if we have report data (but not if cancelled) OR if engagement status indicates a report was generated
   // Treat 'cancelled' status as "no report" so user can regenerate
@@ -12184,10 +12205,12 @@ function BenchmarkingClientModal({
                               onSaveSupplementaryData={handleSaveSupplementaryData}
                               onRegenerate={handleRegenerateWithNewData}
                               isRegenerating={generating}
-                              // Share with client functionality
                               isSharedWithClient={isBenchmarkShared}
                               onToggleShare={handleToggleBenchmarkShare}
                               isTogglingShare={isTogglingBenchmarkShare}
+                              hvaStatus={engagement?.hva_status}
+                              hvaCompletedAt={engagement?.hva_completed_at}
+                              onRequestUpdatedHVA={handleRequestUpdatedHVA}
                             />
                           );
                         })()
