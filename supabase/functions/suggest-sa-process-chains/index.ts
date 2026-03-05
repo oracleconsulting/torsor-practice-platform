@@ -70,6 +70,70 @@ function findIndustryTemplates(
   return matches.sort((a, b) => b.score - a.score);
 }
 
+/**
+ * Normalize AI-generated question_config to match the ProcessChainConfig schema
+ * expected by the frontend (ProcessDeepDivesPage.tsx / @torsor/shared).
+ *
+ * LLMs vary their JSON output schema between runs. This function ensures
+ * consistent property names regardless of what the AI returns.
+ */
+function normalizeChainConfig(config: any): any {
+  if (!config || typeof config !== 'object') return config;
+
+  const normalized: any = { ...config };
+  if (!normalized.estimatedMins) {
+    normalized.estimatedMins = normalized.estimatedMinutes
+      || normalized.estimated_mins
+      || normalized.estimatedMins
+      || 15;
+  }
+  delete normalized.estimatedMinutes;
+  delete normalized.estimated_mins;
+
+  if (!Array.isArray(normalized.sections)) {
+    console.warn('[suggest-sa-process-chains] Config missing sections array');
+    return normalized;
+  }
+
+  normalized.sections = normalized.sections.map((section: any) => {
+    const sec: any = { ...section };
+    if (!sec.name && sec.title) {
+      sec.name = sec.title;
+    }
+    delete sec.title;
+
+    if (!Array.isArray(sec.questions)) {
+      console.warn(`[suggest-sa-process-chains] Section "${sec.name}" missing questions array`);
+      sec.questions = [];
+      return sec;
+    }
+
+    sec.questions = sec.questions.map((q: any) => {
+      const question: any = { ...q };
+
+      if (!question.question) {
+        question.question = question.label || question.text || '';
+      }
+      delete question.label;
+      delete question.text;
+
+      if (!question.id && question.field) {
+        question.id = question.field;
+      }
+
+      if (!question.question) {
+        console.warn(`[suggest-sa-process-chains] Question field="${question.field}" has no question text`);
+      }
+
+      return question;
+    });
+
+    return sec;
+  });
+
+  return normalized;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -151,7 +215,7 @@ serve(async (req) => {
           display_order: template.display_order ?? 100,
           is_core: false,
           engagement_id: engagementId,
-          question_config: template.question_config,
+          question_config: normalizeChainConfig(template.question_config),
           chain_status: autoAccept ? 'active' : 'suggested',
           suggestion_reason,
           source_template_id: template.id,
@@ -213,6 +277,11 @@ Return ONLY this JSON:
     }
   ]
 }
+
+IMPORTANT: Each section MUST use "name" (not "title") for the section heading.
+Each question MUST use "question" (not "label") for the question text.
+Each question MUST include: field, question, type. Optional: id, options, required, aiAnchor, placeholder.
+
 Return at most ${remainingSlots} chains. If you can't identify any, return { "suggestedChains": [] }. Return ONLY valid JSON.`;
 
       const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
@@ -237,24 +306,25 @@ Return at most ${remainingSlots} chains. If you can't identify any, return { "su
       const aiChains = (result.suggestedChains || []).slice(0, remainingSlots);
 
       for (const chain of aiChains) {
-        const questionConfig = {
+        const rawConfig = {
           name: chain.chain_name,
           description: chain.description,
-          estimatedMins: chain.estimated_duration_mins || 15,
+          estimatedMins: chain.estimated_duration_mins || chain.estimatedMinutes || chain.estimated_mins || 15,
           sections: (chain.sections || []).map((s: any, sIdx: number) => ({
-            name: s.name,
+            name: s.name || s.title,
             questions: (s.questions || []).map((q: any, qIdx: number) => ({
-              id: `${chain.chain_code}_s${sIdx}_q${qIdx}`,
-              question: q.question,
+              id: q.id || q.field || `${chain.chain_code}_s${sIdx}_q${qIdx}`,
+              question: q.question || q.label || q.text,
               type: q.type || 'text',
-              field: q.field || `${chain.chain_code}_${(s.name || '').toLowerCase().replace(/[^a-z0-9]/g, '_')}_q${qIdx}`,
+              field: q.field || `${chain.chain_code}_${(s.name || s.title || '').toString().toLowerCase().replace(/[^a-z0-9]/g, '_')}_q${qIdx}`,
               aiAnchor: q.aiAnchor || false,
-              required: false,
+              required: q.required ?? false,
               ...(q.options ? { options: q.options } : {}),
               ...(q.placeholder ? { placeholder: q.placeholder } : {}),
             })),
           })),
         };
+        const questionConfig = normalizeChainConfig(rawConfig);
         const { error: upsertErr } = await supabase.from('sa_process_chains').upsert({
           chain_code: chain.chain_code,
           chain_name: chain.chain_name,

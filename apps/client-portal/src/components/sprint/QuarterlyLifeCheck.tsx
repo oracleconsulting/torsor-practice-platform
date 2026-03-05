@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { RefreshCw } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export interface QuarterlyLifeCheckResponses {
   tuesdayTestUpdate: string;
@@ -56,7 +57,6 @@ export function QuarterlyLifeCheck({
     setError(null);
     setSubmitting(true);
     try {
-      const { supabase } = await import('@/lib/supabase');
       const { error: upsertError } = await supabase
         .from('quarterly_life_checks')
         .upsert(

@@ -8,7 +8,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { 
   ChevronLeft, ChevronRight, Loader2, CheckCircle, 
   ArrowRight, Save, AlertCircle
