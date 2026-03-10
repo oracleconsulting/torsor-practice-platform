@@ -2183,15 +2183,32 @@ function DiscoveryClientModal({
         .eq('id', engagementId);
 
       setPhaseProgress('Generating narrative report...');
-      const { error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+
+      // Pass 2A: Sonnet generates complete structured report
+      console.log('[Phase3] Running Pass 2A (Sonnet structure)...');
+      const { error: pass2aError } = await supabase.functions.invoke('generate-discovery-report-pass2a', {
         body: { engagementId },
         signal: controller.signal as AbortSignal,
       });
-      if (error) throw new Error(`Report generation failed: ${error.message}`);
+      if (pass2aError) throw new Error(`Report generation failed: ${pass2aError.message}`);
+      console.log('[Phase3] Pass 2A complete. Running Pass 2B (Opus narrative)...');
+
+      // Pass 2B: Opus enhances narrative sections
+      const { data: pass2bResult, error: pass2bError } = await supabase.functions.invoke('generate-discovery-report-pass2b', {
+        body: { engagementId },
+        signal: controller.signal as AbortSignal,
+      });
+
+      const pass2bSucceeded = !pass2bError && pass2bResult?.success !== false;
+
+      if (!pass2bSucceeded) {
+        console.warn('[Phase3] Pass 2B failed (Sonnet report still intact):', pass2bError?.message || pass2bResult?.error);
+        alert('Report generated (Sonnet quality). Opus narrative enhancement failed — you can retry later.');
+      }
 
       await supabase
         .from('discovery_engagements')
-        .update({ status: 'pass2_complete', pass2_completed_at: new Date().toISOString() })
+        .update({ status: pass2bSucceeded ? 'published' : 'pass2_complete', pass2_completed_at: new Date().toISOString() })
         .eq('id', engagementId);
 
       setPhaseProgress('Report generated ✓');
