@@ -159,6 +159,10 @@ interface BenchmarkingAdminViewProps {
   isSharedWithClient?: boolean;
   onToggleShare?: (newStatus: boolean) => Promise<void>;
   isTogglingShare?: boolean;
+  // HVA status from bm_engagements
+  hvaStatus?: 'pending' | 'current' | 'stale' | 'completed' | null;
+  hvaCompletedAt?: string | null;
+  onRequestUpdatedHVA?: () => Promise<void>;
 }
 
 interface AccountUpload {
@@ -227,10 +231,12 @@ export function BenchmarkingAdminView({
   onRegenerate,
   onSaveSupplementaryData,
   isRegenerating = false,
-  // Share with client functionality
   isSharedWithClient = false,
   onToggleShare,
-  isTogglingShare = false
+  isTogglingShare = false,
+  hvaStatus,
+  hvaCompletedAt,
+  onRequestUpdatedHVA
 }: BenchmarkingAdminViewProps) {
   const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'pin_services' | 'opportunities' | 'valuation' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
   
@@ -690,16 +696,63 @@ export function BenchmarkingAdminView({
                 )}
                 
                 {activeTab === 'collect' && (
-                  <DataCollectionPanel
-                    missingData={pass1Data?.dataGaps?.map((g: any) => g.metric) || []}
-                    engagementId={engagementId || ''}
-                    existingValues={supplementaryData}
-                    industryCode={industryMapping?.code || data.industry_code}
-                    llmScripts={dataCollectionScript}
-                    onSave={onSaveSupplementaryData}
-                    onRegenerate={onRegenerate}
-                    isLoading={isRegenerating}
-                  />
+                  <div className="space-y-4">
+                    {/* Hidden Value Audit status */}
+                    {(() => {
+                      const status = hvaStatus ?? 'pending';
+                      const completedOrCurrent = status === 'completed' || status === 'current';
+                      const completedAt = hvaCompletedAt ? new Date(hvaCompletedAt).getTime() : 0;
+                      const daysSince = completedAt ? Math.floor((Date.now() - completedAt) / (24 * 60 * 60 * 1000)) : 0;
+                      const isStale = completedOrCurrent && completedAt && daysSince > 90;
+                      const displayStale = isStale || status === 'stale';
+                      return (
+                        <div className="flex flex-wrap items-center gap-3 pb-3 border-b border-slate-200">
+                          <span className="text-sm font-medium text-slate-700">Hidden Value Audit</span>
+                          {status === 'pending' && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-300">
+                              HVA Awaiting Client
+                            </span>
+                          )}
+                          {(status === 'current' || status === 'completed') && !displayStale && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              HVA Complete
+                            </span>
+                          )}
+                          {displayStale && (
+                            <>
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
+                                HVA Stale (&gt;90 days) — Review Recommended
+                              </span>
+                              {completedAt && daysSince > 0 && (
+                                <span className="text-sm text-slate-600">
+                                  Last completed {daysSince} days ago via Discovery assessment
+                                </span>
+                              )}
+                              {onRequestUpdatedHVA && (
+                                <button
+                                  type="button"
+                                  onClick={onRequestUpdatedHVA}
+                                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-orange-600 text-white hover:bg-orange-700"
+                                >
+                                  Request Updated HVA
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    <DataCollectionPanel
+                      missingData={pass1Data?.dataGaps?.map((g: any) => g.metric) || []}
+                      engagementId={engagementId || ''}
+                      existingValues={supplementaryData}
+                      industryCode={industryMapping?.code || data.industry_code}
+                      llmScripts={dataCollectionScript}
+                      onSave={onSaveSupplementaryData}
+                      onRegenerate={onRegenerate}
+                      isLoading={isRegenerating}
+                    />
+                  </div>
                 )}
                 
                 {activeTab === 'accounts' && clientId && practiceId && (

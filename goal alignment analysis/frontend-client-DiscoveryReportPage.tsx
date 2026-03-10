@@ -28,6 +28,7 @@ function discoveryServiceToCatalogueCode(rec: { serviceCode?: string; code?: str
     '365_METHOD': 'goal_alignment',
     'FRACTIONAL_CFO': 'fractional_cfo',
     'PROFIT_EXTRACTION': 'profit_extraction',
+    'BUSINESS_INTELLIGENCE': 'business_intelligence',
     'QUARTERLY_BI': 'quarterly_bi',
   };
   if (map[code]) return map[code];
@@ -37,7 +38,8 @@ function discoveryServiceToCatalogueCode(rec: { serviceCode?: string; code?: str
   if (name.includes('goal') || name.includes('alignment') || name.includes('365')) return 'goal_alignment';
   if (name.includes('fractional cfo')) return 'fractional_cfo';
   if (name.includes('profit extraction')) return 'profit_extraction';
-  if (name.includes('quarterly') || name.includes('bi ') || name.includes('business intelligence')) return 'quarterly_bi';
+  if (name.includes('business intelligence') || name.includes('management account')) return 'business_intelligence';
+  if (name.includes('quarterly') || name.includes('bi ')) return 'quarterly_bi';
   return 'benchmarking';
 }
 
@@ -136,8 +138,10 @@ function getPlainEnglish(
   label: string,
   value: number | string | null,
   status: string,
-  ca: any
+  ca: any,
+  clientExplanation?: string
 ): string {
+  if (clientExplanation) return clientExplanation;
   const numValue = typeof value === 'number' ? value : value != null ? parseFloat(String(value).replace(/[^\d.-]/g, '')) : NaN;
   if (label === 'Current Ratio') {
     const pence = Number.isFinite(numValue) ? Math.round(numValue * 100) : 52;
@@ -767,8 +771,8 @@ export default function DiscoveryReportPage() {
                                   'Fractional CFO': 'fractional_cfo',
                                   'Systems Audit': 'systems_audit',
                                   'Systems & Process Audit': 'systems_audit',
-                                  'Business Intelligence': 'quarterly_bi',
-                                  'Management Accounts': 'quarterly_bi',
+                                  'Business Intelligence': 'business_intelligence',
+                                  'Management Accounts': 'business_intelligence',
                                   'IHT Planning Workshop': 'iht_planning',
                                   'Property Portfolio Health Check': 'property_health_check',
                                   'Family Wealth Transfer Strategy': 'wealth_transfer_strategy',
@@ -779,9 +783,9 @@ export default function DiscoveryReportPage() {
                                   'benchmarking': 'benchmarking',
                                   'fractional_cfo': 'fractional_cfo',
                                   'systems_audit': 'systems_audit',
-                                  'business_intelligence': 'quarterly_bi',
+                                  'business_intelligence': 'business_intelligence',
                                   'hidden_value_audit': 'benchmarking',
-                                  'management_accounts': 'quarterly_bi',
+                                  'management_accounts': 'business_intelligence',
                                   'iht_planning': 'iht_planning',
                                   'property_health_check': 'property_health_check',
                                   'wealth_transfer_strategy': 'wealth_transfer_strategy',
@@ -1135,9 +1139,9 @@ export default function DiscoveryReportPage() {
                           </span>
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
+                          {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number; clientExplanation?: string }, idx: number) => {
                             const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
-                            const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca) || ratio.whatItMeans;
+                            const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca, ratio.clientExplanation) || ratio.whatItMeans;
                             const hasExplanation = !!plainEnglish;
                             return (
                               <div key={idx} className="bg-white/60 rounded-lg p-3">
@@ -2035,9 +2039,9 @@ export default function DiscoveryReportPage() {
                       </span>
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number }, idx: number) => {
+                      {fhs.noteworthyRatios.slice(0, 4).map((ratio: { name: string; formatted: string; status: string; context: string; whatItMeans?: string; value?: number; clientExplanation?: string }, idx: number) => {
                         const numVal = ratio.value ?? parseRatioValue(ratio.formatted, ratio.name);
-                        const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca) || ratio.whatItMeans;
+                        const plainEnglish = getPlainEnglish(ratio.name, numVal, ratio.status, ca, ratio.clientExplanation) || ratio.whatItMeans;
                         return (
                           <div key={idx} className="bg-white/60 rounded-lg p-3">
                             <div className="flex items-center justify-between mb-1">

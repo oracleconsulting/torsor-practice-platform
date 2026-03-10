@@ -138,6 +138,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
   // Admin context fields
   const [adminBusinessType, setAdminBusinessType] = useState<string>('auto-detect');
   const [adminContextNote, setAdminContextNote] = useState<string>('');
+  const [adminIndustryOverride, setAdminIndustryOverride] = useState<string>('');
   const [cashConstrained, setCashConstrained] = useState<boolean>(false);
   const [urgentDecision, setUrgentDecision] = useState<boolean>(false);
   const [urgentDecisionDetail, setUrgentDecisionDetail] = useState<string>('');
@@ -190,6 +191,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
         // Load admin context values
         setAdminBusinessType(engagementData.admin_business_type || 'auto-detect');
         setAdminContextNote(engagementData.admin_context_note || '');
+        setAdminIndustryOverride(engagementData.admin_industry_override || '');
         const flags = engagementData.admin_flags || {};
         setCashConstrained(flags.cash_constrained || false);
         setUrgentDecision(flags.urgent_decision || false);
@@ -313,12 +315,38 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     }
   };
 
+  // Save admin settings to engagement (called before running any phase)
+  const saveAdminSettings = async () => {
+    if (!engagement) return;
+
+    const { error } = await supabase
+      .from('discovery_engagements')
+      .update({
+        admin_business_type: adminBusinessType === 'auto-detect' ? null : adminBusinessType,
+        admin_context_note: adminContextNote || null,
+        admin_industry_override: adminIndustryOverride || null,
+        admin_flags: {
+          cash_constrained: cashConstrained,
+          urgent_decision: urgentDecision,
+          urgent_decision_detail: urgentDecisionDetail || undefined,
+        }
+      })
+      .eq('id', engagement.id);
+
+    if (error) {
+      console.error('Failed to save admin settings:', error);
+    } else {
+      console.log('[AdminModal] Settings saved to engagement');
+    }
+  };
+
   // Phase 1: Deep Analysis (prepare-data → advisory-deep-dive → generate-analysis)
   const handlePhase1 = async () => {
     if (!engagement) return;
     setGenerating(true);
     setGeneratingPass(1);
     try {
+      await saveAdminSettings();
       const { data: prepData, error: prepError } = await supabase.functions.invoke('prepare-discovery-data', {
         body: { engagementId: engagement.id }
       });
@@ -355,6 +383,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     setGenerating(true);
     setGeneratingPass(2);
     try {
+      await saveAdminSettings();
       const { error: p1Error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
         body: { engagementId: engagement.id }
       });
@@ -387,6 +416,7 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     setGenerating(true);
     setGeneratingPass(4);
     try {
+      await saveAdminSettings();
       const { error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
         body: { engagementId: engagement.id }
       });
@@ -2130,6 +2160,78 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
                       {adminBusinessType !== 'auto-detect' && (
                         <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
                           This will override auto-detection with 95% confidence
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Industry Benchmark Override */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Industry Benchmark
+                      </label>
+                      <select
+                        value={adminIndustryOverride}
+                        onChange={(e) => setAdminIndustryOverride(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      >
+                        <option value="">Auto-detect (default)</option>
+                        <optgroup label="Professional Services">
+                          <option value="professional_services">Professional Services (45%)</option>
+                          <option value="accountancy">Accountancy (45%)</option>
+                          <option value="legal">Legal (45%)</option>
+                          <option value="consulting">Consulting (45%)</option>
+                          <option value="financial_services">Financial Services (30%)</option>
+                          <option value="architecture">Architecture (42%)</option>
+                        </optgroup>
+                        <optgroup label="Education & Training">
+                          <option value="education">Education (48%)</option>
+                          <option value="training">Training / Coaching (38%)</option>
+                        </optgroup>
+                        <optgroup label="Technology">
+                          <option value="technology">Technology (35%)</option>
+                          <option value="saas">SaaS (30%)</option>
+                          <option value="software">Software (35%)</option>
+                        </optgroup>
+                        <optgroup label="Creative & Agency">
+                          <option value="creative_agency">Creative Agency (40%)</option>
+                          <option value="media">Media / Publishing (33%)</option>
+                          <option value="marketing_services">Marketing Services (30%)</option>
+                        </optgroup>
+                        <optgroup label="Construction & Trades">
+                          <option value="construction">Construction (22%)</option>
+                          <option value="fit_out">Fit-Out / Interiors (12%)</option>
+                          <option value="trades">Trades (25%)</option>
+                        </optgroup>
+                        <optgroup label="Healthcare">
+                          <option value="healthcare">Healthcare (45%)</option>
+                          <option value="dental">Dental (38%)</option>
+                          <option value="care_home">Care Home (46%)</option>
+                          <option value="veterinary">Veterinary (36%)</option>
+                        </optgroup>
+                        <optgroup label="Hospitality & Leisure">
+                          <option value="hospitality">Hospitality (30%)</option>
+                          <option value="restaurant">Restaurant (28%)</option>
+                          <option value="hotel">Hotel (32%)</option>
+                        </optgroup>
+                        <optgroup label="Retail & Distribution">
+                          <option value="retail">Retail (15%)</option>
+                          <option value="ecommerce">E-commerce (14%)</option>
+                          <option value="wholesale_distribution">Wholesale / Distribution (28%)</option>
+                        </optgroup>
+                        <optgroup label="Manufacturing">
+                          <option value="manufacturing">Manufacturing (25%)</option>
+                          <option value="engineering">Engineering (27%)</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                          <option value="recruitment">Recruitment (34%)</option>
+                          <option value="cleaning">Cleaning / Facilities (44%)</option>
+                          <option value="transport">Transport / Logistics (28%)</option>
+                          <option value="general_business">General Business (30%)</option>
+                        </optgroup>
+                      </select>
+                      {adminIndustryOverride && (
+                        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                          Overrides auto-detection. Payroll &quot;good&quot; benchmark shown in parentheses.
                         </p>
                       )}
                     </div>

@@ -2,7 +2,7 @@
 // SYSTEMS AUDIT - STAGE 2: SYSTEM INVENTORY
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -115,6 +115,8 @@ export default function SystemInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [engagementId, setEngagementId] = useState<string | null>(null);
+  const [saSubmissionLocked, setSaSubmissionLocked] = useState(false);
+  const [saSubmittedAt, setSaSubmittedAt] = useState<string | null>(null);
   const [systems, setSystems] = useState<SystemInventory[]>([]);
   const [categories, setCategories] = useState<SystemCategory[]>([]);
   const [shadowSystemsDescription, setShadowSystemsDescription] = useState<string>('');
@@ -136,6 +138,11 @@ export default function SystemInventoryPage() {
     would_recommend: 'yes'
   });
 
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const formDirtyRef = useRef(false);
+  const formJustOpenedRef = useRef(false);
+
   useEffect(() => {
     loadData();
   }, [clientSession?.clientId]);
@@ -152,7 +159,7 @@ export default function SystemInventoryPage() {
       // Fetch engagement - try to find existing one
       let { data: engagement, error: engError } = await supabase
         .from('sa_engagements')
-        .select('id, status, stage_1_completed_at, shadow_systems_description')
+        .select('id, status, stage_1_completed_at, shadow_systems_description, submission_status, submitted_at')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
 
@@ -178,7 +185,7 @@ export default function SystemInventoryPage() {
             status: 'stage_1_complete',
             stage_1_completed_at: new Date().toISOString()
           })
-          .select('id, status, stage_1_completed_at, shadow_systems_description')
+          .select('id, status, stage_1_completed_at, shadow_systems_description, submission_status, submitted_at')
           .single();
 
         console.log('📊 Create engagement result:', { newEngagement, createError });
@@ -202,6 +209,8 @@ export default function SystemInventoryPage() {
 
       setEngagementId(engagement.id);
       setShadowSystemsDescription((engagement as any)?.shadow_systems_description ?? '');
+      setSaSubmissionLocked((engagement as any)?.submission_status === 'submitted');
+      setSaSubmittedAt((engagement as any)?.submitted_at ?? null);
       console.log('✅ Engagement ID set:', engagement.id);
 
       // Fetch existing systems
@@ -252,6 +261,7 @@ export default function SystemInventoryPage() {
       would_recommend: 'yes'
     });
     setEditingId(null);
+    formJustOpenedRef.current = true;
     setShowAddForm(true);
   };
 
@@ -301,10 +311,12 @@ export default function SystemInventoryPage() {
       field_notes: system.field_notes || {}
     });
     setEditingId(system.id);
+    formJustOpenedRef.current = true;
     setShowAddForm(true);
   };
 
   const handleFieldNoteChange = (field: string, value: string) => {
+    formDirtyRef.current = true;
     setFormData(prev => {
       const nextNotes = { ...(prev.field_notes || {}) };
       if (value?.trim()) nextNotes[field] = value;
@@ -312,6 +324,142 @@ export default function SystemInventoryPage() {
       return { ...prev, field_notes: nextNotes };
     });
   };
+
+  // Track dirty when user changes form (skip initial load when opening form)
+  useEffect(() => {
+    if (!showAddForm) return;
+    if (formJustOpenedRef.current) {
+      formJustOpenedRef.current = false;
+      return;
+    }
+    formDirtyRef.current = true;
+  }, [formData, showAddForm]);
+
+  const autoSaveSystem = async () => {
+    if (!engagementId || !editingId || !formData.system_name || !formData.category_code) return;
+    try {
+      const systemData = {
+        engagement_id: engagementId,
+        system_name: formData.system_name,
+        category_code: formData.category_code,
+        sub_category: formData.sub_category || null,
+        category_other_description: formData.category_other_description || null,
+        vendor: formData.vendor || null,
+        website_url: formData.website_url || null,
+        primary_users: formData.primary_users || [],
+        primary_users_other: formData.primary_users_other || null,
+        number_of_users: formData.number_of_users || null,
+        usage_frequency: formData.usage_frequency || 'daily',
+        usage_frequency_context: formData.usage_frequency_context || null,
+        criticality: formData.criticality || 'important',
+        pricing_model: formData.pricing_model || 'monthly',
+        monthly_cost: formData.monthly_cost || null,
+        annual_cost: formData.annual_cost || null,
+        cost_trend: formData.cost_trend || 'stable',
+        cost_trend_context: formData.cost_trend_context || null,
+        integrates_with: formData.integrates_with || null,
+        integrates_with_names: formData.integrates_with_names || null,
+        integration_method: formData.integration_method || 'none',
+        manual_transfer_required: formData.manual_transfer_required || false,
+        manual_hours_monthly: formData.manual_hours_monthly || null,
+        manual_process_description: formData.manual_process_description || null,
+        data_quality_score: formData.data_quality_score || null,
+        data_entry_method: formData.data_entry_method || 'single_point',
+        data_entry_context: formData.data_entry_context || null,
+        user_satisfaction: formData.user_satisfaction || null,
+        fit_for_purpose: formData.fit_for_purpose || null,
+        would_recommend: formData.would_recommend || 'yes',
+        known_issues: formData.known_issues || null,
+        workarounds_in_use: formData.workarounds_in_use || null,
+        change_one_thing: formData.change_one_thing || null,
+        future_plan: formData.future_plan || 'keep',
+        future_plan_context: formData.future_plan_context || null,
+        replacement_candidate: formData.replacement_candidate || null,
+        contract_end_date: formData.contract_end_date || null,
+        key_users_by_name: formData.key_users_by_name || null,
+        actual_usage_description: formData.actual_usage_description || null,
+        training_status: formData.training_status || null,
+        setup_owner: formData.setup_owner || null,
+        contract_commitment: formData.contract_commitment || null,
+        field_notes: formData.field_notes && Object.keys(formData.field_notes || {}).length > 0 ? formData.field_notes : null
+      };
+      const { error } = await supabase
+        .from('sa_system_inventory')
+        .update(systemData)
+        .eq('id', editingId);
+      if (!error) {
+        setLastSaved(new Date());
+        formDirtyRef.current = false;
+      }
+    } catch (err) {
+      console.error('Auto-save system error:', err);
+    }
+  };
+
+  // Debounced auto-save when editing existing system
+  useEffect(() => {
+    if (!editingId || !formDirtyRef.current) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => { autoSaveSystem(); }, 3000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [formData, editingId]);
+
+  // Auto-insert new system when name + category set, then switch to edit mode
+  useEffect(() => {
+    if (editingId || !showAddForm || !engagementId) return;
+    if (!formData.system_name?.trim() || !formData.category_code) return;
+    const autoInsert = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('sa_system_inventory')
+          .insert({
+            engagement_id: engagementId,
+            system_name: formData.system_name,
+            category_code: formData.category_code,
+          })
+          .select('id')
+          .single();
+        if (!error && data) {
+          setEditingId(data.id);
+          setLastSaved(new Date());
+        }
+      } catch (err) {
+        console.error('Auto-insert error:', err);
+      }
+    };
+    const timer = setTimeout(autoInsert, 2000);
+    return () => clearTimeout(timer);
+  }, [formData.system_name, formData.category_code, editingId, showAddForm, engagementId]);
+
+  // Debounced auto-save shadow systems textarea
+  useEffect(() => {
+    if (!engagementId) return;
+    const timer = setTimeout(async () => {
+      try {
+        await supabase
+          .from('sa_engagements')
+          .update({ shadow_systems_description: shadowSystemsDescription || null })
+          .eq('id', engagementId);
+      } catch (err) {
+        console.error('Shadow systems auto-save error:', err);
+      }
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [shadowSystemsDescription, engagementId]);
+
+  // beforeunload when form is dirty
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (showAddForm && formDirtyRef.current) {
+        e.preventDefault();
+        (e as any).returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [showAddForm]);
 
   const handleSaveSystem = async () => {
     if (!engagementId || !formData.system_name || !formData.category_code) {
@@ -514,12 +662,13 @@ export default function SystemInventoryPage() {
             <div className="flex gap-3">
               <button
                 onClick={handleAddSystem}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                disabled={saSubmissionLocked}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4" />
                 Add System
               </button>
-              {systems.length > 0 && (
+              {systems.length > 0 && !saSubmissionLocked && (
                 <button
                   onClick={handleCompleteStage2}
                   disabled={saving}
@@ -537,13 +686,29 @@ export default function SystemInventoryPage() {
           </div>
         </div>
 
+        {saSubmissionLocked && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              These answers were submitted on {saSubmittedAt ? new Date(saSubmittedAt).toLocaleDateString() : 'a previous date'} and cannot be changed. Contact your practice team if you need to make corrections.
+            </p>
+          </div>
+        )}
+
         {/* Add/Edit Form */}
-        {showAddForm && (
+        {showAddForm && !saSubmissionLocked && (
           <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-900">
-                {editingId ? 'Edit System' : 'Add New System'}
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingId ? 'Edit System' : 'Add New System'}
+                </h2>
+                {lastSaved && showAddForm && (
+                  <span className="text-xs text-slate-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+                    Progress saved
+                  </span>
+                )}
+              </div>
               <button
                 onClick={() => {
                   setShowAddForm(false);
@@ -1242,20 +1407,24 @@ export default function SystemInventoryPage() {
                       )}
                     </div>
                     <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => handleEditSystem(system)}
-                        className="p-2 text-gray-400 hover:text-indigo-600"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSystem(system.id)}
-                        className="p-2 text-gray-400 hover:text-red-600"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {!saSubmissionLocked && (
+                        <>
+                          <button
+                            onClick={() => handleEditSystem(system)}
+                            className="p-2 text-gray-400 hover:text-indigo-600"
+                            title="Edit"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSystem(system.id)}
+                            className="p-2 text-gray-400 hover:text-red-600"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1275,22 +1444,25 @@ export default function SystemInventoryPage() {
             <textarea
               value={shadowSystemsDescription}
               onChange={(e) => setShadowSystemsDescription(e.target.value.slice(0, 1200))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               rows={4}
               placeholder="e.g., Maria has a personal spreadsheet mapping Harvest codes to Xero contacts. Priya tracks leads in a Google Sheet nobody else can see. The designers share files via AirDrop..."
               maxLength={1200}
+              disabled={saSubmissionLocked}
             />
             <div className="mt-2 flex justify-between text-xs text-gray-500">
               <span>{shadowSystemsDescription.length}/1200 characters</span>
               {shadowSystemsSaving && <span>Saving...</span>}
-              <button
-                type="button"
-                onClick={handleSaveShadowSystems}
-                disabled={shadowSystemsSaving}
-                className="text-indigo-600 hover:underline disabled:opacity-50"
-              >
-                Save
-              </button>
+              {!saSubmissionLocked && (
+                <button
+                  type="button"
+                  onClick={handleSaveShadowSystems}
+                  disabled={shadowSystemsSaving}
+                  className="text-indigo-600 hover:underline disabled:opacity-50"
+                >
+                  Save
+                </button>
+              )}
             </div>
           </div>
         )}

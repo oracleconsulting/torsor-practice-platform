@@ -2,7 +2,7 @@
 // SYSTEMS AUDIT - STAGE 3: PROCESS DEEP DIVES
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -29,6 +29,8 @@ interface ProcessChain {
   question_config?: ProcessChainConfig | null;
   chain_status?: string;
   engagement_id?: string | null;
+  is_core?: boolean;
+  suggestion_reason?: string | null;
 }
 
 function DeepDiveContextField({
@@ -87,8 +89,14 @@ export default function ProcessDeepDivesPage() {
   const [currentSection, setCurrentSection] = useState(0);
   const [responses, setResponses] = useState<Record<string, any>>({});
   const [engagementStatus, setEngagementStatus] = useState<string | null>(null);
+  const [saSubmissionLocked, setSaSubmissionLocked] = useState(false);
+  const [saSubmittedAt, setSaSubmittedAt] = useState<string | null>(null);
   const [reportStatus, setReportStatus] = useState<string | null>(null);
   const [report, setReport] = useState<any>(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isInitialLoadRef = useRef(true);
 
   useEffect(() => {
     loadData();
@@ -102,93 +110,105 @@ export default function ProcessDeepDivesPage() {
 
     try {
       // Fetch engagement (include is_shared_with_client for redirect when report is shared)
-      const { data: engagement, error: engError } = await supabase
+      const { data: engagementData, error: engError } = await supabase
         .from('sa_engagements')
-        .select('id, status, is_shared_with_client')
+        .select('id, status, is_shared_with_client, submission_status, submitted_at')
         .eq('client_id', clientSession.clientId)
         .maybeSingle();
 
-      if (engError || !engagement) {
+      if (engError && (engError as { code?: string }).code !== 'PGRST116') {
         console.error('Error fetching engagement:', engError);
+        setLoading(false);
+        return;
+      }
+
+      let engagement: NonNullable<typeof engagementData> | null = engagementData;
+      if (!engagement) {
+        console.log('📝 No engagement found, creating one for Stage 3 access...');
+        const { data: newEngagement, error: createError } = await supabase
+          .from('sa_engagements')
+          .insert({
+            client_id: clientSession.clientId,
+            practice_id: clientSession.practiceId,
+            status: 'in_progress',
+          })
+          .select('id, status, is_shared_with_client')
+          .single();
+
+        if (createError || !newEngagement) {
+          console.error('Error creating engagement:', createError);
+          setLoading(false);
+          return;
+        }
+        engagement = newEngagement as NonNullable<typeof engagementData>;
+      }
+
+      if (!engagement) {
         setLoading(false);
         return;
       }
 
       setEngagementId(engagement.id);
       setEngagementStatus(engagement.status);
+      setSaSubmissionLocked((engagement as any)?.submission_status === 'submitted');
+      setSaSubmittedAt((engagement as any)?.submitted_at ?? null);
 
-      // Check if Stage 3 is complete - if so, check report status
-      if (engagement.status === 'stage_3_complete' || engagement.status === 'analysis_complete' || engagement.status === 'completed') {
-        const { data: reportData, error: reportError } = await supabase
-          .from('sa_audit_reports')
+      const needsReportCheck = engagement.status === 'stage_3_complete' || engagement.status === 'analysis_complete' || engagement.status === 'completed';
+      const [chainsResult, divesResult, reportResult] = await Promise.all([
+        supabase
+          .from('sa_process_chains')
           .select('*')
-          .eq('engagement_id', engagement.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        console.log('🔍 ProcessDeepDivesPage - Report check:', {
-          reportData,
-          reportError,
-          engagementId: engagement.id,
-          hasReport: !!reportData,
-          reportStatus: reportData?.status
-        });
-        
-        if (reportError) {
-          console.error('❌ Error fetching report in ProcessDeepDivesPage:', reportError);
-        }
-        
-        if (reportData) {
-          setReport(reportData);
-          setReportStatus(reportData.status);
-          console.log('✅ Report loaded. Status:', reportData.status, 'Approved?', 
-            reportData.status === 'approved' || reportData.status === 'published' || reportData.status === 'delivered');
+          .or(`is_core.eq.true,and(engagement_id.eq.${engagement.id},chain_status.eq.active)`)
+          .order('display_order', { ascending: true }),
+        supabase
+          .from('sa_process_deep_dives')
+          .select('*')
+          .eq('engagement_id', engagement.id),
+        needsReportCheck
+          ? supabase
+              .from('sa_audit_reports')
+              .select('*')
+              .eq('engagement_id', engagement.id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
 
-          // If report is shared with client, redirect to the dedicated report page (not Stage 3)
-          const reportAvailable = ['approved', 'published', 'delivered'].includes(reportData.status);
-          if (engagement.is_shared_with_client && reportAvailable) {
-            navigate('/service/systems_audit/report', { replace: true });
-            return;
-          }
-        } else {
-          console.log('⚠️ No report found for engagement', reportError ? { error: reportError.message, code: reportError.code } : '(no error – RLS may block client select)');
-          setReportStatus(null);
-          // If report is shared but we got no report (e.g. RLS or timing), still send client to report page so they see the proper UI and any error there
-          if (engagement.is_shared_with_client) {
-            navigate('/service/systems_audit/report', { replace: true });
-            return;
-          }
-        }
-      }
-
-      // Fetch process chains: core (global) + engagement-specific active custom chains
-      const { data: chains, error: chainsError } = await supabase
-        .from('sa_process_chains')
-        .select('*')
-        .or(`is_core.eq.true,and(engagement_id.eq.${engagement.id},chain_status.eq.active)`)
-        .order('display_order', { ascending: true });
-
-      if (chainsError) {
-        console.error('Error fetching process chains:', chainsError);
+      if (chainsResult.error) {
+        console.error('Error fetching process chains:', chainsResult.error);
       } else {
-        setProcessChains(chains || []);
+        setProcessChains(chainsResult.data || []);
       }
-
-      // Fetch existing deep dives
-      const { data: dives, error: divesError } = await supabase
-        .from('sa_process_deep_dives')
-        .select('*')
-        .eq('engagement_id', engagement.id);
-
-      if (divesError) {
-        console.error('Error fetching deep dives:', divesError);
+      if (divesResult.error) {
+        console.error('Error fetching deep dives:', divesResult.error);
       } else {
         const divesMap: Record<string, ProcessDeepDive> = {};
-        (dives || []).forEach(dive => {
+        (divesResult.data || []).forEach((dive: any) => {
           divesMap[dive.chain_code] = dive;
         });
         setDeepDives(divesMap);
+      }
+
+      const reportData = reportResult.data;
+      const reportError = reportResult.error;
+      if (reportError) {
+        console.error('Error fetching report:', reportError);
+      }
+      if (reportData) {
+        setReport(reportData);
+        setReportStatus(reportData.status);
+        const reportAvailable = ['approved', 'published', 'delivered'].includes(reportData.status);
+        if (engagement.is_shared_with_client && reportAvailable) {
+          navigate('/service/systems_audit/report', { replace: true });
+          return;
+        }
+      } else if (needsReportCheck) {
+        setReportStatus(null);
+        if (engagement.is_shared_with_client) {
+          navigate('/service/systems_audit/report', { replace: true });
+          return;
+        }
       }
 
     } catch (err) {
@@ -198,17 +218,51 @@ export default function ProcessDeepDivesPage() {
     }
   };
 
+  const autoSaveDraft = async () => {
+    if (!engagementId || !selectedChain || Object.keys(responses).length === 0) return;
+    try {
+      const { error } = await supabase
+        .from('sa_process_deep_dives')
+        .upsert({
+          engagement_id: engagementId,
+          chain_code: selectedChain,
+          responses,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'engagement_id,chain_code' });
+      if (!error) {
+        setLastSaved(new Date());
+      } else {
+        console.error('Auto-save error:', error);
+      }
+    } catch (err) {
+      console.error('Auto-save failed:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isInitialLoadRef.current || !selectedChain || !engagementId) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (Object.keys(responses).length > 0) autoSaveDraft();
+    }, 2000);
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [responses, selectedChain, engagementId]);
+
   const handleSelectChain = (chainCode: string) => {
     setSelectedChain(chainCode);
     setCurrentSection(0);
-    
-    // Load existing responses if available
+    setLastSaved(null);
     const existingDive = deepDives[chainCode];
     if (existingDive && existingDive.responses) {
       setResponses(existingDive.responses);
     } else {
       setResponses({});
     }
+    setTimeout(() => {
+      isInitialLoadRef.current = false;
+    }, 100);
   };
 
   const handleResponseChange = (field: string, value: any) => {
@@ -270,12 +324,14 @@ export default function ProcessDeepDivesPage() {
   const handleCompleteStage3 = async () => {
     if (!engagementId) return;
 
-    // Check if all chains are completed
-    const allChains = processChains.map(c => c.chain_code);
-    const completedChains = Object.keys(deepDives).filter(code => deepDives[code].completed_at);
+    const coreChains = processChains.filter(c => c.is_core !== false);
+    const suggestedChains = processChains.filter(c => c.is_core === false);
+    const completedChainCodes = Object.keys(deepDives).filter(code => deepDives[code].completed_at);
+    const allCoreCompleted = coreChains.length > 0 && coreChains.every(c => completedChainCodes.includes(c.chain_code));
     
-    if (completedChains.length < allChains.length) {
-      alert(`Please complete all ${allChains.length} process chains before completing Stage 3. You have completed ${completedChains.length} of ${allChains.length}.`);
+    if (!allCoreCompleted) {
+      const completedCore = coreChains.filter(c => completedChainCodes.includes(c.chain_code)).length;
+      alert(`Please complete all ${coreChains.length} required process chains before completing Stage 3. You have completed ${completedCore} of ${coreChains.length}.`);
       return;
     }
 
@@ -342,11 +398,12 @@ export default function ProcessDeepDivesPage() {
     );
   }
 
-  // Show "coming soon" if Stage 3 is complete but report is not approved
-  if ((engagementStatus === 'stage_3_complete' || engagementStatus === 'analysis_complete' || engagementStatus === 'completed') && 
-      reportStatus && 
-      reportStatus !== 'approved' && 
-      reportStatus !== 'published' && 
+  // Show "coming soon" if Stage 3 is complete but report is not approved (unless user chose Edit My Answers)
+  if (!editMode &&
+      (engagementStatus === 'stage_3_complete' || engagementStatus === 'analysis_complete' || engagementStatus === 'completed') &&
+      reportStatus &&
+      reportStatus !== 'approved' &&
+      reportStatus !== 'published' &&
       reportStatus !== 'delivered') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -355,19 +412,27 @@ export default function ProcessDeepDivesPage() {
             <Clock className="w-16 h-16 text-indigo-600 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Systems Audit Report is Coming Soon</h2>
             <p className="text-gray-600 mb-4">
-              Thank you for completing all three stages of the Systems Audit assessment. 
-              Our team is currently reviewing your responses and generating your personalized report.
+              Thank you for completing all three stages. Our team is currently reviewing
+              your responses and generating your personalized report.
             </p>
             <p className="text-gray-500 text-sm">
               You'll be notified as soon as your report is ready for review.
             </p>
           </div>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-          >
-            Return to Dashboard
-          </button>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => setEditMode(true)}
+              className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              Edit My Answers
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+              Return to Dashboard
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -615,6 +680,8 @@ export default function ProcessDeepDivesPage() {
                 setSelectedChain(null);
                 setResponses({});
                 setCurrentSection(0);
+                isInitialLoadRef.current = true;
+                setLastSaved(null);
               }}
               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
             >
@@ -627,6 +694,12 @@ export default function ProcessDeepDivesPage() {
                 <p className="text-gray-600">{config.description}</p>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-500">
+                {lastSaved && (
+                  <span className="text-xs text-slate-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+                    Progress saved
+                  </span>
+                )}
                 <Clock className="w-4 h-4" />
                 <span>~{config.estimatedMins} minutes</span>
               </div>
@@ -679,9 +752,10 @@ export default function ProcessDeepDivesPage() {
                     <textarea
                       value={responses[question.field] ?? ''}
                       onChange={(e) => handleResponseChange(question.field, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                       rows={3}
                       placeholder={question.placeholder || 'Enter your answer...'}
+                      disabled={saSubmissionLocked}
                     />
                   )}
                   
@@ -689,7 +763,8 @@ export default function ProcessDeepDivesPage() {
                     <select
                       value={responses[question.field] || ''}
                       onChange={(e) => handleResponseChange(question.field, e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                      disabled={saSubmissionLocked}
                     >
                       <option value="">Select an option...</option>
                       {question.options?.map(opt => (
@@ -697,11 +772,20 @@ export default function ProcessDeepDivesPage() {
                       ))}
                     </select>
                   )}
-                  
+                  {question.type === 'select' && responses[question.field] === 'other' && (
+                    <input
+                      type="text"
+                      value={responses[`${question.field}_other`] || ''}
+                      onChange={(e) => handleResponseChange(`${question.field}_other`, e.target.value)}
+                      className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Please specify..."
+                    />
+                  )}
+
                   {question.type === 'multi_select' && (
                     <div className="space-y-2">
                       {question.options?.map(opt => (
-                        <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                        <label key={opt.value} className={`flex items-center gap-2 ${saSubmissionLocked ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}>
                           <input
                             type="checkbox"
                             checked={(responses[question.field] || []).includes(opt.value)}
@@ -714,11 +798,21 @@ export default function ProcessDeepDivesPage() {
                               }
                             }}
                             className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            disabled={saSubmissionLocked}
                           />
                           <span className="text-sm text-gray-700">{opt.label}</span>
                         </label>
                       ))}
                     </div>
+                  )}
+                  {question.type === 'multi_select' && (responses[question.field] || []).includes('other') && (
+                    <input
+                      type="text"
+                      value={responses[`${question.field}_other`] || ''}
+                      onChange={(e) => handleResponseChange(`${question.field}_other`, e.target.value)}
+                      className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="Please specify..."
+                    />
                   )}
 
                   {(question.type === 'select' || question.type === 'multi_select') &&
@@ -736,8 +830,11 @@ export default function ProcessDeepDivesPage() {
           {/* Navigation */}
           <div className="flex justify-between">
             <button
-              onClick={() => setCurrentSection(Math.max(0, currentSection - 1))}
-              disabled={isFirstSection}
+              onClick={() => {
+                autoSaveDraft();
+                setCurrentSection(Math.max(0, currentSection - 1));
+              }}
+              disabled={isFirstSection || saSubmissionLocked}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -747,7 +844,7 @@ export default function ProcessDeepDivesPage() {
             {isLastSection ? (
               <button
                 onClick={handleSaveChain}
-                disabled={saving}
+                disabled={saving || saSubmissionLocked}
                 className="flex items-center gap-2 px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50"
               >
                 {saving ? (
@@ -759,8 +856,12 @@ export default function ProcessDeepDivesPage() {
               </button>
             ) : (
               <button
-                onClick={() => setCurrentSection(currentSection + 1)}
-                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                onClick={() => {
+                  autoSaveDraft();
+                  setCurrentSection(currentSection + 1);
+                }}
+                disabled={saSubmissionLocked}
+                className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
               >
                 Next Section
                 <ChevronRight className="w-4 h-4" />
@@ -772,13 +873,22 @@ export default function ProcessDeepDivesPage() {
     );
   }
 
-  // Show chain selection
-  const allChainsCompleted = processChains.length > 0 && 
-    processChains.every(chain => deepDives[chain.chain_code]?.completed_at);
+  // Show chain selection — require only core chains for "Complete Stage 3"; suggested are optional
+  const coreChainsList = processChains.filter(c => c.is_core !== false);
+  const suggestedChainsList = processChains.filter(c => c.is_core === false);
+  const completedChainCodesSet = new Set(Object.keys(deepDives).filter(code => deepDives[code].completed_at));
+  const allCoreCompleted = coreChainsList.length > 0 && coreChainsList.every(chain => completedChainCodesSet.has(chain.chain_code));
+  const suggestedCompletedCount = suggestedChainsList.filter(c => completedChainCodesSet.has(c.chain_code)).length;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto p-6">
+        {editMode && (engagementStatus === 'stage_3_complete' || engagementStatus === 'analysis_complete') && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-center gap-2 text-amber-700">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span className="text-sm">You're editing completed answers. Changes will be saved but may not be reflected in a report that's already been generated.</span>
+          </div>
+        )}
         {/* Header */}
         <div className="mb-6">
           <button
@@ -798,7 +908,7 @@ export default function ProcessDeepDivesPage() {
                 <p className="text-gray-600">Process Deep Dives</p>
               </div>
             </div>
-            {allChainsCompleted && (
+            {allCoreCompleted && !saSubmissionLocked && (
               <button
                 onClick={handleCompleteStage3}
                 disabled={saving}
@@ -814,6 +924,23 @@ export default function ProcessDeepDivesPage() {
             )}
           </div>
         </div>
+
+        {saSubmissionLocked && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-800">
+              These answers were submitted on {saSubmittedAt ? new Date(saSubmittedAt).toLocaleDateString() : 'a previous date'} and cannot be changed. Contact your practice team if you need to make corrections.
+            </p>
+          </div>
+        )}
+
+        {allCoreCompleted && suggestedChainsList.length > 0 && suggestedCompletedCount < suggestedChainsList.length && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-amber-800">
+              You have {suggestedChainsList.length - suggestedCompletedCount} recommended process deep dive(s) still to complete.
+              These are optional but will improve the quality of your assessment.
+            </p>
+          </div>
+        )}
 
         {/* Info Box */}
         <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 mb-6">
@@ -831,23 +958,32 @@ export default function ProcessDeepDivesPage() {
             const config = chain.question_config ?? processChainConfigs[chain.chain_code];
             const deepDive = deepDives[chain.chain_code];
             const isCompleted = !!deepDive?.completed_at;
+            const isSuggested = chain.is_core === false;
 
             return (
               <div
                 key={chain.id}
                 className={`bg-white rounded-xl border-2 p-6 cursor-pointer hover:shadow-lg transition-shadow ${
-                  isCompleted ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200'
+                  isCompleted ? 'border-emerald-200 bg-emerald-50' : isSuggested ? 'border-purple-200 bg-purple-50' : 'border-gray-200'
                 }`}
                 onClick={() => handleSelectChain(chain.chain_code)}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h3 className="text-lg font-semibold text-gray-900">{chain.chain_name}</h3>
+                      {isSuggested && (
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">
+                          Recommended for your industry
+                        </span>
+                      )}
                       {isCompleted && (
                         <CheckCircle className="w-5 h-5 text-emerald-600" />
                       )}
                     </div>
+                    {chain.suggestion_reason && (
+                      <p className="text-xs text-gray-500 mt-1">{chain.suggestion_reason}</p>
+                    )}
                     <p className="text-sm text-gray-600 mb-3">{chain.description}</p>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       <div className="flex items-center gap-1">

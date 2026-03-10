@@ -1891,6 +1891,20 @@ ${(preBuiltPhrases as any).deferredTaxExplanation}
 
 `;
       }
+
+      // Balance sheet health alerts (Session 11 — Prompt 7)
+      const bsh = (comprehensiveAnalysis as any)?.balanceSheetHealth;
+      if (bsh?.hasAlerts && bsh.alerts?.length > 0) {
+        mandatoryPhrasesSection += `
+## BALANCE SHEET HEALTH ALERTS (MANDATORY — INCLUDE IN page2_gaps OR page4_numbers)
+${bsh.alerts.map((a: string) => `► ${a}`).join('\n')}
+
+⛔ YOU MUST acknowledge these balance sheet concerns in the report.
+⛔ Include in page2_gaps (liquidity/leverage) or page4_numbers (balance sheet health).
+⛔ DO NOT ignore or downplay — use the phrases above verbatim where appropriate.
+
+`;
+      }
       
       mandatoryPhrasesSection += `============================================================================
 `;
@@ -4489,23 +4503,13 @@ Before returning, verify:
       page5_hasThisWeek: !!narratives.page5_nextSteps?.thisWeek
     });
 
-    // Final cleanup: remove any duplicate "when ready" stutter in full payload before save
-    narratives = cleanWhenReadyStutter(narratives);
-    if (narratives?.page3_journey) {
-      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey, clientTurnover ?? undefined);
-    }
-    // Brute-force: clean any "Enabled by:" stutter in the entire JSON before save
-    const reportJsonStr = JSON.stringify(narratives);
-    const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
-    narratives = JSON.parse(cleanedStr);
-
     // ========================================================================
     // QUOTE VERIFICATION (Session 11)
     // Detect potential fabricated quotes by checking if quoted text appears
     // in the original assessment responses
     // ========================================================================
     const allResponseText = JSON.stringify(discoveryResponses).toLowerCase();
-    const narrativeText = JSON.stringify(narratives);
+    let narrativeText = JSON.stringify(narratives);
     const directQuotes = narrativeText.match(/"([^"]{10,80})"/g) || [];
     for (const quote of directQuotes) {
       const cleanQuote = quote.replace(/^"|"$/g, '').toLowerCase().trim();
@@ -4521,6 +4525,55 @@ Before returning, verify:
         console.warn(`[Pass2] ⚠️ POTENTIAL FABRICATED QUOTE: "${cleanQuote}" — not found in assessment responses`);
       }
     }
+
+    // ========================================================================
+    // QUOTE CLEANUP: Strip fabricated quotes (keep text, remove quotation marks)
+    // Place after verification loop, before cleanWhenReadyStutter
+    // ========================================================================
+    const fabricatedQuotes: string[] = [];
+    const allQuotesInOutput = narrativeText.match(/"([^"]{15,80})"/g) || [];
+    for (const quotedPhrase of allQuotesInOutput) {
+      const cleanPhrase = quotedPhrase.replace(/^"|"$/g, '').toLowerCase().trim();
+
+      if (cleanPhrase.startsWith('industry benchmarking') ||
+          cleanPhrase.startsWith('goal alignment') ||
+          cleanPhrase.startsWith('iht planning') ||
+          cleanPhrase.startsWith('management accounts') ||
+          cleanPhrase.startsWith('systems audit') ||
+          cleanPhrase.length < 15) {
+        continue;
+      }
+
+      if (!allResponseText.includes(cleanPhrase)) {
+        const quoteWords = cleanPhrase.split(/\s+/);
+        const matchCount = quoteWords.filter(w => allResponseText.includes(w)).length;
+        const matchRatio = matchCount / quoteWords.length;
+
+        if (matchRatio < 0.8) {
+          fabricatedQuotes.push(cleanPhrase);
+          narrativeText = narrativeText.replace(
+            new RegExp(`"${cleanPhrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'g'),
+            cleanPhrase
+          );
+          console.warn(`[Pass2] 🚫 STRIPPED FABRICATED QUOTE: "${cleanPhrase}" (${(matchRatio * 100).toFixed(0)}% word match)`);
+        }
+      }
+    }
+
+    if (fabricatedQuotes.length > 0) {
+      console.warn(`[Pass2] Stripped ${fabricatedQuotes.length} fabricated quote(s)`);
+      narratives = JSON.parse(narrativeText);
+    }
+
+    // Final cleanup: remove any duplicate "when ready" stutter in full payload before save
+    narratives = cleanWhenReadyStutter(narratives);
+    if (narratives?.page3_journey) {
+      narratives.page3_journey = cleanJourneyPhases(narratives.page3_journey, clientTurnover ?? undefined);
+    }
+    // Brute-force: clean any "Enabled by:" stutter in the entire JSON before save
+    const reportJsonStr = JSON.stringify(narratives);
+    const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
+    narratives = JSON.parse(cleanedStr);
 
     // Snapshot client-visible opportunities into the report (Option C — hybrid surfacing)
     const clientVisibleSnapshot = (curatedOpportunities || [])

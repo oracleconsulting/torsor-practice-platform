@@ -60,11 +60,14 @@ const MODEL_CONFIG = {
 // ============================================================================
 
 type ClientBusinessType = 
-  | 'trading_product'        
-  | 'trading_agency'         
-  | 'professional_practice'  
-  | 'investment_vehicle'     
-  | 'funded_startup'         
+  | 'trading_product'
+  | 'trading_agency'
+  | 'trading_construction'
+  | 'trading_recruitment'
+  | 'trading_hospitality'
+  | 'professional_practice'
+  | 'investment_vehicle'
+  | 'funded_startup'
   | 'lifestyle_business';
 
 interface FrameworkOverrides {
@@ -627,7 +630,11 @@ function getClientTypeRules(type: ClientBusinessType, overrides: FrameworkOverri
 ✅ If urgent decision (senior hire), address FIRST`,
 
     'trading_product': `Standard trading business - all services available.`,
-    
+
+    'trading_construction': `Construction/fit-out/interiors - benchmark against detected industry. Subcontract model; payroll benchmark is admin only.`,
+    'trading_recruitment': `Recruitment/staffing - standard services; payroll benchmarks not directly comparable.`,
+    'trading_hospitality': `Hospitality/F&B - standard trading frameworks apply.`,
+
     'professional_practice': `Professional services - most services apply. Focus on partner dynamics, succession, goodwill.`,
     
     'lifestyle_business': `

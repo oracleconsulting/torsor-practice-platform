@@ -892,6 +892,70 @@ function calculateIHTExposure(
 }
 
 // ============================================================================
+// BALANCE SHEET HEALTH ANALYSIS (Session 11 — Prompt 7)
+// Liquidity and leverage alerts for mandatory phrase injection in Pass 2
+// ============================================================================
+
+interface BalanceSheetHealthAnalysis {
+  hasAlerts: boolean;
+  alerts: string[];
+  currentRatio?: number | null;
+  quickRatio?: number | null;
+  gearingPct?: number | null;
+}
+
+function analyseBalanceSheetHealth(
+  financials: ExtractedFinancials,
+  clientTypeLabel: string
+): BalanceSheetHealthAnalysis {
+  const alerts: string[] = [];
+  const netAssets = financials.netAssets || 0;
+  const currentAssets = financials.currentAssets ?? (
+    (financials.cash ?? 0) + (financials.debtors ?? 0) + (financials.otherDebtors ?? 0) +
+    (financials.prepayments ?? 0) + (financials.stock ?? 0)
+  );
+  const currentLiabilities = financials.currentLiabilities ?? null;
+  const stock = financials.stock || 0;
+  const bankLoans = financials.bankLoans ?? financials.longTermLiabilities ?? 0;
+
+  let currentRatio: number | null = null;
+  let quickRatio: number | null = null;
+  let gearingPct: number | null = null;
+
+  if (currentAssets != null && currentLiabilities != null && currentLiabilities > 0) {
+    currentRatio = currentAssets / currentLiabilities;
+    quickRatio = (currentAssets - stock) / currentLiabilities;
+
+    if (currentRatio < 0.8) {
+      alerts.push(`Current ratio of ${currentRatio.toFixed(2)} — current liabilities exceed current assets; short-term liquidity needs attention`);
+    } else if (currentRatio < 1.0) {
+      alerts.push(`Current ratio of ${currentRatio.toFixed(2)} — current liabilities slightly exceed current assets; worth monitoring`);
+    }
+
+    if (quickRatio < 0.7) {
+      alerts.push(`Quick ratio of ${quickRatio.toFixed(2)} — limited ability to meet short-term obligations without selling inventory`);
+    }
+  }
+
+  if (bankLoans > 0 && netAssets > 0) {
+    gearingPct = (bankLoans / netAssets) * 100;
+    if (gearingPct > 75) {
+      alerts.push(`Gearing of ${gearingPct.toFixed(1)}% — very high leverage; significant refinancing risk if asset values fall`);
+    } else if (gearingPct > 50) {
+      alerts.push(`Gearing of ${gearingPct.toFixed(1)}% — high leverage warrants attention`);
+    }
+  }
+
+  return {
+    hasAlerts: alerts.length > 0,
+    alerts,
+    currentRatio,
+    quickRatio,
+    gearingPct
+  };
+}
+
+// ============================================================================
 // FINANCIAL HEALTH RATIOS (Session 11 — new feature)
 // ============================================================================
 
@@ -1488,8 +1552,79 @@ function getPayrollBenchmark(industry: string): PayrollBenchmark {
   return PAYROLL_BENCHMARKS['general_business'];
 }
 
-function detectIndustry(responses: Record<string, any>, companyName?: string, clientType?: string): string {
-  const allText = JSON.stringify({ ...responses, companyName }).toLowerCase();
+function detectIndustry(
+  responses: Record<string, any>,
+  companyName?: string,
+  clientType?: string,
+  principalActivity?: string | null,
+  adminIndustryOverride?: string | null
+): { code: string; confidence: 'admin_override' | 'principal_activity' | 'client_type' | 'regex_match' | 'fallback'; source: string } {
+  // ── PRIORITY 0: Admin industry override (absolute priority) ──────────────
+  if (adminIndustryOverride && adminIndustryOverride.trim() !== '') {
+    const code = adminIndustryOverride.trim().toLowerCase();
+    console.log(`[Pass1] Industry from admin override: ${code}`);
+    return { code, confidence: 'admin_override', source: 'Admin set industry override' };
+  }
+
+  // ── PRIORITY 0.5: Principal activity from uploaded accounts ──────────────
+  if (principalActivity) {
+    const pa = principalActivity.toLowerCase();
+
+    // Training / education / coaching
+    if (/\b(training|trainer|coach(ing)?|tuition|tutor|e-learning|cpd|professional development|teaching|instructor|course|seminar|workshop)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: training ("${principalActivity}")`);
+      return { code: 'training', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(education|school|college|university|academy|learning|nursery)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: education ("${principalActivity}")`);
+      return { code: 'education', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    // Financial services / investment / trading
+    if (/\b(financial (adviser|advisor|planning|services)|ifa|wealth management|fund management|asset management|investment management)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: financial_services ("${principalActivity}")`);
+      return { code: 'financial_services', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(recruit(ment|ing)?|staffing|employment agency|headhunt|executive search)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: recruitment ("${principalActivity}")`);
+      return { code: 'recruitment', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(construct(ion)?|build(er|ing)|fit.?out|civil engineer|groundwork|demolition|roofing|plumb(er|ing)|electrician)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: construction ("${principalActivity}")`);
+      return { code: 'construction', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(software|saas|technology|app development|it services|web development|digital|tech)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: technology ("${principalActivity}")`);
+      return { code: 'technology', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(accountan|solicitor|legal|law firm|architect|surveyor|consulting|consultancy|advisory)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: professional_services ("${principalActivity}")`);
+      return { code: 'professional_services', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(dental|dentist|medical|clinic|healthcare|physiotherap|veterinar|pharmacy|care home|nursing)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: healthcare ("${principalActivity}")`);
+      return { code: 'healthcare', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(restaurant|hotel|pub|bar|café|cafe|catering|hospitality)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: hospitality ("${principalActivity}")`);
+      return { code: 'hospitality', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(manufactur|factory|production|fabricat|machining|engineering)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: manufacturing ("${principalActivity}")`);
+      return { code: 'manufacturing', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(retail|wholesale|distribut|ecommerce|e-commerce)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: retail ("${principalActivity}")`);
+      return { code: 'retail', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(media|publish|broadcast|marketing|advertising|pr |public relation|agency)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: media ("${principalActivity}")`);
+      return { code: 'media', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+
+    console.log(`[Pass1] Principal activity found but no industry match: "${principalActivity}"`);
+  }
+
+  const allText = JSON.stringify({ ...responses, companyName, principalActivity }).toLowerCase();
 
   if (clientType) {
     const typeMap: Record<string, string | null> = {
@@ -1506,176 +1641,165 @@ function detectIndustry(responses: Record<string, any>, companyName?: string, cl
     const mapped = typeMap[clientType];
     if (mapped !== undefined && mapped !== null) {
       console.log(`[Pass1] Industry from client type '${clientType}': ${mapped}`);
-      return mapped;
+      return { code: mapped, confidence: 'client_type', source: `Client type mapping: ${clientType} → ${mapped}` };
     }
   }
 
   // ── PRIORITY 2: Construction & Fit-Out ───────────────────────────────────
   if (/\b(fit.?out|fitout|office interior|commercial interior|shopfitt|shop fitting|joinery|partitioning|mezzanine|steelwork|glazing|cladding|flooring contractor|tiling contractor|interior contractor|office refurb|refurbishment contractor|fit out contractor)\b/.test(allText)) {
-    return 'fit_out';
+    return { code: 'fit_out', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(housebuilder|house builder|new build|residential developer|property developer)\b/.test(allText)) {
-    return 'housebuilder';
+    return { code: 'housebuilder', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(civil engineering|groundwork|earthwork|infrastructure contractor)\b/.test(allText)) {
-    return 'civil_engineering';
+    return { code: 'civil_engineering', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(builder|building contractor|main contractor|general contractor|construction company|renovation|demolition|structural|concrete|roofing contractor|painting and decorating)\b/.test(allText)) {
-    return 'construction';
+    return { code: 'construction', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(plumb(er|ing)|electrician|electrical contractor|heating engineer|boiler|hvac|gas engineer|carpenter|carpentry|joiner|tiler|plasterer|decorator)\b/.test(allText)) {
-    return 'trades';
+    return { code: 'trades', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
 
   // ── PRIORITY 3: Technology & SaaS ────────────────────────────────────────
   if (/\b(saas|software as a service|recurring revenue model|mrr|arr|subscription (model|revenue)|product-led)\b/.test(allText)) {
-    return 'saas';
+    return { code: 'saas', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(software|app development|mobile app|web platform|tech startup|developer platform)\b/.test(allText)) {
-    return 'software';
+    return { code: 'software', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(tech(nology)?|digital product|it services|managed service provider|msp)\b/.test(allText)) {
-    return 'technology';
+    return { code: 'technology', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
 
   // ── PRIORITY 4: Agency & Creative ────────────────────────────────────────
   if (/\b(agency|agencies|creative agency|digital agency|marketing agency|advertising agency|media agency|pr agency|design agency|content agency|seo agency|social media agency)\b/.test(allText)) {
-    return 'creative_agency';
+    return { code: 'creative_agency', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
 
   // ── PRIORITY 5: Professional Services ────────────────────────────────────
   if (/\b(accountan(cy|t|ts)|bookkeep(ing|er)|tax advisory|audit firm)\b/.test(allText)) {
-    return 'accountancy';
+    return { code: 'accountancy', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(solicitor|law firm|legal services|barrister|conveyancing)\b/.test(allText)) {
-    return 'legal';
+    return { code: 'legal', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(independent financial adviser|ifa|wealth management|financial planning|mortgage broker|insurance broker)\b/.test(allText)) {
-    return 'financial_services';
+    return { code: 'financial_services', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(architect(ure|ural)?|architectural practice)\b/.test(allText)) {
-    return 'architecture';
+    return { code: 'architecture', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(surveyor|surveying|quantity surveyor|chartered surveyor|valuation)\b/.test(allText)) {
-    return 'surveying';
+    return { code: 'surveying', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(engineering consultant|structural engineer|mechanical engineer|project engineer)\b/.test(allText)) {
-    return 'engineering_consultancy';
+    return { code: 'engineering_consultancy', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(consult(ing|ancy|ant)|advisory firm|management consultant|business consultant|professional services)\b/.test(allText)) {
-    return 'professional_services';
+    return { code: 'professional_services', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
 
   // ── PRIORITY 6: Healthcare ────────────────────────────────────────────────
   if (/\b(dental practice|dentist|orthodont)\b/.test(allText)) {
-    return 'dental';
+    return { code: 'dental', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(care home|residential care|nursing home|domiciliary care|home care)\b/.test(allText)) {
-    return 'care_home';
+    return { code: 'care_home', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(pharmacy|pharmacist|dispensing)\b/.test(allText)) {
-    return 'pharmacy';
+    return { code: 'pharmacy', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(veterinar|vet practice|animal health)\b/.test(allText)) {
-    return 'veterinary';
+    return { code: 'veterinary', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(healthcare|medical practice|clinic|gp practice|nhs|physiotherap|optician|optical)\b/.test(allText)) {
-    return 'healthcare';
+    return { code: 'healthcare', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
-
-  // ── PRIORITY 7: Hospitality & Leisure ────────────────────────────────────
   if (/\b(restaurant|takeaway|food service|café|cafe|coffee shop|bakery|catering)\b/.test(allText)) {
-    return 'restaurant';
+    return { code: 'restaurant', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(hotel|accommodation|b&b|bed and breakfast|guest house|serviced apartment)\b/.test(allText)) {
-    return 'hotel';
+    return { code: 'hotel', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(events? (venue|company|management)|wedding venue|conference centre|exhibition)\b/.test(allText)) {
-    return 'events';
+    return { code: 'events', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(gym|fitness|leisure centre|spa|wellness|swimming pool|sports club)\b/.test(allText)) {
-    return 'leisure';
+    return { code: 'leisure', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(pub|bar|nightclub|hospitality)\b/.test(allText)) {
-    return 'hospitality';
+    return { code: 'hospitality', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
-
-  // ── PRIORITY 8: Recruitment ───────────────────────────────────────────────
   if (/\b(recruit(ment|ing|er)?|staffing agency|talent acquisition|headhunt|executive search|temp staff|contract staff|placement agency)\b/.test(allText)) {
-    return 'recruitment';
+    return { code: 'recruitment', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
-
-  // ── PRIORITY 9: Retail ────────────────────────────────────────────────────
   if (/\b(ecommerce|e-commerce|online store|marketplace|amazon|shopify)\b/.test(allText)) {
-    return 'ecommerce';
+    return { code: 'ecommerce', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(food retail|supermarket|grocer|deli|farm shop)\b/.test(allText)) {
-    return 'food_retail';
+    return { code: 'food_retail', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(retail|shop|high street|showroom|boutique)\b/.test(allText)) {
-    return 'retail';
+    return { code: 'retail', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
-
-  // ── PRIORITY 10: Manufacturing & Engineering ──────────────────────────────
   if (/\b(food (production|manufacture|processing)|bakery production|brewery|distillery)\b/.test(allText)) {
-    return 'food_production';
+    return { code: 'food_production', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(manufactur(ing|er)|factory|production line|fabricat(ion|ed)|machining|assembly)\b/.test(allText)) {
-    return 'manufacturing';
+    return { code: 'manufacturing', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(engineering (company|firm|group)|precision engineer|mechanical engineer|production engineer)\b/.test(allText)) {
-    return 'engineering';
+    return { code: 'engineering', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
-
-  // ── PRIORITY 11: Distribution & Logistics ────────────────────────────────
   if (/\b(haulage|courier|delivery (company|service)|freight|logistics|transport company)\b/.test(allText)) {
-    return 'transport';
+    return { code: 'transport', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(distribut(ion|or)|wholesale|supply chain|warehousing|fulfilment)\b/.test(allText)) {
-    return 'wholesale_distribution';
+    return { code: 'wholesale_distribution', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(keys? (and|&) lockers?|security hardware|locksmith|padlock)\b/.test(allText)) {
-    return 'keys_lockers';
+    return { code: 'keys_lockers', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
-
-  // ── PRIORITY 12: Property & Estate ───────────────────────────────────────
   if (/\b(estate agent|letting agent|estate agency|property sales)\b/.test(allText)) {
-    return 'estate_agency';
+    return { code: 'estate_agency', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(property management|block management|facilities management|service charge)\b/.test(allText)) {
-    return 'property_management';
+    return { code: 'property_management', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
-
-  // ── PRIORITY 13: Other Service Sectors ───────────────────────────────────
   if (/\b(cleaning (company|service|contractor)|commercial clean|janitorial|facilities)\b/.test(allText)) {
-    return 'cleaning';
+    return { code: 'cleaning', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(security (company|firm|services|guard)|manned guarding|door supervision)\b/.test(allText)) {
-    return 'security_services';
+    return { code: 'security_services', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(media|publish(ing|er)|broadcast|newspaper|magazine|journalist)\b/.test(allText)) {
-    return 'media';
+    return { code: 'media', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
-  if (/\b(education|school|college|training (company|provider)|e-learning|learning|tuition)\b/.test(allText)) {
-    return 'education';
+  if (/\b(training|trainer|coach(ing)?|tutor(ing)?|cpd|professional development|instructor|course provider|seminar|workshop provider)\b/.test(allText)) {
+    return { code: 'training', confidence: 'regex_match', source: 'Regex match in assessment text' };
+  }
+  if (/\b(education|school|college|e-learning|learning provider|tuition|academy|teaching)\b/.test(allText)) {
+    return { code: 'education', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(marketing (services|company|group)|pr (firm|company)|communications agency)\b/.test(allText)) {
-    return 'marketing_services';
+    return { code: 'marketing_services', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(print(ing)?|sign(age|making)|reprograph)\b/.test(allText)) {
-    return 'printing';
+    return { code: 'printing', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(car dealer|car sales|automotive|garage|mot|tyre|vehicle)\b/.test(allText)) {
-    return 'automotive';
+    return { code: 'automotive', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(funeral|undertaker|cremation|bereavement)\b/.test(allText)) {
-    return 'funeral';
+    return { code: 'funeral', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
   if (/\b(farm(ing)?|agriculture|agricultural|crop|livestock|horticulture)\b/.test(allText)) {
-    return 'agriculture';
+    return { code: 'agriculture', confidence: 'regex_match', source: 'Regex match in assessment text' };
   }
 
-  return 'general_business';
+  return { code: 'general_business', confidence: 'fallback', source: 'No industry detected — using UK SME defaults. Consider setting admin override.' };
 }
 
 // ============================================================================
@@ -2098,11 +2222,71 @@ function analyseTrajectory(financials: ExtractedFinancials, responses: Record<st
   let concernLevel: 'none' | 'low' | 'medium' | 'high' = 'none';
   let narrative = '';
   
-  if (currentRevenue && priorRevenue) {
-    // Existing logic - revenue-based trajectory
+  // Prefer multi-year data when 3+ years available (enables V-shaped volatility check — Prompt 9)
+  const multiYear = financials.multiYearEarnings;
+  const hasMultiYearRevenue = multiYear && multiYear.length >= 3 && multiYear.every(e => e.revenue != null);
+
+  if (hasMultiYearRevenue && multiYear) {
+    const earnings = multiYear;
+    const latest = earnings[earnings.length - 1];
+    const previous = earnings[earnings.length - 2];
+    const earliest = earnings[0];
+
+    // Use revenue when available for trajectory, else earnings (Prompt 9 — volatility detection)
+    const series = earnings.map(e => e.revenue ?? e.earnings);
+    const baseline = series[0];
+    const latestVal = series[series.length - 1];
+    const previousVal = series[series.length - 2];
+    const minVal = Math.min(...series);
+    const minIdx = series.indexOf(minVal);
+
+    // V-shaped: down-then-up with recovery <10% vs baseline (Prompt 9)
+    const hadDrop = minIdx > 0 && minVal < baseline;
+    const isRecovering = latestVal > previousVal;
+    const recoveryVsBaseline = baseline > 0 ? (latestVal - baseline) / baseline : 0;
+    const recoveryUnder10Pct = recoveryVsBaseline < 0.10;
+
+    if (earnings.length >= 3 && hadDrop && isRecovering && recoveryUnder10Pct) {
+      trend = 'volatile_recovering';
+      concernLevel = 'medium';
+      const label = earnings[0].revenue != null ? 'Revenue' : 'Earnings';
+      narrative = `${label} volatile over ${earnings.length} years: down-then-up pattern with recovery still below baseline. `;
+      narrative += `Current ${label.toLowerCase()} of £${(latestVal/1000).toFixed(0)}k is ${(recoveryVsBaseline * 100).toFixed(0)}% vs baseline £${(baseline/1000).toFixed(0)}k — not yet fully recovered.`;
+      console.log(`[Pass1] Trajectory: volatile_recovering (V-shaped, recovery ${(recoveryVsBaseline * 100).toFixed(0)}% vs baseline)`);
+    } else {
+      const hadLoss = earnings.some(e => e.earnings < 0);
+      const latestPositive = latest.earnings > 0;
+      const previousNegative = previous.earnings < 0;
+
+      if (hadLoss && latestPositive && previousNegative) {
+        trend = 'volatile_recovering';
+        concernLevel = 'medium';
+        narrative = `Earnings volatile over ${earnings.length} years: `;
+        narrative += earnings.map(e => `£${(e.earnings/1000).toFixed(0)}k (${e.year})`).join(' → ');
+        narrative += `. Strong recovery in ${latest.year} after ${previous.year} loss. `;
+        narrative += `Current earnings of £${(latest.earnings/1000).toFixed(0)}k represent the strongest year in the period.`;
+      } else if (latest.earnings > earliest.earnings) {
+        trend = 'growing';
+        concernLevel = 'none';
+        const overallGrowth = ((latest.earnings - earliest.earnings) / Math.abs(earliest.earnings)) * 100;
+        narrative = `Earnings grew ${overallGrowth.toFixed(0)}% over ${earnings.length} years (£${(earliest.earnings/1000).toFixed(0)}k → £${(latest.earnings/1000).toFixed(0)}k).`;
+      } else if (latest.earnings < earliest.earnings * 0.9) {
+        trend = 'declining';
+        concernLevel = 'medium';
+        narrative = `Earnings declined from £${(earliest.earnings/1000).toFixed(0)}k to £${(latest.earnings/1000).toFixed(0)}k over ${earnings.length} years.`;
+      } else {
+        trend = 'stable';
+        concernLevel = 'low';
+        narrative = `Earnings broadly stable over ${earnings.length} years.`;
+      }
+      console.log(`[Pass1] Trajectory from earnings fallback: ${trend} — ${narrative}`);
+    }
+  }
+  else if (currentRevenue && priorRevenue) {
+    // 2-year revenue trajectory
     absoluteChange = currentRevenue - priorRevenue;
     percentageChange = (absoluteChange / priorRevenue) * 100;
-    
+
     if (percentageChange < -5) {
       trend = 'declining';
       concernLevel = percentageChange < -10 ? 'high' : 'medium';
@@ -2120,17 +2304,17 @@ function analyseTrajectory(financials: ExtractedFinancials, responses: Record<st
       narrative = `Revenue stable year-on-year (${percentageChange.toFixed(1)}% change).`;
     }
   }
-  // FALLBACK: Use multi-year earnings data when turnover history unavailable
-  else if (financials.multiYearEarnings && financials.multiYearEarnings.length >= 2) {
-    const earnings = financials.multiYearEarnings;
+  else if (multiYear && multiYear.length >= 2) {
+    // Multi-year earnings fallback (when no 3+ year revenue)
+    const earnings = multiYear;
     const latest = earnings[earnings.length - 1];
     const previous = earnings[earnings.length - 2];
     const earliest = earnings[0];
-    
+
     const hadLoss = earnings.some(e => e.earnings < 0);
     const latestPositive = latest.earnings > 0;
     const previousNegative = previous.earnings < 0;
-    
+
     if (hadLoss && latestPositive && previousNegative) {
       trend = 'volatile_recovering';
       concernLevel = 'medium';
@@ -2152,7 +2336,6 @@ function analyseTrajectory(financials: ExtractedFinancials, responses: Record<st
       concernLevel = 'low';
       narrative = `Earnings broadly stable over ${earnings.length} years.`;
     }
-    
     console.log(`[Pass1] Trajectory from earnings fallback: ${trend} — ${narrative}`);
   }
   else if (currentRevenue) {
@@ -4743,12 +4926,44 @@ serve(async (req) => {
     const skipExitReadiness = !clientType.frameworkOverrides.exitReadinessRelevant;
     const useAssetValuation = clientType.frameworkOverrides.useAssetValuation;
     
+    // Fetch principal activity from most recent uploaded accounts
+    let principalActivity: string | null = null;
+    const { data: financialRows } = await supabase
+      .from('client_financial_data')
+      .select('principal_activity, fiscal_year')
+      .eq('client_id', engagement.client_id)
+      .not('principal_activity', 'is', null)
+      .order('fiscal_year', { ascending: false })
+      .limit(1);
+
+    if (financialRows?.[0]?.principal_activity) {
+      principalActivity = financialRows[0].principal_activity;
+      console.log(`[Pass1] Principal activity from accounts: "${principalActivity}"`);
+    }
+
+    // Fetch admin industry override
+    const adminIndustryOverride = engagement.admin_industry_override || null;
+    if (adminIndustryOverride) {
+      console.log(`[Pass1] Admin industry override: "${adminIndustryOverride}"`);
+    }
+
     // ========================================================================
     // RUN 8-DIMENSION COMPREHENSIVE ANALYSIS
     // ========================================================================
     
-    const industry = detectIndustry(discoveryResponses, engagement.client?.client_company, clientType.type);
-    console.log('[Pass1] Detected industry:', industry);
+    const industryResult = detectIndustry(
+      discoveryResponses,
+      engagement.client?.client_company,
+      clientType.type,
+      principalActivity,
+      adminIndustryOverride
+    );
+    const industry = industryResult.code;
+    console.log('[Pass1] Detected industry:', {
+      code: industryResult.code,
+      confidence: industryResult.confidence,
+      source: industryResult.source
+    });
     
     // Run analysis (will be filtered based on client type)
     const comprehensiveAnalysis = performComprehensiveAnalysis(
@@ -4812,6 +5027,13 @@ serve(async (req) => {
         narrative: ihtExposure.narrative
       });
       (comprehensiveAnalysis as any).ihtExposure = ihtExposure;
+    }
+
+    // Balance sheet health analysis (Session 11 — Prompt 7)
+    const balanceSheetHealth = analyseBalanceSheetHealth(extractedFinancials, clientType.type);
+    (comprehensiveAnalysis as any).balanceSheetHealth = balanceSheetHealth;
+    if (balanceSheetHealth.hasAlerts) {
+      console.log('[Pass1] 📊 Balance sheet health alerts:', balanceSheetHealth.alerts);
     }
 
     // ========================================================================
@@ -4912,6 +5134,18 @@ serve(async (req) => {
         const coi = comprehensiveAnalysis.costOfInaction;
         coi.totalAnnual = (coi.components as any[]).reduce((sum: number, c: any) => sum + c.annualCost, 0);
         coi.totalOverHorizon = (coi.components as any[]).reduce((sum: number, c: any) => sum + c.costOverHorizon, 0);
+        // Rebuild narrative to include new component
+        const allComponents = coi.components as any[];
+        const calculatedC = allComponents.filter((c: any) => c.confidence === 'calculated');
+        const estimatedC = allComponents.filter((c: any) => c.confidence === 'estimated');
+        coi.narrative = `Cost of inaction over ${coi.timeHorizon}-year horizon: £${Math.round(coi.totalOverHorizon / 1000)}k+. `;
+        if (calculatedC.length > 0) {
+          coi.narrative += `Calculated: ${calculatedC.map((c: any) => `${c.category}: £${Math.round(c.costOverHorizon / 1000)}k`).join(', ')}. `;
+        }
+        if (estimatedC.length > 0) {
+          coi.narrative += `Estimated: ${estimatedC.map((c: any) => `${c.category}: £${Math.round(c.costOverHorizon / 1000)}k`).join(', ')}.`;
+        }
+        console.log('[Pass1] 🏛️ Rebuilt CoI narrative after IHT addition:', coi.narrative);
         console.log('[Pass1] 🏛️ IHT growth CoI component:', annualIHTGrowth);
       }
     }
@@ -5013,6 +5247,13 @@ serve(async (req) => {
     }
 
     const processingTime = Date.now() - startTime;
+
+    (comprehensiveAnalysis as any).industryDetection = {
+      code: industryResult.code,
+      confidence: industryResult.confidence,
+      source: industryResult.source,
+      needsReview: industryResult.confidence === 'fallback'
+    };
 
     // ========================================================================
     // SAVE TO DATABASE

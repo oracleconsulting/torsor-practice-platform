@@ -37,9 +37,7 @@
   --color-text-muted: #94a3b8;
 
   --font-display: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
-
-  --sidebar-width: 240px;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;  --sidebar-width: 240px;
   --header-height: 64px;
   --transition-fast: 150ms ease;
   --transition-normal: 200ms ease;

@@ -11621,6 +11621,27 @@ function BenchmarkingClientModal({
     }
   };
 
+  const handleRequestUpdatedHVA = async () => {
+    if (!engagement?.id) return;
+    if (!confirm('Reset HVA responses and set status to Awaiting Client? The client will need to complete the Hidden Value Audit again.')) return;
+    try {
+      const { error: engError } = await supabase
+        .from('bm_engagements')
+        .update({ hva_status: 'pending', hva_completed_at: null })
+        .eq('id', engagement.id);
+      if (engError) throw engError;
+      const { error: respError } = await supabase
+        .from('bm_assessment_responses')
+        .update({ responses: {} })
+        .eq('engagement_id', engagement.id);
+      if (respError) throw respError;
+      await fetchData();
+    } catch (error: any) {
+      console.error('[Benchmarking] Error requesting updated HVA:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+    }
+  };
+
   const canGenerate = engagement?.status === 'assessment_complete' || engagement?.status === 'pass1_complete' || engagement?.status === 'cancelled';
   // Report exists if we have report data (but not if cancelled) OR if engagement status indicates a report was generated
   // Treat 'cancelled' status as "no report" so user can regenerate
@@ -12184,10 +12205,12 @@ function BenchmarkingClientModal({
                               onSaveSupplementaryData={handleSaveSupplementaryData}
                               onRegenerate={handleRegenerateWithNewData}
                               isRegenerating={generating}
-                              // Share with client functionality
                               isSharedWithClient={isBenchmarkShared}
                               onToggleShare={handleToggleBenchmarkShare}
                               isTogglingShare={isTogglingBenchmarkShare}
+                              hvaStatus={engagement?.hva_status}
+                              hvaCompletedAt={engagement?.hva_completed_at}
+                              onRequestUpdatedHVA={handleRequestUpdatedHVA}
                             />
                           );
                         })()
@@ -13356,7 +13379,9 @@ function SystemsAuditClientModal({
   const allStagesComplete = engagement?.status === 'stage_3_complete' || 
                             engagement?.status === 'analysis_complete' || 
                             engagement?.status === 'report_delivered' ||
-                            engagement?.status === 'completed';
+                            engagement?.status === 'completed' ||
+                            (!!engagement?.stage_1_completed_at && !!engagement?.stage_2_completed_at && !!engagement?.stage_3_completed_at);
+  const canRunAnalysis = engagement?.submission_status === 'submitted';
   const identifiedGapsCount = gaps.filter((g) => g.status === 'identified').length;
   const canGenerateOrRegenerate = (allStagesComplete || !!report) && (identifiedGapsCount === 0 || engagement?.review_status === 'complete');
 
@@ -13629,6 +13654,25 @@ function SystemsAuditClientModal({
             </div>
           ) : (
             <>
+              {/* Submission status banners */}
+              {engagement?.submission_status === 'submitted' && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-blue-800 font-medium">
+                    Client submitted all stages on {engagement.submitted_at ? new Date(engagement.submitted_at).toLocaleDateString() : '—'}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Answers are now locked. Ready for preliminary analysis.
+                  </p>
+                </div>
+              )}
+              {engagement?.submission_status !== 'submitted' && engagement?.stage_1_completed_at && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-amber-800 font-medium">
+                    Client is still working on their assessment (not yet submitted)
+                  </p>
+                </div>
+              )}
+
               {/* ASSESSMENTS TAB */}
               {activeTab === 'assessments' && (
                 <div className="space-y-6">
@@ -13960,10 +14004,92 @@ function SystemsAuditClientModal({
                     <div className="bg-amber-50 px-6 py-4 border-b border-gray-200">
                       <h3 className="font-semibold text-gray-900">Stage 3: Process Deep Dives</h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        {engagement?.stage_3_completed_at ? 'Completed' : 'Not started'}
+                        {engagement?.stage_3_completed_at ? 'Completed' :
+                         stage3DeepDives.length > 0 ? `${stage3DeepDives.length} of ${7 + saCustomChains.filter((c: any) => c.chain_status === 'active').length} chains completed` :
+                         saCustomChains.filter((c: any) => c.chain_status === 'active').length > 0 ? `${7 + saCustomChains.filter((c: any) => c.chain_status === 'active').length} chains assigned (0 completed)` :
+                         'Not started'}
                       </p>
                     </div>
                     <div className="p-6">
+                      {/* Process Chain Roster */}
+                      <div className="mb-6">
+                        <p className="text-xs font-medium text-gray-500 uppercase mb-3">Assigned Process Chains</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {/* Core 7 chains — always present */}
+                          {[
+                            { code: 'quote_to_cash', name: 'Quote-to-Cash', icon: '💰' },
+                            { code: 'procure_to_pay', name: 'Procure-to-Pay', icon: '🛒' },
+                            { code: 'record_to_report', name: 'Record-to-Report', icon: '📊' },
+                            { code: 'hire_to_retire', name: 'Hire-to-Retire', icon: '👥' },
+                            { code: 'lead_to_client', name: 'Lead-to-Client', icon: '🎯' },
+                            { code: 'comply_to_confirm', name: 'Comply-to-Confirm', icon: '🛡️' },
+                            { code: 'project_to_delivery', name: 'Project-to-Delivery', icon: '🚀' },
+                          ].map((chain) => {
+                            const deepDive = stage3DeepDives.find((d: any) => d.chain_code === chain.code);
+                            const responseCount = deepDive ? Object.keys(deepDive.responses || {}).length : 0;
+                            return (
+                              <div key={chain.code} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${
+                                deepDive?.completed_at ? 'bg-emerald-50 border-emerald-200' :
+                                responseCount > 0 ? 'bg-amber-50 border-amber-200' :
+                                'bg-gray-50 border-gray-200'
+                              }`}>
+                                <span className="text-base">{chain.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{chain.name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {deepDive?.completed_at ? '✓ Completed' :
+                                     responseCount > 0 ? `${responseCount} answers (in progress)` :
+                                     'Not started'}
+                                  </p>
+                                </div>
+                                {deepDive?.completed_at && (
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* Engagement-specific chains (suggested/active) */}
+                          {saCustomChains
+                            .filter((c: any) => c.chain_status !== 'rejected')
+                            .map((chain: any) => {
+                              const deepDive = stage3DeepDives.find((d: any) => d.chain_code === chain.chain_code);
+                              const responseCount = deepDive ? Object.keys(deepDive.responses || {}).length : 0;
+                              return (
+                                <div key={chain.id} className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${
+                                  chain.chain_status === 'suggested' ? 'bg-purple-50 border-purple-200' :
+                                  deepDive?.completed_at ? 'bg-emerald-50 border-emerald-200' :
+                                  responseCount > 0 ? 'bg-amber-50 border-amber-200' :
+                                  'bg-blue-50 border-blue-200'
+                                }`}>
+                                  <span className="text-base">
+                                    {chain.chain_status === 'suggested' ? '💡' : '🏗️'}
+                                  </span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-gray-900 truncate">{chain.chain_name}</p>
+                                    <p className="text-xs text-gray-500">
+                                      {chain.chain_status === 'suggested' ? 'Suggested — pending review' :
+                                       deepDive?.completed_at ? '✓ Completed' :
+                                       responseCount > 0 ? `${responseCount} answers (in progress)` :
+                                       'Active — not started'}
+                                    </p>
+                                    {chain.suggestion_reason && (
+                                      <p className="text-xs text-purple-600 mt-0.5 truncate" title={chain.suggestion_reason}>
+                                        {chain.suggestion_reason}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {chain.chain_status === 'suggested' && (
+                                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-medium flex-shrink-0">
+                                      Suggested
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+
                       {stage3DeepDives.length > 0 ? (
                         <div className="space-y-6">
                           {stage3DeepDives.map((dive) => {
@@ -14399,7 +14525,7 @@ function SystemsAuditClientModal({
                             Stage 1: {(serviceLineAssessmentResponses ?? stage1Responses[0]?.raw_responses) ? Object.entries((serviceLineAssessmentResponses ?? stage1Responses[0]?.raw_responses) as Record<string, unknown>).filter(([, v]) => v != null && v !== '').length : 0} of 32 questions answered
                           </li>
                           <li>Stage 2: {stage2Inventory.length} systems logged</li>
-                          <li>Stage 3: {stage3DeepDives.length} of 7 chains completed</li>
+                          <li>Stage 3: {stage3DeepDives.length} of {7 + saCustomChains.filter((c: any) => c.chain_status === 'active').length} chains completed</li>
                         </ul>
                       </div>
 
@@ -14706,7 +14832,7 @@ function SystemsAuditClientModal({
                         <>
                           <button
                             onClick={handleRunPreliminary}
-                            disabled={runningPreliminary || !allStagesComplete}
+                            disabled={runningPreliminary || !allStagesComplete || !canRunAnalysis}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
                           >
                             {runningPreliminary ? (
@@ -14717,6 +14843,7 @@ function SystemsAuditClientModal({
                             {runningPreliminary ? 'Running Preliminary Analysis...' : 'Run Preliminary Analysis'}
                           </button>
                           {!allStagesComplete && <p className="text-sm text-gray-500 mt-2">Complete all 3 stages first</p>}
+                          {allStagesComplete && !canRunAnalysis && <p className="text-sm text-amber-600 mt-2">Client must submit their assessment before you can run preliminary analysis</p>}
                         </>
                       ) : (
                         <>

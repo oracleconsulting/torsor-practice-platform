@@ -75,7 +75,7 @@ const SERVICE_COLORS: Record<string, { bg: string; text: string; border: string 
 const isBIService = (code: string) => code === 'management_accounts' || code === 'business_intelligence';
 
 export default function UnifiedDashboardPage() {
-  const { clientSession } = useAuth();
+  const { clientSession, clientSessionLoading } = useAuth();
   const { progress: assessmentProgress, loading: progressLoading } = useAssessmentProgress();
   const navigate = useNavigate();
   
@@ -94,12 +94,20 @@ export default function UnifiedDashboardPage() {
     stage3Complete: boolean;
     engagementId: string | null;
     reportApproved: boolean;
+    submissionStatus?: string;
+    submittedAt?: string | null;
   } | null>(null);
   const [benchmarkingStatus, setBenchmarkingStatus] = useState<{
     hasEngagement: boolean;
     assessmentComplete: boolean;
     reportGenerated: boolean;
     reportShared: boolean;
+  } | null>(null);
+  const [hvaAssessment, setHvaAssessment] = useState<{
+    id: string;
+    responses: Record<string, any> | null;
+    created_at?: string;
+    updated_at?: string;
   } | null>(null);
   const [gaSprintData, setGASprintData] = useState<{
     hasRoadmap: boolean;
@@ -119,181 +127,177 @@ export default function UnifiedDashboardPage() {
   } | null>(null);
   const [gaLifeAlignmentScore, setGALifeAlignmentScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const clientId = clientSession?.clientId;
 
   useEffect(() => {
-    if (clientSession?.clientId) {
+    if (clientId) {
       loadDashboardData();
     }
-  }, [clientSession?.clientId]);
+  }, [clientId]);
+
+  // Safety net: if auth completes but no client session, stop loading
+  useEffect(() => {
+    if (!clientSessionLoading && !clientId) {
+      setLoading(false);
+    }
+  }, [clientSessionLoading, clientId]);
 
   const loadDashboardData = async () => {
+    const startTime = performance.now();
     try {
-      console.log('📊 Loading dashboard for client:', {
-        clientId: clientSession?.clientId,
-        practiceId: clientSession?.practiceId,
-        email: clientSession?.email,
-        name: clientSession?.name
-      });
-      
-      // Fetch client portal settings (e.g. hide Discovery)
-      let hideDiscoveryInPortal = false;
-      if (clientSession?.clientId) {
-        const { data: pmRow } = await supabase
+      const clientId = clientSession?.clientId;
+      const practiceId = clientSession?.practiceId;
+      if (!clientId) return;
+
+      // Batch 1: independent queries in parallel
+      const [
+        pmResult,
+        enrollResult,
+        saResult,
+        maEngResult,
+        biEngResult,
+        maAssessResult,
+        discoveryResult,
+        bmResult,
+      ] = await Promise.all([
+        supabase
           .from('practice_members')
           .select('hide_discovery_in_portal')
-          .eq('id', clientSession.clientId)
+          .eq('id', clientId)
           .eq('member_type', 'client')
+          .maybeSingle(),
+        supabase
+          .from('client_service_lines')
+          .select('id, status, created_at, service_line:service_lines(code, name, short_description)')
+          .eq('client_id', clientId)
+          .neq('status', 'cancelled')
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('sa_engagements')
+          .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, is_shared_with_client, status, submission_status, submitted_at')
+          .eq('client_id', clientId)
+          .maybeSingle(),
+        supabase.from('ma_engagements').select('id').eq('client_id', clientId).maybeSingle(),
+        supabase.from('bi_engagements').select('id').eq('client_id', clientId).maybeSingle(),
+        supabase
+          .from('service_line_assessments')
+          .select('completed_at')
+          .eq('client_id', clientId)
+          .in('service_line_code', ['management_accounts', 'business_intelligence'])
+          .order('completed_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from('destination_discovery')
+          .select('id, client_id, completed_at, created_at, practice_id')
+          .eq('client_id', clientId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('bm_engagements')
+          .select('id, status, assessment_completed_at, report_shared_with_client')
+          .eq('client_id', clientId)
+          .maybeSingle(),
+      ]);
+
+      const hideDiscoveryInPortal = !!pmResult.data?.hide_discovery_in_portal;
+      const enrollments = enrollResult.data;
+      if (enrollResult.error) {
+        console.error('Error loading service enrollments:', enrollResult.error);
+      }
+      const saEngagement = saResult.data;
+      const maEngagement = maEngResult.data;
+      const biEngagement = biEngResult.data;
+      const engagement = maEngagement || biEngagement;
+      const maAssessmentDone = !!maAssessResult.data?.completed_at;
+      let discovery = discoveryResult.data?.[0] ?? null;
+      const bmEngagement = bmResult.data;
+
+      maAssessmentCompletedRef.current = maAssessmentDone;
+      setMAAssessmentCompleted(maAssessmentDone);
+
+      if (bmEngagement) {
+        const isReportGenerated = ['generated', 'approved', 'published', 'pass1_complete'].includes(bmEngagement.status);
+        setBenchmarkingStatus({
+          hasEngagement: true,
+          assessmentComplete: !!bmEngagement.assessment_completed_at || ['assessment_complete', 'generated', 'approved', 'published', 'pass1_complete'].includes(bmEngagement.status),
+          reportGenerated: isReportGenerated,
+          reportShared: !!bmEngagement.report_shared_with_client,
+        });
+      } else {
+        setBenchmarkingStatus({ hasEngagement: false, assessmentComplete: false, reportGenerated: false, reportShared: false });
+      }
+
+      // HVA (Part 3) assessment — shown when benchmarking is enrolled
+      const hasBenchmarking = enrollments?.some((e: any) => e.service_line?.code === 'benchmarking');
+      if (hasBenchmarking && clientId) {
+        const { data: hva } = await supabase
+          .from('client_assessments')
+          .select('id, responses, created_at, updated_at')
+          .eq('client_id', clientId)
+          .eq('assessment_type', 'part3')
           .maybeSingle();
-        hideDiscoveryInPortal = !!pmRow?.hide_discovery_in_portal;
+        setHvaAssessment(hva ?? null);
+      } else {
+        setHvaAssessment(null);
       }
 
-      // Load all enrolled services
-      const { data: enrollments, error: enrollError } = await supabase
-        .from('client_service_lines')
-        .select(`
-          id,
-          status,
-          created_at,
-          service_line:service_lines(code, name, short_description)
-        `)
-        .eq('client_id', clientSession?.clientId)
-        .neq('status', 'cancelled')
-        .order('created_at', { ascending: false });
-
-      if (enrollError) {
-        console.error('❌ Error loading service enrollments:', enrollError);
+      // Batch 2: depend on Batch 1
+      const batch2Promises: Promise<any>[] = [];
+      const batch2Keys: string[] = [];
+      if (engagement?.id) {
+        batch2Keys.push('maPeriod', 'biPeriod', 'monthlyInsight');
+        batch2Promises.push(
+          Promise.resolve(supabase.from('ma_periods').select('id, status, period_label, delivered_at').eq('engagement_id', engagement.id).eq('status', 'delivered').order('period_end', { ascending: false }).limit(1).maybeSingle()),
+          Promise.resolve(supabase.from('bi_periods').select('id, status, period_label, delivered_at').eq('engagement_id', engagement.id).eq('status', 'delivered').order('period_end', { ascending: false }).limit(1).maybeSingle()),
+          Promise.resolve(supabase.from('ma_monthly_insights').select('*').eq('engagement_id', engagement.id).eq('shared_with_client', true).is('snapshot_id', null).order('period_end_date', { ascending: false }).order('created_at', { ascending: false }).limit(1).maybeSingle()),
+        );
       }
-      
-      console.log('📋 Raw enrollments from DB:', enrollments);
-      console.log('📋 Service enrollments (detailed):', enrollments?.map((e: any) => ({
-        id: e.id,
-        status: e.status,
-        serviceLineCode: e.service_line?.code,
-        serviceLineName: e.service_line?.name,
-        hasServiceLine: !!e.service_line
-      })));
-
-      if (enrollError) {
-        console.error('Error loading services:', enrollError);
+      if (saEngagement?.stage_3_completed_at) {
+        batch2Keys.push('saReports');
+        batch2Promises.push(
+          Promise.resolve(supabase.from('sa_audit_reports').select('id, status, created_at, engagement_id').eq('engagement_id', saEngagement.id).in('status', ['approved', 'published', 'delivered']).order('created_at', { ascending: false }).limit(1).maybeSingle()),
+        );
       }
-      
-      console.log('📋 Service enrollments:', enrollments);
+      if (!discovery && practiceId) {
+        batch2Keys.push('discoveryFallback');
+        batch2Promises.push(Promise.resolve(supabase.from('destination_discovery').select('id, client_id, completed_at, created_at, practice_id').eq('practice_id', practiceId)));
+      }
+      const hasGA = enrollments?.some((e: any) => e.service_line?.code === '365_method' || e.service_line?.code === '365_alignment');
+      if (hasGA) {
+        batch2Keys.push('gaServiceLine');
+        batch2Promises.push(Promise.resolve(supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle()));
+      }
+      const batch2Results = batch2Promises.length > 0 ? await Promise.all(batch2Promises) : [];
+      const batch2Map: Record<string, any> = {};
+      batch2Keys.forEach((key, i) => { batch2Map[key] = batch2Results[i]; });
 
-      // Check for shared MA insights EARLY (before building service list)
-      // Also check for delivered BI periods (new system)
       let hasSharedMAInsight = false;
       let hasBIDeliveredPeriod = false;
-      
-      if (clientSession?.clientId) {
-        // Check for MA engagement and v2 insight
-        const { data: maEngagement } = await supabase
-          .from('ma_engagements')
-          .select('id')
-          .eq('client_id', clientSession.clientId)
+      if (engagement?.id) {
+        const deliveredPeriod = batch2Map.maPeriod?.data || batch2Map.biPeriod?.data;
+        if (deliveredPeriod) hasBIDeliveredPeriod = true;
+        const monthlyInsight = batch2Map.monthlyInsight?.data;
+        if (monthlyInsight && (monthlyInsight.headline_text || monthlyInsight.insights)) hasSharedMAInsight = true;
+      }
+      if (!hasSharedMAInsight && engagement?.id) {
+        const { data: maInsight } = await supabase
+          .from('client_context')
+          .select('id, content')
+          .eq('client_id', clientId)
+          .eq('context_type', 'note')
+          .eq('is_shared', true)
+          .eq('processed', true)
+          .in('data_source_type', ['management_accounts_analysis', 'general'])
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
-        
-        // Also check for BI engagement (renamed service)
-        const { data: biEngagement } = await supabase
-          .from('bi_engagements')
-          .select('id')
-          .eq('client_id', clientSession.clientId)
-          .maybeSingle();
-        
-        const engagement = maEngagement || biEngagement;
-        console.log('📊 BI/MA Engagement check:', { maEngagement, biEngagement, clientId: clientSession.clientId });
-        
-        if (engagement) {
-          // Check for DELIVERED periods (new BI/MA delivery system)
-          // Check ma_periods first
-          const { data: maPeriod } = await supabase
-            .from('ma_periods')
-            .select('id, status, period_label, delivered_at')
-            .eq('engagement_id', engagement.id)
-            .eq('status', 'delivered')
-            .order('period_end', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          // Also check bi_periods
-          const { data: biPeriod } = await supabase
-            .from('bi_periods')
-            .select('id, status, period_label, delivered_at')
-            .eq('engagement_id', engagement.id)
-            .eq('status', 'delivered')
-            .order('period_end', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          const deliveredPeriod = maPeriod || biPeriod;
-          if (deliveredPeriod) {
-            hasBIDeliveredPeriod = true;
-            console.log('✅ Found delivered BI/MA period:', {
-              id: deliveredPeriod.id,
-              label: deliveredPeriod.period_label,
-              deliveredAt: deliveredPeriod.delivered_at,
-              source: maPeriod ? 'ma_periods' : 'bi_periods'
-            });
-          } else {
-            console.log('📋 No delivered BI/MA periods found');
-          }
-          
-          // Check for v2 insights
-          const { data: monthlyInsight } = await supabase
-            .from('ma_monthly_insights')
-            .select('*')
-            .eq('engagement_id', engagement.id)
-            .eq('shared_with_client', true)
-            .is('snapshot_id', null) // v2 insights only
-            .order('period_end_date', { ascending: false })
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          if (monthlyInsight && (monthlyInsight.headline_text || monthlyInsight.insights)) {
-            hasSharedMAInsight = true;
-            console.log('✅ Valid v2 MA insight found:', { 
-              id: monthlyInsight.id,
-              hasHeadline: !!monthlyInsight.headline_text,
-              hasKeyInsights: !!(monthlyInsight.insights && monthlyInsight.insights.length > 0),
-              headlineText: monthlyInsight.headline_text?.substring(0, 50) || 'N/A'
-            });
-          }
-        }
-        
-        // Fallback to old client_context format if v2 not found
-        if (!hasSharedMAInsight) {
-          const { data: maInsight, error: maError } = await supabase
-            .from('client_context')
-            .select('id, is_shared, created_at, content, data_source_type')
-            .eq('client_id', clientSession.clientId)
-            .eq('context_type', 'note')
-            .eq('is_shared', true)
-            .eq('processed', true)
-            .in('data_source_type', ['management_accounts_analysis', 'general'])
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          
-          console.log('📊 MA Insight query result (old format):', { maInsight, maError, clientId: clientSession.clientId });
-          
-          if (maInsight && maInsight.content) {
-            try {
-              const content = typeof maInsight.content === 'string' 
-                ? JSON.parse(maInsight.content) 
-                : maInsight.content;
-              
-              const insightData = content?.insight || content;
-              if (insightData && (insightData.headline || insightData.keyInsights)) {
-                hasSharedMAInsight = true;
-                console.log('✅ Valid MA insight found (old format):', { 
-                  hasHeadline: !!insightData.headline, 
-                  hasKeyInsights: !!insightData.keyInsights,
-                  headlineText: insightData.headline?.text?.substring(0, 50) || 'N/A'
-                });
-              }
-            } catch (e) {
-              console.error('❌ Error parsing MA insight content:', e);
-            }
+        if (maInsight?.content) {
+          try {
+            const content = typeof maInsight.content === 'string' ? JSON.parse(maInsight.content) : maInsight.content;
+            const insightData = content?.insight || content;
+            if (insightData && (insightData.headline || insightData.keyInsights)) hasSharedMAInsight = true;
+          } catch {
+            // ignore
           }
         }
       }
@@ -301,329 +305,88 @@ export default function UnifiedDashboardPage() {
       setMAInsightShared(hasSharedMAInsight);
       biPeriodDeliveredRef.current = hasBIDeliveredPeriod;
       setBIPeriodDelivered(hasBIDeliveredPeriod);
-      console.log('📊 MA/BI status:', { 
-        insightShared: hasSharedMAInsight, 
-        periodDelivered: hasBIDeliveredPeriod 
-      });
 
-      // Check MA assessment completion status
-      let maAssessmentDone = false;
-      if (clientSession?.clientId) {
-        const { data: maAssessment, error: maAssessmentError } = await supabase
-          .from('service_line_assessments')
-          .select('completed_at')
-          .eq('client_id', clientSession.clientId)
-          .in('service_line_code', ['management_accounts', 'business_intelligence'])
-          .order('completed_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        if (maAssessment?.completed_at) {
-          maAssessmentDone = true;
-          console.log('✅ MA Assessment completed at:', maAssessment.completed_at);
-        } else {
-          console.log('📋 MA Assessment not yet completed');
-        }
-        if (maAssessmentError) {
-          console.error('❌ Error checking MA assessment:', maAssessmentError);
-        }
-      }
-      maAssessmentCompletedRef.current = maAssessmentDone;
-      setMAAssessmentCompleted(maAssessmentDone);
-      console.log('📊 MA Assessment completed status set to:', maAssessmentDone);
-
-      // Check Systems Audit engagement status
-      if (clientSession?.clientId) {
-        console.log('🔍 Checking Systems Audit engagement for client:', clientSession.clientId);
-        const { data: saEngagement, error: saError } = await supabase
-          .from('sa_engagements')
-          .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, is_shared_with_client, status')
-          .eq('client_id', clientSession.clientId)
-          .maybeSingle();
-        
-        if (saEngagement?.is_shared_with_client) setSaReportShared(true);
-        
-        console.log('📊 Systems Audit engagement query result:', { saEngagement, saError });
-        
-        if (saError) {
-          console.error('❌ Error fetching Systems Audit engagement:', saError);
-          setSaReportShared(false);
-          setSystemsAuditStage({
-            stage1Complete: false,
-            stage2Complete: false,
-            stage3Complete: false,
-            engagementId: null,
-            reportApproved: false
-          });
-        } else if (saEngagement) {
-          // Check if report is approved
-          let reportApproved = false;
-          if (saEngagement.stage_3_completed_at) {
-            console.log('🔍 Checking report status for engagement:', saEngagement.id);
-            
-            // First, check if ANY report exists (even if not approved) - this helps diagnose RLS issues
-            const { data: allReports, error: allReportsError } = await supabase
-              .from('sa_audit_reports')
-              .select('id, status, created_at, engagement_id')
-              .eq('engagement_id', saEngagement.id)
-              .order('created_at', { ascending: false });
-            
-            console.log('🔍 All reports for engagement (diagnostic):', {
-              count: allReports?.length || 0,
-              reports: allReports,
-              error: allReportsError
-            });
-            
-            // Now check for approved reports only
-            const { data: report, error: reportError } = await supabase
-              .from('sa_audit_reports')
-              .select('id, status, created_at, engagement_id')
-              .eq('engagement_id', saEngagement.id)
-              .in('status', ['approved', 'published', 'delivered'])
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            
-            console.log('🔍 Systems Audit report check result:', { 
-              report, 
-              reportError, 
-              engagementId: saEngagement.id,
-              hasReport: !!report,
-              reportStatus: report?.status,
-              reportId: report?.id,
-              errorCode: reportError?.code,
-              errorMessage: reportError?.message,
-              errorDetails: reportError?.details,
-              allReportsCount: allReports?.length || 0,
-              allReportsStatuses: allReports?.map(r => r.status) || []
-            });
-            
-            if (reportError) {
-              console.error('❌ Error fetching Systems Audit report:', {
-                code: reportError.code,
-                message: reportError.message,
-                details: reportError.details,
-                hint: reportError.hint
-              });
-              
-              // If it's an RLS error, log it specifically
-              if (reportError.code === '42501' || reportError.message?.includes('permission') || reportError.message?.includes('policy')) {
-                console.error('🚨 RLS POLICY ERROR: Client cannot access report. This may be because:');
-                console.error('   1. The RLS migration has not been applied');
-                console.error('   2. The report status is not "approved", "published", or "delivered"');
-                console.error('   3. The client_id does not match the engagement');
-              }
-            }
-            
-            if (report && (report.status === 'approved' || report.status === 'published' || report.status === 'delivered')) {
-              reportApproved = true;
-              console.log('✅ Report is approved and accessible:', report.status);
-            } else if (allReports && allReports.length > 0) {
-              const latestReport = allReports[0];
-              console.log('⚠️ Report exists but not approved. Latest report status:', latestReport.status, '- Client cannot view yet');
-              console.log('💡 To make it visible, update the report status to "approved" in the admin portal');
-            } else if (!reportError && !allReportsError) {
-              console.log('⚠️ No report found for engagement (no error, just no data)');
-              console.log('💡 This means either:');
-              console.log('   1. The report has not been generated yet');
-              console.log('   2. The RLS policy is blocking access (but no error was returned)');
-            }
-          }
-          
-          setSystemsAuditStage({
-            stage1Complete: !!saEngagement.stage_1_completed_at,
-            stage2Complete: !!saEngagement.stage_2_completed_at,
-            stage3Complete: !!saEngagement.stage_3_completed_at,
-            engagementId: saEngagement.id,
-            reportApproved
-          });
-          console.log('✅ Systems Audit stage status:', {
-            stage1Complete: !!saEngagement.stage_1_completed_at,
-            stage2Complete: !!saEngagement.stage_2_completed_at,
-            stage3Complete: !!saEngagement.stage_3_completed_at,
-            engagementId: saEngagement.id,
-            reportApproved
-          });
-        } else {
-          // No engagement yet. If client is enrolled in Systems Audit, create one so progress (e.g. 97% in service_line_assessments) is visible.
-          const hasSystemsAudit = enrollments?.some((e: any) => e.service_line?.code === 'systems_audit');
-          if (hasSystemsAudit && clientSession?.practiceId) {
-            const { data: newEngagement, error: createErr } = await supabase
-              .from('sa_engagements')
-              .insert({
-                client_id: clientSession.clientId,
-                practice_id: clientSession.practiceId,
-                status: 'pending',
-              })
-              .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, is_shared_with_client, status')
-              .single();
-            if (!createErr && newEngagement) {
-              console.log('✅ Created missing Systems Audit engagement for client');
-              setSystemsAuditStage({
-                stage1Complete: !!newEngagement.stage_1_completed_at,
-                stage2Complete: !!newEngagement.stage_2_completed_at,
-                stage3Complete: !!newEngagement.stage_3_completed_at,
-                engagementId: newEngagement.id,
-                reportApproved: false
-              });
-            } else {
-              console.warn('⚠️ No Systems Audit engagement found', createErr ? createErr.message : '');
-              setSaReportShared(false);
-              setSystemsAuditStage({
-                stage1Complete: false,
-                stage2Complete: false,
-                stage3Complete: false,
-                engagementId: null,
-                reportApproved: false
-              });
-            }
-          } else {
-            console.log('⚠️ No Systems Audit engagement found');
-            setSaReportShared(false);
+      // Systems Audit: use Batch 1 saEngagement and Batch 2 saReports
+      if (saEngagement) {
+        setSaReportShared(!!saEngagement.is_shared_with_client);
+        const reportApproved = !!batch2Map.saReports?.data;
+        setSystemsAuditStage({
+          stage1Complete: !!saEngagement.stage_1_completed_at,
+          stage2Complete: !!saEngagement.stage_2_completed_at,
+          stage3Complete: !!saEngagement.stage_3_completed_at,
+          engagementId: saEngagement.id,
+          reportApproved,
+          submissionStatus: saEngagement.submission_status ?? 'draft',
+          submittedAt: saEngagement.submitted_at ?? null,
+        });
+      } else {
+        const hasSystemsAudit = enrollments?.some((e: any) => e.service_line?.code === 'systems_audit');
+        if (hasSystemsAudit && practiceId) {
+          const { data: newEngagement, error: createErr } = await supabase
+            .from('sa_engagements')
+            .insert({ client_id: clientId, practice_id: practiceId, status: 'pending' })
+            .select('id, stage_1_completed_at, stage_2_completed_at, stage_3_completed_at, is_shared_with_client, status')
+            .single();
+          if (!createErr && newEngagement) {
             setSystemsAuditStage({
-              stage1Complete: false,
-              stage2Complete: false,
-              stage3Complete: false,
-              engagementId: null,
-              reportApproved: false
+              stage1Complete: !!newEngagement.stage_1_completed_at,
+              stage2Complete: !!newEngagement.stage_2_completed_at,
+              stage3Complete: !!newEngagement.stage_3_completed_at,
+              engagementId: newEngagement.id,
+              reportApproved: false,
+              submissionStatus: (newEngagement as any)?.submission_status ?? 'draft',
+              submittedAt: (newEngagement as any)?.submitted_at ?? null,
             });
+          } else {
+            setSaReportShared(false);
+            setSystemsAuditStage({ stage1Complete: false, stage2Complete: false, stage3Complete: false, engagementId: null, reportApproved: false, submissionStatus: 'draft', submittedAt: null });
           }
-        }
-      }
-
-      // ========== Benchmarking Status Check ==========
-      // Check if client has a benchmarking engagement and shared report
-      const hasBenchmarkingService = enrollments?.some((e: any) => e.service_line?.code === 'benchmarking');
-      if (hasBenchmarkingService) {
-        console.log('📊 Checking benchmarking status...');
-        
-        // Include report_shared_with_client from engagement (clients can read this)
-        const { data: bmEngagement, error: bmEngagementError } = await supabase
-          .from('bm_engagements')
-          .select('id, status, assessment_completed_at, report_shared_with_client')
-          .eq('client_id', clientSession?.clientId)
-          .maybeSingle();
-        
-        if (bmEngagementError) {
-          console.error('❌ Error fetching benchmarking engagement:', bmEngagementError);
-          setBenchmarkingStatus({
-            hasEngagement: false,
-            assessmentComplete: false,
-            reportGenerated: false,
-            reportShared: false
-          });
-        } else if (bmEngagement) {
-          const isReportGenerated = ['generated', 'approved', 'published', 'pass1_complete'].includes(bmEngagement.status);
-          // Read share status directly from engagement (avoids RLS issues with bm_reports)
-          const isReportShared = !!bmEngagement.report_shared_with_client;
-          
-          setBenchmarkingStatus({
-            hasEngagement: true,
-            assessmentComplete: !!bmEngagement.assessment_completed_at || ['assessment_complete', 'generated', 'approved', 'published', 'pass1_complete'].includes(bmEngagement.status),
-            reportGenerated: isReportGenerated,
-            reportShared: isReportShared
-          });
-          
-          console.log('✅ Benchmarking status:', {
-            hasEngagement: true,
-            assessmentComplete: !!bmEngagement.assessment_completed_at,
-            reportGenerated: isReportGenerated,
-            reportShared: isReportShared,
-            engagementStatus: bmEngagement.status
-          });
         } else {
-          console.log('⚠️ No benchmarking engagement found');
-          setBenchmarkingStatus({
-            hasEngagement: false,
-            assessmentComplete: false,
-            reportGenerated: false,
-            reportShared: false
-          });
+          setSaReportShared(false);
+          setSystemsAuditStage({ stage1Complete: false, stage2Complete: false, stage3Complete: false, engagementId: null, reportApproved: false, submissionStatus: 'draft', submittedAt: null });
         }
       }
 
       let serviceList: ServiceEnrollment[] = (enrollments || [])
-        .filter((e: any) => {
-          const hasServiceLine = !!e.service_line;
-          if (!hasServiceLine) {
-            console.warn('⚠️ Enrollment missing service_line:', e.id, e);
-          }
-          return hasServiceLine;
-        })
-        .map((e: any) => {
-          const service = {
-            id: e.id,
-            status: e.status,
-            serviceCode: e.service_line.code,
-            serviceName: e.service_line.name,
-            serviceDescription: e.service_line.short_description || '',
-            createdAt: e.created_at,
-          };
-          console.log('✅ Mapped service:', service.serviceCode, service.serviceName);
-          return service;
-        });
-      
-      console.log('📋 Final mapped serviceList:', serviceList.map(s => ({ code: s.serviceCode, name: s.serviceName })));
+        .filter((e: any) => !!e.service_line)
+        .map((e: any) => ({
+          id: e.id,
+          status: e.status,
+          serviceCode: e.service_line.code,
+          serviceName: e.service_line.name,
+          serviceDescription: e.service_line.short_description || '',
+          createdAt: e.created_at,
+        }));
 
-      // Fetch GA sprint data if enrolled
-      const hasGA = serviceList.some(s => s.serviceCode === '365_method' || s.serviceCode === '365_alignment');
-      if (hasGA && clientSession?.clientId) {
+      // Fetch GA sprint data if enrolled (use batch2 gaServiceLine when available)
+      const gaServiceLineId = batch2Map.gaServiceLine?.data?.id;
+      if (hasGA && clientId) {
         setGALifeAlignmentScore(null);
         try {
-          const { data: slRow } = await supabase
-            .from('service_lines')
-            .select('id')
-            .eq('code', '365_method')
-            .maybeSingle();
-
-          let enrollment: any = null;
-          if (slRow?.id) {
-            const { data: enrollRow } = await supabase
-              .from('client_service_lines')
-              .select('current_sprint_number, tier_name, renewal_status')
-              .eq('client_id', clientSession.clientId)
-              .eq('service_line_id', slRow.id)
-              .maybeSingle();
-            enrollment = enrollRow;
-          }
-
+          const slId = gaServiceLineId ?? (await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle()).data?.id;
+          if (!slId) {
+            setGASprintData({ hasRoadmap: false, hasSprint: false, sprintNumber: 0, activeWeek: 0, totalWeeks: 12, completionRate: 0, completedTasks: 0, totalTasks: 0, isSprintComplete: false, hasLifeCheckPending: false, hasCatchUpNeeded: false, weeksBehind: 0, nextTaskTitle: null, sprintTheme: null });
+          } else {
+          const [enrollRow, sprintStage] = await Promise.all([
+            supabase.from('client_service_lines').select('current_sprint_number, tier_name, renewal_status').eq('client_id', clientId).eq('service_line_id', slId).maybeSingle(),
+            supabase.from('roadmap_stages').select('generated_content, approved_content, created_at').eq('client_id', clientId).eq('stage_type', 'sprint_plan_part2').eq('sprint_number', 1).order('version', { ascending: false }).limit(1).maybeSingle(),
+          ]);
+          let enrollment = enrollRow.data;
           const sprintNumber = enrollment?.current_sprint_number ?? 1;
           const renewalStatus = enrollment?.renewal_status || 'not_started';
           const tier = enrollment?.tier_name || 'Growth';
           const statusFilter = tier === 'Partner' ? ['published'] : ['published', 'approved', 'generated'];
 
-          const { data: sprintStage } = await supabase
-            .from('roadmap_stages')
-            .select('generated_content, approved_content, created_at')
-            .eq('client_id', clientSession.clientId)
-            .eq('stage_type', 'sprint_plan_part2')
-            .eq('sprint_number', sprintNumber)
-            .in('status', statusFilter)
-            .order('version', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          let sprintContent = sprintStage?.approved_content || sprintStage?.generated_content || null;
-          if (!sprintContent) {
-            const { data: legacyStage } = await supabase
-              .from('roadmap_stages')
-              .select('generated_content, approved_content, created_at')
-              .eq('client_id', clientSession.clientId)
-              .in('stage_type', ['sprint_plan', 'sprint_plan_part1'])
-              .in('status', statusFilter)
-              .order('version', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            sprintContent = legacyStage?.approved_content || legacyStage?.generated_content || null;
-          }
+          const [sprintStageCorrect, legacyStage, dbTasksResult] = await Promise.all([
+            supabase.from('roadmap_stages').select('generated_content, approved_content, created_at').eq('client_id', clientId).eq('stage_type', 'sprint_plan_part2').eq('sprint_number', sprintNumber).in('status', statusFilter).order('version', { ascending: false }).limit(1).maybeSingle(),
+            supabase.from('roadmap_stages').select('generated_content, approved_content, created_at').eq('client_id', clientId).in('stage_type', ['sprint_plan', 'sprint_plan_part1']).in('status', statusFilter).order('version', { ascending: false }).limit(1).maybeSingle(),
+            sprintNumber >= 1 ? supabase.from('client_tasks').select('week_number, title, status, sprint_number').eq('client_id', clientId).eq('sprint_number', sprintNumber) : Promise.resolve({ data: [] }),
+          ]);
+          let sprintContent = sprintStageCorrect.data?.approved_content || sprintStageCorrect.data?.generated_content || null;
+          if (!sprintContent) sprintContent = legacyStage.data?.approved_content || legacyStage.data?.generated_content || null;
+          const dbTasks = dbTasksResult.data || [];
 
           if (sprintContent && sprintContent.weeks) {
-            const { data: dbTasks } = await supabase
-              .from('client_tasks')
-              .select('week_number, title, status, sprint_number')
-              .eq('client_id', clientSession.clientId)
-              .eq('sprint_number', sprintNumber);
-
             const weeks = sprintContent.weeks || [];
             const totalWeeks = weeks.length;
             let totalTaskCount = 0;
@@ -658,7 +421,7 @@ export default function UnifiedDashboardPage() {
               if (week.weekNumber === totalWeeks && allResolved) activeWeek = totalWeeks;
             }
 
-            const sprintStartDate = sprintContent.startDate || sprintStage?.created_at;
+            const sprintStartDate = sprintContent.startDate || sprintStageCorrect.data?.created_at;
             let calendarWeek = activeWeek;
             if (sprintStartDate) {
               const start = new Date(sprintStartDate);
@@ -676,7 +439,7 @@ export default function UnifiedDashboardPage() {
               const { data: latestScore } = await supabase
                 .from('life_alignment_scores')
                 .select('overall_score')
-                .eq('client_id', clientSession.clientId)
+                .eq('client_id', clientId)
                 .eq('sprint_number', sprintNumber)
                 .order('week_number', { ascending: false })
                 .limit(1)
@@ -720,7 +483,7 @@ export default function UnifiedDashboardPage() {
             const { data: anyStage } = await supabase
               .from('roadmap_stages')
               .select('id')
-              .eq('client_id', clientSession.clientId)
+              .eq('client_id', clientId)
               .limit(1)
               .maybeSingle();
 
@@ -741,131 +504,44 @@ export default function UnifiedDashboardPage() {
               sprintTheme: null,
             });
           }
+          }
         } catch (err) {
           console.error('Failed to load GA sprint data:', err);
         }
       }
 
-      // Check discovery status - try by client_id first
-      // Handle multiple records by getting the most recent one
-      const { data: discoveryRecords, error: discoveryError } = await supabase
-        .from('destination_discovery')
-        .select('id, client_id, completed_at, created_at, practice_id')
-        .eq('client_id', clientSession?.clientId)
-        .order('created_at', { ascending: false });
-
-      // Get the most recent discovery record (or null if none)
-      let discovery = discoveryRecords && discoveryRecords.length > 0 ? discoveryRecords[0] : null;
-
-      console.log('🔍 Discovery by client_id:', clientSession?.clientId);
-      console.log('🔍 Discovery result:', discovery);
-      console.log('🔍 Discovery records count:', discoveryRecords?.length || 0);
-      console.log('🔍 Discovery error:', discoveryError);
-
-      // If no discovery found by client_id, try by practice_id (handles ID mismatch cases)
-      if (!discovery && clientSession?.practiceId) {
-        // Get all discoveries for this practice
-        const { data: allDiscoveries, error: allDiscError } = await supabase
-          .from('destination_discovery')
-          .select('id, client_id, completed_at, created_at, practice_id')
-          .eq('practice_id', clientSession.practiceId);
-        
-        console.log('🔍 All practice discoveries:', allDiscoveries, allDiscError);
-        
-        if (allDiscoveries && allDiscoveries.length > 0) {
-          // Get practice members to match by email
-          const { data: practiceMembers } = await supabase
-            .from('practice_members')
-            .select('id, email')
-            .eq('practice_id', clientSession.practiceId)
-            .eq('member_type', 'client');
-          
-          // Find the client_id that matches our email
-          const clientMember = practiceMembers?.find((m: any) => 
-            m.email?.toLowerCase() === clientSession?.email?.toLowerCase()
-          );
-          
-          // Also check if any discovery has a client_id that's linked to our email via practice_members
-          for (const disc of allDiscoveries) {
-            const discMember = practiceMembers?.find((m: any) => m.id === disc.client_id);
-            if (discMember?.email?.toLowerCase() === clientSession?.email?.toLowerCase()) {
-              console.log('🔍 Found discovery by email match:', disc, discMember);
-              discovery = disc;
-              break;
-            }
+      // Discovery: already have from Batch 1; fallback from Batch 2 (practice_id) with email match
+      if (!discovery && practiceId && batch2Map.discoveryFallback?.data?.length) {
+        const allDiscoveries = batch2Map.discoveryFallback.data;
+        const { data: practiceMembers } = await supabase
+          .from('practice_members')
+          .select('id, email')
+          .eq('practice_id', practiceId)
+          .eq('member_type', 'client');
+        for (const disc of allDiscoveries) {
+          const discMember = practiceMembers?.find((m: any) => m.id === disc.client_id);
+          if (discMember?.email?.toLowerCase() === clientSession?.email?.toLowerCase()) {
+            discovery = disc;
+            break;
           }
         }
       }
 
       // Check for shared discovery report
       let report: any = null;
-      let reportError: any = null;
-      
-      if (!clientSession?.clientId) {
-        console.warn('⚠️ No clientId available, skipping report check');
-      } else {
-        console.log('🔍 Checking for shared report with client_id:', clientSession.clientId);
-        
-        // First, verify we can query practice_members (RLS check)
-        const { data: pmCheck, error: pmError } = await supabase
-          .from('practice_members')
-          .select('id, user_id, member_type')
-          .eq('id', clientSession.clientId)
-          .eq('member_type', 'client')
-          .maybeSingle();
-        
-        const { data: authUser } = await supabase.auth.getUser();
-        console.log('🔍 Practice member check (RLS verification):', {
-          pmCheck,
-          pmError,
-          authUid: authUser?.user?.id,
-          clientId: clientSession.clientId
-        });
-        
-        // Query for shared reports - use limit(1) instead of maybeSingle() 
-        // because maybeSingle() fails when there are multiple rows
+      if (clientId) {
         const reportResult = await supabase
           .from('client_reports')
           .select('id, is_shared_with_client, client_id, report_type, created_at')
-          .eq('client_id', clientSession.clientId)
+          .eq('client_id', clientId)
           .eq('report_type', 'discovery_analysis')
-          .eq('is_shared_with_client', true)  // Only get shared reports
+          .eq('is_shared_with_client', true)
           .order('created_at', { ascending: false })
-          .limit(1);  // Get the most recent shared report
-        
-        // Take the first result if any exist
+          .limit(1);
         report = reportResult.data?.[0] || null;
-        reportError = reportResult.error;
-        
-        console.log('🔍 Report query result:', { 
-          report, 
-          reportError,
-          hasReport: !!report,
-          clientId: clientSession.clientId
-        });
-        
-        if (reportError) {
-          console.error('🔍 Error checking for report:', {
-            code: reportError.code,
-            message: reportError.message,
-            details: reportError.details,
-            hint: reportError.hint
-          });
+        if (reportResult.error) {
+          console.error('Error checking for discovery report:', reportResult.error);
         }
-        
-        // Also check ALL reports (for debugging) - remove filter to see what's there
-        const { data: allReports, error: allReportsError } = await supabase
-          .from('client_reports')
-          .select('id, is_shared_with_client, client_id, report_type, created_at')
-          .eq('client_id', clientSession.clientId)
-          .eq('report_type', 'discovery_analysis')
-          .order('created_at', { ascending: false });
-        
-        console.log('🔍 All reports for client (debug):', {
-          allReports,
-          allReportsError,
-          count: allReports?.length || 0
-        });
       }
 
       const discoveryStatusData = {
@@ -874,28 +550,14 @@ export default function UnifiedDashboardPage() {
         hasReport: !!report,
         reportShared: report?.is_shared_with_client || false,
       };
-      
-      console.log('✅ Discovery status:', discoveryStatusData);
-      console.log('✅ Discovery record:', discovery);
       setDiscoveryStatus(discoveryStatusData);
 
-      // If client has discovery data OR a discovery report but no discovery service in list, add it
-      // Show discovery service if:
-      // 1. Discovery record exists, OR
-      // 2. Discovery report exists (even if discovery record was deleted)
       const hasDiscoveryService = serviceList.some(s => s.serviceCode === 'discovery');
       const hasDiscoveryData = !!discovery;
       const hasDiscoveryReport = !!report && report.report_type === 'discovery_analysis';
-      
-      console.log('📝 Has discovery service in list:', hasDiscoveryService);
-      console.log('📝 Discovery data exists:', hasDiscoveryData);
-      console.log('📝 Discovery report exists:', hasDiscoveryReport);
-      console.log('📝 Current serviceList before discovery add:', serviceList);
-      
-      // Show discovery service only if we have discovery data or report AND not hidden by practice
+
       if ((hasDiscoveryData || hasDiscoveryReport) && !hideDiscoveryInPortal) {
         if (!hasDiscoveryService) {
-          console.log('➕ Adding discovery card to service list');
           // Use report creation date if discovery record doesn't exist
           const createdAt = discovery?.created_at || report?.created_at || new Date().toISOString();
           
@@ -923,9 +585,8 @@ export default function UnifiedDashboardPage() {
         serviceList = serviceList.filter(s => s.serviceCode !== 'discovery');
       }
 
-      console.log('📝 Final serviceList:', serviceList);
       setServices(serviceList);
-
+      console.log(`⏱️ Dashboard loaded in ${Math.round(performance.now() - startTime)}ms`);
     } catch (err) {
       console.error('Error loading dashboard:', err);
     } finally {
@@ -965,18 +626,17 @@ export default function UnifiedDashboardPage() {
     }
     if (code === 'systems_audit') {
       if (saReportShared) return '/service/systems_audit/report';
-      // Check stage completion status
-      if (systemsAuditStage?.stage3Complete) {
-        // Stage 3 complete - audit is complete, show completion or report
-        return '/service/systems_audit/process-deep-dives';
-      } else if (systemsAuditStage?.stage2Complete) {
-        // Stage 2 complete, route to Stage 3
+      if (systemsAuditStage?.submissionStatus === 'submitted') {
+        return '/service/systems_audit/status';
+      }
+      if (systemsAuditStage?.stage1Complete && systemsAuditStage?.stage2Complete && systemsAuditStage?.stage3Complete) {
+        return '/service/systems_audit/review';
+      }
+      if (systemsAuditStage?.stage2Complete) {
         return '/service/systems_audit/process-deep-dives';
       } else if (systemsAuditStage?.stage1Complete && !systemsAuditStage.stage2Complete) {
-        // Stage 1 complete, route to Stage 2
         return '/service/systems_audit/inventory';
       }
-      // Stage 1 not complete, route to Stage 1
       return '/service/systems_audit/assessment';
     }
     if (code === 'benchmarking') {
@@ -1119,16 +779,15 @@ export default function UnifiedDashboardPage() {
       if (saReportShared) {
         return { label: 'Report Ready', color: 'emerald', icon: FileText };
       }
-      if (systemsAuditStage?.stage3Complete && systemsAuditStage?.reportApproved) {
-        return { label: 'View Report', color: 'emerald', icon: FileText };
-      } else if (systemsAuditStage?.stage3Complete) {
-        return { label: 'Report Coming Soon', color: 'amber', icon: Clock };
-      } else if (systemsAuditStage?.stage2Complete) {
-        return { label: 'Continue to Stage 3', color: 'cyan', icon: ArrowRight };
-      } else if (systemsAuditStage?.stage1Complete) {
-        return { label: 'Continue to Stage 2', color: 'cyan', icon: ArrowRight };
+      const stagesComplete = (systemsAuditStage?.stage1Complete ? 1 : 0) +
+        (systemsAuditStage?.stage2Complete ? 1 : 0) +
+        (systemsAuditStage?.stage3Complete ? 1 : 0);
+      if (stagesComplete === 3) {
+        return { label: 'All Stages Complete', color: 'emerald', icon: CheckCircle };
+      } else if (stagesComplete > 0) {
+        return { label: `${stagesComplete}/3 Stages Complete`, color: 'cyan', icon: ArrowRight };
       } else {
-        return { label: 'Start Stage 1', color: 'indigo', icon: Play };
+        return { label: 'Get Started', color: 'indigo', icon: Play };
       }
     }
     
@@ -1246,8 +905,129 @@ export default function UnifiedDashboardPage() {
                 {/* Card Body */}
                 <div className="px-6 py-4">
                   <p className="text-gray-600 text-sm mb-4">
-                    {service.serviceDescription || 'Complete your assessment to unlock personalized insights.'}
+                    {service.serviceCode === 'benchmarking' && services.some(s => s.serviceCode === 'benchmarking')
+                      ? 'Part 1 of 2: Performance benchmarking and gap analysis. Complete your assessment to unlock your benchmark report.'
+                      : (service.serviceDescription || 'Complete your assessment to unlock personalized insights.')}
                   </p>
+
+                  {/* Systems Audit Stage Breakdown */}
+                  {service.serviceCode === 'systems_audit' && !saReportShared && (
+                    <div className="space-y-2 mb-4">
+                      {/* Stage 1: Discovery Assessment */}
+                      <Link
+                        to="/service/systems_audit/assessment"
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                          systemsAuditStage?.stage1Complete
+                            ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            systemsAuditStage?.stage1Complete
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-purple-100 text-purple-600'
+                          }`}>
+                            {systemsAuditStage?.stage1Complete ? '✓' : '1'}
+                          </div>
+                          <div>
+                            <p className={`text-sm font-medium ${
+                              systemsAuditStage?.stage1Complete ? 'text-emerald-800' : 'text-slate-800'
+                            }`}>
+                              Discovery Assessment
+                            </p>
+                            <p className="text-xs text-slate-500">Your business, goals & pain points</p>
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 ${
+                          systemsAuditStage?.stage1Complete ? 'text-emerald-400' : 'text-slate-400'
+                        }`} />
+                      </Link>
+
+                      {/* Stage 2: System Inventory */}
+                      <Link
+                        to="/service/systems_audit/inventory"
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                          systemsAuditStage?.stage2Complete
+                            ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            systemsAuditStage?.stage2Complete
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-purple-100 text-purple-600'
+                          }`}>
+                            {systemsAuditStage?.stage2Complete ? '✓' : '2'}
+                          </div>
+                          <div>
+                            <p className={`text-sm font-medium ${
+                              systemsAuditStage?.stage2Complete ? 'text-emerald-800' : 'text-slate-800'
+                            }`}>
+                              System Inventory
+                            </p>
+                            <p className="text-xs text-slate-500">Map your current tech stack</p>
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 ${
+                          systemsAuditStage?.stage2Complete ? 'text-emerald-400' : 'text-slate-400'
+                        }`} />
+                      </Link>
+
+                      {/* Stage 3: Process Deep Dives */}
+                      <Link
+                        to="/service/systems_audit/process-deep-dives"
+                        className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                          systemsAuditStage?.stage3Complete
+                            ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                            : 'bg-white border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                            systemsAuditStage?.stage3Complete
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-purple-100 text-purple-600'
+                          }`}>
+                            {systemsAuditStage?.stage3Complete ? '✓' : '3'}
+                          </div>
+                          <div>
+                            <p className={`text-sm font-medium ${
+                              systemsAuditStage?.stage3Complete ? 'text-emerald-800' : 'text-slate-800'
+                            }`}>
+                              Process Deep Dives
+                            </p>
+                            <p className="text-xs text-slate-500">How your key workflows actually run</p>
+                          </div>
+                        </div>
+                        <ChevronRight className={`w-4 h-4 ${
+                          systemsAuditStage?.stage3Complete ? 'text-emerald-400' : 'text-slate-400'
+                        }`} />
+                      </Link>
+
+                      {/* Progress summary */}
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                            style={{
+                              width: `${(
+                                (systemsAuditStage?.stage1Complete ? 1 : 0) +
+                                (systemsAuditStage?.stage2Complete ? 1 : 0) +
+                                (systemsAuditStage?.stage3Complete ? 1 : 0)
+                              ) / 3 * 100}%`
+                            }}
+                          />
+                        </div>
+                        <span className="text-xs text-slate-500 whitespace-nowrap">
+                          {(systemsAuditStage?.stage1Complete ? 1 : 0) +
+                           (systemsAuditStage?.stage2Complete ? 1 : 0) +
+                           (systemsAuditStage?.stage3Complete ? 1 : 0)}/3 complete
+                        </span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Goal Alignment card body */}
                   {(service.serviceCode === '365_method' || service.serviceCode === '365_alignment') && (
@@ -1339,7 +1119,8 @@ export default function UnifiedDashboardPage() {
                     </>
                   )}
 
-                  {/* Action Button */}
+                  {/* Action Button — hide for SA when sub-stages are shown (report not shared) */}
+                  {(service.serviceCode !== 'systems_audit' || saReportShared) && (
                   <Link
                     to={link}
                     className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium text-sm transition-colors ${
@@ -1387,10 +1168,46 @@ export default function UnifiedDashboardPage() {
                       </>
                     )}
                   </Link>
+                  )}
                 </div>
               </div>
             );
           })}
+          {/* HVA tile — shown when benchmarking is enrolled */}
+          {services.some(s => s.serviceCode === 'benchmarking') && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-50 rounded-lg">
+                    <Award className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900">Hidden Value Audit</h3>
+                </div>
+                {hvaAssessment?.responses && Object.keys(hvaAssessment.responses).length > 0 ? (
+                  <span className="text-xs font-medium px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full">
+                    ✓ Complete
+                  </span>
+                ) : (
+                  <span className="text-xs font-medium px-2 py-1 bg-amber-50 text-amber-700 rounded-full">
+                    ↻ Start Assessment
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-500 mb-4">
+                Part 2 of 2: Identify hidden value drivers, founder dependencies, and strategic risks in your business
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/service/benchmarking/hva')}
+                className="w-full py-2 px-4 bg-gray-50 hover:bg-gray-100 text-gray-700 text-sm font-medium rounded-lg border border-gray-200 transition-colors flex items-center justify-center gap-2"
+              >
+                {hvaAssessment?.responses && Object.keys(hvaAssessment.responses).length > 0
+                  ? 'Review Responses'
+                  : 'Get Started'}
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Quick Links */}
