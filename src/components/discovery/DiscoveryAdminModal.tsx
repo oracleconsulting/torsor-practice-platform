@@ -410,22 +410,44 @@ export function DiscoveryAdminModal({ clientId, onClose }: DiscoveryAdminModalPr
     }
   };
 
-  // Phase 3: Narrative Report (pass2 only)
+  // Phase 3: Narrative Report (Pass 2A structure → Pass 2B narrative)
   const handlePhase3 = async () => {
     if (!engagement) return;
     setGenerating(true);
     setGeneratingPass(4);
     try {
       await saveAdminSettings();
-      const { error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+
+      // Pass 2A: Sonnet generates complete structured report
+      console.log('[Phase3] Running Pass 2A (Sonnet structure)...');
+      const { error: pass2aError } = await supabase.functions.invoke('generate-discovery-report-pass2a', {
         body: { engagementId: engagement.id }
       });
-      if (error) throw error;
+      if (pass2aError) throw pass2aError;
+      console.log('[Phase3] Pass 2A complete. Running Pass 2B (Opus narrative)...');
 
-      await supabase
-        .from('discovery_engagements')
-        .update({ status: 'pass2_complete', pass2_completed_at: new Date().toISOString() })
-        .eq('id', engagement.id);
+      // Pass 2B: Opus enhances narrative sections
+      const { data: pass2bResult, error: pass2bError } = await supabase.functions.invoke('generate-discovery-report-pass2b', {
+        body: { engagementId: engagement.id }
+      });
+
+      const pass2bSucceeded = !pass2bError && pass2bResult?.success !== false;
+
+      if (!pass2bSucceeded) {
+        // Non-fatal — Sonnet report is already saved and usable
+        console.warn('[Phase3] Pass 2B failed (Sonnet report still intact):', pass2bError?.message || pass2bResult?.error);
+        alert('Report generated (Sonnet quality). Opus narrative enhancement failed — you can retry later.');
+        await supabase
+          .from('discovery_engagements')
+          .update({ pass2_completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq('id', engagement.id);
+      } else {
+        console.log('[Phase3] Pass 2B complete:', pass2bResult);
+        await supabase
+          .from('discovery_engagements')
+          .update({ status: 'published', pass2_completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+          .eq('id', engagement.id);
+      }
 
       await fetchData();
     } catch (error: any) {

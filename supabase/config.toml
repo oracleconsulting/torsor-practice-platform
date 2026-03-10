@@ -65,6 +65,14 @@ max_execution_time = 150
 verify_jwt = true
 max_execution_time = 150
 
+[functions."generate-discovery-report-pass2a"]
+verify_jwt = true
+max_execution_time = 150
+
+[functions."generate-discovery-report-pass2b"]
+verify_jwt = true
+max_execution_time = 150
+
 [functions."generate-discovery-analysis"]
 verify_jwt = true
 max_execution_time = 150
