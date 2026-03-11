@@ -24,6 +24,30 @@ function enforcePayrollFigures(jsonStr: string, correctExcessK: number, correctB
   let result = jsonStr;
   let replacements = 0;
 
+  // Step 1: Protect non-payroll figures from accidental replacement
+  const protectedPhrases: [string, string][] = [];
+  let protIdx = 0;
+  const protect = (pattern: RegExp) => {
+    result = result.replace(pattern, (match: string) => {
+      const ph = `__PROT${protIdx++}__`;
+      protectedPhrases.push([ph, match]);
+      return ph;
+    });
+  };
+
+  protect(/conservative.*?£[\d,]+k?/gi);
+  protect(/realistic.*?£[\d,]+k?/gi);
+  protect(/expected return.*?£[\d,]+k?/gi);
+  protect(/payback.*?£[\d,]+k?/gi);
+  protect(/£[\d.]+M\s*[-–]\s*£[\d.]+M/gi);
+  protect(/worth.*?£[\d,]+k?/gi);
+  protect(/valuation.*?£[\d,]+k?/gi);
+  protect(/£[\d,]+k?\s*(loan|borrowed|borrowing|lending|emergency)/gi);
+  protect(/(loan|borrowed|borrowing)\s*(of\s*)?£[\d,]+/gi);
+  protect(/£[\d,]+k?\+?\s*over\s*\d+\s*years?/gi);
+  protect(/£[\d,]+\s*(one-off|per year|per month|\/year|\/month|when ready)/gi);
+
+  // Step 2: Apply payroll-specific replacements
   const payrollContextPatterns = [
     /£(\d{2,3})k\/year\s*(excess|in excess|payroll|staff)/gi,
     /£(\d{2,3})k\s*(excess|in excess|payroll|staff|a year|per year|annually)/gi,
@@ -66,8 +90,13 @@ function enforcePayrollFigures(jsonStr: string, correctExcessK: number, correctB
     return match;
   });
 
+  // Step 3: Restore protected phrases
+  for (const [ph, original] of protectedPhrases) {
+    result = result.split(ph).join(original);
+  }
+
   if (replacements > 0) {
-    console.log(`[Payroll Enforcement] Replaced ${replacements} incorrect payroll figures. Correct: £${correctExcessK}k/year at ${correctBenchmarkPct}% benchmark`);
+    console.log(`[Payroll Enforcement] Replaced ${replacements} incorrect payroll figures (protected ${protectedPhrases.length} non-payroll figures). Correct: £${correctExcessK}k/year at ${correctBenchmarkPct}% benchmark`);
   }
 
   return result;

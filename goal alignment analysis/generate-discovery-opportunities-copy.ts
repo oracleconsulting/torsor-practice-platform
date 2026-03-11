@@ -220,12 +220,13 @@ interface ClientData {
 }
 
 async function gatherAllClientData(supabase: any, engagementId: string): Promise<ClientData> {
-  // Get engagement with client info
+  // Get engagement with client info AND discovery responses (via join)
   const { data: engagement, error: engError } = await supabase
     .from('discovery_engagements')
     .select(`
       *,
-      client:practice_members(id, name, email)
+      client:practice_members(id, name, email, client_company),
+      discovery:destination_discovery(*)
     `)
     .eq('id', engagementId)
     .single();
@@ -247,12 +248,47 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
     .eq('engagement_id', engagementId)
     .single();
   
-  // Get discovery responses
-  const { data: discoveryData } = await supabase
+  // Get discovery responses — try engagement_id first, fall back to client_id
+  let { data: discoveryData, error: discError } = await supabase
     .from('destination_discovery')
     .select('responses, company_name')
     .eq('engagement_id', engagementId)
-    .single();
+    .maybeSingle();
+
+  console.log(`[Discovery Pass 3] Response query (engagement_id=${engagementId}):`, {
+    found: !!discoveryData,
+    hasResponses: !!discoveryData?.responses,
+    responseKeys: discoveryData?.responses ? Object.keys(discoveryData.responses).length : 0,
+    error: discError?.message || null
+  });
+
+  // Fallback: query by client_id if engagement_id returned nothing
+  if (!discoveryData?.responses && clientId) {
+    const { data: fallbackData } = await supabase
+      .from('destination_discovery')
+      .select('responses, company_name')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (fallbackData?.responses) {
+      discoveryData = fallbackData;
+      console.log(`[Discovery Pass 3] Fallback query by client_id succeeded: ${Object.keys(fallbackData.responses).length} response keys`);
+    }
+  }
+
+  // Second fallback: get responses from the engagement's joined discovery data
+  if (!discoveryData?.responses && engagement?.discovery) {
+    const discovery = Array.isArray(engagement.discovery) ? engagement.discovery[0] : engagement.discovery;
+    if (discovery?.responses && Object.keys(discovery.responses).length > 0) {
+      discoveryData = { responses: discovery.responses, company_name: discovery.company_name || null };
+      console.log(`[Discovery Pass 3] Using responses from engagement join: ${Object.keys(discovery.responses).length} keys`);
+    }
+  }
+
+  if (!discoveryData?.responses || Object.keys(discoveryData.responses).length === 0) {
+    console.error(`[Discovery Pass 3] ⛔ NO RESPONSES FOUND for engagement ${engagementId}, client ${clientId}`);
+  }
 
   // Get context notes
   const { data: contextNotes } = await supabase

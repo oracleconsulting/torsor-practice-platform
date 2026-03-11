@@ -97,6 +97,39 @@ function enforcePayrollFigures(jsonStr: string, correctExcessK: number, correctB
   let result = jsonStr;
   let replacements = 0;
 
+  // Step 1: Protect non-payroll figures from accidental replacement
+  const protectedPhrases: [string, string][] = [];
+  let protIdx = 0;
+  const protect = (pattern: RegExp) => {
+    result = result.replace(pattern, (match: string) => {
+      const ph = `__PROT${protIdx++}__`;
+      protectedPhrases.push([ph, match]);
+      return ph;
+    });
+  };
+
+  // Protect return/ROI figures
+  protect(/conservative.*?£[\d,]+k?/gi);
+  protect(/realistic.*?£[\d,]+k?/gi);
+  protect(/expected return.*?£[\d,]+k?/gi);
+  protect(/payback.*?£[\d,]+k?/gi);
+
+  // Protect valuation figures
+  protect(/£[\d.]+M\s*[-–]\s*£[\d.]+M/gi);
+  protect(/worth.*?£[\d,]+k?/gi);
+  protect(/valuation.*?£[\d,]+k?/gi);
+
+  // Protect loan/borrowing figures
+  protect(/£[\d,]+k?\s*(loan|borrowed|borrowing|lending|emergency)/gi);
+  protect(/(loan|borrowed|borrowing)\s*(of\s*)?£[\d,]+/gi);
+
+  // Protect cost-of-inaction figures
+  protect(/£[\d,]+k?\+?\s*over\s*\d+\s*years?/gi);
+
+  // Protect investment/price figures
+  protect(/£[\d,]+\s*(one-off|per year|per month|\/year|\/month|when ready)/gi);
+
+  // Step 2: Apply payroll-specific replacements
   const payrollContextPatterns = [
     /£(\d{2,3})k\/year\s*(excess|in excess|payroll|staff)/gi,
     /£(\d{2,3})k\s*(excess|in excess|payroll|staff|a year|per year|annually)/gi,
@@ -139,8 +172,13 @@ function enforcePayrollFigures(jsonStr: string, correctExcessK: number, correctB
     return match;
   });
 
+  // Step 3: Restore protected phrases
+  for (const [ph, original] of protectedPhrases) {
+    result = result.split(ph).join(original);
+  }
+
   if (replacements > 0) {
-    console.log(`[Payroll Enforcement] Replaced ${replacements} incorrect payroll figures. Correct: £${correctExcessK}k/year at ${correctBenchmarkPct}% benchmark`);
+    console.log(`[Payroll Enforcement] Replaced ${replacements} incorrect payroll figures (protected ${protectedPhrases.length} non-payroll figures). Correct: £${correctExcessK}k/year at ${correctBenchmarkPct}% benchmark`);
   }
 
   return result;
@@ -4652,6 +4690,18 @@ Before returning, verify:
       let narStr = JSON.stringify(narratives);
       narStr = enforcePayrollFigures(narStr, enforceK, enforceBench);
       narratives = JSON.parse(narStr);
+    }
+
+    // Ensure headline is set — LLM may put it in different locations
+    const resolvedHeadline = narratives.meta?.headline
+      || narratives.headline
+      || narratives.page2_gaps?.headerLine
+      || narratives.page2_gaps?.openingLine
+      || '';
+    if (!narratives.meta) narratives.meta = {};
+    if (!narratives.meta.headline && resolvedHeadline) {
+      narratives.meta.headline = resolvedHeadline;
+      console.log(`[Pass2A] Headline resolved from fallback: "${resolvedHeadline.substring(0, 80)}"`);
     }
 
     // Update report with Pass 2 results
