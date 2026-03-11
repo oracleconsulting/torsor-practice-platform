@@ -95,8 +95,11 @@ function fixPayrollInString(text: string, correctExcessK: number, correctMonthly
 
   if (text.length < 10) return { text, changed: false, count: 0 };
 
-  // PROTECT: strings about returns, valuations, loans, CoI — only fix benchmark % in these
-  if (/conservative|realistic|payback|valuation|worth|loan|borrowed|over \d+ years/i.test(text)) {
+  // PROTECT: strings that are primarily about returns, valuations, loans, CoI
+  // Only protect if the string does NOT also contain payroll keywords
+  const hasPayrollContext = /excess|payroll|staff cost|benchmark|bleeding|walks out/i.test(text);
+  const hasProtectedContext = /conservative.*?£|realistic.*?£|payback.*?£|valuation.*?£|worth.*?£\d|loan.*?£|borrowed.*?£|£[\d,]+k?\+?\s*over\s*\d+\s*years/i.test(text);
+  if (hasProtectedContext && !hasPayrollContext) {
     result = result.replace(/staff costs at ([\d.]+)% vs the? (\d+)% benchmark/gi, (_match: string, _actual: string, bench: string) => {
       if (parseInt(bench) !== correctBenchmarkPct) {
         count++;

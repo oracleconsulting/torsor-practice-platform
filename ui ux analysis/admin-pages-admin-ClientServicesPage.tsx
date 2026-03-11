@@ -3920,7 +3920,7 @@ function DiscoveryClientModal({
               </button>
               <button
                 onClick={handlePhase2AnalyseAndScore}
-                disabled={currentPhase !== null || !['analysis_processing', 'analysis_complete', 'opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '')}
+                disabled={currentPhase !== null || !['analysis_processing', 'analysis_complete', 'opportunities_complete', 'pass2_complete', 'published'].includes(discoveryEngagement?.status || '')}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
                   ['analysis_processing', 'analysis_complete'].includes(discoveryEngagement?.status || '')
                     ? 'bg-amber-600 text-white hover:bg-amber-700'
@@ -3937,9 +3937,9 @@ function DiscoveryClientModal({
               </button>
               <button
                 onClick={handlePhase3GenerateReport}
-                disabled={currentPhase !== null || !(['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis))}
+                disabled={currentPhase !== null || !(['opportunities_complete', 'pass2_complete', 'published'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis))}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                  ['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis)
+                  ['opportunities_complete', 'pass2_complete', 'published'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis)
                     ? 'bg-purple-600 text-white hover:bg-purple-700'
                     : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                 } disabled:opacity-50`}
