@@ -487,13 +487,30 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
 
     // ====================================================================
+    // FINAL HEADLINE ENFORCEMENT — catch £476k in headline before save
+    // The headline may come from rewrites OR fall back to old report value
+    // ====================================================================
+    let finalHeadline = rewrites.headline || report.headline || '';
+    if (payrollExcessK > 0 && finalHeadline) {
+      const hr = fixPayrollInString(finalHeadline, payrollExcessK, payrollMonthlyK, payrollBenchmark);
+      if (hr.changed) {
+        finalHeadline = hr.text;
+        console.log(`[Pass2B] 🔧 Fixed headline payroll figure: "${finalHeadline.substring(0, 80)}"`);
+      }
+    }
+    // Also fix in the destination_report meta
+    if (updatedDestinationReport.meta) {
+      updatedDestinationReport.meta.headline = finalHeadline;
+    }
+
+    // ====================================================================
     // SAVE — update narrative fields only
     // ====================================================================
 
     const { error: updateError } = await supabase
       .from('discovery_reports')
       .update({
-        headline: rewrites.headline || report.headline,
+        headline: finalHeadline,
         destination_report: updatedDestinationReport,
         page1_destination: updatedPage1,
         page2_gaps: updatedPage2,

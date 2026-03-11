@@ -50,7 +50,7 @@ const corsHeaders = {
 
 // Model configuration — Sonnet for speed (20-30s); Opus would be 150+ and risk timeout
 const MODEL_CONFIG = {
-  model: 'anthropic/claude-sonnet-4.5',
+  model: 'anthropic/claude-sonnet-4',
   max_tokens: 12000,
   temperature: 0.3,
 };

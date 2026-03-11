@@ -4701,16 +4701,25 @@ Before returning, verify:
     }
 
     // Ensure headline is set — LLM may put it in different locations
-    const resolvedHeadline = narratives.meta?.headline
+    let resolvedHeadline = narratives.meta?.headline
       || narratives.headline
       || narratives.page2_gaps?.headerLine
       || narratives.page2_gaps?.openingLine
       || '';
     if (!narratives.meta) narratives.meta = {};
-    if (!narratives.meta.headline && resolvedHeadline) {
-      narratives.meta.headline = resolvedHeadline;
-      console.log(`[Pass2A] Headline resolved from fallback: "${resolvedHeadline.substring(0, 80)}"`);
+
+    // Final payroll enforcement on the headline specifically
+    if (resolvedHeadline && payrollForEnforce?.annualExcess && payrollForEnforce.annualExcess > 0) {
+      const enforceK = Math.round(payrollForEnforce.annualExcess / 1000);
+      const enforceMonthlyK = Math.round(enforceK / 12);
+      const enforceBench = payrollForEnforce.benchmark?.good || 38;
+      const hr = fixPayrollInString(resolvedHeadline, enforceK, enforceMonthlyK, enforceBench);
+      if (hr.changed) {
+        resolvedHeadline = hr.text;
+        console.log(`[Pass2A] 🔧 Fixed headline payroll figure: "${resolvedHeadline.substring(0, 80)}"`);
+      }
     }
+    narratives.meta.headline = resolvedHeadline;
 
     // Update report with Pass 2 results
     console.log('[Pass2] 📝 Final headline being saved:', narratives.meta?.headline);
