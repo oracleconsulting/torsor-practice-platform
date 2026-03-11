@@ -377,7 +377,19 @@ function buildUserPrompt(
 ): string {
   const responses = clientData.discoveryResponses;
   const analysis = clientData.comprehensiveAnalysis;
-  
+
+  // Log response keys to debug "Not provided" issues
+  const responseKeys = Object.keys(responses);
+  console.log(`[Opportunities] Response keys (${responseKeys.length}):`, responseKeys.slice(0, 30));
+  console.log('[Opportunities] Sample values:', {
+    dd_five_year_picture: responses.dd_five_year_picture?.substring?.(0, 50),
+    sd_founder_dependency: responses.sd_founder_dependency?.substring?.(0, 50),
+    rl_weekly_hours: responses.rl_weekly_hours?.substring?.(0, 50),
+    rl_core_frustration: responses.rl_core_frustration?.substring?.(0, 50),
+    ht_hard_truth: responses.ht_hard_truth?.substring?.(0, 50),
+    so_financial_confidence: responses.so_financial_confidence?.substring?.(0, 50),
+  });
+
   // Format services with correct pricing
   const formattedServices = services.map(s => {
     const pricing = servicePricing.get(s.code);
@@ -432,11 +444,26 @@ ${getClientTypeRules(clientData.clientType, clientData.frameworkOverrides)}
 
 ## OPERATIONAL CONTEXT
 
-**Weekly Hours:** ${responses.dd_weekly_hours || responses.dd_owner_hours || responses.rl_weekly_hours || 'Unknown'}
+**Weekly Hours:** ${responses.rl_weekly_hours || responses.dd_weekly_hours || responses.dd_owner_hours || 'Unknown'}
+**Time Split (firefighting vs strategic):** "${responses.rl_time_split || responses.dd_time_split || 'Not provided'}"
 **Delegation Ability:** "${responses.dd_delegation_ability || responses.dd_delegation || responses.rl_delegation || 'Not provided'}"
-**Key Person Dependency:** "${responses.dd_key_person_dependency || responses.sd_founder_dependency || responses.dd_founder_dependency || responses.founder_dependency || 'Not provided'}"
-**Exit Timeline:** ${responses.sd_exit_timeline || responses.dd_exit_timeline || 'Not specified'}
-**Change Readiness:** ${responses.dd_change_readiness || responses.rl_change_readiness || 'Unknown'}
+**Key Person Dependency:** "${responses.sd_founder_dependency || responses.dd_key_person_dependency || responses.dd_founder_dependency || responses.founder_dependency || 'Not provided'}"
+**Exit Timeline:** ${responses.so_exit_timeline || responses.sd_exit_timeline || responses.dd_exit_timeline || 'Not specified'}
+**Change Readiness:** ${responses.ht_change_readiness || responses.dd_change_readiness || responses.rl_change_readiness || 'Unknown'}
+**Scaling Constraint:** "${responses.ht_scaling_constraint || responses.dd_scaling_constraint || 'Not provided'}"
+
+## STRATEGIC & OPERATIONAL ANSWERS
+
+**Financial Confidence:** "${responses.so_financial_confidence || responses.dd_financial_confidence || 'Not provided'}"
+**Manual Tasks:** "${responses.so_manual_tasks || responses.dd_manual_tasks || 'Not provided'}"
+**Plan Clarity:** "${responses.so_plan_clarity || responses.dd_plan_clarity || 'Not provided'}"
+**Data-Driven Decisions:** "${responses.so_data_driven || responses.dd_data_driven || 'Not provided'}"
+**Documentation Ready:** "${responses.so_documentation || responses.dd_documentation || 'Not provided'}"
+**Operational Frustration:** "${responses.so_operational_frustration || responses.dd_operational_frustration || 'Not provided'}"
+**Growth Blocker:** "${responses.so_growth_blocker || responses.dd_growth_blocker || 'Not provided'}"
+**Market Position:** "${responses.so_market_position || responses.sd_market_position || 'Not provided'}"
+**Success Definition:** "${responses.dd_success_definition || 'Not provided'}"
+**Non-Negotiables:** "${responses.dd_non_negotiables || 'Not provided'}"
 
 ## DESTINATION CLARITY
 

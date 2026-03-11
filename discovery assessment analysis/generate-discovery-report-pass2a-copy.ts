@@ -4103,20 +4103,26 @@ Before returning, verify:
     }
 
     // Fix inverted returns (conservative should be less than realistic)
-    if (narratives.page4_numbers?.returns?.conservative?.total && 
-        narratives.page4_numbers?.returns?.realistic?.total) {
-      const parseReturnAmount = (s: string) => {
-        const match = String(s).replace(/[^0-9.]/g, '').match(/[\d.]+/);
-        return match ? parseFloat(match[0]) : 0;
-      };
-      const conservativeVal = parseReturnAmount(narratives.page4_numbers.returns.conservative.total);
-      const realisticVal = parseReturnAmount(narratives.page4_numbers.returns.realistic.total);
-      
-      if (conservativeVal > realisticVal && realisticVal > 0) {
-        console.warn(`[Pass2A] ⚠️ Returns inverted: conservative £${conservativeVal}k > realistic £${realisticVal}k — swapping`);
-        const temp = narratives.page4_numbers.returns.conservative;
-        narratives.page4_numbers.returns.conservative = narratives.page4_numbers.returns.realistic;
-        narratives.page4_numbers.returns.realistic = temp;
+    if (narratives.page4_numbers?.returns) {
+      const r = narratives.page4_numbers.returns;
+      const cTotal = r.conservative?.total || r.conservative?.amount || null;
+      const rTotal = r.realistic?.total || r.realistic?.amount || null;
+      console.log(`[Pass2A] Returns check: conservative="${cTotal}", realistic="${rTotal}"`);
+
+      if (cTotal && rTotal) {
+        const parseReturnAmount = (s: string) => {
+          const match = String(s).replace(/[^0-9.]/g, '').match(/[\d.]+/);
+          return match ? parseFloat(match[0]) : 0;
+        };
+        const conservativeVal = parseReturnAmount(cTotal);
+        const realisticVal = parseReturnAmount(rTotal);
+
+        if (conservativeVal > realisticVal && realisticVal > 0) {
+          console.warn(`[Pass2A] ⚠️ Returns inverted: conservative £${conservativeVal} > realistic £${realisticVal} — swapping`);
+          const temp = narratives.page4_numbers.returns.conservative;
+          narratives.page4_numbers.returns.conservative = narratives.page4_numbers.returns.realistic;
+          narratives.page4_numbers.returns.realistic = temp;
+        }
       }
     }
 

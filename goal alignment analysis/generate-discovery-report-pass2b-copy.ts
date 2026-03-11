@@ -280,32 +280,43 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
       );
     }
 
-    // Mechanical fix: replace any hallucinated £476k figures with correct amount
-    const correctExcessK = Math.round((report.comprehensive_analysis?.payroll?.annualExcess || 0) / 1000);
-    const correctMonthlyK = Math.round(correctExcessK / 12);
-    const correctBenchmark = report.comprehensive_analysis?.payroll?.benchmark?.good || 38;
+    // ================================================================
+    // MECHANICAL PAYROLL FIGURE CORRECTION — runs after Opus parse,
+    // before DB save. Belt-and-braces fix for LLM hallucination.
+    // ================================================================
+    console.log(`[Pass2B] Correct payroll figures: £${payrollExcessK}k/year, £${payrollMonthlyK}k/month, ${payrollBenchmark}% benchmark`);
 
-    if (correctExcessK > 0) {
-      let rewriteStr = JSON.stringify(rewrites);
+    if (payrollExcessK > 0 && payrollExcessK < 400) {
+      // Nuclear option: stringify everything, replace, parse back
+      let fullStr = JSON.stringify(rewrites);
+      const hadWrongFigure = fullStr.includes('476k') || fullStr.includes('476,000') || fullStr.includes('476K');
+
       const wrongAmounts = ['476k', '476,000', '476000', '476K'];
       const wrongMonthly = ['40k', '40,000', '40000', '40K'];
       for (const wrong of wrongAmounts) {
-        rewriteStr = rewriteStr.split(`£${wrong}`).join(`£${correctExcessK}k`);
-        rewriteStr = rewriteStr.split(`${wrong}/year`).join(`${correctExcessK}k/year`);
-        rewriteStr = rewriteStr.split(`${wrong} a year`).join(`${correctExcessK}k a year`);
-        rewriteStr = rewriteStr.split(`${wrong} in excess`).join(`${correctExcessK}k in excess`);
-        rewriteStr = rewriteStr.split(`${wrong} excess`).join(`${correctExcessK}k excess`);
+        fullStr = fullStr.split(`£${wrong}`).join(`£${payrollExcessK}k`);
+        fullStr = fullStr.split(`${wrong}/year`).join(`${payrollExcessK}k/year`);
+        fullStr = fullStr.split(`${wrong} a year`).join(`${payrollExcessK}k a year`);
+        fullStr = fullStr.split(`${wrong} in excess`).join(`${payrollExcessK}k in excess`);
+        fullStr = fullStr.split(`${wrong} excess`).join(`${payrollExcessK}k excess`);
+        fullStr = fullStr.split(`bleeding ${wrong}`).join(`bleeding ${payrollExcessK}k`);
+        fullStr = fullStr.split(`validate the £${wrong}`).join(`validate the £${payrollExcessK}k`);
       }
       for (const wrong of wrongMonthly) {
-        rewriteStr = rewriteStr.split(`£${wrong} walks`).join(`£${correctMonthlyK}k walks`);
-        rewriteStr = rewriteStr.split(`£${wrong} a month`).join(`£${correctMonthlyK}k a month`);
-        rewriteStr = rewriteStr.split(`£${wrong}/month`).join(`£${correctMonthlyK}k/month`);
+        fullStr = fullStr.split(`£${wrong} walks`).join(`£${payrollMonthlyK}k walks`);
+        fullStr = fullStr.split(`£${wrong} a month`).join(`£${payrollMonthlyK}k a month`);
+        fullStr = fullStr.split(`£${wrong}/month`).join(`£${payrollMonthlyK}k/month`);
       }
-      rewriteStr = rewriteStr.split('the 30% benchmark').join(`the ${correctBenchmark}% benchmark`);
-      rewriteStr = rewriteStr.split('vs 30%').join(`vs ${correctBenchmark}%`);
-      rewriteStr = rewriteStr.split('vs the 30%').join(`vs the ${correctBenchmark}%`);
-      rewrites = JSON.parse(rewriteStr);
-      console.log('[Pass2B] Mechanical payroll figure replacement applied');
+      fullStr = fullStr.split('the 30% benchmark').join(`the ${payrollBenchmark}% benchmark`);
+      fullStr = fullStr.split('vs 30%').join(`vs ${payrollBenchmark}%`);
+      fullStr = fullStr.split('vs the 30%').join(`vs the ${payrollBenchmark}%`);
+      rewrites = JSON.parse(fullStr);
+
+      if (hadWrongFigure) {
+        console.log('[Pass2B] 🔧 Nuclear replacement: removed all £476k references from Opus output');
+      } else {
+        console.log('[Pass2B] ✅ No £476k figures found in Opus output');
+      }
     }
 
     const tokensUsed = llmData.usage?.total_tokens || 0;
@@ -413,6 +424,32 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
     if (fabricatedCount > 0) {
       console.warn(`[Pass2B] ${fabricatedCount} possible fabricated quotes detected`);
+    }
+
+    // ====================================================================
+    // FINAL PAYROLL FIGURE SWEEP — catch any £476k in merged pages
+    // ====================================================================
+    if (payrollExcessK > 0 && payrollExcessK < 400) {
+      const sweepAndFix = (obj: any): any => {
+        let s = JSON.stringify(obj);
+        if (s.includes('476')) {
+          s = s.split('£476k').join(`£${payrollExcessK}k`);
+          s = s.split('£476,000').join(`£${(payrollExcessK * 1000).toLocaleString()}`);
+          s = s.split('£476K').join(`£${payrollExcessK}k`);
+          s = s.split('£40k walks').join(`£${payrollMonthlyK}k walks`);
+          s = s.split('£40k a month').join(`£${payrollMonthlyK}k a month`);
+          s = s.split('£40k/month').join(`£${payrollMonthlyK}k/month`);
+          return JSON.parse(s);
+        }
+        return obj;
+      };
+      Object.assign(updatedPage2, sweepAndFix(updatedPage2));
+      Object.assign(updatedPage4, sweepAndFix(updatedPage4));
+      Object.assign(updatedPage5, sweepAndFix(updatedPage5));
+      if (typeof rewrites.headline === 'string' && rewrites.headline.includes('476')) {
+        rewrites.headline = rewrites.headline.split('£476k').join(`£${payrollExcessK}k`).split('£476,000').join(`£${(payrollExcessK * 1000).toLocaleString()}`);
+        console.log('[Pass2B] 🔧 Fixed £476k in headline before save');
+      }
     }
 
     // ====================================================================
