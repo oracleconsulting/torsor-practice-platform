@@ -1927,6 +1927,22 @@ function buildClosingPage(analysis: any, practiceName: string): string {
         </div>
       ` : ''}
       
+      ${page5.quickWins && Array.isArray(page5.quickWins) && page5.quickWins.length > 0 ? `
+        <div style="background: #fffbeb; border-radius: 16px; padding: 24px; margin-bottom: 24px; border: 1px solid #fcd34d;">
+          <div style="font-size: 10pt; color: #92400e; text-transform: uppercase; font-weight: 600; margin-bottom: 8px;">THREE THINGS YOU CAN DO THIS WEEK</div>
+          <div style="font-size: 10pt; color: #78716c; margin-bottom: 16px;">Whether you work with us or not — these will help.</div>
+          ${page5.quickWins.map((win: any, i: number) => `
+            <div style="display: flex; gap: 12px; margin-bottom: 14px; align-items: flex-start;">
+              <div style="flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: #fef3c7; display: flex; align-items: center; justify-content: center; color: #92400e; font-weight: 600; font-size: 11pt;">${i + 1}</div>
+              <div>
+                <div style="font-size: 11pt; color: #1c1917; font-weight: 500; line-height: 1.5;">${safeString(win.action)}</div>
+                <div style="font-size: 10pt; color: #78716c; margin-top: 4px; line-height: 1.5;">${safeString(win.why)}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+      
       ${closingQuote ? `
         <div class="closing-message">
           <div class="closing-quote" style="font-size: 16pt; border-left: 4px solid #059669; padding-left: 20px;">

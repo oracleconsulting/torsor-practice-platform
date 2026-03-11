@@ -5243,6 +5243,30 @@ function DiscoveryClientModal({
                                       </div>
                                     )}
                                     
+                                    {page5.quickWins && Array.isArray(page5.quickWins) && page5.quickWins.length > 0 && (
+                                      <div className="mt-2 mb-2">
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                          Three Things You Can Do This Week
+                                        </h3>
+                                        <p className="text-sm text-gray-600 mb-4">
+                                          Whether you work with us or not — these will help.
+                                        </p>
+                                        <div className="space-y-4">
+                                          {page5.quickWins.map((win: any, i: number) => (
+                                            <div key={i} className="flex gap-3">
+                                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-sm">
+                                                {i + 1}
+                                              </div>
+                                              <div>
+                                                <p className="text-gray-900 font-medium">{win.action}</p>
+                                                <p className="text-sm text-gray-600 mt-1">{win.why}</p>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
                                     {page5.theAsk && (
                                       <div className="bg-slate-800 rounded-lg p-6 text-center">
                                         <p className="text-slate-300 text-lg mb-4">{page5.theAsk}</p>
@@ -6185,6 +6209,29 @@ function DiscoveryClientModal({
                           </div>
                         </div>
                       )}
+
+                      {/* Quick Wins (admin legacy view) */}
+                      {(() => {
+                        const page5 = destinationReport?.page5_next_steps || destinationReport?.page5_nextSteps;
+                        if (!page5?.quickWins || !Array.isArray(page5.quickWins) || page5.quickWins.length === 0) return null;
+                        return (
+                          <div className="bg-white border border-gray-200 rounded-xl p-6">
+                            <h4 className="font-semibold text-gray-900 mb-2">Three Things You Can Do This Week</h4>
+                            <p className="text-sm text-gray-500 mb-4">Whether you work with us or not — these will help.</p>
+                            <div className="space-y-4">
+                              {page5.quickWins.map((win: any, i: number) => (
+                                <div key={i} className="flex gap-3">
+                                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-sm">{i + 1}</div>
+                                  <div>
+                                    <p className="text-gray-900 font-medium">{win.action}</p>
+                                    <p className="text-sm text-gray-600 mt-1">{win.why}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Closing Message - Prefer Pass 2 page5_next_steps over Stage 3 closingMessage */}
                       {(() => {

@@ -3029,6 +3029,23 @@ This is a powerful emotional anchor - use it to create urgency in the closing.
 ` : ''}
 
 ============================================================================
+QUICK WINS — "THREE THINGS YOU CAN DO THIS WEEK"
+============================================================================
+Generate exactly 3 quick wins for page5_nextSteps.quickWins.
+Rules:
+- Each must be something the client can do ALONE, THIS WEEK, with ZERO cost
+- Must be specific and actionable — NOT "think about your strategy"
+- Good: "List every role and mark them essential/valuable/questionable"
+- Good: "Create a 13-week cash flow forecast in a spreadsheet"
+- Good: "Document the top 10 decisions only you make each week"
+- Bad: "Consider your exit options" (too vague)
+- Bad: "Hire a consultant" (that's selling, not helping)
+- Each quick win should naturally reveal the DEPTH of the problem
+- Frame as genuine support: "Whether you work with us or not, do these three things"
+- Use the client's own words and situation to make them specific
+- The "leadsTo" field is internal only — never shown to the client
+
+============================================================================
 DETECTED PATTERNS
 ============================================================================
 ${patterns.burnoutDetected ? `⚠️ BURNOUT DETECTED (${patterns.burnoutFlags} indicators): ${patterns.burnoutIndicators?.join(', ')}` : 'No burnout pattern detected'}
@@ -3338,6 +3355,23 @@ Return a JSON object with this exact structure:
       "theirWordsEcho": "A quote from their assessment that ties to this",
       "simpleCta": "£X to [outcome verb]"
     },
+    "quickWins": [
+      {
+        "action": "A specific, concrete action they can take THIS WEEK with zero cost",
+        "why": "One sentence explaining what this will reveal or change",
+        "leadsTo": "Which gap this connects to (internal only — never shown to client)"
+      },
+      {
+        "action": "Second quick win — different area of the business",
+        "why": "Why this matters",
+        "leadsTo": "Internal mapping"
+      },
+      {
+        "action": "Third quick win — personal or operational",
+        "why": "What they'll discover by doing this",
+        "leadsTo": "Internal mapping"
+      }
+    ],
     "theAsk": "2-3 sentences referencing their finalInsight or desire for action. Acknowledge past failures. Offer the practical path.",
     "closingLine": "Let's talk this week.",
     "urgencyAnchor": "Personal anchor with time-based urgency. Kids ages. Health. Marriage. Whatever they mentioned."
