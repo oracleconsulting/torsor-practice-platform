@@ -85,6 +85,68 @@ const corsHeaders = {
 }
 
 // ============================================================================
+// UNIVERSAL PAYROLL FIGURE ENFORCEMENT
+// Scans LLM output for any payroll figure that doesn't match the calculated
+// value and replaces it. Works for any client, not just specific amounts.
+// ============================================================================
+
+function enforcePayrollFigures(jsonStr: string, correctExcessK: number, correctBenchmarkPct: number): string {
+  if (correctExcessK <= 0) return jsonStr;
+
+  const correctMonthlyK = Math.round(correctExcessK / 12);
+  let result = jsonStr;
+  let replacements = 0;
+
+  const payrollContextPatterns = [
+    /£(\d{2,3})k\/year\s*(excess|in excess|payroll|staff)/gi,
+    /£(\d{2,3})k\s*(excess|in excess|payroll|staff|a year|per year|annually)/gi,
+    /£(\d{2,3}),000\s*(excess|in excess|payroll|staff|a year|per year|annually)/gi,
+    /bleeding\s*£(\d{2,3})k/gi,
+    /£(\d{2,3})k\s*walks?\s*out/gi,
+    /£(\d{2,3})k\s*a\s*month/gi,
+    /£(\d{2,3})k\/month/gi,
+    /excess.*?£(\d{2,3})k/gi,
+    /£(\d{2,3})k.*?excess/gi,
+    /validate\s+the\s+£(\d{2,3})k/gi,
+  ];
+
+  for (const pattern of payrollContextPatterns) {
+    result = result.replace(pattern, (match: string, amount: string) => {
+      const num = parseInt(amount);
+      if (Math.abs(num - correctExcessK) / correctExcessK < 0.2) return match;
+      if (match.toLowerCase().includes('month')) {
+        if (Math.abs(num - correctMonthlyK) / Math.max(correctMonthlyK, 1) < 0.3) return match;
+        replacements++;
+        return match.replace(`£${amount}k`, `£${correctMonthlyK}k`);
+      }
+      replacements++;
+      return match.replace(`£${amount}k`, `£${correctExcessK}k`)
+                   .replace(`£${amount},000`, `£${(correctExcessK * 1000).toLocaleString()}`);
+    });
+  }
+
+  result = result.replace(/the\s+(\d{2,3})%\s+benchmark/gi, (match: string, pct: string) => {
+    const num = parseInt(pct);
+    if (num === correctBenchmarkPct) return match;
+    if (num >= 20 && num <= 55) { replacements++; return match.replace(`${num}%`, `${correctBenchmarkPct}%`); }
+    return match;
+  });
+
+  result = result.replace(/vs\s+(the\s+)?(\d{2,3})%/gi, (match: string, _the: string, pct: string) => {
+    const num = parseInt(pct);
+    if (num === correctBenchmarkPct) return match;
+    if (num >= 20 && num <= 55) { replacements++; return match.replace(`${num}%`, `${correctBenchmarkPct}%`); }
+    return match;
+  });
+
+  if (replacements > 0) {
+    console.log(`[Payroll Enforcement] Replaced ${replacements} incorrect payroll figures. Correct: £${correctExcessK}k/year at ${correctBenchmarkPct}% benchmark`);
+  }
+
+  return result;
+}
+
+// ============================================================================
 // 7-DIMENSION ANALYSIS TYPES (from Pass 1)
 // ============================================================================
 
@@ -4581,27 +4643,15 @@ Before returning, verify:
     console.log(`[Pass2] 📋 Snapshotted ${clientVisibleSnapshot.length} client-visible opportunities into report`);
 
     // ====================================================================
-    // NUCLEAR £476k SWEEP — catch any hallucinated payroll figures before save
+    // UNIVERSAL PAYROLL FIGURE ENFORCEMENT — before save
     // ====================================================================
-    const payrollForSweep = comprehensiveAnalysis?.payroll;
-    if (payrollForSweep?.annualExcess && payrollForSweep.annualExcess > 0) {
-      const sweepCorrectK = Math.round(payrollForSweep.annualExcess / 1000);
-      const sweepMonthlyK = Math.round(sweepCorrectK / 12);
-      const sweepBenchmark = payrollForSweep.benchmark?.good || 38;
+    const payrollForEnforce = comprehensiveAnalysis?.payroll;
+    if (payrollForEnforce?.annualExcess && payrollForEnforce.annualExcess > 0) {
+      const enforceK = Math.round(payrollForEnforce.annualExcess / 1000);
+      const enforceBench = payrollForEnforce.benchmark?.good || 38;
       let narStr = JSON.stringify(narratives);
-      const had476 = narStr.includes('476');
-      if (had476) {
-        narStr = narStr.split('£476k').join(`£${sweepCorrectK}k`);
-        narStr = narStr.split('£476,000').join(`£${(sweepCorrectK * 1000).toLocaleString()}`);
-        narStr = narStr.split('£476K').join(`£${sweepCorrectK}k`);
-        narStr = narStr.split('£40k walks').join(`£${sweepMonthlyK}k walks`);
-        narStr = narStr.split('£40k a month').join(`£${sweepMonthlyK}k a month`);
-        narStr = narStr.split('£40k/month').join(`£${sweepMonthlyK}k/month`);
-        narStr = narStr.split('the 30% benchmark').join(`the ${sweepBenchmark}% benchmark`);
-        narStr = narStr.split('vs 30%').join(`vs ${sweepBenchmark}%`);
-        narratives = JSON.parse(narStr);
-        console.log(`[Pass2A] 🔧 Nuclear £476k sweep: replaced with £${sweepCorrectK}k`);
-      }
+      narStr = enforcePayrollFigures(narStr, enforceK, enforceBench);
+      narratives = JSON.parse(narStr);
     }
 
     // Update report with Pass 2 results

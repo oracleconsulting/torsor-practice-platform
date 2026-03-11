@@ -16,6 +16,63 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Universal payroll figure enforcement (same as Pass 2A)
+function enforcePayrollFigures(jsonStr: string, correctExcessK: number, correctBenchmarkPct: number): string {
+  if (correctExcessK <= 0) return jsonStr;
+
+  const correctMonthlyK = Math.round(correctExcessK / 12);
+  let result = jsonStr;
+  let replacements = 0;
+
+  const payrollContextPatterns = [
+    /£(\d{2,3})k\/year\s*(excess|in excess|payroll|staff)/gi,
+    /£(\d{2,3})k\s*(excess|in excess|payroll|staff|a year|per year|annually)/gi,
+    /£(\d{2,3}),000\s*(excess|in excess|payroll|staff|a year|per year|annually)/gi,
+    /bleeding\s*£(\d{2,3})k/gi,
+    /£(\d{2,3})k\s*walks?\s*out/gi,
+    /£(\d{2,3})k\s*a\s*month/gi,
+    /£(\d{2,3})k\/month/gi,
+    /excess.*?£(\d{2,3})k/gi,
+    /£(\d{2,3})k.*?excess/gi,
+    /validate\s+the\s+£(\d{2,3})k/gi,
+  ];
+
+  for (const pattern of payrollContextPatterns) {
+    result = result.replace(pattern, (match: string, amount: string) => {
+      const num = parseInt(amount);
+      if (Math.abs(num - correctExcessK) / correctExcessK < 0.2) return match;
+      if (match.toLowerCase().includes('month')) {
+        if (Math.abs(num - correctMonthlyK) / Math.max(correctMonthlyK, 1) < 0.3) return match;
+        replacements++;
+        return match.replace(`£${amount}k`, `£${correctMonthlyK}k`);
+      }
+      replacements++;
+      return match.replace(`£${amount}k`, `£${correctExcessK}k`)
+                   .replace(`£${amount},000`, `£${(correctExcessK * 1000).toLocaleString()}`);
+    });
+  }
+
+  result = result.replace(/the\s+(\d{2,3})%\s+benchmark/gi, (match: string, pct: string) => {
+    const num = parseInt(pct);
+    if (num === correctBenchmarkPct) return match;
+    if (num >= 20 && num <= 55) { replacements++; return match.replace(`${num}%`, `${correctBenchmarkPct}%`); }
+    return match;
+  });
+
+  result = result.replace(/vs\s+(the\s+)?(\d{2,3})%/gi, (match: string, _the: string, pct: string) => {
+    const num = parseInt(pct);
+    if (num === correctBenchmarkPct) return match;
+    if (num >= 20 && num <= 55) { replacements++; return match.replace(`${num}%`, `${correctBenchmarkPct}%`); }
+    return match;
+  });
+
+  if (replacements > 0) {
+    console.log(`[Payroll Enforcement] Replaced ${replacements} incorrect payroll figures. Correct: £${correctExcessK}k/year at ${correctBenchmarkPct}% benchmark`);
+  }
+
+  return result;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -105,10 +162,10 @@ serve(async (req) => {
     const prompt = `You are a narrative specialist enhancing a business advisory report.
 
 ⛔⛔⛔ CRITICAL NUMBER CONSTRAINT ⛔⛔⛔
-The payroll excess for this client is £${payrollExcessK}k/year.
-The monthly figure is £${payrollMonthlyK}k/month.
+The payroll excess for this client is EXACTLY £${payrollExcessK}k/year.
+The monthly figure is EXACTLY £${payrollMonthlyK}k/month.
 The benchmark is ${payrollBenchmark}%.
-DO NOT use £476k, £40k/month, or 30% anywhere. Those are WRONG. Use the figures above.
+DO NOT use any other payroll figure. Use ONLY the exact numbers above.
 
 A structural draft has already been generated with correct data, prices, and schema.
 Your job is to rewrite ONLY the narrative sections to make them sound human, warm,
@@ -281,42 +338,13 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
 
     // ================================================================
-    // MECHANICAL PAYROLL FIGURE CORRECTION — runs after Opus parse,
-    // before DB save. Belt-and-braces fix for LLM hallucination.
+    // UNIVERSAL PAYROLL FIGURE ENFORCEMENT — after Opus parse
     // ================================================================
     console.log(`[Pass2B] Correct payroll figures: £${payrollExcessK}k/year, £${payrollMonthlyK}k/month, ${payrollBenchmark}% benchmark`);
-
-    if (payrollExcessK > 0 && payrollExcessK < 400) {
-      // Nuclear option: stringify everything, replace, parse back
-      let fullStr = JSON.stringify(rewrites);
-      const hadWrongFigure = fullStr.includes('476k') || fullStr.includes('476,000') || fullStr.includes('476K');
-
-      const wrongAmounts = ['476k', '476,000', '476000', '476K'];
-      const wrongMonthly = ['40k', '40,000', '40000', '40K'];
-      for (const wrong of wrongAmounts) {
-        fullStr = fullStr.split(`£${wrong}`).join(`£${payrollExcessK}k`);
-        fullStr = fullStr.split(`${wrong}/year`).join(`${payrollExcessK}k/year`);
-        fullStr = fullStr.split(`${wrong} a year`).join(`${payrollExcessK}k a year`);
-        fullStr = fullStr.split(`${wrong} in excess`).join(`${payrollExcessK}k in excess`);
-        fullStr = fullStr.split(`${wrong} excess`).join(`${payrollExcessK}k excess`);
-        fullStr = fullStr.split(`bleeding ${wrong}`).join(`bleeding ${payrollExcessK}k`);
-        fullStr = fullStr.split(`validate the £${wrong}`).join(`validate the £${payrollExcessK}k`);
-      }
-      for (const wrong of wrongMonthly) {
-        fullStr = fullStr.split(`£${wrong} walks`).join(`£${payrollMonthlyK}k walks`);
-        fullStr = fullStr.split(`£${wrong} a month`).join(`£${payrollMonthlyK}k a month`);
-        fullStr = fullStr.split(`£${wrong}/month`).join(`£${payrollMonthlyK}k/month`);
-      }
-      fullStr = fullStr.split('the 30% benchmark').join(`the ${payrollBenchmark}% benchmark`);
-      fullStr = fullStr.split('vs 30%').join(`vs ${payrollBenchmark}%`);
-      fullStr = fullStr.split('vs the 30%').join(`vs the ${payrollBenchmark}%`);
-      rewrites = JSON.parse(fullStr);
-
-      if (hadWrongFigure) {
-        console.log('[Pass2B] 🔧 Nuclear replacement: removed all £476k references from Opus output');
-      } else {
-        console.log('[Pass2B] ✅ No £476k figures found in Opus output');
-      }
+    if (payrollExcessK > 0) {
+      let rewriteStr = JSON.stringify(rewrites);
+      rewriteStr = enforcePayrollFigures(rewriteStr, payrollExcessK, payrollBenchmark);
+      rewrites = JSON.parse(rewriteStr);
     }
 
     const tokensUsed = llmData.usage?.total_tokens || 0;
@@ -427,39 +455,18 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
 
     // ====================================================================
-    // FINAL PAYROLL FIGURE SWEEP — catch any £476k in merged pages
+    // FINAL PAYROLL SWEEP on merged pages (enforcement on full save payload)
     // ====================================================================
-    if (payrollExcessK > 0 && payrollExcessK < 400) {
-      const sweepAndFix = (obj: any): any => {
-        let s = JSON.stringify(obj);
-        if (s.includes('476')) {
-          s = s.split('£476k').join(`£${payrollExcessK}k`);
-          s = s.split('£476,000').join(`£${(payrollExcessK * 1000).toLocaleString()}`);
-          s = s.split('£476K').join(`£${payrollExcessK}k`);
-          s = s.split('£40k walks').join(`£${payrollMonthlyK}k walks`);
-          s = s.split('£40k a month').join(`£${payrollMonthlyK}k a month`);
-          s = s.split('£40k/month').join(`£${payrollMonthlyK}k/month`);
-          return JSON.parse(s);
-        }
-        return obj;
-      };
-      Object.assign(updatedPage2, sweepAndFix(updatedPage2));
-      Object.assign(updatedPage4, sweepAndFix(updatedPage4));
-      Object.assign(updatedPage5, sweepAndFix(updatedPage5));
-      if (typeof rewrites.headline === 'string' && rewrites.headline.includes('476')) {
-        rewrites.headline = rewrites.headline.split('£476k').join(`£${payrollExcessK}k`).split('£476,000').join(`£${(payrollExcessK * 1000).toLocaleString()}`);
-        console.log('[Pass2B] 🔧 Fixed £476k in headline before save');
+    if (payrollExcessK > 0) {
+      const sweepStr = JSON.stringify({ h: rewrites.headline, p2: updatedPage2, p4: updatedPage4, p5: updatedPage5 });
+      const swept = enforcePayrollFigures(sweepStr, payrollExcessK, payrollBenchmark);
+      if (swept !== sweepStr) {
+        const parsed = JSON.parse(swept);
+        rewrites.headline = parsed.h;
+        Object.assign(updatedPage2, parsed.p2);
+        Object.assign(updatedPage4, parsed.p4);
+        Object.assign(updatedPage5, parsed.p5);
       }
-    }
-
-    // Diagnostic: check if £476k survived into the final save payload
-    const finalCheckStr = JSON.stringify({ headline: rewrites.headline, page2: updatedPage2, page4: updatedPage4, page5: updatedPage5 });
-    if (finalCheckStr.includes('476')) {
-      console.error('[Pass2B] ⛔ £476k STILL PRESENT in final save payload!');
-      const matches = [...finalCheckStr.matchAll(/[^"]{0,30}476[^"]{0,30}/g)];
-      matches.forEach(m => console.error(`[Pass2B]   Context: "${m[0]}"`));
-    } else {
-      console.log('[Pass2B] ✅ No £476k references in final save payload');
     }
 
     // ====================================================================
