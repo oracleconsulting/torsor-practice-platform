@@ -16,90 +16,77 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Universal payroll figure enforcement (same as Pass 2A)
-function enforcePayrollFigures(jsonStr: string, correctExcessK: number, correctBenchmarkPct: number): string {
-  if (correctExcessK <= 0) return jsonStr;
+// Universal payroll figure enforcement (object-walking, JSON-safe — same as Pass 2A)
+function fixPayrollInString(text: string, correctExcessK: number, correctMonthlyK: number, correctBenchmarkPct: number): { text: string; changed: boolean; count: number } {
+  let result = text;
+  let count = 0;
+  if (text.length < 10) return { text, changed: false, count: 0 };
 
-  const correctMonthlyK = Math.round(correctExcessK / 12);
-  let result = jsonStr;
-  let replacements = 0;
-
-  // Step 1: Protect non-payroll figures from accidental replacement
-  const protectedPhrases: [string, string][] = [];
-  let protIdx = 0;
-  const protect = (pattern: RegExp) => {
-    result = result.replace(pattern, (match: string) => {
-      const ph = `__PROT${protIdx++}__`;
-      protectedPhrases.push([ph, match]);
-      return ph;
+  if (/conservative|realistic|payback|valuation|worth|loan|borrowed|over \d+ years/i.test(text)) {
+    result = result.replace(/staff costs at ([\d.]+)% vs the? (\d+)% benchmark/gi, (_match: string, _actual: string, bench: string) => {
+      if (parseInt(bench) !== correctBenchmarkPct) { count++; return _match.replace(`${bench}%`, `${correctBenchmarkPct}%`); }
+      return _match;
     });
-  };
+    return { text: result, changed: count > 0, count };
+  }
 
-  protect(/conservative.*?£[\d,]+k?/gi);
-  protect(/realistic.*?£[\d,]+k?/gi);
-  protect(/expected return.*?£[\d,]+k?/gi);
-  protect(/payback.*?£[\d,]+k?/gi);
-  protect(/£[\d.]+M\s*[-–]\s*£[\d.]+M/gi);
-  protect(/worth.*?£[\d,]+k?/gi);
-  protect(/valuation.*?£[\d,]+k?/gi);
-  protect(/£[\d,]+k?\s*(loan|borrowed|borrowing|lending|emergency)/gi);
-  protect(/(loan|borrowed|borrowing)\s*(of\s*)?£[\d,]+/gi);
-  protect(/£[\d,]+k?\+?\s*over\s*\d+\s*years?/gi);
-  protect(/£[\d,]+\s*(one-off|per year|per month|\/year|\/month|when ready)/gi);
-
-  // Step 2: Apply payroll-specific replacements
-  const payrollContextPatterns = [
-    /£(\d{2,3})k\/year\s*(excess|in excess|payroll|staff)/gi,
-    /£(\d{2,3})k\s*(excess|in excess|payroll|staff|a year|per year|annually)/gi,
-    /£(\d{2,3}),000\s*(excess|in excess|payroll|staff|a year|per year|annually)/gi,
+  const annualPatterns = [
+    /£(\d{2,3})k\/year\s*(excess|in excess)/gi,
+    /£(\d{2,3})k\s*(excess|annual|per year|a year)/gi,
     /bleeding\s*£(\d{2,3})k/gi,
-    /£(\d{2,3})k\s*walks?\s*out/gi,
-    /£(\d{2,3})k\s*a\s*month/gi,
-    /£(\d{2,3})k\/month/gi,
+    /£(\d{2,3})k\s*more than/gi,
     /excess.*?£(\d{2,3})k/gi,
     /£(\d{2,3})k.*?excess/gi,
-    /validate\s+the\s+£(\d{2,3})k/gi,
   ];
-
-  for (const pattern of payrollContextPatterns) {
+  for (const pattern of annualPatterns) {
     result = result.replace(pattern, (match: string, amount: string) => {
       const num = parseInt(amount);
       if (Math.abs(num - correctExcessK) / correctExcessK < 0.2) return match;
-      if (match.toLowerCase().includes('month')) {
-        if (Math.abs(num - correctMonthlyK) / Math.max(correctMonthlyK, 1) < 0.3) return match;
-        replacements++;
-        return match.replace(`£${amount}k`, `£${correctMonthlyK}k`);
-      }
-      replacements++;
-      return match.replace(`£${amount}k`, `£${correctExcessK}k`)
-                   .replace(`£${amount},000`, `£${(correctExcessK * 1000).toLocaleString()}`);
+      if (num > correctExcessK * 1.5 && num < correctExcessK * 5) { count++; return match.replace(`£${amount}k`, `£${correctExcessK}k`); }
+      return match;
+    });
+  }
+
+  const monthlyPatterns = [/£(\d{1,3})k\s*walks?\s*out/gi, /£(\d{1,3})k\s*a\s*month/gi, /£(\d{1,3})k\/month/gi, /£(\d{1,3})k\s*every\s*month/gi];
+  for (const pattern of monthlyPatterns) {
+    result = result.replace(pattern, (match: string, amount: string) => {
+      const num = parseInt(amount);
+      if (num === correctMonthlyK) return match;
+      if (num > correctMonthlyK * 2 && num < correctMonthlyK * 6) { count++; return match.replace(`£${amount}k`, `£${correctMonthlyK}k`); }
+      return match;
     });
   }
 
   result = result.replace(/the\s+(\d{2,3})%\s+benchmark/gi, (match: string, pct: string) => {
-    const num = parseInt(pct);
-    if (num === correctBenchmarkPct) return match;
-    if (num >= 20 && num <= 55) { replacements++; return match.replace(`${num}%`, `${correctBenchmarkPct}%`); }
-    return match;
+    const num = parseInt(pct); if (num === correctBenchmarkPct) return match;
+    if (num >= 20 && num <= 55) { count++; return match.replace(`${num}%`, `${correctBenchmarkPct}%`); } return match;
+  });
+  result = result.replace(/vs\s+(?:the\s+)?(\d{2,3})%/gi, (match: string, pct: string) => {
+    const num = parseInt(pct); if (num === correctBenchmarkPct) return match;
+    if (num >= 20 && num <= 55) { count++; return match.replace(`${num}%`, `${correctBenchmarkPct}%`); } return match;
   });
 
-  result = result.replace(/vs\s+(the\s+)?(\d{2,3})%/gi, (match: string, _the: string, pct: string) => {
-    const num = parseInt(pct);
-    if (num === correctBenchmarkPct) return match;
-    if (num >= 20 && num <= 55) { replacements++; return match.replace(`${num}%`, `${correctBenchmarkPct}%`); }
-    return match;
-  });
+  return { text: result, changed: count > 0, count };
+}
 
-  // Step 3: Restore protected phrases
-  for (const [ph, original] of protectedPhrases) {
-    result = result.split(ph).join(original);
+function enforcePayrollInObject(obj: any, correctExcessK: number, correctMonthlyK: number, correctBenchmarkPct: number): number {
+  let replacements = 0;
+  if (!obj || correctExcessK <= 0) return 0;
+  if (typeof obj === 'string') return 0;
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      if (typeof obj[i] === 'string') { const r = fixPayrollInString(obj[i], correctExcessK, correctMonthlyK, correctBenchmarkPct); if (r.changed) { obj[i] = r.text; replacements += r.count; } }
+      else { replacements += enforcePayrollInObject(obj[i], correctExcessK, correctMonthlyK, correctBenchmarkPct); }
+    }
+    return replacements;
   }
-
-  if (replacements > 0) {
-    console.log(`[Payroll Enforcement] Replaced ${replacements} incorrect payroll figures (protected ${protectedPhrases.length} non-payroll figures). Correct: £${correctExcessK}k/year at ${correctBenchmarkPct}% benchmark`);
+  if (typeof obj === 'object') {
+    for (const key of Object.keys(obj)) {
+      if (typeof obj[key] === 'string') { const r = fixPayrollInString(obj[key], correctExcessK, correctMonthlyK, correctBenchmarkPct); if (r.changed) { obj[key] = r.text; replacements += r.count; } }
+      else { replacements += enforcePayrollInObject(obj[key], correctExcessK, correctMonthlyK, correctBenchmarkPct); }
+    }
   }
-
-  return result;
+  return replacements;
 }
 
 serve(async (req) => {
@@ -371,9 +358,8 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     // ================================================================
     console.log(`[Pass2B] Correct payroll figures: £${payrollExcessK}k/year, £${payrollMonthlyK}k/month, ${payrollBenchmark}% benchmark`);
     if (payrollExcessK > 0) {
-      let rewriteStr = JSON.stringify(rewrites);
-      rewriteStr = enforcePayrollFigures(rewriteStr, payrollExcessK, payrollBenchmark);
-      rewrites = JSON.parse(rewriteStr);
+      const prCount = enforcePayrollInObject(rewrites, payrollExcessK, payrollMonthlyK, payrollBenchmark);
+      if (prCount > 0) console.log(`[Pass2B Payroll Enforcement] Fixed ${prCount} figures in Opus rewrites`);
     }
 
     const tokensUsed = llmData.usage?.total_tokens || 0;
@@ -484,18 +470,18 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
 
     // ====================================================================
-    // FINAL PAYROLL SWEEP on merged pages (enforcement on full save payload)
+    // FINAL PAYROLL SWEEP on merged pages (object-walking)
     // ====================================================================
     if (payrollExcessK > 0) {
-      const sweepStr = JSON.stringify({ h: rewrites.headline, p2: updatedPage2, p4: updatedPage4, p5: updatedPage5 });
-      const swept = enforcePayrollFigures(sweepStr, payrollExcessK, payrollBenchmark);
-      if (swept !== sweepStr) {
-        const parsed = JSON.parse(swept);
-        rewrites.headline = parsed.h;
-        Object.assign(updatedPage2, parsed.p2);
-        Object.assign(updatedPage4, parsed.p4);
-        Object.assign(updatedPage5, parsed.p5);
+      let sweepCount = 0;
+      sweepCount += enforcePayrollInObject(updatedPage2, payrollExcessK, payrollMonthlyK, payrollBenchmark);
+      sweepCount += enforcePayrollInObject(updatedPage4, payrollExcessK, payrollMonthlyK, payrollBenchmark);
+      sweepCount += enforcePayrollInObject(updatedPage5, payrollExcessK, payrollMonthlyK, payrollBenchmark);
+      if (typeof rewrites.headline === 'string') {
+        const hr = fixPayrollInString(rewrites.headline, payrollExcessK, payrollMonthlyK, payrollBenchmark);
+        if (hr.changed) { rewrites.headline = hr.text; sweepCount += hr.count; }
       }
+      if (sweepCount > 0) console.log(`[Pass2B Payroll Enforcement] Fixed ${sweepCount} figures in merged pages`);
     }
 
     // ====================================================================
