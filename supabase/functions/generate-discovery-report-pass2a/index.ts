@@ -1895,15 +1895,12 @@ ${(preBuiltPhrases as any).deferredTaxExplanation}
       }
 
       // Balance sheet health alerts (Session 11 — Prompt 7)
-      const bsh = (comprehensiveAnalysis as any)?.balanceSheetHealth;
-      if (bsh?.hasAlerts && bsh.alerts?.length > 0) {
+      const bsHealth = (comprehensiveAnalysis as any)?.balanceSheetHealth;
+      if (bsHealth?.hasData && bsHealth.alerts?.length > 0) {
         mandatoryPhrasesSection += `
-## BALANCE SHEET HEALTH ALERTS (MANDATORY — INCLUDE IN page2_gaps OR page4_numbers)
-${bsh.alerts.map((a: string) => `► ${a}`).join('\n')}
-
-⛔ YOU MUST acknowledge these balance sheet concerns in the report.
-⛔ Include in page2_gaps (liquidity/leverage) or page4_numbers (balance sheet health).
-⛔ DO NOT ignore or downplay — use the phrases above verbatim where appropriate.
+⚠️ BALANCE SHEET ALERTS:
+${bsHealth.alerts.map((a: any) => `[${a.severity.toUpperCase()}] ${a.category}: ${a.headline} — ${a.detail}`).join('\n')}
+If the client mentions cash flow, loans, or financial stress, these findings MUST appear in the gap analysis.
 
 `;
       }
@@ -2262,13 +2259,13 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       console.log('[Pass2] ✅ Injecting Pass 1 service prices as constraints');
     }
 
-    // Fetch context notes
+    // Fetch advisor context notes
     const { data: contextNotes } = await supabase
       .from('discovery_context_notes')
-      .select('*')
+      .select('note_type, title, content, created_at')
       .eq('engagement_id', engagementId)
       .eq('is_for_ai_analysis', true)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false });
 
     // Fetch document summaries
     const { data: documents } = await supabase
@@ -2545,10 +2542,23 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
     }
     console.log('[Pass2] Service prices being sent to LLM:', recommendedServices.map((s: { code?: string; price?: string }) => `${(s as { code?: string }).code}: ${(s as { price?: string }).price ?? 'no price'}`));
 
-    // Build context from notes
-    const contextSection = contextNotes?.length 
-      ? `\n\nADDITIONAL CONTEXT FROM ADVISOR (from follow-up calls/notes):\n${contextNotes.map(n => `[${n.note_type}] ${n.title}:\n${n.content}`).join('\n\n')}`
-      : '';
+    // Build advisor context notes section
+    const contextNotesSection = (contextNotes && contextNotes.length > 0) ? `
+============================================================================
+ADVISOR CONTEXT NOTES (from the team — NOT from the client)
+============================================================================
+These are observations and intelligence from the advisory team. Use these to
+inform your analysis but attribute them as advisor observations, not client quotes.
+
+${contextNotes.map((n: { note_type?: string; title?: string; content?: string; created_at?: string }) => `[${n.note_type || 'note'}] ${n.title || 'Untitled'}
+${n.content || ''}
+(Added: ${n.created_at ? new Date(n.created_at).toLocaleDateString('en-GB') : 'Unknown'})`).join('\n\n')}
+
+If these notes mention specific financial risks (DLA, S455, cash flow issues,
+post-COVID losses), incorporate them into the gap analysis or the "What Staying
+Here Costs" section. They provide context the assessment alone doesn't capture.
+============================================================================
+` : '';
 
     // Build document context
     const docSection = documents?.length
@@ -2875,7 +2885,7 @@ OPERATIONAL FRUSTRATION (Day-to-day friction):
 
 ANYTHING ELSE THEY SHARED:
 "${emotionalAnchors.finalInsight || 'Not provided'}"
-${contextSection}
+${contextNotesSection}
 ${docSection}
 ${feedbackSection}
 ${opportunityContext}
@@ -4483,7 +4493,34 @@ Before returning, verify:
       page5_hasThisWeek: !!narratives.page5_nextSteps?.thisWeek
     });
 
-    // Pass 2A: Skip quote verification — Pass 2B handles quote quality on narrative rewrites
+    // ========================================================================
+    // QUOTE VERIFICATION — only check actual client-facing text
+    // Skip JSON keys, service names, section headers, and short phrases
+    // ========================================================================
+    const allResponseText = JSON.stringify(discoveryResponses || {}).toLowerCase();
+    const narrativeText = JSON.stringify(narratives);
+    const directQuotes = narrativeText.match(/"([^"]{20,100})"/g) || [];
+    const SKIP_PATTERNS = [
+      /^(page\d|header|vision|clarity|gap|phase|investment|meta|enabled|what|the |from |you'?ll )/i,
+      /programme|benchmarking|audit|advisory|automation|fractional|planning/i,
+      /£[\d,]+/,  // Prices
+      /\d+%/,     // Percentages
+      /when ready|one-off|per year|per month/i,
+    ];
+
+    for (const quote of directQuotes) {
+      const clean = quote.replace(/^"|"$/g, '').toLowerCase().trim();
+      if (clean.length < 20) continue;
+      if (SKIP_PATTERNS.some(p => p.test(clean))) continue;
+      if (!allResponseText.includes(clean)) {
+        // Fuzzy check — 80% of words must appear in responses
+        const words = clean.split(/\s+/).filter(w => w.length > 0);
+        const matchCount = words.filter(w => w.length > 3 && allResponseText.includes(w)).length;
+        if (words.length > 0 && matchCount / words.length < 0.6) {
+          console.warn(`[Pass2A] ⚠️ Possible fabricated quote: "${clean.substring(0, 60)}..."`);
+        }
+      }
+    }
 
     // Final cleanup: remove any duplicate "when ready" stutter in full payload before save
     narratives = cleanWhenReadyStutter(narratives);

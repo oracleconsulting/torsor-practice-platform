@@ -98,7 +98,17 @@ serve(async (req) => {
     const page4 = report.page4_numbers || currentReport.page4_numbers || {};
     const page5 = report.page5_next_steps || currentReport.page5_nextSteps || {};
 
+    const payrollExcessK = Math.round((report.comprehensive_analysis?.payroll?.annualExcess || 0) / 1000);
+    const payrollMonthlyK = Math.round(payrollExcessK / 12);
+    const payrollBenchmark = report.comprehensive_analysis?.payroll?.benchmark?.good || 38;
+
     const prompt = `You are a narrative specialist enhancing a business advisory report.
+
+⛔⛔⛔ CRITICAL NUMBER CONSTRAINT ⛔⛔⛔
+The payroll excess for this client is £${payrollExcessK}k/year.
+The monthly figure is £${payrollMonthlyK}k/month.
+The benchmark is ${payrollBenchmark}%.
+DO NOT use £476k, £40k/month, or 30% anywhere. Those are WRONG. Use the figures above.
 
 A structural draft has already been generated with correct data, prices, and schema.
 Your job is to rewrite ONLY the narrative sections to make them sound human, warm,
@@ -116,6 +126,13 @@ Avoided conversation: "${emotionalContext.avoidedConversation}"
 Core frustration: "${emotionalContext.coreFrustration}"
 Magic fix (90 days): "${emotionalContext.magicFix}"
 Last proper break: "${emotionalContext.lastBreak}"
+
+============================================================================
+MANDATORY FINANCIAL FIGURES — USE THESE EXACT NUMBERS
+============================================================================
+${report.comprehensive_analysis?.payroll ? `Payroll excess: £${payrollExcessK}k/year (monthly: £${payrollMonthlyK}k). Benchmark: ${payrollBenchmark}%` : ''}
+${report.comprehensive_analysis?.costOfInaction ? `Cost of inaction: £${Math.round((report.comprehensive_analysis.costOfInaction.totalOverHorizon || 0) / 1000)}k+ over ${report.comprehensive_analysis.costOfInaction.timeHorizon || 4} years` : ''}
+${report.comprehensive_analysis?.valuation ? `Valuation range: £${(report.comprehensive_analysis.valuation.conservativeValue / 1000000).toFixed(1)}M - £${(report.comprehensive_analysis.valuation.optimisticValue / 1000000).toFixed(1)}M` : ''}
 
 ============================================================================
 WRITING STYLE
@@ -206,6 +223,8 @@ full pages or any fields not listed here.
   }
 }
 
+FINAL CHECK: If your headline or any rewritten text contains "£476k" or "£40k" or "30% benchmark", you have used the WRONG numbers. The correct excess is £${payrollExcessK}k/year against a ${payrollBenchmark}% benchmark.
+
 Return ONLY this JSON object. No markdown fences. No preamble.`;
 
     // ====================================================================
@@ -259,6 +278,24 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Mechanical fix: replace any hallucinated £476k figures with correct amount
+    const correctExcessK = Math.round((report.comprehensive_analysis?.payroll?.annualExcess || 0) / 1000);
+    const correctMonthlyK = Math.round(correctExcessK / 12);
+    const correctBenchmark = report.comprehensive_analysis?.payroll?.benchmark?.good || 38;
+
+    if (correctExcessK > 0) {
+      let rewriteStr = JSON.stringify(rewrites);
+      // Replace wrong payroll figures
+      rewriteStr = rewriteStr.replace(/£476k/g, `£${correctExcessK}k`);
+      rewriteStr = rewriteStr.replace(/£476,000/g, `£${(correctExcessK * 1000).toLocaleString()}`);
+      rewriteStr = rewriteStr.replace(/£40k walks/g, `£${correctMonthlyK}k walks`);
+      rewriteStr = rewriteStr.replace(/£40k a month/g, `£${correctMonthlyK}k a month`);
+      rewriteStr = rewriteStr.replace(/£40,000/g, `£${(correctMonthlyK * 1000).toLocaleString()}`);
+      rewriteStr = rewriteStr.replace(/the 30% benchmark/g, `the ${correctBenchmark}% benchmark`);
+      rewriteStr = rewriteStr.replace(/vs 30%/g, `vs ${correctBenchmark}%`);
+      rewrites = JSON.parse(rewriteStr);
     }
 
     const tokensUsed = llmData.usage?.total_tokens || 0;

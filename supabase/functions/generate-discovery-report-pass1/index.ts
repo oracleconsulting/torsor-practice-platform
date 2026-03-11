@@ -896,59 +896,157 @@ function calculateIHTExposure(
 // Liquidity and leverage alerts for mandatory phrase injection in Pass 2
 // ============================================================================
 
+interface BalanceSheetAlert {
+  category: string;
+  severity: 'critical' | 'warning' | 'info';
+  headline: string;
+  detail: string;
+}
+
 interface BalanceSheetHealthAnalysis {
-  hasAlerts: boolean;
-  alerts: string[];
+  hasData: boolean;
+  hasAlerts: boolean;  // Alias for compatibility
+  alerts: BalanceSheetAlert[];
+  narrative: string;
   currentRatio?: number | null;
   quickRatio?: number | null;
   gearingPct?: number | null;
 }
 
 function analyseBalanceSheetHealth(
-  financials: ExtractedFinancials,
-  clientTypeLabel: string
+  financials: any,
+  responses: Record<string, any>
 ): BalanceSheetHealthAnalysis {
-  const alerts: string[] = [];
-  const netAssets = financials.netAssets || 0;
-  const currentAssets = financials.currentAssets ?? (
-    (financials.cash ?? 0) + (financials.debtors ?? 0) + (financials.otherDebtors ?? 0) +
-    (financials.prepayments ?? 0) + (financials.stock ?? 0)
-  );
-  const currentLiabilities = financials.currentLiabilities ?? null;
-  const stock = financials.stock || 0;
-  const bankLoans = financials.bankLoans ?? financials.longTermLiabilities ?? 0;
+  const alerts: BalanceSheetAlert[] = [];
+  const turnover = financials?.turnover || 0;
+  const netAssets = financials?.netAssets || 0;
 
+  // DLA check
+  const dla = financials?.directorLoanAccount || financials?.dlaBalance || financials?.directorLoans;
+  if (dla && dla > 50000 && netAssets > 0) {
+    const pct = (dla / netAssets) * 100;
+    if (pct > 20) {
+      alerts.push({
+        category: 'Director Loan Account',
+        severity: pct > 30 ? 'critical' : 'warning',
+        headline: `DLA at £${Math.round(dla / 1000)}k (${pct.toFixed(0)}% of net assets)`,
+        detail: 'S455 tax risk if not repaid within 9 months of year end.'
+      });
+    }
+  }
+
+  // Cash erosion despite profitability
+  if (financials?.multiYearEarnings?.length >= 2) {
+    const sorted = [...financials.multiYearEarnings].sort((a: any, b: any) => (a.year || 0) - (b.year || 0));
+    const earliestCash = (sorted[0] as any)?.cash;
+    const latestCash = (sorted[sorted.length - 1] as any)?.cash || financials?.cash;
+    if (earliestCash && latestCash && earliestCash > 0) {
+      const changePct = ((latestCash - earliestCash) / earliestCash) * 100;
+      if (changePct < -30 && financials?.operatingProfit > 0) {
+        alerts.push({
+          category: 'Cash Erosion',
+          severity: changePct < -50 ? 'critical' : 'warning',
+          headline: `Cash down ${Math.abs(changePct).toFixed(0)}% despite profitability`,
+          detail: `Cash reduced from £${Math.round(earliestCash / 1000)}k to £${Math.round(latestCash / 1000)}k while business is profitable. Cash being absorbed elsewhere.`
+        });
+      }
+    }
+  }
+
+  // High debtors relative to turnover
+  if (financials?.debtors && turnover > 0) {
+    const debtorPct = (financials.debtors / turnover) * 100;
+    if (debtorPct > 40) {
+      alerts.push({
+        category: 'Debtor Concentration',
+        severity: debtorPct > 60 ? 'critical' : 'warning',
+        headline: `Debtors at ${debtorPct.toFixed(0)}% of turnover (£${Math.round(financials.debtors / 1000)}k)`,
+        detail: 'Cash tied up in receivables. Check connected company balances and ageing.'
+      });
+    }
+  }
+
+  // Loan + cash flow anxiety from responses
+  const respText = JSON.stringify(responses || {}).toLowerCase();
+  if ((respText.includes('loan') || respText.includes('borrow')) &&
+      (respText.includes('cash flow') || respText.includes('cash-flow'))) {
+    alerts.push({
+      category: 'Cash Flow Dependency',
+      severity: 'warning',
+      headline: 'Loan dependency for cash flow',
+      detail: 'Client mentions both borrowing and cash flow concerns — business may not generate sufficient operating cash.'
+    });
+  }
+
+  // Legacy: current ratio, quick ratio, gearing (from original implementation)
+  const currentAssets = financials?.currentAssets ?? (
+    (financials?.cash ?? 0) + (financials?.debtors ?? 0) + (financials?.otherDebtors ?? 0) +
+    (financials?.prepayments ?? 0) + (financials?.stock ?? 0)
+  );
+  const currentLiabilities = financials?.currentLiabilities ?? null;
+  const stock = financials?.stock || 0;
+  const bankLoans = financials?.bankLoans ?? financials?.longTermLiabilities ?? 0;
   let currentRatio: number | null = null;
   let quickRatio: number | null = null;
   let gearingPct: number | null = null;
-
   if (currentAssets != null && currentLiabilities != null && currentLiabilities > 0) {
     currentRatio = currentAssets / currentLiabilities;
     quickRatio = (currentAssets - stock) / currentLiabilities;
-
     if (currentRatio < 0.8) {
-      alerts.push(`Current ratio of ${currentRatio.toFixed(2)} — current liabilities exceed current assets; short-term liquidity needs attention`);
+      alerts.push({
+        category: 'Liquidity',
+        severity: 'critical',
+        headline: `Current ratio of ${currentRatio.toFixed(2)}`,
+        detail: 'Current liabilities exceed current assets; short-term liquidity needs attention'
+      });
     } else if (currentRatio < 1.0) {
-      alerts.push(`Current ratio of ${currentRatio.toFixed(2)} — current liabilities slightly exceed current assets; worth monitoring`);
+      alerts.push({
+        category: 'Liquidity',
+        severity: 'warning',
+        headline: `Current ratio of ${currentRatio.toFixed(2)}`,
+        detail: 'Current liabilities slightly exceed current assets; worth monitoring'
+      });
     }
-
     if (quickRatio < 0.7) {
-      alerts.push(`Quick ratio of ${quickRatio.toFixed(2)} — limited ability to meet short-term obligations without selling inventory`);
+      alerts.push({
+        category: 'Liquidity',
+        severity: 'warning',
+        headline: `Quick ratio of ${quickRatio.toFixed(2)}`,
+        detail: 'Limited ability to meet short-term obligations without selling inventory'
+      });
     }
   }
-
   if (bankLoans > 0 && netAssets > 0) {
     gearingPct = (bankLoans / netAssets) * 100;
     if (gearingPct > 75) {
-      alerts.push(`Gearing of ${gearingPct.toFixed(1)}% — very high leverage; significant refinancing risk if asset values fall`);
+      alerts.push({
+        category: 'Gearing',
+        severity: 'critical',
+        headline: `Gearing of ${gearingPct.toFixed(1)}%`,
+        detail: 'Very high leverage; significant refinancing risk if asset values fall'
+      });
     } else if (gearingPct > 50) {
-      alerts.push(`Gearing of ${gearingPct.toFixed(1)}% — high leverage warrants attention`);
+      alerts.push({
+        category: 'Gearing',
+        severity: 'warning',
+        headline: `Gearing of ${gearingPct.toFixed(1)}%`,
+        detail: 'High leverage warrants attention'
+      });
     }
   }
 
+  const narrative = alerts.length > 0
+    ? `Balance sheet: ${alerts.length} alert(s). ${alerts.map(a => a.headline).join('. ')}`
+    : 'No material balance sheet concerns detected.';
+
+  console.log(`[Pass1] Balance Sheet Health: ${alerts.length} alerts`);
+  alerts.forEach(a => console.log(`  - [${a.severity}] ${a.category}: ${a.headline}`));
+
   return {
+    hasData: alerts.length > 0,
     hasAlerts: alerts.length > 0,
     alerts,
+    narrative,
     currentRatio,
     quickRatio,
     gearingPct
@@ -1570,12 +1668,12 @@ function detectIndustry(
   if (principalActivity) {
     const pa = principalActivity.toLowerCase();
 
-    // Training / education / coaching
-    if (/\b(training|trainer|coach(ing)?|tuition|tutor|e-learning|cpd|professional development|teaching|instructor|course|seminar|workshop)\b/.test(pa)) {
+    // Training / education — separate benchmarks; training checked first
+    if (/\b(training|trainer|coach(ing)?|tutor(ing)?|cpd|professional development|instructor|course provider|seminar|workshop provider)\b/.test(pa)) {
       console.log(`[Pass1] Industry from principal activity: training ("${principalActivity}")`);
       return { code: 'training', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
     }
-    if (/\b(education|school|college|university|academy|learning|nursery)\b/.test(pa)) {
+    if (/\b(education|school|college|e-learning|learning provider|tuition|academy|teaching)\b/.test(pa)) {
       console.log(`[Pass1] Industry from principal activity: education ("${principalActivity}")`);
       return { code: 'education', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
     }
@@ -2343,7 +2441,25 @@ function analyseTrajectory(financials: ExtractedFinancials, responses: Record<st
   } else {
     return null;
   }
-  
+
+  // Detect V-shaped recovery (common post-COVID) — don't frame as "growth"
+  if (financials.multiYearEarnings && financials.multiYearEarnings.length >= 3) {
+    const sorted = [...financials.multiYearEarnings].sort((a: any, b: any) => (a.year || 0) - (b.year || 0));
+    const yr1 = sorted[0]?.revenue || 0;
+    const yr2 = sorted[1]?.revenue || 0;
+    const yr3 = sorted[2]?.revenue || 0;
+
+    if (yr1 > 0 && yr2 < yr1 * 0.85 && yr3 > yr2 * 1.10) {
+      const recoveryPct = ((yr3 - yr1) / yr1) * 100;
+      if (recoveryPct < 10) {
+        trend = 'volatile_recovering';
+        concernLevel = 'medium';
+        narrative = `Revenue recovering to £${(yr3 / 1000000).toFixed(1)}M after a significant dip — this is recovery, not sustained growth. Buyers will want two consecutive years of genuine growth.`;
+        console.log(`[Pass1] Trajectory override: V-shaped recovery detected. £${Math.round(yr1/1000)}k → £${Math.round(yr2/1000)}k → £${Math.round(yr3/1000)}k (${recoveryPct.toFixed(1)}% vs baseline)`);
+      }
+    }
+  }
+
   return {
     hasData: true, currentRevenue, priorRevenue, absoluteChange, percentageChange,
     trend, concernLevel, ownerPerception, marketContext, narrative
@@ -5030,9 +5146,9 @@ serve(async (req) => {
     }
 
     // Balance sheet health analysis (Session 11 — Prompt 7)
-    const balanceSheetHealth = analyseBalanceSheetHealth(extractedFinancials, clientType.type);
+    const balanceSheetHealth = analyseBalanceSheetHealth(extractedFinancials, discoveryResponses);
     (comprehensiveAnalysis as any).balanceSheetHealth = balanceSheetHealth;
-    if (balanceSheetHealth.hasAlerts) {
+    if (balanceSheetHealth.hasData) {
       console.log('[Pass1] 📊 Balance sheet health alerts:', balanceSheetHealth.alerts);
     }
 
