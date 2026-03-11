@@ -248,46 +248,53 @@ async function gatherAllClientData(supabase: any, engagementId: string): Promise
     .eq('engagement_id', engagementId)
     .single();
   
-  // Get discovery responses — try engagement_id first, fall back to client_id
-  let { data: discoveryData, error: discError } = await supabase
-    .from('destination_discovery')
-    .select('responses, company_name')
-    .eq('engagement_id', engagementId)
-    .maybeSingle();
+  // Get discovery responses — PRIMARY: client_id (destination_discovery is keyed by client_id)
+  let discoveryData: { responses: Record<string, any>; company_name?: string | null } | null = null;
 
-  console.log(`[Discovery Pass 3] Response query (engagement_id=${engagementId}):`, {
-    found: !!discoveryData,
-    hasResponses: !!discoveryData?.responses,
-    responseKeys: discoveryData?.responses ? Object.keys(discoveryData.responses).length : 0,
-    error: discError?.message || null
-  });
-
-  // Fallback: query by client_id if engagement_id returned nothing
-  if (!discoveryData?.responses && clientId) {
-    const { data: fallbackData } = await supabase
+  // Try 1: client_id (the correct key for destination_discovery)
+  if (clientId) {
+    const { data: byClient, error: byClientErr } = await supabase
       .from('destination_discovery')
       .select('responses, company_name')
       .eq('client_id', clientId)
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (fallbackData?.responses) {
-      discoveryData = fallbackData;
-      console.log(`[Discovery Pass 3] Fallback query by client_id succeeded: ${Object.keys(fallbackData.responses).length} response keys`);
+    console.log(`[Discovery Pass 3] Response query by client_id=${clientId}:`, {
+      found: !!byClient, keys: byClient?.responses ? Object.keys(byClient.responses).length : 0,
+      error: byClientErr?.message || null
+    });
+    if (byClient?.responses && Object.keys(byClient.responses).length > 0) {
+      discoveryData = byClient;
     }
   }
 
-  // Second fallback: get responses from the engagement's joined discovery data
+  // Try 2: engagement join (destination_discovery via foreign key)
   if (!discoveryData?.responses && engagement?.discovery) {
-    const discovery = Array.isArray(engagement.discovery) ? engagement.discovery[0] : engagement.discovery;
-    if (discovery?.responses && Object.keys(discovery.responses).length > 0) {
-      discoveryData = { responses: discovery.responses, company_name: discovery.company_name || null };
-      console.log(`[Discovery Pass 3] Using responses from engagement join: ${Object.keys(discovery.responses).length} keys`);
+    const disc = Array.isArray(engagement.discovery) ? engagement.discovery[0] : engagement.discovery;
+    if (disc?.responses && Object.keys(disc.responses).length > 0) {
+      discoveryData = { responses: disc.responses, company_name: disc.company_name || null };
+      console.log(`[Discovery Pass 3] Using responses from engagement join: ${Object.keys(disc.responses).length} keys`);
+    }
+  }
+
+  // Try 3: engagement_id (some schemas may have this)
+  if (!discoveryData?.responses) {
+    const { data: byEng } = await supabase
+      .from('destination_discovery')
+      .select('responses, company_name')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+    if (byEng?.responses && Object.keys(byEng.responses).length > 0) {
+      discoveryData = byEng;
+      console.log(`[Discovery Pass 3] Fallback by engagement_id: ${Object.keys(byEng.responses).length} keys`);
     }
   }
 
   if (!discoveryData?.responses || Object.keys(discoveryData.responses).length === 0) {
     console.error(`[Discovery Pass 3] ⛔ NO RESPONSES FOUND for engagement ${engagementId}, client ${clientId}`);
+  } else {
+    console.log(`[Discovery Pass 3] ✅ Loaded ${Object.keys(discoveryData.responses).length} response keys`);
   }
 
   // Get context notes
@@ -416,17 +423,10 @@ function buildUserPrompt(
 
   // Log response keys to debug "Not provided" issues
   const responseKeys = Object.keys(responses);
-  console.log(`[Opportunities] Response keys (${responseKeys.length}):`, responseKeys.slice(0, 40));
-  console.log('[Opportunities] Sample values:', {
-    dd_five_year_picture: responses.dd_five_year_picture?.substring?.(0, 50),
-    dd_weekly_hours: responses.dd_weekly_hours?.substring?.(0, 50),
-    sd_founder_dependency: responses.sd_founder_dependency?.substring?.(0, 50),
-    sd_financial_confidence: responses.sd_financial_confidence?.substring?.(0, 50),
-    dd_core_frustration: responses.dd_core_frustration?.substring?.(0, 50),
-    dd_hard_truth: responses.dd_hard_truth?.substring?.(0, 50),
-    dd_emergency_log: responses.dd_emergency_log?.substring?.(0, 50),
-    dd_sacrificed: responses.dd_sacrificed?.substring?.(0, 50),
-  });
+  console.log(`[Opportunities] Response keys (${responseKeys.length}):`, responseKeys.sort().slice(0, 50));
+  if (responseKeys.length > 0) {
+    console.log('[Opportunities] First 5 values:', responseKeys.slice(0, 5).map(k => `${k}=${String(responses[k]).substring(0, 40)}`));
+  }
 
   // Helper: find first non-empty response from multiple possible field names
   const getR = (...keys: string[]): string => {
@@ -463,63 +463,70 @@ ${getClientTypeRules(clientData.clientType, clientData.frameworkOverrides)}
 ## THEIR VISION & EMOTIONAL ANCHORS
 
 **Tuesday Test (Ideal Future):**
-"${getR('dd_five_year_picture', 'dd_five_year_vision', 'dd_tuesday_test', 'tuesday_test')}"
+"${getR('dd_five_year_vision', 'dd_five_year_picture', 'dd_tuesday_test')}"
 
 **Success Definition:**
-"${getR('dd_success_definition', 'success_definition')}"
+"${getR('dd_success_definition')}"
 
 **Non-Negotiables:**
-"${getR('dd_non_negotiables', 'non_negotiables')}"
+"${getR('dd_non_negotiables')}"
 
 **Magic Fix (What they'd change first):**
-"${getR('dd_magic_fix', 'dd_90_day_magic', 'magic_fix_90')}"
+"${getR('dd_magic_fix', 'dd_90_day_magic')}"
 
 **Core Frustration:**
-"${getR('dd_core_frustration', 'rl_core_frustration', 'core_frustration')}"
+"${getR('dd_core_frustration', 'rl_core_frustration')}"
 
 **What Keeps Them Awake:**
-"${getR('dd_sleep_thief', 'rl_sleep_thief', 'sleep_thief')}"
+"${getR('dd_sleep_thief', 'rl_sleep_thief')}"
 
 **Emergency Log (What pulled them away):**
-"${getR('dd_emergency_log', 'rl_emergency_log', 'emergency_log')}"
+"${getR('dd_emergency_log', 'rl_emergency_log')}"
 
 **Avoided Conversation:**
-"${getR('dd_avoided_conversation', 'ht_avoided_conversation', 'avoided_conversation')}"
+"${getR('dd_avoided_conversation', 'ht_avoided_conversation')}"
 
 **Hard Truth They Suspect:**
-"${getR('dd_hard_truth', 'ht_hard_truth', 'hard_truth')}"
+"${getR('dd_hard_truth', 'ht_hard_truth')}"
 
 **What They Suspect About Numbers:**
-"${getR('dd_suspected_truth', 'ht_suspected_truth', 'suspected_truth')}"
+"${getR('dd_suspected_truth', 'ht_suspected_truth')}"
 
 **Business Relationship Metaphor:**
-"${getR('dd_business_relationship', 'rl_business_relationship', 'dd_relationship_mirror', 'business_relationship')}"
+"${getR('dd_relationship_mirror', 'dd_business_relationship', 'rl_business_relationship')}"
 
 **What They've Sacrificed:**
-"${getR('dd_sacrificed', 'rl_sacrificed', 'dd_sacrifice_list', 'dd_what_sacrificed', 'ht_sacrifice')}"
+"${getR('dd_sacrifice_list', 'dd_sacrificed', 'dd_what_sacrificed', 'rl_sacrificed')}"
 
 **Last Real Break:**
-"${getR('dd_last_break', 'rl_last_break', 'dd_last_real_break', 'last_break')}"
+"${getR('dd_last_real_break', 'dd_last_break', 'rl_last_break')}"
+
+**Hidden From Team:**
+"${getR('dd_hidden_from_team')}"
 
 ## OPERATIONAL CONTEXT
 
-**Weekly Hours:** ${getR('dd_weekly_hours', 'rl_weekly_hours', 'weekly_hours', 'owner_hours')}
-**Time Split (firefighting vs strategic):** "${getR('dd_time_split', 'rl_time_split', 'time_split')}"
-**Key Person / Founder Dependency:** "${getR('sd_founder_dependency', 'dd_founder_dependency', 'dd_key_person_dependency', 'founder_dependency')}"
-**Scaling Constraint:** "${getR('dd_scaling_constraint', 'ht_scaling_constraint', 'scaling_constraint')}"
-**Change Readiness:** ${getR('dd_change_readiness', 'ht_change_readiness', 'rl_change_readiness', 'change_readiness')}
-**Exit Timeline:** ${getR('sd_exit_timeline', 'dd_exit_timeline', 'exit_timeline', 'so_exit_timeline')}
+**Weekly Hours:** ${getR('dd_weekly_hours', 'rl_weekly_hours')}
+**Time Allocation (firefighting vs strategic):** "${getR('dd_time_allocation', 'dd_time_split', 'rl_time_split')}"
+**Key Person Dependency:** "${getR('dd_key_person_dependency', 'sd_founder_dependency', 'dd_founder_dependency')}"
+**Scaling Constraint:** "${getR('dd_scaling_constraint', 'ht_scaling_constraint')}"
+**Change Readiness:** ${getR('dd_change_readiness', 'ht_change_readiness', 'rl_change_readiness')}
+**Exit Timeline:** ${getR('sd_exit_timeline', 'dd_exit_timeline')}
 
 ## STRATEGIC & OPERATIONAL ANSWERS
 
-**Financial Confidence:** "${getR('sd_financial_confidence', 'so_financial_confidence', 'financial_confidence')}"
-**Manual Tasks:** "${getR('sd_manual_tasks', 'so_manual_tasks', 'manual_tasks')}"
-**Plan Clarity:** "${getR('sd_plan_clarity', 'so_plan_clarity', 'plan_clarity')}"
-**Data-Driven Decisions:** "${getR('sd_data_decisions', 'so_data_driven', 'data_decisions', 'data_driven')}"
-**Documentation Ready:** "${getR('sd_documentation_ready', 'so_documentation', 'documentation_ready')}"
-**Operational Frustration:** "${getR('sd_operational_frustration', 'so_operational_frustration', 'operational_frustration')}"
-**Growth Blocker:** "${getR('sd_growth_blocker', 'so_growth_blocker', 'growth_blocker')}"
-**Market Position:** "${getR('sd_market_position', 'so_market_position', 'market_position')}"
+**Financial Confidence:** "${getR('sd_financial_confidence', 'so_financial_confidence')}"
+**Manual Work Percentage:** "${getR('sd_manual_work_percentage', 'sd_manual_tasks', 'so_manual_tasks')}"
+**Plan Clarity:** "${getR('sd_plan_clarity', 'so_plan_clarity')}"
+**Numbers Action Frequency (data-driven):** "${getR('sd_numbers_action_frequency', 'sd_data_decisions', 'so_data_driven')}"
+**Documentation Readiness:** "${getR('sd_documentation_readiness', 'sd_documentation_ready', 'so_documentation')}"
+**Operational Frustration:** "${getR('sd_operational_frustration', 'so_operational_frustration')}"
+**Growth Blocker:** "${getR('sd_growth_blocker', 'so_growth_blocker')}"
+**Market Position:** "${getR('sd_market_position', 'so_market_position')}"
+**Benchmark Awareness:** "${getR('sd_benchmark_awareness')}"
+**Problem Awareness Speed:** "${getR('sd_problem_awareness_speed')}"
+**Accountability Source:** "${getR('sd_accountability_source')}"
+**Valuation Understanding:** "${getR('sd_valuation_understanding')}"
 
 ## DESTINATION CLARITY
 
