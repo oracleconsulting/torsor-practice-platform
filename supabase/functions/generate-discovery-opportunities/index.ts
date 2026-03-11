@@ -380,15 +380,26 @@ function buildUserPrompt(
 
   // Log response keys to debug "Not provided" issues
   const responseKeys = Object.keys(responses);
-  console.log(`[Opportunities] Response keys (${responseKeys.length}):`, responseKeys.slice(0, 30));
+  console.log(`[Opportunities] Response keys (${responseKeys.length}):`, responseKeys.slice(0, 40));
   console.log('[Opportunities] Sample values:', {
     dd_five_year_picture: responses.dd_five_year_picture?.substring?.(0, 50),
+    dd_weekly_hours: responses.dd_weekly_hours?.substring?.(0, 50),
     sd_founder_dependency: responses.sd_founder_dependency?.substring?.(0, 50),
-    rl_weekly_hours: responses.rl_weekly_hours?.substring?.(0, 50),
-    rl_core_frustration: responses.rl_core_frustration?.substring?.(0, 50),
-    ht_hard_truth: responses.ht_hard_truth?.substring?.(0, 50),
-    so_financial_confidence: responses.so_financial_confidence?.substring?.(0, 50),
+    sd_financial_confidence: responses.sd_financial_confidence?.substring?.(0, 50),
+    dd_core_frustration: responses.dd_core_frustration?.substring?.(0, 50),
+    dd_hard_truth: responses.dd_hard_truth?.substring?.(0, 50),
+    dd_emergency_log: responses.dd_emergency_log?.substring?.(0, 50),
+    dd_sacrificed: responses.dd_sacrificed?.substring?.(0, 50),
   });
+
+  // Helper: find first non-empty response from multiple possible field names
+  const getR = (...keys: string[]): string => {
+    for (const k of keys) {
+      const v = responses[k];
+      if (v && typeof v === 'string' && v.trim() !== '' && v !== 'Not provided') return v;
+    }
+    return 'Not provided';
+  };
 
   // Format services with correct pricing
   const formattedServices = services.map(s => {
@@ -416,54 +427,63 @@ ${getClientTypeRules(clientData.clientType, clientData.frameworkOverrides)}
 ## THEIR VISION & EMOTIONAL ANCHORS
 
 **Tuesday Test (Ideal Future):**
-"${responses.dd_five_year_picture || responses.dd_five_year_vision || responses.dd_tuesday_test || responses.tuesday_test || 'Not provided'}"
+"${getR('dd_five_year_picture', 'dd_five_year_vision', 'dd_tuesday_test', 'tuesday_test')}"
+
+**Success Definition:**
+"${getR('dd_success_definition', 'success_definition')}"
+
+**Non-Negotiables:**
+"${getR('dd_non_negotiables', 'non_negotiables')}"
 
 **Magic Fix (What they'd change first):**
-"${responses.dd_magic_fix || responses.dd_90_day_magic || responses.magic_fix_90 || 'Not provided'}"
+"${getR('dd_magic_fix', 'dd_90_day_magic', 'magic_fix_90')}"
 
 **Core Frustration:**
-"${responses.dd_core_frustration || responses.rl_core_frustration || responses.core_frustration || 'Not provided'}"
+"${getR('dd_core_frustration', 'rl_core_frustration', 'core_frustration')}"
 
 **What Keeps Them Awake:**
-"${responses.dd_sleep_thief || responses.rl_sleep_thief || responses.sleep_thief || 'Not provided'}"
+"${getR('dd_sleep_thief', 'rl_sleep_thief', 'sleep_thief')}"
+
+**Emergency Log (What pulled them away):**
+"${getR('dd_emergency_log', 'rl_emergency_log', 'emergency_log')}"
 
 **Avoided Conversation:**
-"${responses.dd_avoided_conversation || responses.ht_avoided_conversation || 'Not provided'}"
+"${getR('dd_avoided_conversation', 'ht_avoided_conversation', 'avoided_conversation')}"
 
 **Hard Truth They Suspect:**
-"${responses.dd_hard_truth || responses.ht_hard_truth || responses.dd_suspected_truth || responses.ht_suspected_truth || 'Not provided'}"
+"${getR('dd_hard_truth', 'ht_hard_truth', 'hard_truth')}"
+
+**What They Suspect About Numbers:**
+"${getR('dd_suspected_truth', 'ht_suspected_truth', 'suspected_truth')}"
 
 **Business Relationship Metaphor:**
-"${responses.dd_relationship_mirror || responses.dd_business_relationship || responses.rl_business_relationship || 'Not provided'}"
+"${getR('dd_business_relationship', 'rl_business_relationship', 'dd_relationship_mirror', 'business_relationship')}"
 
 **What They've Sacrificed:**
-"${responses.dd_sacrifice_list || responses.dd_what_sacrificed || responses.ht_sacrifice || 'Not provided'}"
+"${getR('dd_sacrificed', 'rl_sacrificed', 'dd_sacrifice_list', 'dd_what_sacrificed', 'ht_sacrifice')}"
 
 **Last Real Break:**
-"${responses.dd_last_real_break || responses.dd_last_break || responses.rl_last_break || 'Not provided'}"
+"${getR('dd_last_break', 'rl_last_break', 'dd_last_real_break', 'last_break')}"
 
 ## OPERATIONAL CONTEXT
 
-**Weekly Hours:** ${responses.rl_weekly_hours || responses.dd_weekly_hours || responses.dd_owner_hours || 'Unknown'}
-**Time Split (firefighting vs strategic):** "${responses.rl_time_split || responses.dd_time_split || 'Not provided'}"
-**Delegation Ability:** "${responses.dd_delegation_ability || responses.dd_delegation || responses.rl_delegation || 'Not provided'}"
-**Key Person Dependency:** "${responses.sd_founder_dependency || responses.dd_key_person_dependency || responses.dd_founder_dependency || responses.founder_dependency || 'Not provided'}"
-**Exit Timeline:** ${responses.so_exit_timeline || responses.sd_exit_timeline || responses.dd_exit_timeline || 'Not specified'}
-**Change Readiness:** ${responses.ht_change_readiness || responses.dd_change_readiness || responses.rl_change_readiness || 'Unknown'}
-**Scaling Constraint:** "${responses.ht_scaling_constraint || responses.dd_scaling_constraint || 'Not provided'}"
+**Weekly Hours:** ${getR('dd_weekly_hours', 'rl_weekly_hours', 'weekly_hours', 'owner_hours')}
+**Time Split (firefighting vs strategic):** "${getR('dd_time_split', 'rl_time_split', 'time_split')}"
+**Key Person / Founder Dependency:** "${getR('sd_founder_dependency', 'dd_founder_dependency', 'dd_key_person_dependency', 'founder_dependency')}"
+**Scaling Constraint:** "${getR('dd_scaling_constraint', 'ht_scaling_constraint', 'scaling_constraint')}"
+**Change Readiness:** ${getR('dd_change_readiness', 'ht_change_readiness', 'rl_change_readiness', 'change_readiness')}
+**Exit Timeline:** ${getR('sd_exit_timeline', 'dd_exit_timeline', 'exit_timeline', 'so_exit_timeline')}
 
 ## STRATEGIC & OPERATIONAL ANSWERS
 
-**Financial Confidence:** "${responses.so_financial_confidence || responses.dd_financial_confidence || 'Not provided'}"
-**Manual Tasks:** "${responses.so_manual_tasks || responses.dd_manual_tasks || 'Not provided'}"
-**Plan Clarity:** "${responses.so_plan_clarity || responses.dd_plan_clarity || 'Not provided'}"
-**Data-Driven Decisions:** "${responses.so_data_driven || responses.dd_data_driven || 'Not provided'}"
-**Documentation Ready:** "${responses.so_documentation || responses.dd_documentation || 'Not provided'}"
-**Operational Frustration:** "${responses.so_operational_frustration || responses.dd_operational_frustration || 'Not provided'}"
-**Growth Blocker:** "${responses.so_growth_blocker || responses.dd_growth_blocker || 'Not provided'}"
-**Market Position:** "${responses.so_market_position || responses.sd_market_position || 'Not provided'}"
-**Success Definition:** "${responses.dd_success_definition || 'Not provided'}"
-**Non-Negotiables:** "${responses.dd_non_negotiables || 'Not provided'}"
+**Financial Confidence:** "${getR('sd_financial_confidence', 'so_financial_confidence', 'financial_confidence')}"
+**Manual Tasks:** "${getR('sd_manual_tasks', 'so_manual_tasks', 'manual_tasks')}"
+**Plan Clarity:** "${getR('sd_plan_clarity', 'so_plan_clarity', 'plan_clarity')}"
+**Data-Driven Decisions:** "${getR('sd_data_decisions', 'so_data_driven', 'data_decisions', 'data_driven')}"
+**Documentation Ready:** "${getR('sd_documentation_ready', 'so_documentation', 'documentation_ready')}"
+**Operational Frustration:** "${getR('sd_operational_frustration', 'so_operational_frustration', 'operational_frustration')}"
+**Growth Blocker:** "${getR('sd_growth_blocker', 'so_growth_blocker', 'growth_blocker')}"
+**Market Position:** "${getR('sd_market_position', 'so_market_position', 'market_position')}"
 
 ## DESTINATION CLARITY
 

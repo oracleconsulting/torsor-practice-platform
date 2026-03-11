@@ -2259,14 +2259,16 @@ TOTAL FIRST YEAR INVESTMENT: ${pass1Total}
       console.log('[Pass2] ✅ Injecting Pass 1 service prices as constraints');
     }
 
-    // Fetch advisor context notes
-    const { data: contextNotes } = await supabase
+    // Fetch advisor context notes (relax filter — include all notes, not just is_for_ai_analysis)
+    const { data: contextNotes, error: cnError } = await supabase
       .from('discovery_context_notes')
-      .select('note_type, title, content, created_at')
+      .select('note_type, title, content, created_at, is_for_ai_analysis')
       .eq('engagement_id', engagementId)
-      .eq('is_for_ai_analysis', true)
       .order('created_at', { ascending: false });
-    console.log(`[Pass2A] Context notes fetched: ${contextNotes?.length || 0}`);
+    console.log(`[Pass2A] Context notes fetched: ${contextNotes?.length || 0}${cnError ? `, error: ${cnError.message}` : ''}`);
+    if (contextNotes && contextNotes.length > 0) {
+      contextNotes.forEach((n: any, i: number) => console.log(`[Pass2A]   Note ${i}: [${n.note_type}] "${n.title}" (ai=${n.is_for_ai_analysis}, ${n.content?.length || 0} chars)`));
+    }
 
     // Fetch document summaries
     const { data: documents } = await supabase
@@ -4577,6 +4579,30 @@ Before returning, verify:
       }));
     narratives.client_visible_opportunities = clientVisibleSnapshot;
     console.log(`[Pass2] 📋 Snapshotted ${clientVisibleSnapshot.length} client-visible opportunities into report`);
+
+    // ====================================================================
+    // NUCLEAR £476k SWEEP — catch any hallucinated payroll figures before save
+    // ====================================================================
+    const payrollForSweep = comprehensiveAnalysis?.payroll;
+    if (payrollForSweep?.annualExcess && payrollForSweep.annualExcess > 0) {
+      const sweepCorrectK = Math.round(payrollForSweep.annualExcess / 1000);
+      const sweepMonthlyK = Math.round(sweepCorrectK / 12);
+      const sweepBenchmark = payrollForSweep.benchmark?.good || 38;
+      let narStr = JSON.stringify(narratives);
+      const had476 = narStr.includes('476');
+      if (had476) {
+        narStr = narStr.split('£476k').join(`£${sweepCorrectK}k`);
+        narStr = narStr.split('£476,000').join(`£${(sweepCorrectK * 1000).toLocaleString()}`);
+        narStr = narStr.split('£476K').join(`£${sweepCorrectK}k`);
+        narStr = narStr.split('£40k walks').join(`£${sweepMonthlyK}k walks`);
+        narStr = narStr.split('£40k a month').join(`£${sweepMonthlyK}k a month`);
+        narStr = narStr.split('£40k/month').join(`£${sweepMonthlyK}k/month`);
+        narStr = narStr.split('the 30% benchmark').join(`the ${sweepBenchmark}% benchmark`);
+        narStr = narStr.split('vs 30%').join(`vs ${sweepBenchmark}%`);
+        narratives = JSON.parse(narStr);
+        console.log(`[Pass2A] 🔧 Nuclear £476k sweep: replaced with £${sweepCorrectK}k`);
+      }
+    }
 
     // Update report with Pass 2 results
     console.log('[Pass2] 📝 Final headline being saved:', narratives.meta?.headline);

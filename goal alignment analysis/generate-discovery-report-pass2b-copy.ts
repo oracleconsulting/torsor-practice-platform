@@ -452,6 +452,16 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
       }
     }
 
+    // Diagnostic: check if £476k survived into the final save payload
+    const finalCheckStr = JSON.stringify({ headline: rewrites.headline, page2: updatedPage2, page4: updatedPage4, page5: updatedPage5 });
+    if (finalCheckStr.includes('476')) {
+      console.error('[Pass2B] ⛔ £476k STILL PRESENT in final save payload!');
+      const matches = [...finalCheckStr.matchAll(/[^"]{0,30}476[^"]{0,30}/g)];
+      matches.forEach(m => console.error(`[Pass2B]   Context: "${m[0]}"`));
+    } else {
+      console.log('[Pass2B] ✅ No £476k references in final save payload');
+    }
+
     // ====================================================================
     // SAVE — update narrative fields only
     // ====================================================================
