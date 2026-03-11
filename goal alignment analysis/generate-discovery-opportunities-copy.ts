@@ -741,7 +741,45 @@ function getClientTypeRules(type: ClientBusinessType, overrides: FrameworkOverri
 
 function formatFinancials(analysis: any, financials: any, assetValuation: any): string {
   const lines: string[] = [];
-  
+
+  // CRITICAL: Explicit revenue/profit disambiguation
+  const turnover = analysis?.payroll?.turnover || 0;
+  const opProfit = analysis?.valuation?.operatingProfit || 0;
+  const staffCosts = analysis?.payroll?.staffCosts || 0;
+  const employees = analysis?.productivity?.employeeCount || 0;
+
+  if (turnover > 0) {
+    lines.push(`⛔ REVENUE (turnover): £${(turnover / 1000000).toFixed(1)}M (£${turnover.toLocaleString()})`);
+    if (staffCosts > 0) {
+      lines.push(`⛔ STAFF COSTS: £${staffCosts.toLocaleString()} (${((staffCosts / turnover) * 100).toFixed(1)}% of revenue)`);
+    }
+    if (opProfit > 0) {
+      lines.push(`⛔ OPERATING PROFIT: £${opProfit.toLocaleString()} — this is PROFIT, NOT revenue or costs`);
+    }
+    if (employees > 0) {
+      lines.push(`⛔ EMPLOYEES: ${employees} — Revenue per head: £${Math.round(turnover / employees).toLocaleString()}`);
+    }
+    lines.push(`⛔ DO NOT confuse revenue (£${(turnover / 1000000).toFixed(1)}M) with operating profit (£${Math.round(opProfit / 1000)}k)`);
+    lines.push('');
+  }
+
+  // Payroll benchmark
+  if (analysis?.payroll?.hasData || (analysis?.payroll?.staffCostsPct > 0)) {
+    const p = analysis.payroll;
+    const benchGood = p.benchmark?.good || 30;
+    const benchTyp = p.benchmark?.typical || 35;
+    const excessK = p.annualExcess ? Math.round(p.annualExcess / 1000) : 0;
+    const monthlyK = Math.round(excessK / 12);
+    lines.push(`**PAYROLL BENCHMARK:**`);
+    lines.push(`- Staff costs: ${p.staffCostsPct?.toFixed(1) || '?'}% of revenue (${p.assessment})`);
+    lines.push(`- Benchmark: ${benchGood}% (good), ${benchTyp}% (typical)`);
+    if (excessK > 0) {
+      lines.push(`- Excess: £${excessK}k/year (£${monthlyK}k/month)`);
+      lines.push(`- ⛔ USE £${excessK}k when referencing payroll excess, NOT any other figure`);
+    }
+    lines.push('');
+  }
+
   // Asset valuation for investment vehicles
   if (assetValuation?.hasData) {
     lines.push(`**Asset-Based Valuation:** £${((assetValuation.totalAssetValue || 0)/1000000).toFixed(1)}M`);
@@ -753,26 +791,16 @@ function formatFinancials(analysis: any, financials: any, assetValuation: any): 
     }
     lines.push('');
   }
-  
-  // Valuation
+
+  // Earnings-based valuation
   if (analysis?.valuation?.hasData) {
     const v = analysis.valuation;
     lines.push(`**Earnings-Based Valuation:** £${((v.conservativeValue || 0)/1000000).toFixed(1)}M - £${((v.optimisticValue || 0)/1000000).toFixed(1)}M`);
-    lines.push(`- Operating Profit: £${((v.operatingProfit || 0)/1000).toFixed(0)}k`);
+    lines.push(`- ${v.earningsLabel || 'Operating Profit'}: £${((v.earningsBase || v.operatingProfit || 0)/1000).toFixed(0)}k`);
     lines.push(`- Multiple: ${v.adjustedMultipleLow?.toFixed(1) || '?'}-${v.adjustedMultipleHigh?.toFixed(1) || '?'}x`);
     lines.push('');
   }
-  
-  // Payroll
-  if (analysis?.payroll?.hasData) {
-    const p = analysis.payroll;
-    lines.push(`**Payroll Analysis:** ${p.staffCostsPct?.toFixed(1) || '?'}% of revenue (${p.assessment})`);
-    if (p.annualExcess && p.annualExcess > 0) {
-      lines.push(`- Annual Excess: £${(p.annualExcess/1000).toFixed(0)}k`);
-    }
-    lines.push('');
-  }
-  
+
   // Hidden Assets
   if (analysis?.hiddenAssets?.totalHiddenAssets > 50000) {
     const h = analysis.hiddenAssets;
@@ -782,25 +810,27 @@ function formatFinancials(analysis: any, financials: any, assetValuation: any): 
     });
     lines.push('');
   }
-  
+
   // Gross Margin
   if (analysis?.grossMargin?.hasData) {
     lines.push(`**Gross Margin:** ${analysis.grossMargin.grossMarginPct?.toFixed(1)}% (${analysis.grossMargin.assessment})`);
     lines.push('');
   }
-  
+
   // Exit Readiness
   if (analysis?.exitReadiness?.score) {
     lines.push(`**Exit Readiness:** ${analysis.exitReadiness.score}/${analysis.exitReadiness.maxScore} (${analysis.exitReadiness.readiness})`);
     lines.push('');
   }
-  
+
   // Cost of Inaction
-  if (analysis?.costOfInaction?.totalCost) {
-    lines.push(`**Cost of Inaction:** £${(analysis.costOfInaction.totalCost/1000).toFixed(0)}k over ${analysis.costOfInaction.horizonYears} years`);
+  if (analysis?.costOfInaction?.totalCost || analysis?.costOfInaction?.totalOverHorizon) {
+    const total = analysis.costOfInaction.totalCost || analysis.costOfInaction.totalOverHorizon || 0;
+    const horizon = analysis.costOfInaction.horizonYears || analysis.costOfInaction.timeHorizon || 3;
+    lines.push(`**Cost of Inaction:** £${Math.round(total/1000)}k over ${horizon} years`);
     lines.push('');
   }
-  
+
   return lines.length > 0 ? lines.join('\n') : 'Limited financial data available';
 }
 

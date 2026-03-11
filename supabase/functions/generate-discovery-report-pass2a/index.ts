@@ -4011,34 +4011,23 @@ Before returning, verify:
         ? `${monthsToPayback}-${Math.min(monthsToPayback + 2, 12)} months`
         : null;
 
-      // Only override if LLM left returns empty or set canCalculate: false
-      const existingReturns = narratives.page4_numbers.returns;
-      const isReturnEmpty = !existingReturns
-        || existingReturns.canCalculate === false
-        || !existingReturns.conservative?.total
-        || existingReturns.conservative?.total === 'null'
-        || existingReturns.conservative?.total === '';
+      // ALWAYS use mechanical returns — LLM consistently gets them wrong
+      narratives.page4_numbers.returns = {
+        canCalculate: true,
+        conservative: conservativeReturn,
+        realistic: realisticReturn
+      };
 
-      if (isReturnEmpty) {
-        narratives.page4_numbers.returns = {
-          canCalculate: true,
-          conservative: conservativeReturn,
-          realistic: realisticReturn
-        };
-
-        if (!narratives.page4_numbers.paybackPeriod || narratives.page4_numbers.paybackPeriod.includes('confirm')) {
-          narratives.page4_numbers.paybackPeriod = paybackStr || 'Within first year';
-        }
-
-        console.log(`[Pass2] 📊 Mechanical returns computed from CoI data:`);
-        console.log(`  - CoI annual: £${Math.round(coiAnnual / 1000)}k (${coiComponents.length} components)`);
-        console.log(`  - Investment Year 1: £${Math.round(totalInvestmentYear1 / 1000)}k`);
-        console.log(`  - Conservative: ${conservativeReturn.total}`);
-        console.log(`  - Realistic: ${realisticReturn.total}`);
-        console.log(`  - Payback: ${paybackStr || 'TBC'}`);
-      } else {
-        console.log(`[Pass2] Returns already populated by LLM — skipping mechanical override`);
+      if (!narratives.page4_numbers.paybackPeriod || narratives.page4_numbers.paybackPeriod.includes('confirm')) {
+        narratives.page4_numbers.paybackPeriod = paybackStr || 'Within first year';
       }
+
+      console.log(`[Pass2] 📊 Mechanical returns (always override LLM):`);
+      console.log(`  - CoI annual: £${Math.round(coiAnnual / 1000)}k (${coiComponents.length} components)`);
+      console.log(`  - Investment Year 1: £${Math.round(totalInvestmentYear1 / 1000)}k`);
+      console.log(`  - Conservative: ${conservativeReturn.total}`);
+      console.log(`  - Realistic: ${realisticReturn.total}`);
+      console.log(`  - Payback: ${paybackStr || 'TBC'}`);
     } else {
       console.log(`[Pass2] ⚠️ Cannot compute returns: coiAnnual=${coiData?.totalAnnual || 0}, investment=${totalInvestmentYear1}`);
 
