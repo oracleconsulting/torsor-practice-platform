@@ -27,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Track if we've successfully loaded the session to avoid re-querying on token refresh
   const sessionLoadedRef = useRef(false);
   const loadingRef = useRef(false);
+  const loadedUserIdRef = useRef<string | null>(null);
 
   // Load client session data
   const loadClientSession = async (userId: string, force = false): Promise<boolean> => {
@@ -77,9 +78,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Client session query error:', error);
-        // Don't clear existing session on error - keep what we have
         if (!clientSession) {
           setClientSession(null);
+          loadedUserIdRef.current = null;
         }
         return false;
       }
@@ -87,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!data) {
         console.log('No client record found for user - they may be a team member');
         setClientSession(null);
+        loadedUserIdRef.current = null;
         return false;
       }
 
@@ -139,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setClientSession(newSession);
       sessionLoadedRef.current = true;
+      loadedUserIdRef.current = userId;
 
       console.log('Client session set successfully');
 
@@ -235,9 +238,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (event === 'SIGNED_IN') {
           // During init, skip — initAuth handles the first load via getSession().
-          // This prevents a 25s RLS timeout from a premature practice_members query.
           if (!initDone) {
             console.log('Skipping SIGNED_IN during init — initAuth will handle it');
+            return;
+          }
+          // Don't reload if we already have a session for this user (avoids auth carousel from multiple clients).
+          if (loadedUserIdRef.current === session?.user?.id) {
+            console.log('SIGNED_IN for already-loaded user, skipping reload');
             return;
           }
           if (session?.user) {
@@ -245,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           setLoading(false);
         } else if (event === 'SIGNED_OUT') {
+          loadedUserIdRef.current = null;
           setClientSession(null);
           sessionLoadedRef.current = false;
           setLoading(false);
@@ -293,6 +301,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sign out
   const signOut = async () => {
     await supabase.auth.signOut();
+    loadedUserIdRef.current = null;
     setUser(null);
     setSession(null);
     setClientSession(null);

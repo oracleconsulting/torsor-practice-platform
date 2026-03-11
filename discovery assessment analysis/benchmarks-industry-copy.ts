@@ -271,6 +271,32 @@ export const INDUSTRY_BENCHMARKS: Record<string, IndustryBenchmark> = {
     currentRatio: { minimum: 1.2, healthy: 1.5 },
     ebitdaMultiple: { low: 3.0, typical: 4.0, high: 5.0 },
     notes: 'UK SME average benchmarks'
+  },
+
+  education: {
+    name: 'Education',
+    code: 'education',
+    payroll: { good: 48, typical: 55, concern: 63 },
+    grossMargin: { low: 50, typical: 65, high: 80 },
+    revenuePerHead: { low: 60000, typical: 90000, high: 130000 },
+    debtorDays: { good: 20, typical: 35, concern: 50 },
+    stockDays: { good: 0, typical: 5, concern: 15 },
+    currentRatio: { minimum: 1.0, healthy: 1.3 },
+    ebitdaMultiple: { low: 3.0, typical: 5.0, high: 7.0 },
+    notes: 'Education - staff-intensive, high margins on tuition/course fees'
+  },
+
+  training: {
+    name: 'Training / Coaching',
+    code: 'training',
+    payroll: { good: 38, typical: 45, concern: 54 },
+    grossMargin: { low: 55, typical: 70, high: 85 },
+    revenuePerHead: { low: 100000, typical: 150000, high: 250000 },
+    debtorDays: { good: 15, typical: 30, concern: 45 },
+    stockDays: { good: 0, typical: 0, concern: 5 },
+    currentRatio: { minimum: 1.0, healthy: 1.5 },
+    ebitdaMultiple: { low: 3.5, typical: 5.5, high: 8.0 },
+    notes: 'Training / coaching - knowledge-based, lower headcount than education, high margins'
   }
 };
 

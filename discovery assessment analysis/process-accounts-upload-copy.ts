@@ -47,6 +47,8 @@ interface ExtractedFinancialData {
   staff_costs?: number;
   directors_remuneration?: number;
   operating_profit?: number;
+  principal_activity?: string;
+  sic_code?: string;
   // Investment vehicle fields (added Session 11)
   investment_property?: number;
   deferred_tax?: number;
@@ -396,6 +398,8 @@ serve(async (req) => {
           investment_property: financialData.investment_property,
           deferred_tax: financialData.deferred_tax,
           bank_loans: financialData.bank_loans,
+          principal_activity: financialData.principal_activity ?? extractedYears[0]?.principal_activity,
+          sic_code: financialData.sic_code ?? extractedYears[0]?.sic_code,
           data_source: 'upload',
           confidence_score: financialData.confidence,
           notes: financialData.notes?.join('\n') || null
@@ -726,6 +730,8 @@ function parseFinancialJson(content: string): ExtractedFinancialData[] {
       net_profit: year.net_profit || year.profit_after_tax,
       net_margin_pct: year.net_margin_pct,
       operating_profit: year.operating_profit,
+      principal_activity: year.principal_activity,
+      sic_code: year.sic_code,
       staff_costs: year.staff_costs,
       directors_remuneration: year.directors_remuneration,
       investment_property: year.investment_property,
@@ -834,6 +840,10 @@ BALANCE SHEET (if available):
 - bank_loans: Bank loans (from creditors due after one year)
 - deferred_tax: Deferred tax provision (often large for property companies due to revaluation)
 
+COMPANY INFORMATION (extract from front page, directors' report, or notes):
+- principal_activity: The company's principal activity description (e.g., "Training of money market traders", "Wholesale distribution of keys and security hardware"). This is usually stated on the first page or in the directors' report.
+- sic_code: SIC code if stated (e.g., "85590")
+
 OTHER:
 - employee_count: Number of employees (often in notes)
 
@@ -854,6 +864,8 @@ RESPOND IN VALID JSON ONLY - RETURN AN ARRAY with one object per year:
       "ebitda": 12000,
       "depreciation": 16000,
       "net_profit": -24000,
+      "principal_activity": "Wholesale distribution of keys",
+      "sic_code": "46690",
       "confidence": 0.9,
       "notes": ["Company made a loss this year"]
     },

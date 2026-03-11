@@ -1445,6 +1445,9 @@ function DiscoveryClientModal({
   const [pinnedServices, setPinnedServices] = useState<string[]>([]);
   const [blockedServices, setBlockedServices] = useState<string[]>([]);
   const [allServices, setAllServices] = useState<any[]>([]);
+
+  // Admin industry benchmark override (for payroll benchmarks)
+  const [adminIndustryOverride, setAdminIndustryOverride] = useState<string>('');
   const [showServicePrefs, setShowServicePrefs] = useState(false);
   const [resettingFinancials, setResettingFinancials] = useState(false);
   
@@ -1713,6 +1716,7 @@ function DiscoveryClientModal({
         setDiscoveryEngagement(discoveryEngagementData);
         setPinnedServices(discoveryEngagementData.pinned_services || []);
         setBlockedServices(discoveryEngagementData.blocked_services || []);
+        setAdminIndustryOverride(discoveryEngagementData.admin_industry_override || '');
 
         // Load all active services for Pin/Block grid
         const { data: svcList } = await supabase
@@ -2032,7 +2036,10 @@ function DiscoveryClientModal({
     const timeoutId = setTimeout(() => controller.abort(), PHASE2_INVOKE_TIMEOUT_MS);
     const invokeOpts = { signal: controller.signal as AbortSignal };
     try {
-      await supabase.from('discovery_engagements').update({ status: 'pass1_processing' }).eq('id', engagementId);
+      await supabase.from('discovery_engagements').update({
+        status: 'pass1_processing',
+        admin_industry_override: adminIndustryOverride || null,
+      }).eq('id', engagementId);
 
       setPhaseProgress('Calculating scores & benchmarks...');
       const { error: pass1Error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
@@ -2173,6 +2180,10 @@ function DiscoveryClientModal({
       alert('No discovery engagement. Run Phase 2 first.');
       return;
     }
+    // Save admin overrides before Phase 3 (Pass 2A/2B may use engagement data)
+    await supabase.from('discovery_engagements').update({
+      admin_industry_override: adminIndustryOverride || null,
+    }).eq('id', engagementId);
     setCurrentPhase(3);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), PHASE3_INVOKE_TIMEOUT_MS);
@@ -2183,15 +2194,32 @@ function DiscoveryClientModal({
         .eq('id', engagementId);
 
       setPhaseProgress('Generating narrative report...');
-      const { error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+
+      // Pass 2A: Sonnet generates complete structured report
+      console.log('[Phase3] Running Pass 2A (Sonnet structure)...');
+      const { error: pass2aError } = await supabase.functions.invoke('generate-discovery-report-pass2a', {
         body: { engagementId },
         signal: controller.signal as AbortSignal,
       });
-      if (error) throw new Error(`Report generation failed: ${error.message}`);
+      if (pass2aError) throw new Error(`Report generation failed: ${pass2aError.message}`);
+      console.log('[Phase3] Pass 2A complete. Running Pass 2B (Opus narrative)...');
+
+      // Pass 2B: Opus enhances narrative sections
+      const { data: pass2bResult, error: pass2bError } = await supabase.functions.invoke('generate-discovery-report-pass2b', {
+        body: { engagementId },
+        signal: controller.signal as AbortSignal,
+      });
+
+      const pass2bSucceeded = !pass2bError && pass2bResult?.success !== false;
+
+      if (!pass2bSucceeded) {
+        console.warn('[Phase3] Pass 2B failed (Sonnet report still intact):', pass2bError?.message || pass2bResult?.error);
+        alert('Report generated (Sonnet quality). Opus narrative enhancement failed — you can retry later.');
+      }
 
       await supabase
         .from('discovery_engagements')
-        .update({ status: 'pass2_complete', pass2_completed_at: new Date().toISOString() })
+        .update({ status: pass2bSucceeded ? 'published' : 'pass2_complete', pass2_completed_at: new Date().toISOString() })
         .eq('id', engagementId);
 
       setPhaseProgress('Report generated ✓');
@@ -3801,6 +3829,76 @@ function DiscoveryClientModal({
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Industry Benchmark Override */}
+            <div className="min-w-[200px] max-w-[220px]">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Industry Benchmark
+              </label>
+              <select
+                value={adminIndustryOverride}
+                onChange={(e) => setAdminIndustryOverride(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              >
+                <option value="">Auto-detect (default)</option>
+                <optgroup label="Education & Training">
+                  <option value="education">Education (48%)</option>
+                  <option value="training">Training / Coaching (38%)</option>
+                </optgroup>
+                <optgroup label="Professional Services">
+                  <option value="professional_services">Professional Services (45%)</option>
+                  <option value="accountancy">Accountancy (45%)</option>
+                  <option value="legal">Legal (45%)</option>
+                  <option value="consulting">Consulting (45%)</option>
+                  <option value="financial_services">Financial Services (30%)</option>
+                </optgroup>
+                <optgroup label="Technology">
+                  <option value="technology">Technology (35%)</option>
+                  <option value="saas">SaaS (30%)</option>
+                  <option value="software">Software (35%)</option>
+                </optgroup>
+                <optgroup label="Creative & Agency">
+                  <option value="creative_agency">Creative Agency (40%)</option>
+                  <option value="media">Media / Publishing (33%)</option>
+                  <option value="marketing_services">Marketing Services (30%)</option>
+                </optgroup>
+                <optgroup label="Construction & Trades">
+                  <option value="construction">Construction (22%)</option>
+                  <option value="fit_out">Fit-Out / Interiors (12%)</option>
+                  <option value="trades">Trades (25%)</option>
+                </optgroup>
+                <optgroup label="Healthcare">
+                  <option value="healthcare">Healthcare (45%)</option>
+                  <option value="dental">Dental (38%)</option>
+                  <option value="care_home">Care Home (46%)</option>
+                  <option value="veterinary">Veterinary (36%)</option>
+                </optgroup>
+                <optgroup label="Hospitality & Leisure">
+                  <option value="hospitality">Hospitality (30%)</option>
+                  <option value="restaurant">Restaurant (28%)</option>
+                  <option value="hotel">Hotel (32%)</option>
+                </optgroup>
+                <optgroup label="Retail & Distribution">
+                  <option value="retail">Retail (15%)</option>
+                  <option value="ecommerce">E-commerce (14%)</option>
+                  <option value="wholesale_distribution">Wholesale / Distribution (28%)</option>
+                </optgroup>
+                <optgroup label="Manufacturing">
+                  <option value="manufacturing">Manufacturing (25%)</option>
+                  <option value="engineering">Engineering (27%)</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="recruitment">Recruitment (34%)</option>
+                  <option value="cleaning">Cleaning / Facilities (44%)</option>
+                  <option value="transport">Transport / Logistics (28%)</option>
+                  <option value="general_business">General Business (30%)</option>
+                </optgroup>
+              </select>
+              {adminIndustryOverride && (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  Overrides auto-detection. Payroll &quot;good&quot; benchmark shown in parentheses.
+                </p>
+              )}
+            </div>
             {/* Three-Phase Generation Controls */}
             <div className="flex items-center gap-2">
               <button

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { ArrowLeft, Loader2, Lock, LayoutDashboard } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { BenchmarkingClientReport } from '@torsor/platform/components/benchmarking/client/BenchmarkingClientReport';

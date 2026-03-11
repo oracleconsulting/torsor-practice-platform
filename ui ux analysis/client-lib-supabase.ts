@@ -1,6 +1,10 @@
 /// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js';
 
+// SINGLETON: This must be the only place in the client app that calls createClient().
+// Multiple GoTrueClient instances cause auth race conditions (SIGNED_IN carousel, timeouts).
+// All other files must import: import { supabase } from '@/lib/supabase';
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 

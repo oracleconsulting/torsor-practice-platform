@@ -13,6 +13,8 @@ echo "Syncing live files -> discovery assessment analysis (direct copies)..."
 cp "$ROOT/supabase/functions/generate-discovery-opportunities/index.ts" "$DEST/generate-discovery-opportunities-copy.ts" && echo "  generate-discovery-opportunities-copy.ts"
 cp "$ROOT/supabase/functions/generate-discovery-report-pass1/index.ts" "$DEST/generate-discovery-report-pass1-copy.ts" && echo "  generate-discovery-report-pass1-copy.ts"
 cp "$ROOT/supabase/functions/generate-discovery-report-pass2/index.ts" "$DEST/generate-discovery-report-pass2-copy.ts" && echo "  generate-discovery-report-pass2-copy.ts"
+cp "$ROOT/supabase/functions/generate-discovery-report-pass2a/index.ts" "$DEST/generate-discovery-report-pass2a-copy.ts" && echo "  generate-discovery-report-pass2a-copy.ts"
+cp "$ROOT/supabase/functions/generate-discovery-report-pass2b/index.ts" "$DEST/generate-discovery-report-pass2b-copy.ts" && echo "  generate-discovery-report-pass2b-copy.ts"
 cp "$ROOT/supabase/functions/generate-discovery-report/index.ts" "$DEST/generate-discovery-report-index-copy.ts" && echo "  generate-discovery-report-index-copy.ts"
 cp "$ROOT/supabase/functions/generate-discovery-analysis/index.ts" "$DEST/generate-discovery-analysis-copy.ts" && echo "  generate-discovery-analysis-copy.ts"
 cp "$ROOT/supabase/functions/generate-discovery-pdf/index.ts" "$DEST/generate-discovery-pdf-copy.ts" && echo "  generate-discovery-pdf-copy.ts"
@@ -62,7 +64,8 @@ for m in 20251223_fix_destination_discovery_duplicates 20260115_discovery_assess
   [ -f "$ROOT/supabase/migrations/${m}.sql" ] && cp "$ROOT/supabase/migrations/${m}.sql" "$DEST/migrations-${m}.sql" && echo "  migrations-${m}.sql"
 done
 
-# Frontend admin
+# Frontend admin (ClientServicesPage is the active Discovery Phase 3 handler)
+cp "$ROOT/src/pages/admin/ClientServicesPage.tsx" "$DEST/frontend-admin-ClientServicesPage.tsx" && echo "  frontend-admin-ClientServicesPage.tsx"
 cp "$ROOT/src/components/discovery/DiscoveryAdminModal.tsx" "$DEST/frontend-admin-DiscoveryAdminModal.tsx" && echo "  frontend-admin-DiscoveryAdminModal.tsx"
 cp "$ROOT/src/components/discovery/DiscoveryOpportunityPanel.tsx" "$DEST/frontend-admin-DiscoveryOpportunityPanel.tsx" && echo "  frontend-admin-DiscoveryOpportunityPanel.tsx"
 cp "$ROOT/src/components/discovery/ServicePinBlockControl.tsx" "$DEST/frontend-admin-ServicePinBlockControl.tsx" && echo "  frontend-admin-ServicePinBlockControl.tsx"

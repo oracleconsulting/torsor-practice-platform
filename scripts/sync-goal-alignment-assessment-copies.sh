@@ -25,6 +25,8 @@ cp "$ROOT/supabase/functions/generate-value-analysis/index.ts" "$DEST/generate-v
 # --- Edge functions: Discovery / BM that contain material Goal Alignment logic ---
 cp "$ROOT/supabase/functions/generate-discovery-report-pass1/index.ts" "$DEST/generate-discovery-report-pass1-copy.ts" && echo "  generate-discovery-report-pass1-copy.ts"
 cp "$ROOT/supabase/functions/generate-discovery-report-pass2/index.ts" "$DEST/generate-discovery-report-pass2-copy.ts" && echo "  generate-discovery-report-pass2-copy.ts"
+cp "$ROOT/supabase/functions/generate-discovery-report-pass2a/index.ts" "$DEST/generate-discovery-report-pass2a-copy.ts" && echo "  generate-discovery-report-pass2a-copy.ts"
+cp "$ROOT/supabase/functions/generate-discovery-report-pass2b/index.ts" "$DEST/generate-discovery-report-pass2b-copy.ts" && echo "  generate-discovery-report-pass2b-copy.ts"
 cp "$ROOT/supabase/functions/generate-discovery-analysis/index.ts" "$DEST/generate-discovery-analysis-copy.ts" && echo "  generate-discovery-analysis-copy.ts"
 cp "$ROOT/supabase/functions/generate-discovery-report/index.ts" "$DEST/generate-discovery-report-index-copy.ts" && echo "  generate-discovery-report-index-copy.ts"
 cp "$ROOT/supabase/functions/generate-discovery-opportunities/index.ts" "$DEST/generate-discovery-opportunities-copy.ts" && echo "  generate-discovery-opportunities-copy.ts"

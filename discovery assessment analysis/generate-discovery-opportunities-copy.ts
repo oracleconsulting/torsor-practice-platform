@@ -404,39 +404,39 @@ ${getClientTypeRules(clientData.clientType, clientData.frameworkOverrides)}
 ## THEIR VISION & EMOTIONAL ANCHORS
 
 **Tuesday Test (Ideal Future):**
-"${responses.dd_five_year_vision || responses.dd_tuesday_test || 'Not provided'}"
+"${responses.dd_five_year_picture || responses.dd_five_year_vision || responses.dd_tuesday_test || responses.tuesday_test || 'Not provided'}"
 
 **Magic Fix (What they'd change first):**
-"${responses.dd_magic_fix || 'Not provided'}"
+"${responses.dd_magic_fix || responses.dd_90_day_magic || responses.magic_fix_90 || 'Not provided'}"
 
 **Core Frustration:**
-"${responses.dd_core_frustration || 'Not provided'}"
+"${responses.dd_core_frustration || responses.rl_core_frustration || responses.core_frustration || 'Not provided'}"
 
 **What Keeps Them Awake:**
-"${responses.dd_sleep_thief || 'Not provided'}"
+"${responses.dd_sleep_thief || responses.rl_sleep_thief || responses.sleep_thief || 'Not provided'}"
 
 **Avoided Conversation:**
-"${responses.dd_avoided_conversation || 'Not provided'}"
+"${responses.dd_avoided_conversation || responses.ht_avoided_conversation || 'Not provided'}"
 
 **Hard Truth They Suspect:**
-"${responses.dd_hard_truth || responses.dd_suspected_truth || 'Not provided'}"
+"${responses.dd_hard_truth || responses.ht_hard_truth || responses.dd_suspected_truth || responses.ht_suspected_truth || 'Not provided'}"
 
 **Business Relationship Metaphor:**
-"${responses.dd_relationship_mirror || 'Not provided'}"
+"${responses.dd_relationship_mirror || responses.dd_business_relationship || responses.rl_business_relationship || 'Not provided'}"
 
 **What They've Sacrificed:**
-"${responses.dd_sacrifice_list || 'Not provided'}"
+"${responses.dd_sacrifice_list || responses.dd_what_sacrificed || responses.ht_sacrifice || 'Not provided'}"
 
 **Last Real Break:**
-"${responses.dd_last_real_break || 'Not provided'}"
+"${responses.dd_last_real_break || responses.dd_last_break || responses.rl_last_break || 'Not provided'}"
 
 ## OPERATIONAL CONTEXT
 
-**Weekly Hours:** ${responses.dd_weekly_hours || 'Unknown'}
-**Delegation Ability:** "${responses.dd_delegation_ability || 'Not provided'}"
-**Key Person Dependency:** "${responses.dd_key_person_dependency || 'Not provided'}"
-**Exit Timeline:** ${responses.sd_exit_timeline || 'Not specified'}
-**Change Readiness:** ${responses.dd_change_readiness || 'Unknown'}
+**Weekly Hours:** ${responses.dd_weekly_hours || responses.dd_owner_hours || responses.rl_weekly_hours || 'Unknown'}
+**Delegation Ability:** "${responses.dd_delegation_ability || responses.dd_delegation || responses.rl_delegation || 'Not provided'}"
+**Key Person Dependency:** "${responses.dd_key_person_dependency || responses.sd_founder_dependency || responses.dd_founder_dependency || responses.founder_dependency || 'Not provided'}"
+**Exit Timeline:** ${responses.sd_exit_timeline || responses.dd_exit_timeline || 'Not specified'}
+**Change Readiness:** ${responses.dd_change_readiness || responses.rl_change_readiness || 'Unknown'}
 
 ## DESTINATION CLARITY
 
