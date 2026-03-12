@@ -920,24 +920,33 @@ function analyseBalanceSheetHealth(
   multiYearData?: any[]
 ): BalanceSheetHealthAnalysis {
   const alerts: BalanceSheetAlert[] = [];
+  // financials = ExtractedFinancials (camelCase), multiYearData = raw DB rows (snake_case)
   const turnover = financials?.turnover || 0;
   const netAssets = financials?.netAssets || 0;
   const operatingProfit = financials?.operatingProfit || 0;
 
-  // Sort multi-year data chronologically
+  // Sort multi-year data chronologically (fiscal_year may be string or number)
   const sorted = (multiYearData || [])
     .filter((y: any) => y.fiscal_year)
-    .sort((a: any, b: any) => a.fiscal_year - b.fiscal_year);
+    .sort((a: any, b: any) => Number(a.fiscal_year) - Number(b.fiscal_year));
   const earliest = sorted[0] || {};
   const latestYear = sorted[sorted.length - 1] || {};
   const years = sorted.length;
 
+  console.log('[BS Health] Input:', {
+    turnover, netAssets, operatingProfit,
+    multiYearCount: sorted.length,
+    firstRowKeys: sorted[0] ? Object.keys(sorted[0]).filter(k => sorted[0][k] != null).slice(0, 15).join(',') : 'none',
+    earliestCash: earliest.cash, latestCash: latestYear.cash,
+    earliestDLA: earliest.director_loan_account, latestDLA: latestYear.director_loan_account,
+  });
+
   // ── DLA CHECK (multi-year growth) ──
   const dla = financials?.directorLoanAccount || financials?.dlaBalance || financials?.directorLoans ||
-              latestYear.director_loan_account || latestYear.dla_balance;
+              latestYear.director_loan_account;
   if (dla && dla > 50000 && netAssets > 0) {
     const pct = (dla / netAssets) * 100;
-    const earliestDla = earliest.director_loan_account || earliest.dla_balance;
+    const earliestDla = earliest.director_loan_account;
     const growth = earliestDla && earliestDla > 0 ? `Grown from £${Math.round(earliestDla / 1000)}k over ${years} years. ` : '';
     if (pct > 15) {
       alerts.push({
@@ -951,8 +960,8 @@ function analyseBalanceSheetHealth(
   }
 
   // ── CASH EROSION DESPITE PROFITABILITY ──
-  const latestCash = financials?.cash || latestYear.cash || latestYear.cash_at_bank;
-  const earliestCash = earliest.cash || earliest.cash_at_bank;
+  const latestCash = financials?.cash || latestYear.cash;
+  const earliestCash = earliest.cash;
   if (earliestCash && latestCash && earliestCash > 0 && operatingProfit > 0) {
     const cashDrop = ((latestCash - earliestCash) / earliestCash) * 100;
     if (cashDrop < -30) {
@@ -1057,7 +1066,7 @@ function analyseBalanceSheetHealth(
   }
 
   // ── HIGH DEBTOR DAYS ──
-  const totalDebtors = financials?.debtors || latestYear.total_debtors || latestYear.debtors;
+  const totalDebtors = financials?.debtors || latestYear.debtors;
   if (totalDebtors && turnover > 0) {
     const debtorDays = (totalDebtors / turnover) * 365;
     if (debtorDays > 90) {
@@ -4406,8 +4415,9 @@ serve(async (req) => {
     // FALLBACK: client_financial_data (from process-accounts-upload)
     // Fetched only when no client_financial_context — preferred over client_reports (clean structured columns).
     // ========================================================================
+    // Always fetch client_financial_data (needed for balance sheet analysis even when financialContext exists)
     let financialDataRows: any[] | null = null;
-    if (!financialContext) {
+    {
       const { data: cfdRows } = await supabase
         .from('client_financial_data')
         .select('*')

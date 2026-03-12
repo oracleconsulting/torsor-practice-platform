@@ -52,8 +52,16 @@ interface ExtractedFinancialData {
   // Investment vehicle fields (added Session 11)
   investment_property?: number;
   deferred_tax?: number;
-  corporation_tax_payable?: number;  // Current year CT from creditors note (for deferred tax movement fallback)
+  corporation_tax_payable?: number;
   bank_loans?: number;
+  director_loan_account?: number;
+  bad_debts?: number;
+  bank_charges?: number;
+  connected_company_debtors?: number;
+  dividends_paid?: number;
+  trade_subscriptions?: number;
+  trade_debtors?: number;
+  other_loans?: number;
   confidence: number;
   notes: string[];
 }
@@ -88,6 +96,14 @@ const METRIC_LABELS: { patterns: RegExp[]; field: keyof ExtractedFinancialData }
   { patterns: [/^deferred\s+tax$|^deferred\s+taxation$|^provisions?\s+for\s+liabilities$/i], field: 'deferred_tax' },
   { patterns: [/^bank\s+loans?$|^bank\s+borrowings?$/i], field: 'bank_loans' },
   { patterns: [/^long[\s-]?term\s+liabilities$|^creditors.*after.*one\s+year$/i], field: 'long_term_liabilities' },
+  { patterns: [/^director'?s?\s+loan\s+account$|^dla$|^amounts?\s+due\s+(from|to)\s+directors?$/i], field: 'director_loan_account' },
+  { patterns: [/^bad\s+debts?$|^bad\s+debt\s+(expense|provision|write[\s-]?off)$/i], field: 'bad_debts' },
+  { patterns: [/^bank\s+charges$|^bank\s+fees$/i], field: 'bank_charges' },
+  { patterns: [/^(amounts?\s+owed\s+by\s+)?connected\s+(company|companies|party|parties)$|^group\s+debtors$/i], field: 'connected_company_debtors' },
+  { patterns: [/^dividends?\s*(paid|declared)?$/i], field: 'dividends_paid' },
+  { patterns: [/^trade\s+subscriptions?$|^subscriptions?$|^software\s+costs?$|^platform\s+costs?$/i], field: 'trade_subscriptions' },
+  { patterns: [/^trade\s+(debtors?|receivables?)$/i], field: 'trade_debtors' },
+  { patterns: [/^other\s+loans?$|^total\s+loans?$/i], field: 'other_loans' },
 ];
 
 function parseCSVToGrid(text: string): string[][] {
@@ -398,6 +414,14 @@ serve(async (req) => {
           investment_property: financialData.investment_property,
           deferred_tax: financialData.deferred_tax,
           bank_loans: financialData.bank_loans,
+          director_loan_account: financialData.director_loan_account,
+          bad_debts: financialData.bad_debts,
+          bank_charges: financialData.bank_charges,
+          connected_company_debtors: financialData.connected_company_debtors,
+          dividends_paid: financialData.dividends_paid,
+          trade_subscriptions: financialData.trade_subscriptions,
+          trade_debtors: financialData.trade_debtors,
+          other_loans: financialData.other_loans,
           principal_activity: financialData.principal_activity ?? extractedYears[0]?.principal_activity,
           sic_code: financialData.sic_code ?? extractedYears[0]?.sic_code,
           data_source: 'upload',
@@ -738,6 +762,14 @@ function parseFinancialJson(content: string): ExtractedFinancialData[] {
       deferred_tax: year.deferred_tax ?? year.deferred_tax_provision,
       corporation_tax_payable: year.corporation_tax_payable ?? year.corporation_tax,
       bank_loans: year.bank_loans,
+      director_loan_account: year.director_loan_account || year.dla || year.directors_loan,
+      bad_debts: year.bad_debts || year.bad_debt_expense,
+      bank_charges: year.bank_charges || year.bank_fees,
+      connected_company_debtors: year.connected_company_debtors || year.amounts_owed_by_connected || year.group_debtors,
+      dividends_paid: year.dividends_paid || year.dividends,
+      trade_subscriptions: year.trade_subscriptions || year.subscriptions || year.platform_costs,
+      trade_debtors: year.trade_debtors || year.trade_receivables,
+      other_loans: year.other_loans || year.total_loans,
       debtors: year.debtors || year.trade_debtors || year.receivables,
       creditors: year.creditors || year.trade_creditors || year.payables,
       cash: year.cash || year.cash_at_bank,
@@ -836,9 +868,19 @@ BALANCE SHEET (if available):
 - current_liabilities: Total current liabilities
 - fixed_assets: Fixed/non-current assets (EXCLUDING investment property)
 - net_assets: Total net assets
-- investment_property: Investment property at fair value (property investment companies - often the largest balance sheet item)
+- investment_property: Investment property at fair value (property investment companies)
 - bank_loans: Bank loans (from creditors due after one year)
-- deferred_tax: Deferred tax provision (often large for property companies due to revaluation)
+- deferred_tax: Deferred tax provision (cumulative balance sheet total)
+
+ADDITIONAL LINE ITEMS (extract if available — commonly in notes or schedules):
+- director_loan_account: Director's loan account balance at year end (often in "Other debtors" note or separate DLA note)
+- bad_debts: Bad debt expense or provision movement (in admin expenses schedule or P&L notes)
+- bank_charges: Bank charges/fees (in admin expenses schedule)
+- connected_company_debtors: Amounts owed by connected/group companies (in debtors note — separate from trade debtors)
+- dividends_paid: Total dividends paid in the year (in statement of changes in equity or P&L appropriation)
+- trade_subscriptions: Platform costs, software subscriptions, trade subscriptions (in admin expenses schedule)
+- trade_debtors: Trade receivables/debtors only (in debtors note — separate from connected parties and DLA)
+- other_loans: Total loan balances current + non-current (in creditors notes)
 
 COMPANY INFORMATION (extract from front page, directors' report, or notes):
 - principal_activity: The company's principal activity description (e.g., "Training of money market traders", "Wholesale distribution of keys and security hardware"). This is usually stated on the first page or in the directors' report.
