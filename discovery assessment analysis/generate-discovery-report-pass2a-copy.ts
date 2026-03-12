@@ -3708,7 +3708,16 @@ Before returning, verify:
         .slice(0, 3)
         .map((opp: any) => ({
           action: opp.quick_win,
-          why: opp.title || opp.headline || '',
+          why: (() => {
+            if (opp.owner_insight) return opp.owner_insight;
+            if (opp.life_impact) return opp.life_impact;
+            const cat = (opp.category || '').toLowerCase();
+            if (cat === 'financial') return 'This gives you visibility before making big financial decisions.';
+            if (cat === 'strategic') return 'This helps you think clearly about what needs to change.';
+            if (cat === 'operational') return 'This starts reducing how much depends on you personally.';
+            if (cat === 'people') return 'This surfaces the conversations that unlock the most value.';
+            return 'A small step that reveals the size of the opportunity.';
+          })(),
           category: opp.category || 'operational'
         }));
 
