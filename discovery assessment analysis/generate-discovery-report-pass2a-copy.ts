@@ -3726,10 +3726,41 @@ Before returning, verify:
         }
       }
       
+      // Ensure quickWins survives — generate defaults if LLM omitted them
+      if (!p5.quickWins || !Array.isArray(p5.quickWins) || p5.quickWins.length === 0) {
+        const gaps = narratives.page2_gaps?.gaps || [];
+        const clientName = engagement?.client?.name?.split(' ')[0] || 'there';
+        p5.quickWins = [
+          {
+            action: gaps[0]?.title?.includes('Cash')
+              ? 'Build a 13-week cash flow forecast in a spreadsheet — list every payment in and out for the next quarter'
+              : 'List every decision only you can make this week — mark each one as "must be me" or "could delegate"',
+            why: gaps[0]?.title?.includes('Cash')
+              ? "You'll see exactly when the pressure points hit, not just that they exist"
+              : "You'll see how much of your time is spent on things someone else could handle",
+            leadsTo: gaps[0]?.category || 'operational'
+          },
+          {
+            action: 'Write down the three conversations you\'ve been avoiding — and why',
+            why: "The avoided conversations are usually where the biggest value is locked up",
+            leadsTo: 'people'
+          },
+          {
+            action: 'Block two hours this Friday with no phone — and write down what your ideal Tuesday looks like in 3 years',
+            why: "You can\'t build towards something you haven\'t clearly defined. This is the starting point for everything else",
+            leadsTo: 'strategic'
+          }
+        ];
+        console.log(`[Pass2A] Generated default quickWins (LLM omitted them)`);
+      } else {
+        console.log(`[Pass2A] LLM generated ${p5.quickWins.length} quickWins`);
+      }
+
       console.log('[Pass2] ✅ Page 5 field mapping applied:', {
         hasThisWeek: !!narratives.page5_nextSteps.thisWeek,
         hasFirstStep: !!narratives.page5_nextSteps.firstStep,
-        hasClosingMessage: !!narratives.page5_nextSteps.closingMessage
+        hasClosingMessage: !!narratives.page5_nextSteps.closingMessage,
+        quickWinsCount: narratives.page5_nextSteps.quickWins?.length || 0
       });
     }
     
