@@ -96,6 +96,10 @@ max_execution_time = 120
 verify_jwt = true
 max_execution_time = 150
 
+[functions."reprocess-accounts"]
+verify_jwt = true
+max_execution_time = 120
+
 [functions."generate-roadmap"]
 verify_jwt = true
 

@@ -307,16 +307,23 @@ serve(async (req) => {
     let extractedYears: ExtractedFinancialData[] = [];
     
     if (upload.file_type === 'pdf') {
-      // Use Claude Vision to read PDF directly - handles multi-year documents
       console.log('[Accounts Process] Using Vision API for PDF extraction...');
       extractedYears = await extractFromPDFWithVision(fileData, upload.fiscal_year, openrouterKey);
     } else {
-      // For CSV/Excel, extract text then try structured CSV parse (CSV only) or LLM
       let extractedText = '';
       if (upload.file_type === 'csv') {
         extractedText = await fileData.text();
       } else if (['xlsx', 'xls'].includes(upload.file_type)) {
         extractedText = await extractTextFromExcel(fileData);
+      }
+
+      // Store raw text content for future re-extraction
+      if (extractedText && extractedText.length > 50) {
+        await supabase
+          .from('client_accounts_uploads')
+          .update({ raw_content: extractedText })
+          .eq('id', uploadId);
+        console.log(`[Accounts Process] Stored ${extractedText.length} chars of raw content for re-extraction`);
       }
       
       if (!extractedText || extractedText.length < 100) {
@@ -422,6 +429,7 @@ serve(async (req) => {
           trade_subscriptions: financialData.trade_subscriptions,
           trade_debtors: financialData.trade_debtors,
           other_loans: financialData.other_loans,
+          extraction_version: 2,
           principal_activity: financialData.principal_activity ?? extractedYears[0]?.principal_activity,
           sic_code: financialData.sic_code ?? extractedYears[0]?.sic_code,
           data_source: 'upload',
@@ -888,6 +896,17 @@ COMPANY INFORMATION (extract from front page, directors' report, or notes):
 
 OTHER:
 - employee_count: Number of employees (often in notes)
+
+EXTRACTION HINTS — common CSV header mismatches:
+- cash: Look for "Cash at Bank and in Hand" or "Cash and cash equivalents" or "Bank"
+- director_loan_account: Look for "Directors Loan Account" or "DLA" — often nested under DEBTORS or "Other debtors" breakdown
+- trade_debtors: Look for "Trade Debtors" or "Trade receivables" — the POUND AMOUNT, not debtor days
+- debtors: This should be TOTAL DEBTORS AMOUNT (e.g. £2,285,296), NOT debtor days. If you see a small number like 31.8, that's days — look for the actual pound amount
+- bad_debts: May appear as "Bad Debts Written Off" or "Provision for Bad Debts" in admin expenses
+- bank_charges: May appear as "Bank Charges" or "Bank Interest & Charges" in admin expenses
+- dividends_paid: Look in "Statement of Changes in Equity" or "Dividends" line in P&L appropriation
+- connected_company_debtors: Look for "Amounts owed by group" or "Connected company" in debtors breakdown
+- trade_subscriptions: Look for "Trade Subscriptions" or "Software" or "Platform costs" in admin expenses
 
 Also provide for each year:
 - confidence: 0.0 to 1.0 based on how clearly you could extract the data

@@ -4416,6 +4416,7 @@ serve(async (req) => {
     // Fetched only when no client_financial_context — preferred over client_reports (clean structured columns).
     // ========================================================================
     // Always fetch client_financial_data (needed for balance sheet analysis even when financialContext exists)
+    const CURRENT_EXTRACTION_VERSION = 2;
     let financialDataRows: any[] | null = null;
     {
       const { data: cfdRows } = await supabase
@@ -4427,7 +4428,48 @@ serve(async (req) => {
       if (cfdRows && cfdRows.length > 0) {
         financialDataRows = cfdRows;
         console.log('[Pass1] ✅ Found', cfdRows.length, 'years in client_financial_data:',
-          cfdRows.map((r: any) => `FY${r.fiscal_year}: £${r.revenue?.toLocaleString()}`));
+          cfdRows.map((r: any) => `FY${r.fiscal_year}: £${r.revenue?.toLocaleString()} (v${r.extraction_version || 1})`));
+
+        // Auto re-extraction if data is stale
+        const isStale = cfdRows.some((r: any) => (r.extraction_version || 1) < CURRENT_EXTRACTION_VERSION);
+        if (isStale) {
+          console.log('[Pass1] 📦 Financial data is stale — triggering re-extraction');
+          try {
+            const { data: upload } = await supabase
+              .from('client_accounts_uploads')
+              .select('id, raw_content')
+              .eq('client_id', engagement.client_id)
+              .not('raw_content', 'is', null)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (upload?.raw_content) {
+              const { error: reprocessErr } = await supabase.functions.invoke('reprocess-accounts', {
+                body: { clientId: engagement.client_id },
+              });
+              if (!reprocessErr) {
+                // Reload fresh data
+                const { data: refreshed } = await supabase
+                  .from('client_financial_data')
+                  .select('*')
+                  .eq('client_id', engagement.client_id)
+                  .order('fiscal_year', { ascending: false })
+                  .limit(3);
+                if (refreshed && refreshed.length > 0) {
+                  financialDataRows = refreshed;
+                  console.log('[Pass1] ✅ Re-extracted and reloaded', refreshed.length, 'years');
+                }
+              } else {
+                console.warn('[Pass1] ⚠️ Re-extraction failed:', reprocessErr);
+              }
+            } else {
+              console.log('[Pass1] ⚠️ No raw_content available for re-extraction');
+            }
+          } catch (reErr: any) {
+            console.warn('[Pass1] ⚠️ Re-extraction error (non-fatal):', reErr.message);
+          }
+        }
       } else {
         console.log('[Pass1] ⚠️ No client_financial_data found');
       }
