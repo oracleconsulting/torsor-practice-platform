@@ -133,6 +133,29 @@ const STATIC_SERVICE_FALLBACK: Record<string, ServiceRecommendationPopupData> = 
     scopeNote: 'Strategic framework and accountability. Does not include technical execution like legal structuring, tax planning, or buyer negotiations — but we\'ll make sure the right specialists are in place when you need them.',
   },
 
+  systems_audit: {
+    name: 'Systems & Process Audit',
+    tagline: "See What's Actually Running Your Business",
+    description: 'A comprehensive review of your operational systems, processes, and dependencies. We map what\'s documented, what\'s assumed, what only lives in one person\'s head, and where the single points of failure are. Most founders discover they\'re the bottleneck in places they didn\'t expect.',
+    tiers: [
+      {
+        tierCode: 'the_map',
+        name: 'The Map',
+        description: 'Every process in your business documented and mapped. Who does what, what depends on whom, where the bottlenecks sit, and which tasks only exist in the founder\'s head. Includes a dependency risk score showing how exposed you are if key people leave. Delivered as a visual process map with a 60-minute walkthrough.',
+        price: '£2,000',
+        tagline: "See What's Actually Running Your Business",
+      },
+      {
+        tierCode: 'the_blueprint',
+        name: 'The Blueprint',
+        description: 'Everything in The Map, plus a prioritised delegation roadmap showing exactly which processes to hand over first, who should own them, and what training or documentation is needed. Includes time cost analysis and a 2-hour strategy session to build your 90-day implementation plan.',
+        price: '£4,500',
+        tagline: 'See It, Fix It, Hand It Over',
+      },
+    ],
+    scopeNote: 'Maps and plans the changes — doesn\'t implement them for you. You\'ll need your team\'s buy-in to execute. But you\'ll know exactly what to change and in what order.',
+  },
+
 };
 
 function getExampleUrl(url: string | undefined): string | null {
