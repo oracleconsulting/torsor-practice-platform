@@ -53,7 +53,7 @@ function fixPayrollInString(text: string, correctExcessK: number, correctMonthly
     result = result.replace(pattern, (match: string, amount: string) => {
       const num = parseInt(amount);
       if (Math.abs(num - correctExcessK) / correctExcessK < 0.2) return match;
-      if (num > correctExcessK * 1.5 && num < correctExcessK * 5) { count++; return match.replace(`£${amount}k`, `£${correctExcessK}k`); }
+      if (num > correctExcessK * 2.5 && num < correctExcessK * 5) { count++; return match.replace(`£${amount}k`, `£${correctExcessK}k`); }
       return match;
     });
   }

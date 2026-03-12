@@ -132,7 +132,7 @@ function fixPayrollInString(text: string, correctExcessK: number, correctMonthly
     result = result.replace(pattern, (match: string, amount: string) => {
       const num = parseInt(amount);
       if (Math.abs(num - correctExcessK) / correctExcessK < 0.2) return match;
-      if (num > correctExcessK * 1.5 && num < correctExcessK * 5) {
+      if (num > correctExcessK * 2.5 && num < correctExcessK * 5) {
         count++;
         return match.replace(`£${amount}k`, `£${correctExcessK}k`);
       }
@@ -3717,14 +3717,14 @@ Before returning, verify:
         .map((opp: any) => ({
           action: opp.quick_win,
           why: (() => {
-            if (opp.owner_insight) return opp.owner_insight;
-            if (opp.life_impact) return opp.life_impact;
             const cat = (opp.category || '').toLowerCase();
-            if (cat === 'financial') return 'This gives you visibility before making big financial decisions.';
-            if (cat === 'strategic') return 'This helps you think clearly about what needs to change.';
-            if (cat === 'operational') return 'This starts reducing how much depends on you personally.';
-            if (cat === 'people') return 'This surfaces the conversations that unlock the most value.';
-            return 'A small step that reveals the size of the opportunity.';
+            const pri = (opp.severity || opp.priority || '').toLowerCase();
+            if (pri === 'critical') return 'Do this before anything else.';
+            if (cat === 'financial') return 'This gives you the numbers to make confident decisions.';
+            if (cat === 'strategic') return 'This helps you see what needs to change.';
+            if (cat === 'operational') return 'This starts reducing how much depends on you.';
+            if (cat === 'people') return 'This prepares you for the conversations ahead.';
+            return 'A small step that makes the next decision clearer.';
           })(),
           category: opp.category || 'operational'
         }));
