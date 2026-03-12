@@ -3693,7 +3693,13 @@ Before returning, verify:
       }
       
       // Pull quick wins from curated opportunities (already generated with full context)
-      const oppQuickWins = (curatedOpportunities || [])
+      const allOpps = curatedOpportunities || [];
+      console.log(`[Pass2A] Quick wins: checking ${allOpps.length} opportunities. Fields on first:`, allOpps[0] ? Object.keys(allOpps[0]).filter(k => k.includes('quick') || k.includes('win') || k.includes('adviser') || k.includes('advisor')).join(', ') || 'no quick/adviser fields' : 'no opps');
+      if (allOpps.length > 0) {
+        console.log(`[Pass2A] First opp quick_win: "${allOpps[0]?.quick_win}", talking_point: "${String(allOpps[0]?.talking_point || '').substring(0, 40)}"`);
+      }
+
+      const oppQuickWins = allOpps
         .filter((opp: any) => opp.quick_win && String(opp.quick_win).trim() !== '')
         .sort((a: any, b: any) => {
           const pri: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -3708,9 +3714,32 @@ Before returning, verify:
 
       if (oppQuickWins.length > 0) {
         p5.quickWins = oppQuickWins;
-        console.log(`[Pass2A] Pulled ${oppQuickWins.length} quick wins from opportunities`);
+        console.log(`[Pass2A] ✅ Pulled ${oppQuickWins.length} quick wins from opportunities`);
       } else {
-        console.log(`[Pass2A] No quick wins found in opportunities (${(curatedOpportunities || []).length} total opps)`);
+        // Fallback: generate sensible defaults if no quick wins in opportunities
+        const gaps = narratives.page2_gaps?.gaps || [];
+        p5.quickWins = [
+          {
+            action: gaps.some((g: any) => g.title?.toLowerCase().includes('cash'))
+              ? 'Build a 13-week cash flow forecast — list every payment in and out for the next quarter'
+              : 'List every decision only you can make this week — mark each as "must be me" or "could delegate"',
+            why: gaps.some((g: any) => g.title?.toLowerCase().includes('cash'))
+              ? "You'll see exactly when pressure points hit, not just that they exist"
+              : "You'll see how much of your time goes to things someone else could handle",
+            category: 'operational'
+          },
+          {
+            action: 'Write down the three conversations you\'ve been avoiding — and why',
+            why: 'The avoided conversations are usually where the biggest value is locked up',
+            category: 'people'
+          },
+          {
+            action: 'Block two hours this Friday — no phone — and write what your ideal Tuesday looks like in 3 years',
+            why: 'You can\'t build towards something you haven\'t defined',
+            category: 'strategic'
+          }
+        ];
+        console.log(`[Pass2A] ⚠️ No quick wins in opportunities — using defaults (${allOpps.length} opps, none had quick_win)`);
       }
 
       console.log('[Pass2] ✅ Page 5 field mapping applied:', {

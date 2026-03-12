@@ -5097,7 +5097,7 @@ function DiscoveryClientModal({
                                                   £{Math.round(destinationReport.comprehensive_analysis.payroll.annualExcess / 1000)}k/year
                                                 </p>
                                                 <p className="text-xs text-rose-700 mt-1">
-                                                  {destinationReport.comprehensive_analysis.payroll.payrollPct?.toFixed(1)}% vs {destinationReport.comprehensive_analysis.payroll.benchmarkPct?.toFixed(1)}% benchmark
+                                                  {destinationReport.comprehensive_analysis.payroll.staffCostsPct?.toFixed(1)}% vs {destinationReport.comprehensive_analysis.payroll.benchmark?.good}% benchmark
                                                 </p>
                                               </div>
                                             </div>
