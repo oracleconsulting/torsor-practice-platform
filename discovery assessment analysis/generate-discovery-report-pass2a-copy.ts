@@ -3029,23 +3029,6 @@ This is a powerful emotional anchor - use it to create urgency in the closing.
 ` : ''}
 
 ============================================================================
-QUICK WINS — "THREE THINGS YOU CAN DO THIS WEEK"
-============================================================================
-Generate exactly 3 quick wins for page5_nextSteps.quickWins.
-Rules:
-- Each must be something the client can do ALONE, THIS WEEK, with ZERO cost
-- Must be specific and actionable — NOT "think about your strategy"
-- Good: "List every role and mark them essential/valuable/questionable"
-- Good: "Create a 13-week cash flow forecast in a spreadsheet"
-- Good: "Document the top 10 decisions only you make each week"
-- Bad: "Consider your exit options" (too vague)
-- Bad: "Hire a consultant" (that's selling, not helping)
-- Each quick win should naturally reveal the DEPTH of the problem
-- Frame as genuine support: "Whether you work with us or not, do these three things"
-- Use the client's own words and situation to make them specific
-- The "leadsTo" field is internal only — never shown to the client
-
-============================================================================
 DETECTED PATTERNS
 ============================================================================
 ${patterns.burnoutDetected ? `⚠️ BURNOUT DETECTED (${patterns.burnoutFlags} indicators): ${patterns.burnoutIndicators?.join(', ')}` : 'No burnout pattern detected'}
@@ -3355,23 +3338,6 @@ Return a JSON object with this exact structure:
       "theirWordsEcho": "A quote from their assessment that ties to this",
       "simpleCta": "£X to [outcome verb]"
     },
-    "quickWins": [
-      {
-        "action": "A specific, concrete action they can take THIS WEEK with zero cost",
-        "why": "One sentence explaining what this will reveal or change",
-        "leadsTo": "Which gap this connects to (internal only — never shown to client)"
-      },
-      {
-        "action": "Second quick win — different area of the business",
-        "why": "Why this matters",
-        "leadsTo": "Internal mapping"
-      },
-      {
-        "action": "Third quick win — personal or operational",
-        "why": "What they'll discover by doing this",
-        "leadsTo": "Internal mapping"
-      }
-    ],
     "theAsk": "2-3 sentences referencing their finalInsight or desire for action. Acknowledge past failures. Offer the practical path.",
     "closingLine": "Let's talk this week.",
     "urgencyAnchor": "Personal anchor with time-based urgency. Kids ages. Health. Marriage. Whatever they mentioned."
@@ -3726,34 +3692,25 @@ Before returning, verify:
         }
       }
       
-      // Ensure quickWins survives — generate defaults if LLM omitted them
-      if (!p5.quickWins || !Array.isArray(p5.quickWins) || p5.quickWins.length === 0) {
-        const gaps = narratives.page2_gaps?.gaps || [];
-        const clientName = engagement?.client?.name?.split(' ')[0] || 'there';
-        p5.quickWins = [
-          {
-            action: gaps[0]?.title?.includes('Cash')
-              ? 'Build a 13-week cash flow forecast in a spreadsheet — list every payment in and out for the next quarter'
-              : 'List every decision only you can make this week — mark each one as "must be me" or "could delegate"',
-            why: gaps[0]?.title?.includes('Cash')
-              ? "You'll see exactly when the pressure points hit, not just that they exist"
-              : "You'll see how much of your time is spent on things someone else could handle",
-            leadsTo: gaps[0]?.category || 'operational'
-          },
-          {
-            action: 'Write down the three conversations you\'ve been avoiding — and why',
-            why: "The avoided conversations are usually where the biggest value is locked up",
-            leadsTo: 'people'
-          },
-          {
-            action: 'Block two hours this Friday with no phone — and write down what your ideal Tuesday looks like in 3 years',
-            why: "You can\'t build towards something you haven\'t clearly defined. This is the starting point for everything else",
-            leadsTo: 'strategic'
-          }
-        ];
-        console.log(`[Pass2A] Generated default quickWins (LLM omitted them)`);
+      // Pull quick wins from curated opportunities (already generated with full context)
+      const oppQuickWins = (curatedOpportunities || [])
+        .filter((opp: any) => opp.quick_win && String(opp.quick_win).trim() !== '')
+        .sort((a: any, b: any) => {
+          const pri: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+          return (pri[a.severity?.toLowerCase()] ?? 3) - (pri[b.severity?.toLowerCase()] ?? 3);
+        })
+        .slice(0, 3)
+        .map((opp: any) => ({
+          action: opp.quick_win,
+          why: opp.title || opp.headline || '',
+          category: opp.category || 'operational'
+        }));
+
+      if (oppQuickWins.length > 0) {
+        p5.quickWins = oppQuickWins;
+        console.log(`[Pass2A] Pulled ${oppQuickWins.length} quick wins from opportunities`);
       } else {
-        console.log(`[Pass2A] LLM generated ${p5.quickWins.length} quickWins`);
+        console.log(`[Pass2A] No quick wins found in opportunities (${(curatedOpportunities || []).length} total opps)`);
       }
 
       console.log('[Pass2] ✅ Page 5 field mapping applied:', {

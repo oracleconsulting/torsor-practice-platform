@@ -292,12 +292,6 @@ full pages or any fields not listed here.
 
   "page5_rewrites": {
     "thisWeekTone": "Reassurance this isn't a sales pitch. What will actually happen.",
-    "quickWins": [
-      {
-        "action": "Rewrite to be warmer, more specific to this client. Keep concrete and actionable.",
-        "why": "Advice from someone who genuinely cares, not a consultant creating dependency."
-      }
-    ],
     "theAsk": "2-3 sentences. Acknowledge past failures. Offer the practical path.",
     "closingLine": "One line. Let's talk this week.",
     "urgencyAnchor": "Personal anchor with time-based urgency. Kids. Health. Marriage. Whatever they mentioned."
@@ -439,9 +433,6 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
     if (rewrites.page5_rewrites?.urgencyAnchor) {
       updatedPage5.urgencyAnchor = rewrites.page5_rewrites.urgencyAnchor;
-    }
-    if (rewrites.page5_rewrites?.quickWins && Array.isArray(rewrites.page5_rewrites.quickWins)) {
-      updatedPage5.quickWins = rewrites.page5_rewrites.quickWins;
     }
 
     // Build updated destination_report with merged content
