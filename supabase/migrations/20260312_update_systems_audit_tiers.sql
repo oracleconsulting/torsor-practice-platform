@@ -4,8 +4,7 @@
 UPDATE service_catalogue
 SET 
   tagline = 'See What''s Actually Running Your Business',
-  short_description = 'A comprehensive review of your operational systems, processes, and dependencies — identifying what''s documented, what''s assumed, and where the risks are.',
-  description = 'A comprehensive review of your operational systems, processes, and dependencies. We map what''s documented, what''s assumed, what only lives in one person''s head, and where the single points of failure are. Most founders discover they''re the bottleneck in places they didn''t expect.'
+  short_description = 'A comprehensive review of your operational systems, processes, and dependencies — identifying what''s documented, what''s assumed, and where the risks are.'
 WHERE code = 'systems_audit';
 
 -- Delete existing tiers for systems_audit and recreate
