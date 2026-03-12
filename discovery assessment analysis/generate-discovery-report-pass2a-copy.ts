@@ -2019,13 +2019,20 @@ ${(preBuiltPhrases as any).deferredTaxExplanation}
 `;
       }
 
-      // Balance sheet health alerts (Session 11 — Prompt 7)
+      // Balance sheet health alerts (Session 11 — Prompt 7, enhanced with deep line-item analysis)
       const bsHealth = (comprehensiveAnalysis as any)?.balanceSheetHealth;
       if (bsHealth?.hasData && bsHealth.alerts?.length > 0) {
         mandatoryPhrasesSection += `
-⚠️ BALANCE SHEET ALERTS:
-${bsHealth.alerts.map((a: any) => `[${a.severity.toUpperCase()}] ${a.category}: ${a.headline} — ${a.detail}`).join('\n')}
-If the client mentions cash flow, loans, or financial stress, these findings MUST appear in the gap analysis.
+⚠️ BALANCE SHEET HEALTH ALERTS (from the uploaded accounts):
+${bsHealth.alerts.map((a: any) => `[${a.severity.toUpperCase()}] ${a.category}: ${a.headline}
+  ${a.detail}${a.numbers ? `\n  ${a.numbers}` : ''}`).join('\n\n')}
+
+These are REAL findings from the uploaded accounts. Reference them in the gap analysis.
+They add credibility — the client will know you've actually read their accounts.
+- Cash eroding despite profitability → mention in cash flow gap
+- DLA growing → connect to exit readiness discussion
+- Bad debts accelerating → flag as revenue quality concern
+- Dividends paid while needing loans → note the contradiction gently
 
 `;
       }

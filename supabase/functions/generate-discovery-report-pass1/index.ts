@@ -901,11 +901,12 @@ interface BalanceSheetAlert {
   severity: 'critical' | 'warning' | 'info';
   headline: string;
   detail: string;
+  numbers?: string;
 }
 
 interface BalanceSheetHealthAnalysis {
   hasData: boolean;
-  hasAlerts: boolean;  // Alias for compatibility
+  hasAlerts: boolean;
   alerts: BalanceSheetAlert[];
   narrative: string;
   currentRatio?: number | null;
@@ -915,70 +916,172 @@ interface BalanceSheetHealthAnalysis {
 
 function analyseBalanceSheetHealth(
   financials: any,
-  responses: Record<string, any>
+  responses: Record<string, any>,
+  multiYearData?: any[]
 ): BalanceSheetHealthAnalysis {
   const alerts: BalanceSheetAlert[] = [];
   const turnover = financials?.turnover || 0;
   const netAssets = financials?.netAssets || 0;
+  const operatingProfit = financials?.operatingProfit || 0;
 
-  // DLA check
-  const dla = financials?.directorLoanAccount || financials?.dlaBalance || financials?.directorLoans;
+  // Sort multi-year data chronologically
+  const sorted = (multiYearData || [])
+    .filter((y: any) => y.fiscal_year)
+    .sort((a: any, b: any) => a.fiscal_year - b.fiscal_year);
+  const earliest = sorted[0] || {};
+  const latestYear = sorted[sorted.length - 1] || {};
+  const years = sorted.length;
+
+  // ── DLA CHECK (multi-year growth) ──
+  const dla = financials?.directorLoanAccount || financials?.dlaBalance || financials?.directorLoans ||
+              latestYear.director_loan_account || latestYear.dla_balance;
   if (dla && dla > 50000 && netAssets > 0) {
     const pct = (dla / netAssets) * 100;
-    if (pct > 20) {
+    const earliestDla = earliest.director_loan_account || earliest.dla_balance;
+    const growth = earliestDla && earliestDla > 0 ? `Grown from £${Math.round(earliestDla / 1000)}k over ${years} years. ` : '';
+    if (pct > 15) {
       alerts.push({
         category: 'Director Loan Account',
-        severity: pct > 30 ? 'critical' : 'warning',
-        headline: `DLA at £${Math.round(dla / 1000)}k (${pct.toFixed(0)}% of net assets)`,
-        detail: 'S455 tax risk if not repaid within 9 months of year end.'
+        severity: pct > 25 ? 'critical' : 'warning',
+        headline: `DLA at £${Math.round(dla / 1000)}k — ${pct.toFixed(0)}% of net assets`,
+        detail: `${growth}S455 tax risk if not repaid within 9 months of year end.`,
+        numbers: `DLA: £${Math.round(dla / 1000)}k (${pct.toFixed(0)}% of net assets)`
       });
     }
   }
 
-  // Cash erosion despite profitability
-  if (financials?.multiYearEarnings?.length >= 2) {
-    const sorted = [...financials.multiYearEarnings].sort((a: any, b: any) => (a.year || 0) - (b.year || 0));
-    const earliestCash = (sorted[0] as any)?.cash;
-    const latestCash = (sorted[sorted.length - 1] as any)?.cash || financials?.cash;
-    if (earliestCash && latestCash && earliestCash > 0) {
-      const changePct = ((latestCash - earliestCash) / earliestCash) * 100;
-      if (changePct < -30 && financials?.operatingProfit > 0) {
+  // ── CASH EROSION DESPITE PROFITABILITY ──
+  const latestCash = financials?.cash || latestYear.cash || latestYear.cash_at_bank;
+  const earliestCash = earliest.cash || earliest.cash_at_bank;
+  if (earliestCash && latestCash && earliestCash > 0 && operatingProfit > 0) {
+    const cashDrop = ((latestCash - earliestCash) / earliestCash) * 100;
+    if (cashDrop < -30) {
+      alerts.push({
+        category: 'Cash erosion',
+        severity: cashDrop < -50 ? 'critical' : 'warning',
+        headline: `Cash down ${Math.abs(cashDrop).toFixed(0)}% despite profitability`,
+        detail: `£${Math.round(earliestCash / 1000)}k → £${Math.round(latestCash / 1000)}k over ${years} years while making £${Math.round(operatingProfit / 1000)}k operating profit. Cash is being absorbed elsewhere.`,
+        numbers: `Cash: £${Math.round(earliestCash / 1000)}k → £${Math.round(latestCash / 1000)}k`
+      });
+    }
+  } else if (financials?.multiYearEarnings?.length >= 2) {
+    const mySorted = [...financials.multiYearEarnings].sort((a: any, b: any) => (a.year || 0) - (b.year || 0));
+    const eCash = (mySorted[0] as any)?.cash;
+    const lCash = (mySorted[mySorted.length - 1] as any)?.cash || financials?.cash;
+    if (eCash && lCash && eCash > 0 && financials?.operatingProfit > 0) {
+      const changePct = ((lCash - eCash) / eCash) * 100;
+      if (changePct < -30) {
         alerts.push({
-          category: 'Cash Erosion',
+          category: 'Cash erosion',
           severity: changePct < -50 ? 'critical' : 'warning',
           headline: `Cash down ${Math.abs(changePct).toFixed(0)}% despite profitability`,
-          detail: `Cash reduced from £${Math.round(earliestCash / 1000)}k to £${Math.round(latestCash / 1000)}k while business is profitable. Cash being absorbed elsewhere.`
+          detail: `£${Math.round(eCash / 1000)}k → £${Math.round(lCash / 1000)}k. Cash being absorbed elsewhere.`
         });
       }
     }
   }
 
-  // High debtors relative to turnover
-  if (financials?.debtors && turnover > 0) {
-    const debtorPct = (financials.debtors / turnover) * 100;
-    if (debtorPct > 40) {
+  // ── BAD DEBT ACCELERATION ──
+  const latestBadDebts = latestYear.bad_debts || latestYear.bad_debt_expense;
+  const earliestBadDebts = earliest.bad_debts || earliest.bad_debt_expense;
+  if (latestBadDebts && earliestBadDebts && earliestBadDebts > 0 && latestBadDebts > 20000) {
+    const ratio = latestBadDebts / earliestBadDebts;
+    if (ratio > 3) {
       alerts.push({
-        category: 'Debtor Concentration',
-        severity: debtorPct > 60 ? 'critical' : 'warning',
-        headline: `Debtors at ${debtorPct.toFixed(0)}% of turnover (£${Math.round(financials.debtors / 1000)}k)`,
-        detail: 'Cash tied up in receivables. Check connected company balances and ageing.'
+        category: 'Bad debt acceleration',
+        severity: ratio > 5 ? 'critical' : 'warning',
+        headline: `Bad debts up ${ratio.toFixed(0)}x in ${years} years`,
+        detail: `£${Math.round(earliestBadDebts / 1000)}k → £${Math.round(latestBadDebts / 1000)}k. Suggests credit control problems, client quality issues, or disputed invoices.`,
+        numbers: `Bad debts: £${Math.round(earliestBadDebts / 1000)}k → £${Math.round(latestBadDebts / 1000)}k`
       });
     }
   }
 
-  // Loan + cash flow anxiety from responses
-  const respText = JSON.stringify(responses || {}).toLowerCase();
-  if ((respText.includes('loan') || respText.includes('borrow')) &&
-      (respText.includes('cash flow') || respText.includes('cash-flow'))) {
+  // ── BANK CHARGES ANOMALY ──
+  const latestBankCharges = latestYear.bank_charges;
+  const earliestBankCharges = earliest.bank_charges;
+  if (latestBankCharges && latestBankCharges > 20000 && earliestBankCharges != null) {
+    const ratio = earliestBankCharges > 0 ? latestBankCharges / earliestBankCharges : 100;
+    if (ratio > 10) {
+      alerts.push({
+        category: 'Bank charges anomaly',
+        severity: 'warning',
+        headline: `Bank charges £${Math.round(latestBankCharges / 1000)}k — up ${Math.min(ratio, 100).toFixed(0)}x`,
+        detail: `From £${Math.round((earliestBankCharges || 0) / 1000)}k to £${Math.round(latestBankCharges / 1000)}k. Could indicate merchant processing fees, foreign exchange costs, or penalty charges.`,
+        numbers: `Bank charges: £${Math.round((earliestBankCharges || 0) / 1000)}k → £${Math.round(latestBankCharges / 1000)}k`
+      });
+    }
+  }
+
+  // ── CONNECTED COMPANY RECEIVABLES ──
+  const connectedDebtors = latestYear.connected_company_debtors || latestYear.amounts_owed_by_connected;
+  if (connectedDebtors && turnover > 0 && (connectedDebtors > 200000 || (connectedDebtors / turnover) > 0.15)) {
+    const pct = (connectedDebtors / turnover) * 100;
     alerts.push({
-      category: 'Cash Flow Dependency',
-      severity: 'warning',
-      headline: 'Loan dependency for cash flow',
-      detail: 'Client mentions both borrowing and cash flow concerns — business may not generate sufficient operating cash.'
+      category: 'Connected party exposure',
+      severity: pct > 20 ? 'critical' : 'warning',
+      headline: `£${Math.round(connectedDebtors / 1000)}k owed by connected companies (${pct.toFixed(0)}% of revenue)`,
+      detail: `Cash tied up in related entities. Buyers scrutinise this heavily — it suppresses valuation multiples.`,
+      numbers: `Connected receivables: £${Math.round(connectedDebtors / 1000)}k`
     });
   }
 
-  // Legacy: current ratio, quick ratio, gearing (from original implementation)
+  // ── DIVIDENDS VS LOAN CONTRADICTION ──
+  const dividends = latestYear.dividends || latestYear.dividends_paid;
+  const respText = JSON.stringify(responses || {}).toLowerCase();
+  const mentionsLoan = respText.includes('loan') || respText.includes('borrow');
+  if (dividends && dividends > 100000 && mentionsLoan) {
+    alerts.push({
+      category: 'Extraction vs borrowing',
+      severity: 'warning',
+      headline: `£${Math.round(dividends / 1000)}k dividends paid while needing emergency funding`,
+      detail: `Dividends paid in the same period the owner mentions needing loans. Suggests a cash extraction strategy that may not be sustainable.`,
+      numbers: `Dividends: £${Math.round(dividends / 1000)}k`
+    });
+  }
+
+  // ── SUBSCRIPTION/PLATFORM COST GROWTH ──
+  const latestSubs = latestYear.trade_subscriptions || latestYear.subscriptions;
+  const earliestSubs = earliest.trade_subscriptions || earliest.subscriptions;
+  if (latestSubs && earliestSubs && earliestSubs > 0 && latestSubs > 50000) {
+    const ratio = latestSubs / earliestSubs;
+    if (ratio > 2) {
+      alerts.push({
+        category: 'Subscription cost growth',
+        severity: 'info',
+        headline: `Platform/subscription costs up ${ratio.toFixed(1)}x to £${Math.round(latestSubs / 1000)}k`,
+        detail: `From £${Math.round(earliestSubs / 1000)}k over ${years} years. Worth auditing — are all platforms still delivering value?`,
+        numbers: `Subscriptions: £${Math.round(earliestSubs / 1000)}k → £${Math.round(latestSubs / 1000)}k`
+      });
+    }
+  }
+
+  // ── HIGH DEBTOR DAYS ──
+  const totalDebtors = financials?.debtors || latestYear.total_debtors || latestYear.debtors;
+  if (totalDebtors && turnover > 0) {
+    const debtorDays = (totalDebtors / turnover) * 365;
+    if (debtorDays > 90) {
+      alerts.push({
+        category: 'Debtor days',
+        severity: debtorDays > 150 ? 'critical' : 'warning',
+        headline: `${Math.round(debtorDays)} debtor days — cash tied up in receivables`,
+        detail: `£${Math.round(totalDebtors / 1000)}k in debtors on £${Math.round(turnover / 1000)}k turnover. Needs breaking down — trade vs connected vs DLA.`,
+        numbers: `Debtors: £${Math.round(totalDebtors / 1000)}k (${Math.round(debtorDays)} days)`
+      });
+    }
+  }
+
+  // ── CASH FLOW + LOAN CONCERN FROM RESPONSES ──
+  if (mentionsLoan && (respText.includes('cash flow') || respText.includes('cash-flow')) && operatingProfit > 0) {
+    alerts.push({
+      category: 'Cash flow dependency',
+      severity: 'warning',
+      headline: 'Borrowing to fund cash flow in a profitable business',
+      detail: `Client mentions needing loans despite £${Math.round(operatingProfit / 1000)}k operating profit. The profit isn't converting to cash — investigate where it's going.`
+    });
+  }
+
+  // ── LIQUIDITY RATIOS ──
   const currentAssets = financials?.currentAssets ?? (
     (financials?.cash ?? 0) + (financials?.debtors ?? 0) + (financials?.otherDebtors ?? 0) +
     (financials?.prepayments ?? 0) + (financials?.stock ?? 0)
@@ -993,64 +1096,30 @@ function analyseBalanceSheetHealth(
     currentRatio = currentAssets / currentLiabilities;
     quickRatio = (currentAssets - stock) / currentLiabilities;
     if (currentRatio < 0.8) {
-      alerts.push({
-        category: 'Liquidity',
-        severity: 'critical',
-        headline: `Current ratio of ${currentRatio.toFixed(2)}`,
-        detail: 'Current liabilities exceed current assets; short-term liquidity needs attention'
-      });
+      alerts.push({ category: 'Liquidity', severity: 'critical', headline: `Current ratio ${currentRatio.toFixed(2)}`, detail: 'Current liabilities exceed current assets' });
     } else if (currentRatio < 1.0) {
-      alerts.push({
-        category: 'Liquidity',
-        severity: 'warning',
-        headline: `Current ratio of ${currentRatio.toFixed(2)}`,
-        detail: 'Current liabilities slightly exceed current assets; worth monitoring'
-      });
-    }
-    if (quickRatio < 0.7) {
-      alerts.push({
-        category: 'Liquidity',
-        severity: 'warning',
-        headline: `Quick ratio of ${quickRatio.toFixed(2)}`,
-        detail: 'Limited ability to meet short-term obligations without selling inventory'
-      });
+      alerts.push({ category: 'Liquidity', severity: 'warning', headline: `Current ratio ${currentRatio.toFixed(2)}`, detail: 'Worth monitoring' });
     }
   }
   if (bankLoans > 0 && netAssets > 0) {
     gearingPct = (bankLoans / netAssets) * 100;
     if (gearingPct > 75) {
-      alerts.push({
-        category: 'Gearing',
-        severity: 'critical',
-        headline: `Gearing of ${gearingPct.toFixed(1)}%`,
-        detail: 'Very high leverage; significant refinancing risk if asset values fall'
-      });
+      alerts.push({ category: 'Gearing', severity: 'critical', headline: `Gearing ${gearingPct.toFixed(0)}%`, detail: 'Very high leverage' });
     } else if (gearingPct > 50) {
-      alerts.push({
-        category: 'Gearing',
-        severity: 'warning',
-        headline: `Gearing of ${gearingPct.toFixed(1)}%`,
-        detail: 'High leverage warrants attention'
-      });
+      alerts.push({ category: 'Gearing', severity: 'warning', headline: `Gearing ${gearingPct.toFixed(0)}%`, detail: 'High leverage' });
     }
   }
 
+  const criticals = alerts.filter(a => a.severity === 'critical');
+  const warnings = alerts.filter(a => a.severity === 'warning');
   const narrative = alerts.length > 0
-    ? `Balance sheet: ${alerts.length} alert(s). ${alerts.map(a => a.headline).join('. ')}`
+    ? `Balance sheet: ${criticals.length} critical, ${warnings.length} warning. ${alerts.slice(0, 3).map(a => a.headline).join('. ')}.`
     : 'No material balance sheet concerns detected.';
 
-  console.log(`[Pass1] Balance Sheet Health: ${alerts.length} alerts`);
-  alerts.forEach(a => console.log(`  - [${a.severity}] ${a.category}: ${a.headline}`));
+  console.log(`[Pass1] Balance Sheet Health: ${alerts.length} alerts (${criticals.length} critical, ${warnings.length} warning)`);
+  alerts.forEach(a => console.log(`  [${a.severity}] ${a.category}: ${a.headline}`));
 
-  return {
-    hasData: alerts.length > 0,
-    hasAlerts: alerts.length > 0,
-    alerts,
-    narrative,
-    currentRatio,
-    quickRatio,
-    gearingPct
-  };
+  return { hasData: alerts.length > 0, hasAlerts: alerts.length > 0, alerts, narrative, currentRatio, quickRatio, gearingPct };
 }
 
 // ============================================================================
@@ -2955,9 +3024,21 @@ function calculateCostOfInaction(
   const calculatedComponents = components.filter(c => c.confidence === 'calculated');
   const estimatedComponents = components.filter(c => c.confidence === 'estimated');
   
+  // Connect horizon to client's exit timeline
+  let horizonLabel = `${timeHorizon}-year horizon`;
+  if (exitResponse.includes('3-5')) {
+    horizonLabel = `your 3-5 year exit window`;
+  } else if (exitResponse.includes('1-2') || exitResponse.includes('1-3')) {
+    horizonLabel = `your ${timeHorizon}-year timeline`;
+  } else if (exitResponse.includes('5+') || exitResponse.includes('5-10') || exitResponse.includes('10 year')) {
+    horizonLabel = `the next ${timeHorizon} years`;
+  } else if (exitResponse && exitResponse !== '') {
+    horizonLabel = `your stated timeline`;
+  }
+
   let narrative = '';
   if (components.length > 0) {
-    narrative = `Cost of inaction over ${timeHorizon}-year horizon: £${(totalOverHorizon/1000).toFixed(0)}k+. `;
+    narrative = `Cost of inaction over ${horizonLabel}: £${(totalOverHorizon/1000).toFixed(0)}k+. `;
     if (calculatedComponents.length > 0) {
       narrative += `Calculated: ${calculatedComponents.map(c => `${c.category}: £${(c.costOverHorizon/1000).toFixed(0)}k`).join(', ')}. `;
     }
@@ -2971,7 +3052,7 @@ function calculateCostOfInaction(
   console.log(`[Pass1] Cost of Inaction: £${(totalOverHorizon/1000).toFixed(0)}k over ${timeHorizon} years (${components.length} components)`);
   components.forEach(c => console.log(`  - ${c.category}: £${(c.annualCost/1000).toFixed(0)}k/year (${c.confidence})`));
   
-  return { totalAnnual, totalOverHorizon, timeHorizon, components, narrative };
+  return { totalAnnual, totalOverHorizon, timeHorizon, horizonLabel, components, narrative };
 }
 
 // ============================================================================
@@ -5145,8 +5226,8 @@ serve(async (req) => {
       (comprehensiveAnalysis as any).ihtExposure = ihtExposure;
     }
 
-    // Balance sheet health analysis (Session 11 — Prompt 7)
-    const balanceSheetHealth = analyseBalanceSheetHealth(extractedFinancials, discoveryResponses);
+    // Balance sheet health analysis (Session 11 — Prompt 7, enhanced with multi-year line items)
+    const balanceSheetHealth = analyseBalanceSheetHealth(extractedFinancials, discoveryResponses, financialDataRows || []);
     (comprehensiveAnalysis as any).balanceSheetHealth = balanceSheetHealth;
     if (balanceSheetHealth.hasData) {
       console.log('[Pass1] 📊 Balance sheet health alerts:', balanceSheetHealth.alerts);
@@ -5254,7 +5335,7 @@ serve(async (req) => {
         const allComponents = coi.components as any[];
         const calculatedC = allComponents.filter((c: any) => c.confidence === 'calculated');
         const estimatedC = allComponents.filter((c: any) => c.confidence === 'estimated');
-        coi.narrative = `Cost of inaction over ${coi.timeHorizon}-year horizon: £${Math.round(coi.totalOverHorizon / 1000)}k+. `;
+        coi.narrative = `Cost of inaction over ${coi.horizonLabel || `${coi.timeHorizon}-year horizon`}: £${Math.round(coi.totalOverHorizon / 1000)}k+. `;
         if (calculatedC.length > 0) {
           coi.narrative += `Calculated: ${calculatedC.map((c: any) => `${c.category}: £${Math.round(c.costOverHorizon / 1000)}k`).join(', ')}. `;
         }
