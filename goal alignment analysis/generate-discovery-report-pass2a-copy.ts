@@ -3238,6 +3238,40 @@ This is THEIR vision, spoken in THEIR words. It's more powerful because it comes
 Do NOT rewrite their vision into second person.
 The rest of the report (Pages 2-5) should use second person ("you", "your") as the advisor speaking to the client.
 
+${(() => {
+      const bsh = (comprehensiveAnalysis as any)?.balanceSheetHealth;
+      console.log('[Pass2A] Balance sheet data:', { exists: !!bsh, hasData: bsh?.hasData, alertCount: bsh?.alerts?.length || 0, firstAlert: bsh?.alerts?.[0]?.headline || 'none' });
+      if (!bsh?.hasData || !bsh.alerts?.length) return '';
+      const criticals = bsh.alerts.filter((a: any) => a.severity === 'critical');
+      const warnings = bsh.alerts.filter((a: any) => a.severity === 'warning');
+      return `
+============================================================================
+⛔⛔⛔ MANDATORY: BALANCE SHEET FINDINGS FROM THE ACCOUNTS ⛔⛔⛔
+============================================================================
+We found ${criticals.length} CRITICAL and ${warnings.length} WARNING issues
+in the uploaded accounts. AT LEAST 3 of these MUST appear in the report.
+
+${bsh.alerts.map((a: any) => `[${a.severity.toUpperCase()}] ${a.category}
+  ${a.headline}
+  ${a.detail}
+  ${a.numbers || ''}`).join('\n\n')}
+
+WHERE TO USE THESE:
+- page2_gaps: At least ONE gap must reference a balance sheet finding in its
+  financialImpact field. E.g. "Cash has dropped 65% from £1.5M to £527k despite
+  profitability. Meanwhile, £350k in dividends were paid in the same year you
+  need a £200k loan."
+- page4_numbers personalCost: Reference DLA growth and cash erosion as concrete
+  evidence of what staying here costs
+- page4_numbers realReturn: Connect balance sheet cleanup to valuation uplift
+
+⛔ If the report contains ZERO references to these balance sheet findings,
+the report has FAILED. At minimum reference: cash erosion, DLA, and the
+dividends-vs-loan contradiction.
+============================================================================
+`;
+    })()}
+
 Return a JSON object with this exact structure:
 
 {
