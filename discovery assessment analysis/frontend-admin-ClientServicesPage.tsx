@@ -5096,9 +5096,11 @@ function DiscoveryClientModal({
                                                 <p className="text-lg font-bold text-rose-900">
                                                   £{Math.round(destinationReport.comprehensive_analysis.payroll.annualExcess / 1000)}k/year
                                                 </p>
-                                                <p className="text-xs text-rose-700 mt-1">
-                                                  {destinationReport.comprehensive_analysis.payroll.staffCostsPct?.toFixed(1)}% vs {destinationReport.comprehensive_analysis.payroll.benchmark?.good}% benchmark
-                                                </p>
+                                                {(destinationReport.comprehensive_analysis.payroll.staffCostsPct != null && destinationReport.comprehensive_analysis.payroll.benchmark?.good != null) && (
+                                                  <p className="text-xs text-rose-700 mt-1">
+                                                    {Number(destinationReport.comprehensive_analysis.payroll.staffCostsPct).toFixed(1)}% vs {destinationReport.comprehensive_analysis.payroll.benchmark.good}% benchmark
+                                                  </p>
+                                                )}
                                               </div>
                                             </div>
                                           )}

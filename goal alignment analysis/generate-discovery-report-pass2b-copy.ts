@@ -22,8 +22,17 @@ function fixPayrollInString(text: string, correctExcessK: number, correctMonthly
   let count = 0;
   if (text.length < 10) return { text, changed: false, count: 0 };
 
+  // PROTECT: strings about loans/borrowing — only fix benchmark %, never touch £ amounts
+  if (/loans?\b|borrowed|borrowing|emergency fund|cash injection|overdraft/i.test(text) && !/excess|payroll|staff cost/i.test(text)) {
+    result = result.replace(/the\s+(\d{2,3})%\s+benchmark/gi, (_m: string, pct: string) => {
+      if (parseInt(pct) !== correctBenchmarkPct && parseInt(pct) >= 20 && parseInt(pct) <= 55) { count++; return _m.replace(`${pct}%`, `${correctBenchmarkPct}%`); }
+      return _m;
+    });
+    return { text: result, changed: count > 0, count };
+  }
+
   const hasPayrollContext = /excess|payroll|staff cost|benchmark|bleeding|walks out/i.test(text);
-  const hasProtectedContext = /conservative.*?£|realistic.*?£|payback.*?£|valuation.*?£|worth.*?£\d|loan.*?£|borrowed.*?£|£[\d,]+k?\+?\s*over\s*\d+\s*years/i.test(text);
+  const hasProtectedContext = /conservative.*?£|realistic.*?£|payback.*?£|valuation.*?£|worth.*?£\d|£[\d,]+k?\+?\s*over\s*\d+\s*years/i.test(text);
   if (hasProtectedContext && !hasPayrollContext) {
     result = result.replace(/staff costs at ([\d.]+)% vs the? (\d+)% benchmark/gi, (_match: string, _actual: string, bench: string) => {
       if (parseInt(bench) !== correctBenchmarkPct) { count++; return _match.replace(`${bench}%`, `${correctBenchmarkPct}%`); }
