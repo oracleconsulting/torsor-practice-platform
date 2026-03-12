@@ -1042,22 +1042,25 @@ export default function DiscoveryReportPage() {
                 
                 // 5. Payroll Efficiency
                 if (ca?.payroll?.annualExcess && ca.payroll.annualExcess > 10000) {
+                  const staffPct = ca.payroll.staffCostsPct;
+                  const benchGood = ca.payroll.benchmark?.good;
                   metrics.push({
                     icon: '👥', label: 'Payroll Excess',
                     value: `£${Math.round(ca.payroll.annualExcess / 1000)}k/year`,
-                    subtext: `${ca.payroll.payrollPct?.toFixed(1)}% vs ${ca.payroll.benchmarkPct?.toFixed(1)}% benchmark`, color: 'rose'
+                    subtext: (staffPct != null && benchGood != null) ? `${Number(staffPct).toFixed(1)}% vs ${benchGood}% benchmark` : undefined, color: 'rose'
                   });
                 }
                 
                 // 6. Revenue Trajectory
                 if (ca?.trajectory?.hasData && ca.trajectory.trend) {
-                  const trendEmoji = ca.trajectory.trend === 'growing' ? '📈' : 
+                  const trendLabels: Record<string, string> = { growing: 'Growing', declining: 'Declining', stable: 'Stable', volatile_recovering: 'Recovering', volatile: 'Volatile', accelerating: 'Accelerating' };
+                  const trendEmoji = ca.trajectory.trend === 'growing' || ca.trajectory.trend === 'volatile_recovering' ? '📈' : 
                                      ca.trajectory.trend === 'stable' ? '➡️' : '📉';
                   metrics.push({
                     icon: trendEmoji, label: 'Revenue Trend',
-                    value: ca.trajectory.trend.charAt(0).toUpperCase() + ca.trajectory.trend.slice(1),
-                    subtext: ca.trajectory.changePercent ? `${ca.trajectory.changePercent > 0 ? '+' : ''}${ca.trajectory.changePercent.toFixed(1)}% YoY` : undefined,
-                    color: ca.trajectory.trend === 'growing' ? 'green' : ca.trajectory.trend === 'stable' ? 'slate' : 'amber'
+                    value: trendLabels[ca.trajectory.trend] || (ca.trajectory.trend.charAt(0).toUpperCase() + ca.trajectory.trend.slice(1).replace(/_/g, ' ')),
+                    subtext: ca.trajectory.trend === 'volatile_recovering' ? 'Strong rebound after prior year dip' : (ca.trajectory.changePercent ? `${ca.trajectory.changePercent > 0 ? '+' : ''}${ca.trajectory.changePercent.toFixed(1)}% YoY` : undefined),
+                    color: ca.trajectory.trend === 'growing' || ca.trajectory.trend === 'volatile_recovering' ? 'green' : ca.trajectory.trend === 'stable' ? 'slate' : 'amber'
                   });
                 }
                 
@@ -1941,21 +1944,24 @@ export default function DiscoveryReportPage() {
           
           // 5. Payroll Excess
           if (ca?.payroll?.annualExcess && ca.payroll.annualExcess > 10000) {
+            const staffPct = ca.payroll.staffCostsPct;
+            const benchGood = ca.payroll.benchmark?.good;
             metrics.push({ 
               icon: '👥', label: 'Payroll Excess', 
               value: `£${Math.round(ca.payroll.annualExcess / 1000)}k/year`,
-              subtext: `${ca.payroll.payrollPct?.toFixed(1)}% vs ${ca.payroll.benchmarkPct?.toFixed(1)}% benchmark`
+              subtext: (staffPct != null && benchGood != null) ? `${Number(staffPct).toFixed(1)}% vs ${benchGood}% benchmark` : undefined
             });
           }
           
           // 6. Revenue Trajectory
           if (ca?.trajectory?.hasData && ca.trajectory.trend) {
-            const trendEmoji = ca.trajectory.trend === 'growing' ? '📈' : 
+            const trendLabels: Record<string, string> = { growing: 'Growing', declining: 'Declining', stable: 'Stable', volatile_recovering: 'Recovering', volatile: 'Volatile', accelerating: 'Accelerating' };
+            const trendEmoji = ca.trajectory.trend === 'growing' || ca.trajectory.trend === 'volatile_recovering' ? '📈' : 
                                ca.trajectory.trend === 'stable' ? '➡️' : '📉';
             metrics.push({
               icon: trendEmoji, label: 'Revenue Trend',
-              value: ca.trajectory.trend.charAt(0).toUpperCase() + ca.trajectory.trend.slice(1),
-              subtext: ca.trajectory.changePercent ? `${ca.trajectory.changePercent > 0 ? '+' : ''}${ca.trajectory.changePercent.toFixed(1)}% YoY` : undefined,
+              value: trendLabels[ca.trajectory.trend] || (ca.trajectory.trend.charAt(0).toUpperCase() + ca.trajectory.trend.slice(1).replace(/_/g, ' ')),
+              subtext: ca.trajectory.trend === 'volatile_recovering' ? 'Strong rebound after prior year dip' : (ca.trajectory.changePercent ? `${ca.trajectory.changePercent > 0 ? '+' : ''}${ca.trajectory.changePercent.toFixed(1)}% YoY` : undefined),
             });
           }
           
