@@ -1524,8 +1524,7 @@ function calculateFinancialHealthSnapshot(
 
 const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
   // ── CONSTRUCTION & FIT-OUT ──────────────────────────────────────────────
-  'fit_out':              { typical: 16, good: 12, concern: 22, notes: 'Fit-out/interiors — admin staff only, subcontract in COS' },
-  'fitout_interiors':     { typical: 16, good: 12, concern: 22, notes: 'Fit-out/interiors — subcontractor-heavy, asset-light, project-management-focused' },
+  'fit_out':              { typical: 16, good: 12, concern: 22, notes: 'Fit-out/interiors — subcontractor-heavy, asset-light, project-management-focused' },
   'construction_fitout':  { typical: 16, good: 12, concern: 22, notes: 'Construction fit-out' },
   'construction':         { typical: 28, good: 22, concern: 35, notes: 'Construction — mixed employed/subcontract' },
   'trades':               { typical: 30, good: 25, concern: 38, notes: 'Trades — mostly employed labour' },
@@ -1612,8 +1611,7 @@ const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
 
 const GROSS_MARGIN_BENCHMARKS: Record<string, { low: number; high: number }> = {
   // ── CONSTRUCTION & FIT-OUT ──────────────────────────────────────────────
-  'fit_out':              { low: 20, high: 32 },
-  'fitout_interiors':     { low: 18, high: 32 },
+  'fit_out':              { low: 18, high: 32 },
   'construction_fitout':  { low: 20, high: 32 },
   'construction':         { low: 15, high: 30 },
   'trades':               { low: 35, high: 55 },
@@ -1709,8 +1707,8 @@ function getPayrollBenchmark(industry: string): PayrollBenchmark {
     }
   }
 
-  if (lower.includes('fitout') || lower.includes('fit_out') || lower.includes('fitout_interiors') || lower.includes('interior')) {
-    return PAYROLL_BENCHMARKS['fitout_interiors'] || PAYROLL_BENCHMARKS['fit_out'];
+  if (lower.includes('fitout') || lower.includes('fit_out') || lower.includes('interior')) {
+    return PAYROLL_BENCHMARKS['fit_out'];
   }
   if (lower.includes('build') || lower.includes('construct') || lower.includes('contractor')) {
     return PAYROLL_BENCHMARKS['construction'];
@@ -1777,8 +1775,8 @@ function detectIndustry(
       return { code: 'recruitment', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
     }
     if (/\b(fit.?out|fitout|interior(s)? (contractor|design|fit)|shopfit|commercial interior|office (fit|refurb)|workplace design)\b/.test(pa)) {
-      console.log(`[Pass1] Industry from principal activity: fitout_interiors ("${principalActivity}")`);
-      return { code: 'fitout_interiors', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+      console.log(`[Pass1] Industry from principal activity: fit_out ("${principalActivity}")`);
+      return { code: 'fit_out', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
     }
     if (/\b(construct(ion)?|build(er|ing)|civil engineer|groundwork|demolition|roofing|plumb(er|ing)|electrician)\b/.test(pa)) {
       console.log(`[Pass1] Industry from principal activity: construction ("${principalActivity}")`);
