@@ -5030,7 +5030,7 @@ function DiscoveryClientModal({
                                         )}
                                         {page4.realReturn && (
                                           <p className="mt-3 pt-3 border-t border-emerald-200 text-emerald-800 italic">
-                                            But the real return? {page4.realReturn}
+                                            {page4.realReturn}
                                           </p>
                                         )}
                                       </div>

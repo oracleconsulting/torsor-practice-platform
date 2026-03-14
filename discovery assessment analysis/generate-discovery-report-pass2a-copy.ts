@@ -2333,7 +2333,7 @@ ${fhs.noteworthyRatios.map((r: { name: string; formatted: string; status: string
 - ${r.name}: ${r.formatted}
   Status: ${r.status}
   Narrative: ${r.narrativePhrase}
-  Context: ${r.context}${(r as any).whatItMeans ? `\n  ⛔ USE THIS EXPLANATION: ${(r as any).whatItMeans}` : ''}
+  Context: ${r.context}${(r as any).whatItMeans ? `\n  ⛔⛔⛔ MANDATORY EXPLANATION (use this VERBATIM, do NOT invent your own): ${(r as any).whatItMeans}` : ''}
 `).join('')}
 
 RULES FOR USING RATIOS:
@@ -4914,6 +4914,29 @@ Before returning, verify:
     const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
     narratives = JSON.parse(cleanedStr);
 
+    // Fix duplicate financial impact amounts across gaps
+    if (narratives.page2_gaps?.gaps && narratives.page2_gaps.gaps.length >= 2) {
+      const gaps = narratives.page2_gaps.gaps;
+      const amounts = gaps.map((g: any) => {
+        const match = (g.financialImpact || '').match(/£([\d,]+)/);
+        return match ? parseInt(match[1].replace(/,/g, '')) : null;
+      }).filter(Boolean);
+      const uniqueAmounts = new Set(amounts);
+      if (uniqueAmounts.size === 1 && amounts.length > 1) {
+        console.log(`[Pass2A] ⚠️ All ${gaps.length} gaps have identical financial impact (£${amounts[0]}). Cleaning non-payroll gaps.`);
+        for (const gap of gaps) {
+          const isPayrollGap = /payroll|staff cost|team cost|headcount|people cost/i.test(gap.title || '');
+          const isMarginGap = /margin|profit|pricing/i.test(gap.title || '');
+          if (!isPayrollGap && !isMarginGap && gap.financialImpact) {
+            gap.financialImpact = gap.financialImpact.replace(
+              /£[\d,]+(?:k|K|M|m)?[^.]*/,
+              'Significant but unquantified'
+            );
+          }
+        }
+      }
+    }
+
     // Remove em-dashes and replace banned words/transitions (AI tell)
     let narStr = JSON.stringify(narratives);
     narStr = narStr.replace(/ — /g, '. ');
@@ -4931,8 +4954,18 @@ Before returning, verify:
     narStr = narStr.split("Here's the thing:").join('');
     narStr = narStr.split("Here\\'s what matters:").join('');
     narStr = narStr.split("Here's what matters:").join('');
+    // Strip property/IHT language from non-investment-vehicle reports
+    if (clientType !== 'investment_vehicle') {
+      narStr = narStr.replace(/your property portfolio/gi, 'your business');
+      narStr = narStr.replace(/the property portfolio/gi, 'the business');
+      narStr = narStr.replace(/property portfolio/gi, 'business');
+      narStr = narStr.replace(/IHT restructuring/gi, 'strategic restructuring');
+      narStr = narStr.replace(/IHT purposes/gi, 'strategic purposes');
+      narStr = narStr.replace(/new acquisitions/gi, 'strategic investment');
+      narStr = narStr.replace(/fund acquisitions/gi, 'fund growth');
+    }
     narratives = JSON.parse(narStr);
-    console.log('[Pass2A] Removed em-dashes and replaced banned words/transitions from output');
+    console.log('[Pass2A] Removed em-dashes, banned words/transitions, and type-mismatched language from output');
 
     // Snapshot client-visible opportunities into the report (Option C — hybrid surfacing)
     const clientVisibleSnapshot = (curatedOpportunities || [])

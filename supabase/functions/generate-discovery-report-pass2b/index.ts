@@ -224,7 +224,8 @@ serve(async (req) => {
         page4_numbers,
         page5_next_steps,
         headline,
-        comprehensive_analysis
+        comprehensive_analysis,
+        client_type
       `)
       .eq('engagement_id', engagementId)
       .maybeSingle();
@@ -474,6 +475,17 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     rewriteStr = rewriteStr.split("Here's the thing:").join('');
     rewriteStr = rewriteStr.split("Here\\'s what matters:").join('');
     rewriteStr = rewriteStr.split("Here's what matters:").join('');
+    // Strip property/IHT language from non-investment-vehicle reports
+    const p2bClientType = report.client_type || '';
+    if (p2bClientType !== 'investment_vehicle') {
+      rewriteStr = rewriteStr.replace(/your property portfolio/gi, 'your business');
+      rewriteStr = rewriteStr.replace(/the property portfolio/gi, 'the business');
+      rewriteStr = rewriteStr.replace(/property portfolio/gi, 'business');
+      rewriteStr = rewriteStr.replace(/IHT restructuring/gi, 'strategic restructuring');
+      rewriteStr = rewriteStr.replace(/IHT purposes/gi, 'strategic purposes');
+      rewriteStr = rewriteStr.replace(/new acquisitions/gi, 'strategic investment');
+      rewriteStr = rewriteStr.replace(/fund acquisitions/gi, 'fund growth');
+    }
     rewrites = JSON.parse(rewriteStr);
 
     // ================================================================
