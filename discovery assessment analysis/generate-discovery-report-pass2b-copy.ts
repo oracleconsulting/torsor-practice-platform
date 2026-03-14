@@ -659,6 +659,23 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
 
     // ====================================================================
+    // FINAL OVERRIDE: Ensure calculated valuation always wins
+    // Must run AFTER Pass 2B merge, right before database save
+    // ====================================================================
+    const v = report.comprehensive_analysis?.valuation;
+    const finalValuationRange = (v?.conservativeValue != null && v?.optimisticValue != null)
+      ? `£${(v.conservativeValue / 1000000).toFixed(1)}M - £${(v.optimisticValue / 1000000).toFixed(1)}M`
+      : null;
+
+    if (finalValuationRange && updatedPage4) {
+      const current = updatedPage4.indicativeValuation;
+      if (current !== finalValuationRange) {
+        console.log(`[Pass2B] ⚠️ FINAL override indicativeValuation: "${current}" → "${finalValuationRange}"`);
+        updatedPage4.indicativeValuation = finalValuationRange;
+      }
+    }
+
+    // ====================================================================
     // SAVE — update narrative fields only
     // ====================================================================
 
