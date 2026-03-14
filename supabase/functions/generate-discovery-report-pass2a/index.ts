@@ -2312,7 +2312,7 @@ ${fhs.noteworthyRatios.map((r: { name: string; formatted: string; status: string
 - ${r.name}: ${r.formatted}
   Status: ${r.status}
   Narrative: ${r.narrativePhrase}
-  Context: ${r.context}
+  Context: ${r.context}${(r as any).whatItMeans ? `\n  ⛔ USE THIS EXPLANATION: ${(r as any).whatItMeans}` : ''}
 `).join('')}
 
 RULES FOR USING RATIOS:
@@ -2321,11 +2321,16 @@ RULES FOR USING RATIOS:
 3. Use the pre-built narrative phrases — DO NOT recalculate or reinterpret the numbers
 4. If a ratio supports an existing gap (e.g., current ratio supports liquidity concern), fold it in there
 5. If a ratio reveals something new (e.g., very low gearing = untapped borrowing capacity), it can be a new insight in Page 2
-6. Maximum 3 ratio references across the entire report — be selective, not exhaustive
-7. NEVER present ratios as a data dump or table. They should feel like advisor observations.
+6. NEVER assume the business is property-related unless it is an investment vehicle or the data says so
+7. Maximum 3 ratio references across the entire report — be selective, not exhaustive
+8. NEVER present ratios as a data dump or table. They should feel like advisor observations.
+9. If a ratio has a 'whatItMeans' explanation from Pass 1, USE IT. Do not invent your own explanation. The whatItMeans text is pre-written for this specific business type and is the source of truth.
 
 EXAMPLE OF GOOD RATIO USAGE:
-"Your gearing of 8% tells a clear story — you've built a £6.4M estate with almost no debt. That's conservative, and it's served you well. But it also means there's borrowing capacity you're not using. Whether that matters depends on where you want to take the portfolio next."
+${reportFraming === 'wealth_protection'
+  ? `"Your gearing of 8% tells a clear story. You've built a £6.4M estate with almost no debt. That's conservative, and it's served you well. But it also means there's borrowing capacity you're not using. Whether that matters depends on where you want to take the portfolio next."`
+  : `"Your gearing sits at 34%. Moderate, and manageable. But with an exit in your sightline, buyers will look at this number. Getting it below 25% before you go to market gives you a cleaner balance sheet and a stronger negotiating position."`
+}
 
 EXAMPLE OF BAD RATIO USAGE:
 "Your current ratio is 0.52, gearing is 8%, interest cover is 6.5x, asset turnover is 0.06, and return on equity is -0.7%."
