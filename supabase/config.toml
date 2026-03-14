@@ -59,46 +59,37 @@ verify_jwt = true
 
 [functions."generate-discovery-report-pass1"]
 verify_jwt = true
-max_execution_time = 150
+# max_execution_time set in Dashboard (CLI doesn't support this key)
 
 [functions."generate-discovery-report-pass2"]
 verify_jwt = true
-max_execution_time = 150
 
 [functions."generate-discovery-report-pass2a"]
 verify_jwt = true
-max_execution_time = 150
 
 [functions."generate-discovery-report-pass2b"]
 verify_jwt = true
-max_execution_time = 150
 
 [functions."generate-discovery-analysis"]
 verify_jwt = true
-max_execution_time = 150
 
 [functions."generate-discovery-opportunities"]
 verify_jwt = true
-max_execution_time = 120
 
 [functions."generate-discovery-pdf"]
 verify_jwt = true
-max_execution_time = 120
 
 [functions."prepare-discovery-data"]
 verify_jwt = true
 
 [functions."process-accounts-upload"]
 verify_jwt = true
-max_execution_time = 120
 
 [functions."advisory-deep-dive"]
 verify_jwt = true
-max_execution_time = 150
 
 [functions."reprocess-accounts"]
 verify_jwt = true
-max_execution_time = 120
 
 [functions."generate-roadmap"]
 verify_jwt = true
@@ -136,7 +127,6 @@ verify_jwt = true
 
 [functions."generate-sa-report"]
 verify_jwt = true
-max_execution_time = 150
 
 [functions."discover-sa-tech-product"]
 verify_jwt = true

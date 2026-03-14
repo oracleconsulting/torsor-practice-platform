@@ -1277,6 +1277,8 @@ function calculateFinancialHealthSnapshot(
       context = 'Very low leverage could mean capital is sitting idle or there is capacity for strategic borrowing';
       if (clientTypeLabel === 'investment_vehicle') {
         gearingWhatItMeans = `You've built a significant portfolio with only ${formatted} of debt — that's extremely conservative. You own almost everything outright, which gives you security and flexibility. There's significant borrowing capacity available if you ever wanted to reinvest or restructure for IHT purposes.`;
+      } else {
+        gearingWhatItMeans = `Only ${formatted} of your business is funded by borrowing. You own almost everything outright. That means very little debt risk, but it also means you have significant borrowing capacity available if it were ever useful. For example, to fund a strategic hire, invest in equipment, or bridge a cash flow gap on a large project.`;
       }
     } else if (gearing < 25) {
       status = 'healthy';
@@ -1287,11 +1289,17 @@ function calculateFinancialHealthSnapshot(
       isNoteworthy = gearing > 40;
       narrativePhrase = `Gearing of ${formatted} — moderate leverage`;
       context = 'Approaching levels where lenders may want closer monitoring';
+      if (gearing > 40 && clientTypeLabel !== 'investment_vehicle') {
+        gearingWhatItMeans = `At ${formatted} gearing, your debt-to-equity ratio is getting into territory where lenders start paying closer attention. Not dangerous, but worth watching. Particularly if you're planning to borrow more for growth.`;
+      }
     } else {
       status = gearing > 75 ? 'critical' : 'concern';
       isNoteworthy = true;
       narrativePhrase = `Gearing of ${formatted} — high leverage warrants attention`;
       context = 'Significant debt relative to equity — refinancing risk if asset values fall';
+      if (clientTypeLabel !== 'investment_vehicle') {
+        gearingWhatItMeans = `Your borrowing is ${formatted} of your equity. That's high. If profits dip or assets lose value, this ratio gets worse fast. Worth reviewing your debt structure with your accountant, especially if any loans are due for renewal.`;
+      }
     }
 
     allRatios.push({
@@ -1517,6 +1525,7 @@ function calculateFinancialHealthSnapshot(
 const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
   // ── CONSTRUCTION & FIT-OUT ──────────────────────────────────────────────
   'fit_out':              { typical: 16, good: 12, concern: 22, notes: 'Fit-out/interiors — admin staff only, subcontract in COS' },
+  'fitout_interiors':     { typical: 16, good: 12, concern: 22, notes: 'Fit-out/interiors — subcontractor-heavy, asset-light, project-management-focused' },
   'construction_fitout':  { typical: 16, good: 12, concern: 22, notes: 'Construction fit-out' },
   'construction':         { typical: 28, good: 22, concern: 35, notes: 'Construction — mixed employed/subcontract' },
   'trades':               { typical: 30, good: 25, concern: 38, notes: 'Trades — mostly employed labour' },
@@ -1572,9 +1581,10 @@ const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
   'food_retail':      { typical: 22, good: 17, concern: 28, notes: 'Food retail — higher staff ratio' },
 
   // ── MANUFACTURING & ENGINEERING ───────────────────────────────────────────
-  'manufacturing':    { typical: 30, good: 25, concern: 35, notes: 'Manufacturing' },
-  'engineering':      { typical: 32, good: 27, concern: 38, notes: 'Engineering/production' },
-  'food_production':  { typical: 28, good: 23, concern: 34, notes: 'Food production' },
+  'manufacturing':              { typical: 30, good: 25, concern: 35, notes: 'Manufacturing' },
+  'engineering':                { typical: 32, good: 27, concern: 38, notes: 'Engineering/production' },
+  'food_production':            { typical: 28, good: 23, concern: 34, notes: 'Food production' },
+  'food_drink_manufacturing':   { typical: 25, good: 18, concern: 32, notes: 'Food & drink manufacturing — perishable stock, higher multiples for branded products' },
 
   // ── MEDIA, EDUCATION & OTHER ──────────────────────────────────────────────
   'media':            { typical: 40, good: 33, concern: 50, notes: 'Media/publishing' },
@@ -1603,6 +1613,7 @@ const PAYROLL_BENCHMARKS: Record<string, PayrollBenchmark> = {
 const GROSS_MARGIN_BENCHMARKS: Record<string, { low: number; high: number }> = {
   // ── CONSTRUCTION & FIT-OUT ──────────────────────────────────────────────
   'fit_out':              { low: 20, high: 32 },
+  'fitout_interiors':     { low: 18, high: 32 },
   'construction_fitout':  { low: 20, high: 32 },
   'construction':         { low: 15, high: 30 },
   'trades':               { low: 35, high: 55 },
@@ -1658,9 +1669,10 @@ const GROSS_MARGIN_BENCHMARKS: Record<string, { low: number; high: number }> = {
   'food_retail':  { low: 25, high: 45 },
 
   // ── MANUFACTURING & ENGINEERING ───────────────────────────────────────────
-  'manufacturing':    { low: 30, high: 50 },
-  'engineering':      { low: 35, high: 55 },
-  'food_production':  { low: 25, high: 45 },
+  'manufacturing':              { low: 30, high: 50 },
+  'engineering':                { low: 35, high: 55 },
+  'food_production':            { low: 25, high: 45 },
+  'food_drink_manufacturing':   { low: 25, high: 50 },
 
   // ── MEDIA, EDUCATION & OTHER ──────────────────────────────────────────────
   'media':              { low: 45, high: 65 },
@@ -1697,8 +1709,8 @@ function getPayrollBenchmark(industry: string): PayrollBenchmark {
     }
   }
 
-  if (lower.includes('fit') || lower.includes('interior') || lower.includes('fitout')) {
-    return PAYROLL_BENCHMARKS['fit_out'];
+  if (lower.includes('fitout') || lower.includes('fit_out') || lower.includes('fitout_interiors') || lower.includes('interior')) {
+    return PAYROLL_BENCHMARKS['fitout_interiors'] || PAYROLL_BENCHMARKS['fit_out'];
   }
   if (lower.includes('build') || lower.includes('construct') || lower.includes('contractor')) {
     return PAYROLL_BENCHMARKS['construction'];
@@ -1764,7 +1776,11 @@ function detectIndustry(
       console.log(`[Pass1] Industry from principal activity: recruitment ("${principalActivity}")`);
       return { code: 'recruitment', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
     }
-    if (/\b(construct(ion)?|build(er|ing)|fit.?out|civil engineer|groundwork|demolition|roofing|plumb(er|ing)|electrician)\b/.test(pa)) {
+    if (/\b(fit.?out|fitout|interior(s)? (contractor|design|fit)|shopfit|commercial interior|office (fit|refurb)|workplace design)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: fitout_interiors ("${principalActivity}")`);
+      return { code: 'fitout_interiors', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(construct(ion)?|build(er|ing)|civil engineer|groundwork|demolition|roofing|plumb(er|ing)|electrician)\b/.test(pa)) {
       console.log(`[Pass1] Industry from principal activity: construction ("${principalActivity}")`);
       return { code: 'construction', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
     }
@@ -1784,9 +1800,17 @@ function detectIndustry(
       console.log(`[Pass1] Industry from principal activity: hospitality ("${principalActivity}")`);
       return { code: 'hospitality', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
     }
+    if (/\b(food (manufactur|production|processing)|drink manufactur|brewery|distillery|bakery production|beverage)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: food_drink_manufacturing ("${principalActivity}")`);
+      return { code: 'food_drink_manufacturing', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
     if (/\b(manufactur|factory|production|fabricat|machining|engineering)\b/.test(pa)) {
       console.log(`[Pass1] Industry from principal activity: manufacturing ("${principalActivity}")`);
       return { code: 'manufacturing', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
+    }
+    if (/\b(logistics|haulage|freight|courier|transport|delivery service)\b/.test(pa)) {
+      console.log(`[Pass1] Industry from principal activity: logistics ("${principalActivity}")`);
+      return { code: 'logistics', confidence: 'principal_activity', source: `Principal activity: "${principalActivity}"` };
     }
     if (/\b(retail|wholesale|distribut|ecommerce|e-commerce)\b/.test(pa)) {
       console.log(`[Pass1] Industry from principal activity: retail ("${principalActivity}")`);
@@ -2082,7 +2106,7 @@ function analysePayrollEfficiency(financials: ExtractedFinancials, industry: str
   else assessment = 'concerning';
   
   const calculation = `£${staffCosts.toLocaleString()} ÷ £${turnover.toLocaleString()} = ${staffCostsPct.toFixed(1)}%. ` +
-    `Benchmark ${benchmark.good}-${benchmark.typical}%. Excess ${excessPercentage.toFixed(1)}% = £${annualExcess.toLocaleString()}/year`;
+    `Industry benchmark ${benchmark.good}-${benchmark.typical}%. Excess ${excessPercentage.toFixed(1)}% = £${annualExcess.toLocaleString()}/year`;
   
   return {
     isOverstaffed, excessPercentage, annualExcess, benchmark, assessment, calculation,
@@ -2869,7 +2893,9 @@ function calculateCostOfInaction(
   trajectoryAnalysis: TrajectoryAnalysis | null,
   valuationAnalysis: ValuationAnalysis | null,
   responses: Record<string, any>,
-  financials?: ExtractedFinancials
+  financials?: ExtractedFinancials,
+  grossMarginAnalysis?: GrossMarginAnalysis | null,
+  exitReadinessAnalysis?: ExitReadinessAnalysis | null
 ): CostOfInactionAnalysis {
   const components: CostComponent[] = [];
   
@@ -3028,10 +3054,53 @@ function calculateCostOfInaction(
     }
   }
   
+  // 8. Gross margin gap vs industry benchmark (fires when GM below benchmark and no operating margin recovery already captured)
+  const hasMarginRecovery = components.some(c => c.category === 'Operating Margin Recovery');
+  if (!hasMarginRecovery && grossMarginAnalysis?.hasData && grossMarginAnalysis.industryBenchmark && turnover > 0) {
+    const gmPct = grossMarginAnalysis.grossMarginPct;
+    const gmBenchmarkTypical = (grossMarginAnalysis.industryBenchmark.low + grossMarginAnalysis.industryBenchmark.high) / 2;
+    if (gmPct < gmBenchmarkTypical) {
+      const gapPct = gmBenchmarkTypical - gmPct;
+      const annualImpact = Math.round((gapPct / 100) * turnover * 0.3);
+      if (annualImpact > 5000) {
+        components.push({
+          category: 'Gross Margin Gap',
+          annualCost: annualImpact,
+          costOverHorizon: annualImpact * timeHorizon,
+          calculation: `GM ${gmPct.toFixed(1)}% vs ${gmBenchmarkTypical.toFixed(0)}% industry mid-point = ${gapPct.toFixed(1)}pp gap. 30% recovery assumption on £${(turnover / 1000).toFixed(0)}k = £${(annualImpact / 1000).toFixed(0)}k/year`,
+          confidence: 'estimated'
+        });
+        console.log(`[Pass1] 📊 Gross margin gap CoI: ${gmPct.toFixed(1)}% vs ${gmBenchmarkTypical.toFixed(0)}% benchmark = £${(annualImpact / 1000).toFixed(0)}k/year (30% recovery)`);
+      }
+    }
+  }
+
+  // 9. Exit readiness gap — valuation discount for founder-dependent businesses with exit timeline
+  if (exitReadinessAnalysis && valuationAnalysis?.conservativeValue) {
+    const exitScore = exitReadinessAnalysis.score;
+    const maxScore = exitReadinessAnalysis.maxScore;
+    const exitPct = Math.round((exitScore / maxScore) * 100);
+    const avgVal = ((valuationAnalysis.conservativeValue || 0) + (valuationAnalysis.optimisticValue || 0)) / 2;
+    if (exitPct < 70 && avgVal > 0) {
+      const discountPct = Math.min(25, ((70 - exitPct) / 10) * 5);
+      const valuationDiscount = Math.round(avgVal * (discountPct / 100));
+      if (valuationDiscount > 10000) {
+        components.push({
+          category: 'Exit Readiness Gap',
+          annualCost: Math.round(valuationDiscount / timeHorizon),
+          costOverHorizon: valuationDiscount,
+          calculation: `Exit readiness ${exitPct}% (below 70% threshold). ~${discountPct.toFixed(0)}% buyer discount on £${(avgVal / 1000).toFixed(0)}k average valuation`,
+          confidence: 'inferred' as any
+        });
+        console.log(`[Pass1] 📊 Exit readiness gap CoI: ${exitPct}% readiness → ${discountPct.toFixed(0)}% discount = £${(valuationDiscount / 1000).toFixed(0)}k`);
+      }
+    }
+  }
+
   const totalAnnual = components.reduce((sum, c) => sum + c.annualCost, 0);
   const totalOverHorizon = components.reduce((sum, c) => sum + c.costOverHorizon, 0);
   const calculatedComponents = components.filter(c => c.confidence === 'calculated');
-  const estimatedComponents = components.filter(c => c.confidence === 'estimated');
+  const estimatedComponents = components.filter(c => c.confidence !== 'calculated');
   
   // Connect horizon to client's exit timeline
   let horizonLabel = `${timeHorizon}-year horizon`;
@@ -3048,11 +3117,20 @@ function calculateCostOfInaction(
   let narrative = '';
   if (components.length > 0) {
     narrative = `Cost of inaction over ${horizonLabel}: £${(totalOverHorizon/1000).toFixed(0)}k+. `;
+    const formatComponentWithWorking = (c: CostComponent): string => {
+      const annualK = Math.round(c.annualCost / 1000);
+      const totalK = Math.round(c.costOverHorizon / 1000);
+      if (annualK > 0 && totalK > 0 && timeHorizon > 0 &&
+          Math.abs((c.costOverHorizon / c.annualCost) - timeHorizon) < 0.5) {
+        return `${c.category}: £${annualK}k/year × ${timeHorizon} years = £${totalK}k`;
+      }
+      return `${c.category}: £${totalK}k`;
+    };
     if (calculatedComponents.length > 0) {
-      narrative += `Calculated: ${calculatedComponents.map(c => `${c.category}: £${(c.costOverHorizon/1000).toFixed(0)}k`).join(', ')}. `;
+      narrative += `Calculated: ${calculatedComponents.map(c => formatComponentWithWorking(c)).join(', ')}. `;
     }
     if (estimatedComponents.length > 0) {
-      narrative += `Estimated: ${estimatedComponents.map(c => `${c.category}: £${(c.costOverHorizon/1000).toFixed(0)}k`).join(', ')}.`;
+      narrative += `Estimated: ${estimatedComponents.map(c => formatComponentWithWorking(c)).join(', ')}.`;
     }
   } else {
     narrative = `No quantifiable cost of inaction calculated - likely qualitative (stress, time, health).`;
@@ -3176,7 +3254,7 @@ function analyseAchievements(
   if (payroll?.assessment === 'efficient') {
     achievements.push({
       achievement: 'Lean staffing structure',
-      evidence: `Staff costs ${payroll.staffCostsPct.toFixed(1)}% vs ${payroll.benchmark.good}% benchmark`,
+      evidence: `Staff costs ${payroll.staffCostsPct.toFixed(1)}% against an industry benchmark of ${payroll.benchmark.good}%`,
       significance: 'Operating at efficient levels - no fat to cut'
     });
   }
@@ -3533,7 +3611,7 @@ function performComprehensiveAnalysis(
   const productivity = analyseProductivity(financials, industry);
   const workingCapital = analyseWorkingCapital(financials);
   const exitReadiness = analyseExitReadiness(responses, financials);
-  const costOfInaction = calculateCostOfInaction(payroll, trajectory, valuation, responses, financials);
+  const costOfInaction = calculateCostOfInaction(payroll, trajectory, valuation, responses, financials, grossMargin, exitReadiness);
   const achievements = analyseAchievements(responses, financials, payroll, grossMargin, exitReadiness);
   
   // NEW: Run lightweight benchmark for Pass 3 ROI grounding
@@ -3986,12 +4064,14 @@ function buildPrebuiltPhrases(
     const monthlyK = Math.round(p.annualExcess / 12 / 1000);
     const twoYearK = annualK * 2;
     
+    const benchGood = p.benchmark?.good || 28;
+    const industryLabel = industry.replace(/_/g, ' ');
     phrases.payroll = {
       headline: `£${annualK}k/year payroll excess`,
-      impact: `£${annualK}k/year excess - staff costs at ${p.staffCostsPct?.toFixed(1) || '?'}% vs the ${p.benchmark?.good || 28}% benchmark`,
-      monthly: `£${monthlyK}k walks out the door every month`,
+      impact: `£${annualK}k/year excess - staff costs at ${p.staffCostsPct?.toFixed(1) || '?'}% against a ${benchGood}% industry benchmark for ${industryLabel} businesses`,
+      monthly: `£${monthlyK}k/month above what comparable ${industryLabel} businesses spend on staff`,
       twoYear: `£${twoYearK}k over the next two years`,
-      comparison: `${p.staffCostsPct?.toFixed(1) || '?'}% vs the ${p.benchmark?.good || 28}% benchmark for ${industry.replace(/_/g, ' ')}`,
+      comparison: `${p.staffCostsPct?.toFixed(1) || '?'}% against a ${benchGood}% industry benchmark for ${industryLabel} businesses`,
       action: 'Right-size the team before a buyer does it for you',
       isOverstaffed: p.isOverstaffed || false
     };
@@ -4028,10 +4108,19 @@ function buildPrebuiltPhrases(
     const c = analysis.costOfInaction;
     const totalK = Math.round(c.totalOverHorizon / 1000);
     const monthlyK = Math.round(c.totalAnnual / 12 / 1000);
-    
+    const timeHorizon = c.timeHorizon || 2;
+    const formatCoIComponent = (comp: any): string => {
+      const annualK = Math.round((comp.annualCost || 0) / 1000);
+      const compTotalK = Math.round((comp.costOverHorizon || 0) / 1000);
+      if (annualK > 0 && compTotalK > 0 && timeHorizon > 0 &&
+          Math.abs((comp.costOverHorizon / comp.annualCost) - timeHorizon) < 0.5) {
+        return `${comp.category}: £${annualK}k/year × ${timeHorizon} years = £${compTotalK}k`;
+      }
+      return `${comp.category}: ${formatCurrencyK(comp.costOverHorizon)}`;
+    };
     phrases.costOfInaction = {
-      headline: `Cost of inaction: £${totalK}k+ over ${c.timeHorizon || 2} years`,
-      breakdown: c.components?.map((comp: any) => `${comp.category}: ${formatCurrencyK(comp.costOverHorizon)}`).join('. ') || '',
+      headline: `Cost of inaction: £${totalK}k+ over ${timeHorizon} years`,
+      breakdown: c.components?.map((comp: any) => formatCoIComponent(comp)).join('. ') || '',
       urgency: monthlyK > 0 ? `Every month you wait is another £${monthlyK}k gone` : 'Act now to preserve value'
     };
   }
@@ -4108,7 +4197,8 @@ function detectNeverHadBreakPhrase(analysis: ComprehensiveAnalysis | null): stri
 
 function buildPass2PromptInjectionFromAnalysis(
   analysis: ComprehensiveAnalysis | null,
-  clarity: DestinationClarityAnalysis | null
+  clarity: DestinationClarityAnalysis | null,
+  industry: string
 ): string {
   if (!analysis) return '';
   
@@ -4138,7 +4228,7 @@ Annual Excess: £${annualK}k
 Monthly: £${monthlyK}k
 Two-Year: £${twoYearK}k
 
-⛔ USE THIS EXACT PHRASE: "£${annualK}k/year excess - staff costs at ${p.staffCostsPct?.toFixed(1) || '?'}% vs the ${p.benchmark?.good || 28}% benchmark"
+⛔ USE THIS EXACT PHRASE: "£${annualK}k/year excess - staff costs at ${p.staffCostsPct?.toFixed(1) || '?'}% against a ${p.benchmark?.good || 28}% industry benchmark for ${industry.replace(/_/g, ' ')} businesses"
 
 ---
 `;
@@ -4200,13 +4290,28 @@ Blockers: ${e.blockers?.join(', ') || 'None'}
   if (analysis.costOfInaction?.totalOverHorizon) {
     const c = analysis.costOfInaction;
     const totalK = Math.round(c.totalOverHorizon / 1000);
+    const timeHorizon = c.timeHorizon || 2;
+    const formatCoIComp = (comp: any): string => {
+      const annualK = Math.round((comp.annualCost || 0) / 1000);
+      const compTotalK = Math.round((comp.costOverHorizon || 0) / 1000);
+      if (annualK > 0 && compTotalK > 0 && timeHorizon > 0 &&
+          Math.abs((comp.costOverHorizon / comp.annualCost) - timeHorizon) < 0.5) {
+        return `${comp.category}: £${annualK}k/year × ${timeHorizon} years = £${compTotalK}k`;
+      }
+      return `${comp.category}: £${compTotalK}k`;
+    };
+    const breakdownWithWorking = c.components?.map((comp: any) => formatCoIComp(comp)).join('. ') || '';
     
     injection += `
 ## COST OF INACTION (MANDATORY)
 
-Total over ${c.timeHorizon || 2} years: £${totalK}k+
+Total over ${timeHorizon} years: £${totalK}k+
 
-⛔ USE THIS: "Cost of inaction: £${totalK}k+ over ${c.timeHorizon || 2} years"
+Breakdown (show the maths to the reader):
+${breakdownWithWorking}
+
+⛔ USE THIS: "Cost of inaction: £${totalK}k+ over ${timeHorizon} years"
+⛔ In the breakdown, ALWAYS show working: "£132k/year × 4 years = £529k" not just "£529k"
 
 ---
 `;
@@ -5383,16 +5488,25 @@ serve(async (req) => {
         const coi = comprehensiveAnalysis.costOfInaction;
         coi.totalAnnual = (coi.components as any[]).reduce((sum: number, c: any) => sum + c.annualCost, 0);
         coi.totalOverHorizon = (coi.components as any[]).reduce((sum: number, c: any) => sum + c.costOverHorizon, 0);
-        // Rebuild narrative to include new component
+        // Rebuild narrative to include new component (with working shown)
         const allComponents = coi.components as any[];
         const calculatedC = allComponents.filter((c: any) => c.confidence === 'calculated');
         const estimatedC = allComponents.filter((c: any) => c.confidence === 'estimated');
+        const fmtComp = (c: any): string => {
+          const aK = Math.round((c.annualCost || 0) / 1000);
+          const tK = Math.round((c.costOverHorizon || 0) / 1000);
+          const th = coi.timeHorizon || 3;
+          if (aK > 0 && tK > 0 && th > 0 && Math.abs((c.costOverHorizon / c.annualCost) - th) < 0.5) {
+            return `${c.category}: £${aK}k/year × ${th} years = £${tK}k`;
+          }
+          return `${c.category}: £${tK}k`;
+        };
         coi.narrative = `Cost of inaction over ${coi.horizonLabel || `${coi.timeHorizon}-year horizon`}: £${Math.round(coi.totalOverHorizon / 1000)}k+. `;
         if (calculatedC.length > 0) {
-          coi.narrative += `Calculated: ${calculatedC.map((c: any) => `${c.category}: £${Math.round(c.costOverHorizon / 1000)}k`).join(', ')}. `;
+          coi.narrative += `Calculated: ${calculatedC.map((c: any) => fmtComp(c)).join(', ')}. `;
         }
         if (estimatedC.length > 0) {
-          coi.narrative += `Estimated: ${estimatedC.map((c: any) => `${c.category}: £${Math.round(c.costOverHorizon / 1000)}k`).join(', ')}.`;
+          coi.narrative += `Estimated: ${estimatedC.map((c: any) => fmtComp(c)).join(', ')}.`;
         }
         console.log('[Pass1] 🏛️ Rebuilt CoI narrative after IHT addition:', coi.narrative);
         console.log('[Pass1] 🏛️ IHT growth CoI component:', annualIHTGrowth);
@@ -5448,7 +5562,7 @@ serve(async (req) => {
     // ========================================================================
     
     const prebuiltPhrases = buildPrebuiltPhrases(comprehensiveAnalysis, destinationClarity, industry);
-    const pass2PromptInjection = buildPass2PromptInjectionFromAnalysis(comprehensiveAnalysis, destinationClarity);
+    const pass2PromptInjection = buildPass2PromptInjectionFromAnalysis(comprehensiveAnalysis, destinationClarity, industry);
     
     console.log('[Pass1] ✅ Prebuilt phrases generated:', {
       hasPayroll: !!prebuiltPhrases?.payroll?.impact,

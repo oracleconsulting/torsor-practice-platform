@@ -9,6 +9,9 @@ export const ANTI_AI_SLOP_PROMPT = `
 You are writing for a specific human, not a board meeting. Your prose should sound like a smart advisor talking to a business owner over coffee—direct, warm, useful.
 
 ### BANNED VOCABULARY (never use these words)
+- Em-dashes (—). Never use them. Use full stops, commas, or rewrite the sentence.
+  BAD: "freed up — properly freed up"
+  GOOD: "freed up. Properly freed up."
 - Additionally, Furthermore, Moreover (just continue the thought)
 - Delve, delving (look at, examine, dig into)
 - Crucial, pivotal, vital, key (important, or just show why it matters)
@@ -22,6 +25,9 @@ You are writing for a specific human, not a board meeting. Your prose should sou
 
 ### BANNED SENTENCE STRUCTURES
 - "Not only X but also Y" (parallelism is AI behavior—pick X or Y)
+- "But the real return?" / "But here's what that actually means:" (AI motivational transition)
+- "someone/having someone in your corner" (overused across all reports — find a different way each time)
+- "You've built something [remarkable/significant/valuable]" followed by "but" (AI hedging before the ask)
 - "It's important to note that..." (just say the thing)
 - "In summary..." / "In conclusion..." (don't summarize, end)
 - "While X, it's worth noting Y" (commit to a point)
@@ -43,6 +49,11 @@ You are writing for a specific human, not a board meeting. Your prose should sou
 3. **Quote them.** Every major section should include their actual words.
 4. **Sentence case headings.** "Gap analysis" not "Gap Analysis"
 5. **Say it once.** AI restates constantly. You don't.
+6. **Vary the structure.** Not every gap needs the same number of sub-sections. Not every journey phase needs exactly 3 bullet points. Uniformity = template = AI.
+7. **Say each concept ONCE.** If you've said "evenings and weekends" twice, find a different way: "your time", "the hours you're giving away". Max 2 uses of any emotional phrase.
+8. **No motivational transitions.** Don't write "But the real return?" Just say it.
+9. **Benchmark context.** Always specify: "38% industry benchmark for training businesses" not "the 38% benchmark". The reader has never heard of this benchmark before.
+10. **Cost figures must show working.** Write "£132k/year × 4 years = £529k" not just "£529k". Readers deserve to see the maths.
 
 ### THE READABILITY TEST
 Read every sentence aloud. Ask:
@@ -77,10 +88,13 @@ If it sounds corporate, rewrite it. If it sounds human, keep it.
 export const ANTI_AI_SLOP_PROMPT_SHORT = `
 ## WRITING STYLE
 
-BANNED WORDS: Additionally, delve, crucial, pivotal, testament, underscores, highlights, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
+BANNED WORDS: Em-dashes (—), Additionally, delve, crucial, pivotal, testament, underscores, highlights, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
 
 BANNED: 
 - "Not only X but also Y" parallelisms
+- "But the real return?" / "But here's what that actually means:"
+- "someone in your corner" (overused)
+- "You've built something" + "but" (AI hedge)
 - "It's important to note..." / "In summary..."
 - Rule of three lists (pick the best one)
 - Explaining significance ("plays a pivotal role in fostering...")
@@ -92,37 +106,33 @@ REQUIRED:
 - Quote their actual words
 - Sentence case headings
 - Say it once—don't restate
+- Vary structure (not every gap same length)
+- Benchmark context: "38% industry benchmark for training businesses"
+- Cost figures show working: "£132k/year × 4 years = £529k"
 
 THE TEST: If it sounds like an annual report, rewrite it. If it sounds like coffee with a smart friend, keep it.
 `;
 
 // Voice characteristics for specific contexts
 export const VOICE_CHARACTERISTICS = {
-  // For discovery reports - advisory, warm, direct
   discovery: `
 VOICE: Advisory partner, not consultant. You've seen this before. You're here to help, not impress.
 TONE: Direct but warm. Confident but not arrogant. Urgent but not panicked.
 LANGUAGE: Short sentences. Active voice. Concrete nouns.
 PERSONALITY: You care about this person's success. It shows.
 `,
-  
-  // For systems audit - technical but accessible
   systemsAudit: `
 VOICE: Operations expert who's done this a hundred times. Practical, not theoretical.
 TONE: Diagnostic but constructive. "Here's what's broken and here's how to fix it."
 LANGUAGE: Specific system names. Actual hours. Real costs.
 PERSONALITY: You've seen worse. This is fixable.
 `,
-  
-  // For benchmarking - honest, grounded
   benchmarking: `
 VOICE: Industry insider sharing real data. No fluff, no spin.
 TONE: Honest about where they stand. Constructive about what to do.
 LANGUAGE: Percentiles, not adjectives. Numbers, not feelings.
 PERSONALITY: You respect them enough to tell the truth.
 `,
-  
-  // For closing messages - human, brief
   closing: `
 VOICE: Human to human. Someone who listened and understood.
 TONE: Confident but not pushy. Warm but not sycophantic.
@@ -144,12 +154,12 @@ export const AI_SLOP_PATTERNS = [
   /\bfostering\b/gi,
   /\bgarnered\b/gi,
   /\btapestry\b/gi,
-  /\blandscape\b/gi, // be careful - "the regulatory landscape" bad, "beautiful landscape" ok
+  /\blandscape\b/gi,
   /\bintricate\b/gi,
   /\bvibrant\b/gi,
   /\benduring\b/gi,
   /\bsynergy\b/gi,
-  /\bleverage\b/gi, // context-dependent
+  /\bleverage\b/gi,
   /\bvalue-add\b/gi,
   /\bcircle back\b/gi,
   /\bdisrupt\b/gi,
@@ -166,25 +176,24 @@ export const AI_SLOP_PATTERNS = [
   /having said that/gi,
   /that said,/gi,
   /despite .+ faces? challenges?/gi,
+  /—/g,                                     // em-dashes
+  /But the real return\??/gi,                // AI transition
+  /But here'?s what that actually means/gi,   // AI transition
+  /someone in your corner/gi,                 // overused
+  /You'?ve built something/gi,               // AI hedge-before-ask
 ];
 
 /**
  * Check text for AI slop patterns
- * Returns array of matches found
  */
 export function detectAISlop(text: string): { pattern: string; count: number }[] {
   const results: { pattern: string; count: number }[] = [];
-  
   for (const pattern of AI_SLOP_PATTERNS) {
     const matches = text.match(pattern);
     if (matches && matches.length > 0) {
-      results.push({
-        pattern: pattern.source,
-        count: matches.length
-      });
+      results.push({ pattern: pattern.source, count: matches.length });
     }
   }
-  
   return results;
 }
 
@@ -195,9 +204,5 @@ export function getSlopScore(text: string): number {
   const wordCount = text.split(/\s+/).length;
   const issues = detectAISlop(text);
   const totalIssues = issues.reduce((sum, i) => sum + i.count, 0);
-  
-  // Score: issues per 100 words, capped at 100
-  const score = Math.min(100, Math.round((totalIssues / wordCount) * 1000));
-  return score;
+  return Math.min(100, Math.round((totalIssues / Math.max(1, wordCount)) * 1000));
 }
-

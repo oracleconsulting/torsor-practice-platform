@@ -2954,6 +2954,22 @@ Do NOT:
 - Fabricate quotes the client never said
 - Leave any schema field missing or null unless the data genuinely isn't available
 
+BANNED TRANSITIONS (never use these):
+- "But the real return?"
+- "But here's what that actually means"
+- "Here's the thing"
+- "Here's what matters"
+Just say the thing. No preamble.
+
+REPETITION LIMITS:
+- "evenings and weekends" — use max 2 times in entire report
+- "£10k/month passive income" or "£10,000 a month" — use max 3 times
+- "ground-hog day" — use max 1 time (it's powerful once, lazy twice)
+- "conversations you've been avoiding" — use max 2 times
+- "cash flow and paying bills" — use as exact quote once, then vary: "the cash pressure", "the sleepless nights", "keeping the lights on"
+- If you've used a phrase, find a different way to say it next time.
+- Count your uses. If a concept appears more than the limit, rewrite.
+
 Respond with ONLY the JSON object. No markdown, no preamble, no commentary.
 
 ⛔ FABRICATED QUOTE GUARD:
@@ -4775,6 +4791,26 @@ Before returning, verify:
     const reportJsonStr = JSON.stringify(narratives);
     const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
     narratives = JSON.parse(cleanedStr);
+
+    // Remove em-dashes and replace banned words/transitions (AI tell)
+    let narStr = JSON.stringify(narratives);
+    narStr = narStr.replace(/ — /g, '. ');
+    narStr = narStr.replace(/—/g, '. ');
+    narStr = narStr.replace(/\bcrucial\b/gi, 'difficult');
+    narStr = narStr.replace(/\bpivotal\b/gi, 'important');
+    // Split/join for banned transitions (regex fails on JSON-escaped strings)
+    narStr = narStr.split('But the real return?').join('In practice:');
+    narStr = narStr.split('But the real return.').join('In practice.');
+    narStr = narStr.split("But here\\'s what that actually means:").join('In practice:');
+    narStr = narStr.split("But here\\'s what that actually means.").join('In practice.');
+    narStr = narStr.split("But here's what that actually means:").join('In practice:');
+    narStr = narStr.split("But here's what that actually means.").join('In practice.');
+    narStr = narStr.split("Here\\'s the thing:").join('');
+    narStr = narStr.split("Here's the thing:").join('');
+    narStr = narStr.split("Here\\'s what matters:").join('');
+    narStr = narStr.split("Here's what matters:").join('');
+    narratives = JSON.parse(narStr);
+    console.log('[Pass2A] Removed em-dashes and replaced banned words/transitions from output');
 
     // Snapshot client-visible opportunities into the report (Option C — hybrid surfacing)
     const clientVisibleSnapshot = (curatedOpportunities || [])

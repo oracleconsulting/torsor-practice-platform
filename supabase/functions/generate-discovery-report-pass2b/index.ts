@@ -11,6 +11,36 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const PASS2B_MODEL = 'anthropic/claude-opus-4.5';
 
+// Inlined from _shared/writing-style.ts to avoid shared module import issues
+const AI_SLOP_PATTERNS = [
+  /\bAdditionally\b/gi, /\bdelve\b/gi, /\bcrucial\b/gi, /\bpivotal\b/gi,
+  /\btestament to\b/gi, /\bunderscores\b/gi, /\bhighlights? the\b/gi,
+  /\bshowcases?\b/gi, /\bfostering\b/gi, /\bgarnered\b/gi, /\btapestry\b/gi,
+  /\blandscape\b/gi, /\bintricate\b/gi, /\bvibrant\b/gi, /\benduring\b/gi,
+  /\bsynergy\b/gi, /\bleverage\b/gi, /\bvalue-add\b/gi, /\bcircle back\b/gi,
+  /\bdisrupt\b/gi, /\becosystem\b/gi, /\bscalable\b/gi, /\bholistic\b/gi,
+  /\bimpactful\b/gi, /not only .+ but also/gi, /it's important to note/gi,
+  /it is important to note/gi, /in summary/gi, /in conclusion/gi,
+  /what's more/gi, /having said that/gi, /that said,/gi,
+  /despite .+ faces? challenges?/gi, /—/g, /But the real return\??/gi,
+  /But here'?s what that actually means/gi, /someone in your corner/gi,
+  /You'?ve built something/gi,
+];
+function detectAISlop(text: string): { pattern: string; count: number }[] {
+  const results: { pattern: string; count: number }[] = [];
+  for (const pattern of AI_SLOP_PATTERNS) {
+    const matches = text.match(pattern);
+    if (matches && matches.length > 0) results.push({ pattern: pattern.source, count: matches.length });
+  }
+  return results;
+}
+function getSlopScore(text: string): number {
+  const wordCount = text.split(/\s+/).length;
+  const issues = detectAISlop(text);
+  const totalIssues = issues.reduce((sum, i) => sum + i.count, 0);
+  return Math.min(100, Math.round((totalIssues / Math.max(1, wordCount)) * 1000));
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -365,6 +395,26 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
 
     // ================================================================
+    // REMOVE EM-DASHES AND REPLACE BANNED WORDS
+    // ================================================================
+    let rewriteStr = JSON.stringify(rewrites);
+    rewriteStr = rewriteStr.replace(/ — /g, '. ');
+    rewriteStr = rewriteStr.replace(/—/g, '. ');
+    rewriteStr = rewriteStr.replace(/\bcrucial\b/gi, 'difficult');
+    rewriteStr = rewriteStr.replace(/\bpivotal\b/gi, 'important');
+    rewriteStr = rewriteStr.split('But the real return?').join('In practice:');
+    rewriteStr = rewriteStr.split('But the real return.').join('In practice.');
+    rewriteStr = rewriteStr.split("But here\\'s what that actually means:").join('In practice:');
+    rewriteStr = rewriteStr.split("But here\\'s what that actually means.").join('In practice.');
+    rewriteStr = rewriteStr.split("But here's what that actually means:").join('In practice:');
+    rewriteStr = rewriteStr.split("But here's what that actually means.").join('In practice.');
+    rewriteStr = rewriteStr.split("Here\\'s the thing:").join('');
+    rewriteStr = rewriteStr.split("Here's the thing:").join('');
+    rewriteStr = rewriteStr.split("Here\\'s what matters:").join('');
+    rewriteStr = rewriteStr.split("Here's what matters:").join('');
+    rewrites = JSON.parse(rewriteStr);
+
+    // ================================================================
     // UNIVERSAL PAYROLL FIGURE ENFORCEMENT — after Opus parse
     // ================================================================
     console.log(`[Pass2B] Correct payroll figures: £${payrollExcessK}k/year, £${payrollMonthlyK}k/month, ${payrollBenchmark}% benchmark`);
@@ -510,6 +560,17 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     // Also fix in the destination_report meta
     if (updatedDestinationReport.meta) {
       updatedDestinationReport.meta.headline = finalHeadline;
+    }
+
+    // ====================================================================
+    // AI SLOP DETECTION — log score for quality tracking (no auto-fix)
+    // ====================================================================
+    const fullText = JSON.stringify(updatedDestinationReport);
+    const slopScore = getSlopScore(fullText);
+    const slopIssues = detectAISlop(fullText);
+    console.log(`[Pass2B] AI Slop Score: ${slopScore}/100`);
+    if (slopIssues.length > 0) {
+      console.warn(`[Pass2B] Slop patterns found:`, slopIssues.map(i => `${i.pattern} (${i.count}x)`));
     }
 
     // ====================================================================
