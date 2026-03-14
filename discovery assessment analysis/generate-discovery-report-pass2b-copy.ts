@@ -189,6 +189,27 @@ serve(async (req) => {
     const startTime = Date.now();
 
     // ====================================================================
+    // LOCK CHECK: Refuse to regenerate locked reports
+    // ====================================================================
+    const { data: lockCheck } = await supabase
+      .from('discovery_reports')
+      .select('locked_at')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    if (lockCheck?.locked_at) {
+      console.log(`[Pass2B] ⛔ Report is locked (locked_at: ${lockCheck.locked_at}). Refusing to regenerate.`);
+      return new Response(
+        JSON.stringify({
+          error: 'Report is locked',
+          message: 'This report has been locked. Unlock it in admin before regenerating.',
+          locked_at: lockCheck.locked_at
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ====================================================================
     // FETCH: Report (from Pass 2A) + Assessment responses
     // ====================================================================
 
@@ -643,6 +664,9 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
         ready_for_client: true,
         published_to_client_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        // Auto-lock on publish to prevent accidental regeneration
+        locked_at: new Date().toISOString(),
+        schema_version: '1.0',
       })
       .eq('engagement_id', engagementId);
 
@@ -657,7 +681,8 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
       .update({
         status: 'published',
         published_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        report_locked: true,
       })
       .eq('id', engagementId);
 

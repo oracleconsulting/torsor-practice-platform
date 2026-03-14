@@ -974,6 +974,27 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // ========================================================================
+    // LOCK CHECK: Refuse to regenerate locked reports
+    // ========================================================================
+    const { data: lockCheck } = await supabase
+      .from('discovery_reports')
+      .select('locked_at')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    if (lockCheck?.locked_at) {
+      console.log(`[Pass2A] ⛔ Report is locked (locked_at: ${lockCheck.locked_at}). Refusing to regenerate.`);
+      return new Response(
+        JSON.stringify({
+          error: 'Report is locked',
+          message: 'This report has been locked to preserve its current state. Unlock it in the admin panel before regenerating.',
+          locked_at: lockCheck.locked_at
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ========================================================================
     // GUARD: Refuse to generate if Pass 1 hasn't run (Phase 2 / 2. Score)
     // ========================================================================
     const { data: existingReport, error: reportGuardError } = await supabase

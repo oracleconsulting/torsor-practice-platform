@@ -104,6 +104,25 @@ serve(async (req) => {
 
     console.log(`[Discovery Pass 3] Starting opportunity analysis for engagement: ${engagementId}`);
 
+    // LOCK CHECK: Refuse to regenerate if report is locked
+    const { data: lockCheck } = await supabase
+      .from('discovery_reports')
+      .select('locked_at')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    if (lockCheck?.locked_at) {
+      console.log(`[Pass3] ⛔ Report is locked (locked_at: ${lockCheck.locked_at}). Refusing to regenerate opportunities.`);
+      return new Response(
+        JSON.stringify({
+          error: 'Report is locked',
+          message: 'Unlock the report in admin before regenerating opportunities.',
+          locked_at: lockCheck.locked_at
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 1. Gather all client data
     const clientData = await gatherAllClientData(supabase, engagementId);
     console.log(`[Discovery Pass 3] Gathered data for client: ${clientData.clientName} (${clientData.clientType})`);

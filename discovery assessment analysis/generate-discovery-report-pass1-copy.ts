@@ -4402,6 +4402,27 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // ========================================================================
+    // LOCK CHECK: Refuse to regenerate locked reports
+    // ========================================================================
+    const { data: lockCheck } = await supabase
+      .from('discovery_reports')
+      .select('locked_at')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    if (lockCheck?.locked_at) {
+      console.log(`[Pass1] ⛔ Report is locked (locked_at: ${lockCheck.locked_at}). Refusing to regenerate.`);
+      return new Response(
+        JSON.stringify({
+          error: 'Report is locked',
+          message: 'Unlock the report in admin before regenerating.',
+          locked_at: lockCheck.locked_at
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('[Pass1] Starting for engagement:', engagementId);
     const startTime = Date.now();
 
@@ -5730,19 +5751,19 @@ serve(async (req) => {
               extractedFinancials.cash - extractedFinancials.cashPriorYear : null
           }
         }
-      }
-      
-      // NOTE: These columns don't exist in discovery_reports table yet
-      // Add via migration if needed, then uncomment:
-      // processing_metadata: {
-      //   pass1CompletedAt: new Date().toISOString(),
-      //   processingTimeMs: processingTime,
-      //   financialDataSource: extractedFinancials.source,
-      //   analysisVersion: '3.0-structured-phrases'
-      // },
-      // Add via migration if needed, then uncomment:
-      // pass2_prompt_injection: pass2PromptInjection,
-      // prebuilt_phrases: prebuiltPhrases
+      },
+
+      // Pass 1 snapshot — frozen raw data for future layout migration
+      pass1_snapshot: JSON.parse(JSON.stringify(comprehensiveAnalysis)),
+      schema_version: '1.0',
+      generation_config: {
+        schema_version: '1.0',
+        industry_code: industry,
+        client_type: clientType.type || 'unknown',
+        report_framing: clientType.frameworkOverrides?.reportFraming || 'transformation',
+        pass1_model: 'deterministic',
+        generated_at: new Date().toISOString(),
+      },
     };
     if (page3Journey) {
       reportData.page3_journey = page3Journey;
