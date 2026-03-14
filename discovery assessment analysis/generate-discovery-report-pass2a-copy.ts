@@ -210,6 +210,81 @@ function enforcePayrollInObject(obj: any, correctExcessK: number, correctMonthly
 }
 
 // ============================================================================
+// GROSS MARGIN BENCHMARK ENFORCEMENT (prevents LLM inventing GM benchmarks)
+// ============================================================================
+
+function fixGrossMarginInString(
+  text: string,
+  correctMarginPct: number,
+  correctBenchmarkLow: number,
+  correctBenchmarkHigh: number
+): { text: string; changed: boolean; count: number } {
+  let result = text;
+  let count = 0;
+  if (text.length < 10) return { text, changed: false, count: 0 };
+
+  const hasGMContext = /gross\s*margin|gm\s*of|margin.*benchmark|margin.*industry/i.test(text);
+  if (!hasGMContext) return { text, changed: false, count: 0 };
+
+  const benchMid = Math.round((correctBenchmarkLow + correctBenchmarkHigh) / 2);
+
+  result = result.replace(
+    /(\d{1,2}(?:\.\d)?)\s*%\s*(industry|sector|benchmark|median|typical)\s*(benchmark|average|norm)?/gi,
+    (match: string, foundPct: string) => {
+      const found = parseFloat(foundPct);
+      if (found >= 10 && found <= 90 && Math.abs(found - benchMid) > 3 && Math.abs(found - correctBenchmarkLow) > 3 && Math.abs(found - correctBenchmarkHigh) > 3) {
+        count++;
+        return match.replace(`${foundPct}%`, `${benchMid}%`);
+      }
+      return match;
+    }
+  );
+
+  result = result.replace(
+    /benchmark\s+(?:of\s+)?(\d{1,2}(?:\.\d)?)\s*-\s*(\d{1,2}(?:\.\d)?)\s*%/gi,
+    (match: string, lo: string, hi: string) => {
+      const loN = parseFloat(lo);
+      const hiN = parseFloat(hi);
+      if (Math.abs(loN - correctBenchmarkLow) > 3 || Math.abs(hiN - correctBenchmarkHigh) > 3) {
+        count++;
+        return match.replace(`${lo}-${hi}%`, `${correctBenchmarkLow}-${correctBenchmarkHigh}%`);
+      }
+      return match;
+    }
+  );
+
+  return { text: result, changed: count > 0, count };
+}
+
+function enforceGrossMarginInObject(obj: any, correctMarginPct: number, correctBenchmarkLow: number, correctBenchmarkHigh: number): number {
+  let replacements = 0;
+  if (!obj || correctMarginPct <= 0) return 0;
+  if (typeof obj === 'string') return 0;
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      if (typeof obj[i] === 'string') {
+        const r = fixGrossMarginInString(obj[i], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh);
+        if (r.changed) { obj[i] = r.text; replacements += r.count; }
+      } else {
+        replacements += enforceGrossMarginInObject(obj[i], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh);
+      }
+    }
+    return replacements;
+  }
+  if (typeof obj === 'object') {
+    for (const key of Object.keys(obj)) {
+      if (typeof obj[key] === 'string') {
+        const r = fixGrossMarginInString(obj[key], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh);
+        if (r.changed) { obj[key] = r.text; replacements += r.count; }
+      } else {
+        replacements += enforceGrossMarginInObject(obj[key], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh);
+      }
+    }
+  }
+  return replacements;
+}
+
+// ============================================================================
 // 7-DIMENSION ANALYSIS TYPES (from Pass 1)
 // ============================================================================
 
@@ -1875,6 +1950,27 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
 ⛔ This is a POSITIVE - acknowledge it BEFORE discussing gaps in page2_gaps.openingLine
 ⛔ Include "grossMarginStrength": "${preBuiltPhrases.grossMarginStrength}" in page4_numbers
 ⛔ This strength supports a higher gap score (7+ with good foundations)
+
+`;
+      }
+
+      // Gross margin benchmark enforcement (always, when GM data exists)
+      const gmData = comprehensiveAnalysis?.grossMargin;
+      if (gmData?.grossMarginPct && gmData.industryBenchmark) {
+        const gmPct = gmData.grossMarginPct.toFixed(1);
+        const gmBenchLow = gmData.industryBenchmark.low;
+        const gmBenchHigh = gmData.industryBenchmark.high;
+        const gmAssessment = gmData.assessment || 'typical';
+        mandatoryPhrasesSection += `
+📊 GROSS MARGIN FIGURES (USE THESE EXACT NUMBERS):
+────────────────────────────────────────────────────────────────────────────
+► Gross margin: ${gmPct}%
+► Industry benchmark range: ${gmBenchLow}-${gmBenchHigh}%
+► Assessment: ${gmAssessment}
+
+⛔ DO NOT invent or change the benchmark percentage.
+⛔ The ${gmBenchLow}-${gmBenchHigh}% range is the correct industry benchmark.
+⛔ DO NOT describe the margin as "below benchmark" if the assessment is excellent or healthy.
 
 `;
       }
@@ -4842,6 +4938,22 @@ Before returning, verify:
       const payrollReplacements = enforcePayrollInObject(narratives, enforceK, enforceMonthlyK, enforceBench);
       if (payrollReplacements > 0) {
         console.log(`[Pass2A Payroll Enforcement] Fixed ${payrollReplacements} figures. Correct: £${enforceK}k/year, £${enforceMonthlyK}k/month, ${enforceBench}% benchmark`);
+      }
+    }
+
+    // ====================================================================
+    // GROSS MARGIN BENCHMARK ENFORCEMENT — before save (object-walking)
+    // ====================================================================
+    const gmForEnforce = comprehensiveAnalysis?.grossMargin;
+    if (gmForEnforce?.grossMarginPct && gmForEnforce.industryBenchmark) {
+      const gmReplacements = enforceGrossMarginInObject(
+        narratives,
+        gmForEnforce.grossMarginPct,
+        gmForEnforce.industryBenchmark.low,
+        gmForEnforce.industryBenchmark.high
+      );
+      if (gmReplacements > 0) {
+        console.log(`[Pass2A GM Enforcement] Fixed ${gmReplacements} gross margin benchmark figures. Correct: ${gmForEnforce.grossMarginPct.toFixed(1)}% vs ${gmForEnforce.industryBenchmark.low}-${gmForEnforce.industryBenchmark.high}% benchmark`);
       }
     }
 

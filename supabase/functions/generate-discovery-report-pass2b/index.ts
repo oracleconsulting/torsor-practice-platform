@@ -130,6 +130,47 @@ function enforcePayrollInObject(obj: any, correctExcessK: number, correctMonthly
   return replacements;
 }
 
+// Gross margin benchmark enforcement (same pattern as payroll)
+function fixGrossMarginInString(text: string, correctMarginPct: number, correctBenchmarkLow: number, correctBenchmarkHigh: number): { text: string; changed: boolean; count: number } {
+  let result = text;
+  let count = 0;
+  if (text.length < 10) return { text, changed: false, count: 0 };
+  const hasGMContext = /gross\s*margin|gm\s*of|margin.*benchmark|margin.*industry/i.test(text);
+  if (!hasGMContext) return { text, changed: false, count: 0 };
+  const benchMid = Math.round((correctBenchmarkLow + correctBenchmarkHigh) / 2);
+  result = result.replace(/(\d{1,2}(?:\.\d)?)\s*%\s*(industry|sector|benchmark|median|typical)\s*(benchmark|average|norm)?/gi, (match: string, foundPct: string) => {
+    const found = parseFloat(foundPct);
+    if (found >= 10 && found <= 90 && Math.abs(found - benchMid) > 3 && Math.abs(found - correctBenchmarkLow) > 3 && Math.abs(found - correctBenchmarkHigh) > 3) { count++; return match.replace(`${foundPct}%`, `${benchMid}%`); }
+    return match;
+  });
+  result = result.replace(/benchmark\s+(?:of\s+)?(\d{1,2}(?:\.\d)?)\s*-\s*(\d{1,2}(?:\.\d)?)\s*%/gi, (match: string, lo: string, hi: string) => {
+    const loN = parseFloat(lo); const hiN = parseFloat(hi);
+    if (Math.abs(loN - correctBenchmarkLow) > 3 || Math.abs(hiN - correctBenchmarkHigh) > 3) { count++; return match.replace(`${lo}-${hi}%`, `${correctBenchmarkLow}-${correctBenchmarkHigh}%`); }
+    return match;
+  });
+  return { text: result, changed: count > 0, count };
+}
+
+function enforceGrossMarginInObject(obj: any, correctMarginPct: number, correctBenchmarkLow: number, correctBenchmarkHigh: number): number {
+  let replacements = 0;
+  if (!obj || correctMarginPct <= 0) return 0;
+  if (typeof obj === 'string') return 0;
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      if (typeof obj[i] === 'string') { const r = fixGrossMarginInString(obj[i], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh); if (r.changed) { obj[i] = r.text; replacements += r.count; } }
+      else { replacements += enforceGrossMarginInObject(obj[i], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh); }
+    }
+    return replacements;
+  }
+  if (typeof obj === 'object') {
+    for (const key of Object.keys(obj)) {
+      if (typeof obj[key] === 'string') { const r = fixGrossMarginInString(obj[key], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh); if (r.changed) { obj[key] = r.text; replacements += r.count; } }
+      else { replacements += enforceGrossMarginInObject(obj[key], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh); }
+    }
+  }
+  return replacements;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -543,6 +584,17 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
         if (hr.changed) { rewrites.headline = hr.text; sweepCount += hr.count; }
       }
       if (sweepCount > 0) console.log(`[Pass2B Payroll Enforcement] Fixed ${sweepCount} figures in merged pages`);
+    }
+
+    // ====================================================================
+    // GROSS MARGIN BENCHMARK SWEEP on merged pages (object-walking)
+    // ====================================================================
+    const gmData = report.comprehensive_analysis?.grossMargin;
+    if (gmData?.grossMarginPct && gmData.industryBenchmark) {
+      let gmSweep = 0;
+      gmSweep += enforceGrossMarginInObject(updatedPage2, gmData.grossMarginPct, gmData.industryBenchmark.low, gmData.industryBenchmark.high);
+      gmSweep += enforceGrossMarginInObject(updatedPage4, gmData.grossMarginPct, gmData.industryBenchmark.low, gmData.industryBenchmark.high);
+      if (gmSweep > 0) console.log(`[Pass2B GM Enforcement] Fixed ${gmSweep} gross margin benchmark figures`);
     }
 
     // ====================================================================
