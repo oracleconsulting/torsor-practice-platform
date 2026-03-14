@@ -143,18 +143,28 @@ function getPlainEnglish(
 ): string {
   if (clientExplanation) return clientExplanation;
   const numValue = typeof value === 'number' ? value : value != null ? parseFloat(String(value).replace(/[^\d.-]/g, '')) : NaN;
+
+  // Determine business type — property language only for investment vehicles
+  const isInvestmentVehicle = ca?.client_type === 'investment_vehicle' ||
+    ca?.framework_overrides?.reportFraming === 'wealth_protection';
+
   if (label === 'Current Ratio') {
     const pence = Number.isFinite(numValue) ? Math.round(numValue * 100) : 52;
     if (numValue < 1 && Number.isFinite(numValue)) {
-      return `For every £1 your company owes in the next 12 months, it has ${pence}p of cash and assets available to pay it. Below £1 means short-term debts exceed short-term assets — this is common for property companies where mortgage payments are regular but rental income is steady. Not a crisis, but worth reviewing payment timing with your accountant.`;
+      return isInvestmentVehicle
+        ? `For every £1 your company owes in the next 12 months, it has ${pence}p of cash and assets available to pay it. Below £1 means short-term debts exceed short-term assets — this is common for property companies where mortgage payments are regular but rental income is steady. Not a crisis, but worth reviewing payment timing with your accountant.`
+        : `For every £1 your company owes in the next 12 months, it has ${pence}p of cash and assets available to pay it. Below £1 means short-term debts exceed short-term assets. Worth reviewing payment timing with your accountant to ensure no short-term cash pressure.`;
     }
     if (Number.isFinite(numValue)) {
       return `For every £1 your company owes in the next 12 months, it has £${numValue.toFixed(2)} available to pay it. That's a comfortable position — bills are well covered.`;
     }
-    return `For every £1 your company owes in the next 12 months, it has 52p available to pay it. This is normal for property companies — mortgage payments are regular, and rental income covers them steadily. Not a concern for a portfolio of this quality.`;
+    return isInvestmentVehicle
+      ? `For every £1 your company owes in the next 12 months, it has 52p available to pay it. This is normal for property companies — mortgage payments are regular, and rental income covers them steadily. Not a concern for a portfolio of this quality.`
+      : `For every £1 your company owes in the next 12 months, it has 52p available to pay it. This is normal for many businesses — worth reviewing payment timing with your accountant to ensure no short-term cash pressure.`;
   }
 
   if (label === 'Margin Divergence') {
+    if (!isInvestmentVehicle) return ''; // Margin Divergence only applies to investment vehicles
     const operatingMargin = ca?.profitability?.operatingMarginPct ?? ca?.financials?.operatingMarginPct ?? 47.6;
     const gap = Number.isFinite(numValue) ? numValue : 56.5;
     const gapStr = typeof gap === 'number' ? gap.toFixed(1) : '56.5';
@@ -163,23 +173,41 @@ function getPlainEnglish(
 
   if (label === 'Return on Equity') {
     if (numValue < 0 && Number.isFinite(numValue)) {
-      return `This looks like the business is losing money — it isn't. The negative number is caused by a non-cash accounting entry (deferred tax on property revaluation) that creates a paper loss in the statutory accounts. Your actual operating profit is healthy; the report's margin divergence section explains the gap. Ignore this headline figure — the underlying business is strong.`;
+      return isInvestmentVehicle
+        ? `This looks like the business is losing money — it isn't. The negative number is caused by a non-cash accounting entry (deferred tax on property revaluation) that creates a paper loss in the statutory accounts. Your actual operating profit is healthy; the report's margin divergence section explains the gap. Ignore this headline figure — the underlying business is strong.`
+        : `This looks like the business is losing money — it isn't. The negative number is caused by a non-cash accounting entry that creates a paper loss in the statutory accounts. Your actual operating profit may be healthy; the report explains the gap. Ignore this headline figure if the underlying business is strong.`;
     }
     if (Number.isFinite(numValue)) {
-      return `For every £1 of equity (your own money) invested in the business, it generated ${numValue.toFixed(1)}p of profit this year. ${numValue > 5 ? "That's a solid return." : numValue > 0 ? "Modest, but for property companies, capital growth often matters more than income returns." : ''}`;
+      return isInvestmentVehicle
+        ? `For every £1 of equity (your own money) invested in the business, it generated ${numValue.toFixed(1)}p of profit this year. ${numValue > 5 ? "That's a solid return." : numValue > 0 ? "Modest, but for property companies, capital growth often matters more than income returns." : ''}`
+        : `For every £1 of equity (your own money) invested in the business, it generated ${numValue.toFixed(1)}p of profit this year. ${numValue > 5 ? "That's a solid return." : numValue > 0 ? "Modest, but there may be room to improve." : ''}`;
     }
-    return `This looks negative because of a non-cash accounting entry — a deferred tax charge on property revaluation. Your actual operating profit is healthy. The statutory accounts show a paper loss; the real business is profitable and growing.`;
+    return isInvestmentVehicle
+      ? `This looks negative because of a non-cash accounting entry — a deferred tax charge on property revaluation. Your actual operating profit is healthy. The statutory accounts show a paper loss; the real business is profitable and growing.`
+      : `This looks negative because of a non-cash accounting entry. Your actual operating profit may be healthy. The statutory accounts show a paper loss; the real business may be profitable.`;
   }
 
   if (label === 'Gearing') {
     const pct = Number.isFinite(numValue) ? numValue : 8;
+
+    if (isInvestmentVehicle) {
+      if (pct < 20) {
+        return `Only ${pct.toFixed(0)}% of your property portfolio is funded by borrowing — you own almost everything outright. That's extremely conservative and means you have very little debt risk. The flip side: you have significant borrowing capacity available if it were ever useful — for example, as part of an IHT restructuring strategy or to fund new acquisitions.`;
+      }
+      if (pct < 50) {
+        return `${pct.toFixed(0)}% of your portfolio value is funded by debt, with the rest from your own equity. That's a moderate level of borrowing — enough to benefit from leverage without excessive risk.`;
+      }
+      return `${pct.toFixed(0)}% of your portfolio is debt-funded. That's on the higher side — it means the portfolio is more sensitive to interest rate changes and rental voids.`;
+    }
+
+    // Trading business — use business-appropriate language
     if (pct < 20) {
-      return `Only ${pct.toFixed(0)}% of your property portfolio is funded by borrowing — you own almost everything outright. That's extremely conservative and means you have very little debt risk. The flip side: you have significant borrowing capacity available if it were ever useful — for example, as part of an IHT restructuring strategy or to fund new acquisitions.`;
+      return `Only ${pct.toFixed(0)}% of your business is funded by borrowing — you own almost everything outright. That's extremely conservative and means you have very little debt risk. The flip side: you have significant borrowing capacity available if it were ever useful — for example, to fund a strategic hire, invest in equipment, or bridge a cash flow gap on a large project.`;
     }
     if (pct < 50) {
-      return `${pct.toFixed(0)}% of your portfolio value is funded by debt, with the rest from your own equity. That's a moderate level of borrowing — enough to benefit from leverage without excessive risk.`;
+      return `${pct.toFixed(0)}% of your business value is funded by debt, with the rest from your own equity. That's a moderate level of borrowing — enough to benefit from leverage without excessive risk. Worth monitoring if you're planning to borrow more for growth.`;
     }
-    return `${pct.toFixed(0)}% of your portfolio is debt-funded. That's on the higher side — it means the portfolio is more sensitive to interest rate changes and rental voids.`;
+    return `${pct.toFixed(0)}% of your business is debt-funded. That's on the higher side — it means the business is more sensitive to interest rate changes and profit dips. Worth reviewing your debt structure with your accountant.`;
   }
 
   return '';

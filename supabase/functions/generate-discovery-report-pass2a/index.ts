@@ -4380,10 +4380,13 @@ Before returning, verify:
     // ENHANCEMENT 7: Ensure page4_numbers has calculated values
     // ========================================================================
     if (narratives.page4_numbers) {
-      // Add indicative valuation if not present
-      if (preBuiltPhrases.valuationRange && !narratives.page4_numbers.indicativeValuation) {
+      // ALWAYS use the calculated valuation range — never trust the LLM's version
+      if (preBuiltPhrases.valuationRange) {
+        const llmValue = narratives.page4_numbers.indicativeValuation;
+        if (llmValue && llmValue !== preBuiltPhrases.valuationRange) {
+          console.log(`[Pass2A] ⚠️ LLM wrote wrong indicativeValuation: "${llmValue}". Overriding with calculated: "${preBuiltPhrases.valuationRange}"`);
+        }
         narratives.page4_numbers.indicativeValuation = preBuiltPhrases.valuationRange;
-        console.log('[Pass2] 📊 Added indicativeValuation to page4_numbers:', preBuiltPhrases.valuationRange);
       }
       
       // Add hidden assets if not present
@@ -4914,26 +4917,59 @@ Before returning, verify:
     const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
     narratives = JSON.parse(cleanedStr);
 
-    // Fix duplicate financial impact amounts across gaps
-    if (narratives.page2_gaps?.gaps && narratives.page2_gaps.gaps.length >= 2) {
+    // Fix duplicate and suspiciously large financial impact amounts across gaps
+    if (narratives.page2_gaps?.gaps && Array.isArray(narratives.page2_gaps.gaps)) {
       const gaps = narratives.page2_gaps.gaps;
       const amounts = gaps.map((g: any) => {
-        const match = (g.financialImpact || '').match(/£([\d,]+)/);
-        return match ? parseInt(match[1].replace(/,/g, '')) : null;
+        const m = (g.financialImpact || '').match(/£([\d,]+)/);
+        return m ? parseInt(m[1].replace(/,/g, '')) : null;
       }).filter(Boolean);
-      const uniqueAmounts = new Set(amounts);
-      if (uniqueAmounts.size === 1 && amounts.length > 1) {
-        console.log(`[Pass2A] ⚠️ All ${gaps.length} gaps have identical financial impact (£${amounts[0]}). Cleaning non-payroll gaps.`);
-        for (const gap of gaps) {
-          const isPayrollGap = /payroll|staff cost|team cost|headcount|people cost/i.test(gap.title || '');
-          const isMarginGap = /margin|profit|pricing/i.test(gap.title || '');
-          if (!isPayrollGap && !isMarginGap && gap.financialImpact) {
-            gap.financialImpact = gap.financialImpact.replace(
-              /£[\d,]+(?:k|K|M|m)?[^.]*/,
-              'Significant but unquantified'
+      const allSameAmount = amounts.length >= 2 && new Set(amounts).size === 1;
+
+      narratives.page2_gaps.gaps = gaps.map((gap: any) => {
+        if (!gap.financialImpact) return gap;
+        const impactText = String(gap.financialImpact);
+        const rawNumberMatch = impactText.match(/£([\d,]+)/);
+        if (!rawNumberMatch) return gap;
+
+        const amount = parseInt(rawNumberMatch[1].replace(/,/g, ''));
+        const isPayrollGap = /payroll|staff cost|team cost|headcount|people cost/i.test(gap.title || '');
+        const isMarginGap = /margin|profit|pricing/i.test(gap.title || '');
+
+        // If amount > £10M, it's almost certainly a formatting bug (no SME gap should show £10M+ impact)
+        if (amount > 10000000) {
+          console.log(`[Pass2A] ⚠️ Suspiciously large gap impact: £${amount.toLocaleString()} in "${gap.title}". Replacing.`);
+          const matchingOpp = (curatedOpportunities || []).find((o: any) => {
+            const oppTitle = (o.title || '').toLowerCase();
+            const gapTitle = (gap.title || '').toLowerCase();
+            return gapTitle.split(' ').filter((w: string) => w.length > 4).some((w: string) => oppTitle.includes(w));
+          });
+          if (matchingOpp?.financial_impact_amount) {
+            const correctedAmount = Number(matchingOpp.financial_impact_amount);
+            const correctedK = Math.round(correctedAmount / 1000);
+            gap.financialImpact = impactText.replace(
+              /£[\d,]+/,
+              correctedK >= 1000 ? `£${(correctedAmount / 1000000).toFixed(1)}M` : `£${correctedK}k`
             );
+            console.log(`[Pass2A] ✅ Corrected to £${correctedK}k from opportunity data`);
+          } else {
+            gap.financialImpact = impactText.replace(/£[\d,]+[^.]*/, 'Significant impact');
+            console.log(`[Pass2A] ✅ Replaced with qualitative description`);
           }
+          return gap;
         }
+
+        // Duplicate amounts: if all gaps have same figure, clean non-payroll/non-margin
+        if (allSameAmount && !isPayrollGap && !isMarginGap) {
+          gap.financialImpact = gap.financialImpact.replace(
+            /£[\d,]+(?:k|K|M|m)?[^.]*/,
+            'Significant but unquantified'
+          );
+        }
+        return gap;
+      });
+      if (allSameAmount) {
+        console.log(`[Pass2A] ⚠️ All ${gaps.length} gaps had identical financial impact. Cleaned non-payroll gaps.`);
       }
     }
 
@@ -4946,6 +4982,7 @@ Before returning, verify:
     // Split/join for banned transitions (regex fails on JSON-escaped strings)
     narStr = narStr.split('But the real return?').join('In practice:');
     narStr = narStr.split('But the real return.').join('In practice.');
+    narStr = narStr.split('But the real return').join('In practice'); // no punctuation variant
     narStr = narStr.split("But here\\'s what that actually means:").join('In practice:');
     narStr = narStr.split("But here\\'s what that actually means.").join('In practice.');
     narStr = narStr.split("But here's what that actually means:").join('In practice:');
@@ -4954,6 +4991,8 @@ Before returning, verify:
     narStr = narStr.split("Here's the thing:").join('');
     narStr = narStr.split("Here\\'s what matters:").join('');
     narStr = narStr.split("Here's what matters:").join('');
+    // Regex fallback for any remaining "But the real return?" (handles smart quotes, etc.)
+    narStr = narStr.replace(/But\s+the\s+real\s+return\s*[?\.]?\s*/gi, 'In practice: ');
     // Strip property/IHT language from non-investment-vehicle reports
     if (clientType !== 'investment_vehicle') {
       narStr = narStr.replace(/your property portfolio/gi, 'your business');
