@@ -4380,13 +4380,31 @@ Before returning, verify:
     // ENHANCEMENT 7: Ensure page4_numbers has calculated values
     // ========================================================================
     if (narratives.page4_numbers) {
-      // ALWAYS use the calculated valuation range — never trust the LLM's version
-      if (preBuiltPhrases.valuationRange) {
-        const llmValue = narratives.page4_numbers.indicativeValuation;
-        if (llmValue && llmValue !== preBuiltPhrases.valuationRange) {
-          console.log(`[Pass2A] ⚠️ LLM wrote wrong indicativeValuation: "${llmValue}". Overriding with calculated: "${preBuiltPhrases.valuationRange}"`);
+      // Build valuation range from Pass 1 if preBuiltPhrases didn't have it
+      const valuationRangeToUse = preBuiltPhrases.valuationRange || (() => {
+        const v = comprehensiveAnalysis?.valuation;
+        if (v?.conservativeValue != null && v?.optimisticValue != null) {
+          const lowM = (v.conservativeValue / 1000000).toFixed(1);
+          const highM = (v.optimisticValue / 1000000).toFixed(1);
+          return `£${lowM}M - £${highM}M`;
         }
-        narratives.page4_numbers.indicativeValuation = preBuiltPhrases.valuationRange;
+        return null;
+      })();
+
+      console.log('[Pass2A] 🔍 indicativeValuation override check:', {
+        preBuiltValuationRange: preBuiltPhrases.valuationRange,
+        valuationRangeToUse,
+        llmIndicativeValuation: narratives.page4_numbers?.indicativeValuation,
+        willOverride: !!valuationRangeToUse,
+      });
+
+      // ALWAYS use the calculated valuation range — never trust the LLM's version
+      if (valuationRangeToUse) {
+        if (narratives.page4_numbers.indicativeValuation &&
+            narratives.page4_numbers.indicativeValuation !== valuationRangeToUse) {
+          console.log(`[Pass2A] ⚠️ Overriding LLM indicativeValuation: "${narratives.page4_numbers.indicativeValuation}" → "${valuationRangeToUse}"`);
+        }
+        narratives.page4_numbers.indicativeValuation = valuationRangeToUse;
       }
       
       // Add hidden assets if not present
