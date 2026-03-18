@@ -619,9 +619,8 @@ export default function UnifiedDashboardPage() {
     if (code === '365_method' || code === '365_alignment') {
       if (gaSprintData?.hasSprint) return '/tasks';
       if (gaSprintData?.hasRoadmap) return '/roadmap';
-      // Route to the correct assessment part based on progress
-      if (assessmentProgress?.part1?.status !== 'completed') return '/assessment/part1';
-      if (assessmentProgress?.part2?.status !== 'completed') return '/assessment/part2';
+      if (!assessmentProgress?.part1 || assessmentProgress.part1.status !== 'completed') return '/assessment/part1';
+      if (!assessmentProgress?.part2 || assessmentProgress.part2.status !== 'completed') return '/assessment/part2';
       return '/assessments';
     }
     if (code === 'hidden_value_audit') {
@@ -1147,12 +1146,12 @@ export default function UnifiedDashboardPage() {
                         )
                       ) : gaSprintData?.hasRoadmap ? (
                         <>View Roadmap <ChevronRight className="w-4 h-4" /></>
-                      ) : assessmentProgress?.part1?.status === 'completed' && assessmentProgress?.part2?.status !== 'completed' ? (
-                        <>Continue Part 2 <ArrowRight className="w-4 h-4" /></>
-                      ) : assessmentProgress?.overall && assessmentProgress.overall > 0 ? (
-                        <>Continue Assessment <ArrowRight className="w-4 h-4" /></>
-                      ) : (
+                      ) : assessmentProgress?.part1?.status !== 'completed' ? (
                         <>Start Assessment <ArrowRight className="w-4 h-4" /></>
+                      ) : assessmentProgress?.part2?.status !== 'completed' ? (
+                        <>Continue Part 2 <ArrowRight className="w-4 h-4" /></>
+                      ) : (
+                        <>View Progress <ChevronRight className="w-4 h-4" /></>
                       )
                     ) : status.color === 'emerald' ? (
                       <>

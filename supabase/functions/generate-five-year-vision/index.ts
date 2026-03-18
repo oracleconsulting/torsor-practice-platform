@@ -56,6 +56,9 @@ interface VisionContext {
   // Life Design Profile (if available — from generate-fit-profile)
   lifeDesignProfile?: any;
   
+  // Benchmarking context (from GA pre-populate when client also did BM)
+  bmEnrichment?: string;
+  
   // Calculated
   incomeGap: number;
 }
@@ -153,8 +156,22 @@ serve(async (req) => {
       .maybeSingle();
     const lifeDesignProfile = lifeProfileStage?.approved_content || lifeProfileStage?.generated_content || null;
 
+    const bmContext = part1._bm_context || part2._bm_context || null;
+    const bmEnrichmentStr = bmContext ? `
+BENCHMARKING CONTEXT (from completed BM assessment):
+- Self-rated performance: ${bmContext.bm_self_rating || 'Not provided'}
+- Metrics they track: ${Array.isArray(bmContext.bm_tracked_metrics) ? bmContext.bm_tracked_metrics.join(', ') : bmContext.bm_tracked_metrics || 'Not provided'}
+- Suspected underperformance: ${bmContext.bm_suspected_underperformance || 'Not provided'}
+- Where they leave money on table: ${bmContext.bm_money_on_table || 'Not provided'}
+- Action readiness: ${bmContext.bm_action_readiness || 'Not provided'}
+- Blind spot fear: ${bmContext.bm_blind_spot_fear || 'Not provided'}
+- Recent investments: ${Array.isArray(bmContext.bm_investment_areas) ? bmContext.bm_investment_areas.join(', ') : bmContext.bm_investment_areas || 'Not provided'}
+- Cash position: ${bmContext.bm_cash_held || 'Not provided'}
+- Property ownership: ${bmContext.bm_owns_property || 'Not provided'}
+` : '';
+
     // Build context
-    const context = buildVisionContext(part1, part2, client, financialContext, fitProfile, lifeDesignProfile);
+    const context = buildVisionContext(part1, part2, client, financialContext, fitProfile, lifeDesignProfile, bmEnrichmentStr);
 
     console.log(`Generating transformation narrative for ${context.userName}...`);
 
@@ -210,7 +227,8 @@ function buildVisionContext(
   client: any,
   financialContext: any,
   fitProfile: any,
-  lifeDesignProfile: any = null
+  lifeDesignProfile: any = null,
+  bmEnrichment = ''
 ): VisionContext {
   const currentIncome = parseIncome(part1.current_income);
   const desiredIncome = parseIncome(part1.desired_income);
@@ -255,6 +273,7 @@ function buildVisionContext(
     
     financialSummary: financialContext?.content || null,
     lifeDesignProfile: lifeDesignProfile || undefined,
+    bmEnrichment: bmEnrichment || undefined,
     incomeGap: desiredIncome - currentIncome
   };
 }
@@ -399,6 +418,7 @@ Target hours: ${ctx.targetWorkingHours} hours/week
 ## FROM THEIR FIT PROFILE
 North Star: "${ctx.northStar}"
 Archetype: ${ctx.archetype}
+${ctx.bmEnrichment || ''}
 
 ${ctx.lifeDesignProfile ? `
 ## LIFE DESIGN PROFILE — STRUCTURAL TARGETS

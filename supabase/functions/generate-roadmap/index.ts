@@ -2111,7 +2111,20 @@ serve(async (req) => {
     if (assessmentMeta?.metadata?.adaptive) {
       console.log('[generate-roadmap] Adaptive assessment — skipped sections:', assessmentMeta.metadata.skippedSections?.map((s: any) => s.sectionId).join(', '));
     }
-    const enrichmentBlock = enrichedContext?.promptContext || '';
+    const bmContext = part1._bm_context || part2._bm_context || null;
+    const bmEnrichment = bmContext ? `
+BENCHMARKING CONTEXT (from completed BM assessment):
+- Self-rated performance: ${bmContext.bm_self_rating || 'Not provided'}
+- Metrics they track: ${Array.isArray(bmContext.bm_tracked_metrics) ? bmContext.bm_tracked_metrics.join(', ') : bmContext.bm_tracked_metrics || 'Not provided'}
+- Suspected underperformance: ${bmContext.bm_suspected_underperformance || 'Not provided'}
+- Where they leave money on table: ${bmContext.bm_money_on_table || 'Not provided'}
+- Action readiness: ${bmContext.bm_action_readiness || 'Not provided'}
+- Blind spot fear: ${bmContext.bm_blind_spot_fear || 'Not provided'}
+- Recent investments: ${Array.isArray(bmContext.bm_investment_areas) ? bmContext.bm_investment_areas.join(', ') : bmContext.bm_investment_areas || 'Not provided'}
+- Cash position: ${bmContext.bm_cash_held || 'Not provided'}
+- Property ownership: ${bmContext.bm_owns_property || 'Not provided'}
+` : '';
+    const enrichmentBlock = (enrichedContext?.promptContext || '') + (bmEnrichment ? '\n\n' + bmEnrichment : '');
 
     // ================================================================
     // BUILD ADVISOR CONTEXT INJECTION FOR PROMPTS

@@ -20,6 +20,7 @@ import {
 // Import questions from shared package (with Life–Business Bridge first for GA 365)
 import { part2SectionsWithLifeBridge as sharedPart2Sections, type Part2Section, type Part2Question } from '@torsor/shared';
 import { useAdaptiveAssessment, buildAssessmentMetadata, normalizeSectionId } from '@/hooks/useAdaptiveAssessment';
+import { usePrePopulateFromBM } from '@/hooks/usePrePopulateFromBM';
 import { AdaptiveAssessmentBanner } from '@/components/assessment/AdaptiveAssessmentBanner';
 import { AdaptiveSkipBanner } from '@/components/assessment/AdaptiveSkipBanner';
 
@@ -27,6 +28,7 @@ export default function Part2Page() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { clientSession } = useAuth();
+  const { bmData } = usePrePopulateFromBM();
   const isReviewMode = searchParams.get('mode') === 'review';
   const adaptive = useAdaptiveAssessment();
 
@@ -112,6 +114,20 @@ export default function Part2Page() {
 
     loadProgress();
   }, [clientSession?.clientId, isReviewMode]);
+
+  // Pre-populate from BM when data is available and form not already filled
+  useEffect(() => {
+    if (!bmData || isLoading) return;
+    setResponses((prev) => {
+      const next = { ...prev };
+      if (!prev.trading_name && bmData.company_name) next.trading_name = bmData.company_name;
+      if (!prev.annual_turnover && bmData.annual_turnover) next.annual_turnover = bmData.annual_turnover;
+      if (!prev.team_size && bmData.team_size) next.team_size = bmData.team_size;
+      if (!prev.years_trading && bmData.years_trading) next.years_trading = bmData.years_trading;
+      next._bm_context = bmData;
+      return next;
+    });
+  }, [bmData, isLoading]);
 
   // Scroll to top when section changes
   useEffect(() => {
@@ -360,6 +376,13 @@ export default function Part2Page() {
     >
       <div className="max-w-4xl mx-auto">
         <AdaptiveAssessmentBanner state={adaptive} part="part2" />
+        {bmData && (
+          <div className="mb-6 p-4 bg-teal-50 border border-teal-200 rounded-lg">
+            <p className="text-sm text-teal-800">
+              <strong>Time saver:</strong> We&apos;ve pulled in some details from your Benchmarking assessment. Review and update anything that&apos;s changed.
+            </p>
+          </div>
+        )}
         {/* Header Actions */}
         <div className="flex items-center justify-between mb-6">
           <button

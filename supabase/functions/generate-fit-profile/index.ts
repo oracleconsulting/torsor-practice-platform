@@ -284,7 +284,7 @@ interface NarrativeFitProfile {
   journeyReasoning: string;
 }
 
-async function generateNarrativeProfile(part1: Record<string, any>, signals: FitSignals): Promise<NarrativeFitProfile> {
+async function generateNarrativeProfile(part1: Record<string, any>, signals: FitSignals, bmEnrichment = ''): Promise<NarrativeFitProfile> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   
   if (!openRouterKey) {
@@ -343,6 +343,7 @@ FIT SCORES (for context):
 - Urgency: ${signals.urgencyScore}/100 - ${signals.urgencyExplanation}
 - Coachability: ${signals.coachabilityScore}/100 - ${signals.coachabilityExplanation}
 - Overall Fit: ${signals.overallFit}
+${bmEnrichment}
 
 ---
 
@@ -786,6 +787,21 @@ serve(async (req) => {
 
     const part1 = assessment.responses;
 
+    // BM context enrichment (from GA pre-populate when client also did Benchmarking)
+    const bmContext = part1._bm_context || null;
+    const bmEnrichment = bmContext ? `
+BENCHMARKING CONTEXT (from completed BM assessment):
+- Self-rated performance: ${bmContext.bm_self_rating || 'Not provided'}
+- Metrics they track: ${Array.isArray(bmContext.bm_tracked_metrics) ? bmContext.bm_tracked_metrics.join(', ') : bmContext.bm_tracked_metrics || 'Not provided'}
+- Suspected underperformance: ${bmContext.bm_suspected_underperformance || 'Not provided'}
+- Where they leave money on table: ${bmContext.bm_money_on_table || 'Not provided'}
+- Action readiness: ${bmContext.bm_action_readiness || 'Not provided'}
+- Blind spot fear: ${bmContext.bm_blind_spot_fear || 'Not provided'}
+- Recent investments: ${Array.isArray(bmContext.bm_investment_areas) ? bmContext.bm_investment_areas.join(', ') : bmContext.bm_investment_areas || 'Not provided'}
+- Cash position: ${bmContext.bm_cash_held || 'Not provided'}
+- Property ownership: ${bmContext.bm_owns_property || 'Not provided'}
+` : '';
+
     // Also fetch client info for company name
     const { data: clientInfo } = await supabase
       .from('practice_members')
@@ -803,7 +819,7 @@ serve(async (req) => {
     console.log(`Fit signals: ${signals.overallFit} (avg: ${Math.round((signals.readinessScore + signals.commitmentScore + signals.clarityScore + signals.urgencyScore + signals.coachabilityScore) / 5)})`);
 
     // Generate narrative profile (LLM-powered)
-    const narrativeProfile = await generateNarrativeProfile(part1, signals);
+    const narrativeProfile = await generateNarrativeProfile(part1, signals, bmEnrichment);
     console.log('Narrative profile generated');
 
     // Extract Life Design Profile (for downstream pipeline)
