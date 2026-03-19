@@ -11670,6 +11670,37 @@ function BenchmarkingClientModal({
     }
   };
 
+  /** After pass3_only fire-and-forget, poll until generate-bm-opportunities sets opportunities_generated_at */
+  const pollForPass3Complete = async (engagementId: string, attempts: number = 0, maxAttempts: number = 72) => {
+    const pollInterval = 5000;
+    try {
+      const { data: report } = await supabase
+        .from('bm_reports')
+        .select('opportunities_generated_at')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+
+      if (report?.opportunities_generated_at) {
+        console.log('[Benchmarking] Pass 3 completed — refreshing data');
+        await fetchData();
+        setGenerating(false);
+        return;
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(() => pollForPass3Complete(engagementId, attempts + 1, maxAttempts), pollInterval);
+      } else {
+        console.warn('[Benchmarking] Pass 3 polling timeout');
+        alert('Pass 3 is still running or may have failed. Refresh in a minute or check Edge Function logs.');
+        await fetchData();
+        setGenerating(false);
+      }
+    } catch (e) {
+      console.error('[Benchmarking] Error polling for Pass 3:', e);
+      setGenerating(false);
+    }
+  };
+
   const handleGenerateReport = async () => {
     if (!engagement) return;
     
@@ -11754,6 +11785,7 @@ function BenchmarkingClientModal({
     if (!confirm('Re-run opportunities and service recommendations only? Pass 1/2 financial data will be preserved.')) return;
 
     setGenerating(true);
+    let pollAfterTrigger = false;
     try {
       const { data: result, error } = await supabase.functions.invoke('regenerate-bm-report', {
         body: {
@@ -11765,12 +11797,21 @@ function BenchmarkingClientModal({
 
       if (error) throw error;
       console.log('[Benchmarking] Pass 3 regeneration result:', result);
+      if (result?.status === 'pass3_triggered') {
+        pollAfterTrigger = true;
+        if (result?.message) {
+          // Non-blocking hint — Pass 3 runs async on the server
+          console.log('[Benchmarking]', result.message);
+        }
+        pollForPass3Complete(engagement.id, 0);
+        return;
+      }
       await fetchData();
     } catch (error: any) {
       console.error('[Benchmarking] Error regenerating Pass 3:', error);
       alert(`Error: ${error.message || 'Unknown error'}`);
     } finally {
-      setGenerating(false);
+      if (!pollAfterTrigger) setGenerating(false);
     }
   };
 

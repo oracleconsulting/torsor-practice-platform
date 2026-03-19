@@ -200,33 +200,35 @@ serve(async (req) => {
         .delete()
         .eq('engagement_id', options.engagementId);
 
-      // Trigger Pass 3 directly
-      console.log('[BM Regenerate] Triggering Pass 3 directly...');
-      const pass3Response = await fetch(`${supabaseUrl}/functions/v1/generate-bm-opportunities`, {
+      // Fire-and-forget — don't await. Pass 3 takes 2-3 minutes (LLM call)
+      // and will exceed the edge function timeout if we wait (matches Pass 2 → Pass 3).
+      console.log('[BM Regenerate] Triggering Pass 3 (fire-and-forget)...');
+      fetch(`${supabaseUrl}/functions/v1/generate-bm-opportunities`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${serviceRoleKey}`
         },
         body: JSON.stringify({ engagementId: options.engagementId })
+      }).then((res) => {
+        if (res.ok) {
+          console.log('[BM Regenerate] Pass 3 triggered successfully');
+        } else {
+          console.error('[BM Regenerate] Pass 3 trigger returned:', res.status);
+        }
+      }).catch((err) => {
+        console.error('[BM Regenerate] Pass 3 trigger failed:', err);
       });
 
-      if (!pass3Response.ok) {
-        const errorText = await pass3Response.text();
-        throw new Error(`Pass 3 failed: ${pass3Response.status} - ${errorText}`);
-      }
-
-      const pass3Result = await pass3Response.json();
-      console.log('[BM Regenerate] Pass 3 completed:', pass3Result);
+      console.log('[BM Regenerate] Pass 3 triggered (fire-and-forget) — frontend will poll for completion');
 
       return new Response(
         JSON.stringify({
           success: true,
           engagementId: options.engagementId,
-          status: 'pass3_complete',
+          status: 'pass3_triggered',
           passRun: 'pass3_only',
-          result: pass3Result,
-          message: 'Pass 3 (opportunities & services) regenerated successfully. Pass 1/2 data preserved.'
+          message: 'Pass 3 (opportunities & services) triggered. It will complete in 1-2 minutes. Refresh the page to see results.'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
