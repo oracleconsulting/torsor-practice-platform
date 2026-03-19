@@ -16,9 +16,9 @@ const corsHeaders = {
 function buildPass2Prompt(pass1Data: any): string {
   const quotes = pass1Data.clientQuotes || {};
   const overall = pass1Data.overallPosition || {};
-  const strengths = pass1Data.topStrengths || [];
-  const gaps = pass1Data.topGaps || [];
-  const metrics = pass1Data.metricsComparison || [];
+  const strengths = Array.isArray(pass1Data.topStrengths) ? pass1Data.topStrengths : [];
+  const gaps = Array.isArray(pass1Data.topGaps) ? pass1Data.topGaps : [];
+  const metrics = Array.isArray(pass1Data.metricsComparison) ? pass1Data.metricsComparison : [];
   const opportunity = pass1Data.opportunitySizing || {};
   
   return `
@@ -83,7 +83,7 @@ ${gaps.map((g: any) => `- ${g.metric}: ${g.position} (£${g.annualImpact?.toLoca
 METRIC DETAILS:
 ${metrics.slice(0, 10).map((m: any) => `${m.metricName}: Client ${m.clientValue} vs Median ${m.p50} (${m.percentile}th percentile, £${m.annualImpact?.toLocaleString()} impact)`).join('\n')}
 
-${pass1Data.financial_trends && pass1Data.financial_trends.length > 0 ? `
+${Array.isArray(pass1Data.financial_trends) && pass1Data.financial_trends.length > 0 ? `
 ═══════════════════════════════════════════════════════════════════════════════
 ⚠️ FINANCIAL TRENDS - CRITICAL CONTEXT (DO NOT IGNORE)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -97,7 +97,7 @@ ${pass1Data.financial_trends.map((t: any) => `
 ${pass1Data.investment_signals?.likelyInvestmentYear ? `
 ⚠️ INVESTMENT PATTERN DETECTED (Confidence: ${pass1Data.investment_signals.confidence})
 Indicators:
-${pass1Data.investment_signals.indicators.map((ind: string) => `  • ${ind}`).join('\n')}
+${Array.isArray(pass1Data.investment_signals.indicators) ? pass1Data.investment_signals.indicators.map((ind: string) => `  • ${ind}`).join('\n') : '  (none listed)'}
 
 CRITICAL INSTRUCTION: Do NOT describe current margins as "crisis" or "alarming" if 
 this is an investment/recovery pattern. Instead, use language like:
