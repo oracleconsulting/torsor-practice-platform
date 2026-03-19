@@ -18,7 +18,7 @@ const corsHeaders = {
 // Model configuration - Sonnet 4.5 for speed (Opus timed out at 150s edge limit)
 const MODEL_CONFIG = {
   model: 'anthropic/claude-sonnet-4-5-20250929',
-  max_tokens: 8000,
+  max_tokens: 16000,
   temperature: 0.3,
 };
 

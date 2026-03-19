@@ -5616,13 +5616,14 @@ serve(async (req) => {
     let hvaQuotes: any[] = [];
     let hvaContextSection = '';
     
-    if (hvaData) {
+    // Use effectiveHVAData (includes inferred values when Part 3 is missing) so founder risk is always calculated
+    if (effectiveHVAData) {
       // Extract benchmarkable metrics from HVA
-      hvaMetricsForBenchmarking = extractHVAMetrics(hvaData);
+      hvaMetricsForBenchmarking = extractHVAMetrics(effectiveHVAData);
       console.log('[BM Pass 1] Extracted HVA metrics:', Object.keys(hvaMetricsForBenchmarking));
       
       // Calculate founder risk score
-      founderRisk = calculateFounderRisk(hvaData);
+      founderRisk = calculateFounderRisk(effectiveHVAData);
       console.log('[BM Pass 1] Founder risk calculated:', {
         score: founderRisk.overallScore,
         level: founderRisk.riskLevel,
@@ -5630,7 +5631,7 @@ serve(async (req) => {
       });
       
       // Extract narrative quotes
-      hvaQuotes = extractNarrativeQuotes(hvaData);
+      hvaQuotes = extractNarrativeQuotes(effectiveHVAData);
       console.log('[BM Pass 1] Extracted narrative quotes:', hvaQuotes.length);
       
       // Build HVA context section for prompt

@@ -104,6 +104,25 @@ serve(async (req) => {
 
     console.log(`[Discovery Pass 3] Starting opportunity analysis for engagement: ${engagementId}`);
 
+    // LOCK CHECK: Refuse to regenerate if report is locked
+    const { data: lockCheck } = await supabase
+      .from('discovery_reports')
+      .select('locked_at')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    if (lockCheck?.locked_at) {
+      console.log(`[Pass3] ⛔ Report is locked (locked_at: ${lockCheck.locked_at}). Refusing to regenerate opportunities.`);
+      return new Response(
+        JSON.stringify({
+          error: 'Report is locked',
+          message: 'Unlock the report in admin before regenerating opportunities.',
+          locked_at: lockCheck.locked_at
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // 1. Gather all client data
     const clientData = await gatherAllClientData(supabase, engagementId);
     console.log(`[Discovery Pass 3] Gathered data for client: ${clientData.clientName} (${clientData.clientType})`);
@@ -1054,6 +1073,64 @@ async function loadServicePricing(supabase: any): Promise<Map<string, ServicePri
 // POST-PROCESSING
 // ============================================================================
 
+function deduplicateFinancialOpportunities(opportunities: any[]): any[] {
+  const overlapGroups = [
+    {
+      name: 'margin_profitability',
+      keywords: ['gross margin', 'margin gap', 'margin leakage', 'hidden profit',
+                 'profit issue', 'profit visibility', 'pricing power', 'project profitability'],
+    },
+    {
+      name: 'founder_dependency',
+      keywords: ['founder depend', 'key person', 'business runs through',
+                 'delegation', 'successor', 'exit readiness'],
+    },
+    {
+      name: 'team_capacity',
+      keywords: ['team stretched', 'understaffed', 'capacity constraint',
+                 'staff shortage', 'hiring', 'headcount'],
+    }
+  ];
+
+  const groupMatches: Record<string, any[]> = {};
+
+  for (const opp of opportunities) {
+    const oppText = `${opp.title || ''} ${opp.description || ''} ${opp.headline || ''} ${opp.dataEvidence || ''}`.toLowerCase();
+    for (const group of overlapGroups) {
+      const matches = group.keywords.filter(kw => oppText.includes(kw));
+      if (matches.length > 0) {
+        if (!groupMatches[group.name]) groupMatches[group.name] = [];
+        groupMatches[group.name].push(opp);
+      }
+    }
+  }
+
+  const severityOrder: Record<string, number> = { 'critical': 0, 'high': 1, 'medium': 2, 'low': 3 };
+
+  for (const [groupName, groupOpps] of Object.entries(groupMatches)) {
+    if (groupOpps.length <= 1) continue;
+
+    groupOpps.sort((a, b) => {
+      const sA = severityOrder[a.severity] ?? 3;
+      const sB = severityOrder[b.severity] ?? 3;
+      if (sA !== sB) return sA - sB;
+      return (b.financialImpact?.amount || 0) - (a.financialImpact?.amount || 0);
+    });
+
+    for (let i = 1; i < groupOpps.length; i++) {
+      const demoted = groupOpps[i];
+      if (demoted.severity === 'critical' || demoted.severity === 'high') {
+        demoted.severity = 'medium';
+      }
+      demoted.overlapNote = `Related to: ${groupOpps[0].title}. Sub-finding of the primary opportunity.`;
+    }
+
+    console.log(`[Opportunities] Overlap group '${groupName}': kept '${groupOpps[0].title}' as primary, demoted ${groupOpps.length - 1} related`);
+  }
+
+  return opportunities;
+}
+
 function postProcessOpportunities(analysis: any, clientData: ClientData, servicePricing: Map<string, ServicePricing>, services: any[] = []): any {
   const inappropriateServices = clientData.frameworkOverrides?.inappropriateServices || [];
   const maxInvestment = clientData.frameworkOverrides?.maxRecommendedInvestment;
@@ -1122,6 +1199,9 @@ function postProcessOpportunities(analysis: any, clientData: ClientData, service
   // CRITICAL: Deduplicate services (same service shouldn't appear twice)
   opportunities = deduplicateServiceRecommendations(opportunities, servicePricing);
   
+  // Detect and demote overlapping financial opportunities
+  opportunities = deduplicateFinancialOpportunities(opportunities);
+
   // Sort by priority
   const priorityOrder: Record<string, number> = {
     'must_address_now': 0,

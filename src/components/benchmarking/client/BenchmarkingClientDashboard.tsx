@@ -620,7 +620,7 @@ export default function BenchmarkingClientDashboard({
   // Derived values
   const percentile = data.overall_percentile || 0;
   const totalOpportunity = heroTotal;
-  const concentration = data.client_concentration_top3 || data.client_concentration || 0;
+  const concentration = data.client_concentration_top3 || data.client_concentration || data.pass1_data?.client_concentration_top3 || 0;
   const hasConcentrationRisk = concentration > 75;
   const surplusCash = data.surplus_cash?.surplusCash || data.pass1_data?.surplus_cash?.surplusCash || 0;
   const valueAnalysis = data.value_analysis;
@@ -636,8 +636,20 @@ export default function BenchmarkingClientDashboard({
     .filter((m: any) => { const code = (m.metricCode || m.metric_code || '').toLowerCase(); return !code.includes('concentration'); })
     .filter((m: any) => m.p50 != null && m.p50 !== 0);
 
-  const strengthMetrics = displayMetrics.filter((m: any) => (m.percentile || 0) >= 50);
-  const gapMetrics = displayMetrics.filter((m: any) => (m.percentile || 0) < 50);
+  const strengthMetrics = displayMetrics.filter((m: any) => {
+    const pct = m.percentile || 0;
+    const impact = m.annualImpact ?? m.annual_impact ?? m._originalAnnualImpact ?? 0;
+    if (pct >= 75) return true;
+    if (pct >= 50 && (!impact || impact === 0)) return true;
+    return false;
+  });
+  const gapMetrics = displayMetrics.filter((m: any) => {
+    const pct = m.percentile || 0;
+    const impact = m.annualImpact ?? m.annual_impact ?? m._originalAnnualImpact ?? 0;
+    if (pct < 50) return true;
+    if (pct >= 50 && pct < 75 && impact && impact > 0) return true;
+    return false;
+  });
 
   // ─── Navigation Config ─────────────────────────────────────────────────
 
@@ -798,9 +810,9 @@ export default function BenchmarkingClientDashboard({
                 const pct = metric.percentile || 0;
                 const format = getMetricFormat(code);
                 const higherIsBetter = !(code.includes('days') || code.includes('debtor') || code.includes('creditor') || code.includes('turnover'));
-                const isStrength = pct >= 50;
+                const impact = metric.annualImpact ?? metric.annual_impact ?? metric._originalAnnualImpact ?? 0;
+                const isStrength = pct >= 75 || (pct >= 50 && (!impact || impact === 0));
                 const barColor = pct >= 75 ? C.emerald : pct >= 50 ? C.blue : pct >= 25 ? C.amber : C.red;
-                const impact = metric.annualImpact ?? metric.annual_impact;
 
                 return (
                   <RevealCard key={i} delay={i * 40} style={{ ...glass({ padding: 20 }), borderLeft: `4px solid ${barColor}` }}>
@@ -821,9 +833,9 @@ export default function BenchmarkingClientDashboard({
                     </div>
                     {/* Benchmarks */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, ...mono }}>
-                      <span>P25: {fmtMetric(metric.p25 || 0, format)}</span>
-                      <span>P50: {fmtMetric(metric.p50 || 0, format)}</span>
-                      <span>P75: {fmtMetric(metric.p75 || 0, format)}</span>
+                      <span>P25: {metric.p25 != null ? fmtMetric(metric.p25, format) : 'N/A'}</span>
+                      <span>P50: {metric.p50 != null ? fmtMetric(metric.p50, format) : 'N/A'}</span>
+                      <span>P75: {metric.p75 != null ? fmtMetric(metric.p75, format) : 'N/A'}</span>
                     </div>
                     {/* Gap / Advantage comparison */}
                     {metric.p50 != null && metric.p50 !== 0 && (() => {
@@ -1517,18 +1529,43 @@ export default function BenchmarkingClientDashboard({
             { metric: 'Business Value', current: fmt(currentValue), projected: fmt(currentValue), change: 'Discount persists', positive: false },
             { metric: 'Owner Freedom', current: 'Trapped', projected: 'Still trapped', change: 'No successor path', positive: false },
           ], risks: ['Loss of major client = existential crisis', 'Owner health issue = business crisis', 'Business remains unsellable at fair value'] },
-          { id: 'diversify', title: 'If You Diversify', subtitle: 'Win new clients, reduce dependency', icon: Users, color: C.blue, outcomes: [
-            { metric: 'Concentration', current: `${concentration}%`, projected: '60-70%', change: '-30+ points', positive: true },
-            { metric: 'Revenue', current: fmt(revenue), projected: fmt(revenue * 1.15), change: '+15% new clients', positive: true },
-            { metric: 'Business Value', current: fmt(currentValue), projected: fmt(baselineValue * 0.8), change: `+${fmt(baselineValue * 0.8 - currentValue)}`, positive: true },
-          ], risks: ['Takes 12-18 months to show results', 'Requires management attention', 'New clients may have different margins'] },
+          ...(concentration > 40 ? [{
+            id: 'diversify', title: 'If You Diversify', subtitle: 'Win new clients, reduce dependency', icon: Users, color: C.blue, outcomes: [
+              { metric: 'Concentration', current: `${concentration}%`, projected: `${Math.max(30, Math.round(concentration * 0.6))}-${Math.max(40, Math.round(concentration * 0.7))}%`, change: `-${Math.round(concentration * 0.3)}+ points`, positive: true },
+              { metric: 'Revenue', current: fmt(revenue), projected: fmt(revenue * 1.15), change: '+15% new clients', positive: true },
+              (() => {
+                const discountPct = valueAnalysis?.aggregateDiscount?.percentRange?.mid || 0;
+                const halfDiscount = discountPct / 2;
+                const projectedValue = baselineValue * (1 - halfDiscount / 100);
+                const isImprovement = projectedValue > currentValue;
+                return {
+                  metric: 'Business Value',
+                  current: fmt(currentValue),
+                  projected: fmt(Math.max(projectedValue, currentValue)),
+                  change: isImprovement ? `+~${fmt(projectedValue - currentValue)}` : 'Maintained',
+                  positive: isImprovement,
+                };
+              })(),
+            ], risks: ['Takes 12-18 months to show results', 'Requires management attention', 'New clients may have different margins'] as string[],
+          }] : []),
           { id: 'exit_prep', title: 'If You Prepare for Exit', subtitle: 'Build sellable value systematically', icon: Rocket, color: C.emerald, outcomes: [
             { metric: 'Exit Readiness', current: `${exitScore}/100`, projected: '70+/100', change: 'Attractive to buyers', positive: true },
             { metric: 'Owner Dependency', current: '70-80%', projected: '<40%', change: 'Successor in place', positive: true },
-            { metric: 'Business Value', current: fmt(currentValue), projected: fmt(baselineValue * 0.75), change: `+${fmt(baselineValue * 0.75 - currentValue)}`, positive: true },
+            (() => {
+              const recoveryTarget = currentValue + (baselineValue - currentValue) * 0.75;
+              const projectedValue = Math.max(recoveryTarget, currentValue);
+              const improvement = projectedValue - currentValue;
+              return {
+                metric: 'Business Value',
+                current: fmt(currentValue),
+                projected: fmt(projectedValue),
+                change: improvement > 0 ? `+~${fmt(improvement)}` : 'Maintained',
+                positive: improvement > 0,
+              };
+            })(),
           ], risks: ['Concentration still impacts valuation', prefersExternal ? 'Internal succession pathway requires right candidate' : 'Successor recruitment is challenging', 'Requires 2-3 years commitment'] },
         ];
-        const active = scenarios.find(s => s.id === activeScenario) || scenarios[1];
+        const active = scenarios.find(s => s.id === activeScenario) || scenarios[0];
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -1589,6 +1626,13 @@ export default function BenchmarkingClientDashboard({
                       </div>
                     </div>
                     <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>{result.summary}</p>
+                    {currentGM >= (metrics.find((m: any) => (m.metricCode || m.metric_code || '').toLowerCase().includes('gross_margin'))?.p75 || 35) && (
+                      <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40`, marginBottom: 14 }}>
+                        <p style={{ fontSize: 13, color: C.textSecondary, margin: 0, lineHeight: 1.6 }}>
+                          <strong style={{ color: C.emerald }}>Already top quartile.</strong> Your gross margin already exceeds the industry top quartile. The focus here is on protecting this advantage rather than further improvement. The Pricing Power and Efficiency scenarios may be more relevant for you.
+                        </p>
+                      </div>
+                    )}
                     <div style={{ padding: '12px 16px', borderRadius: 12, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
                       <p style={{ fontSize: 12, fontWeight: 700, color: C.emerald, marginBottom: 8 }}>How to achieve this</p>
                       <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.7 }}>
@@ -2117,7 +2161,7 @@ export default function BenchmarkingClientDashboard({
       case 'vision': {
         const closingSummary = (() => {
           const parts: string[] = [];
-          if (baselineMetrics?.revenue) parts.push(`You're a £${(baselineMetrics.revenue / 1000000).toFixed(0)}M business`);
+          if (baselineMetrics?.revenue) parts.push(`You're a £${(baselineMetrics.revenue / 1000000).toFixed(1)}M business`);
           if (percentile) parts.push(`sitting at the ${getOrdinalSuffix(percentile)} percentile`);
           if (surplusCash > 0) parts.push(`with £${(surplusCash / 1000000).toFixed(1)}M in surplus cash`);
           let summary = parts.join(' ');

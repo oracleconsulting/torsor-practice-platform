@@ -11,6 +11,36 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const PASS2B_MODEL = 'anthropic/claude-opus-4.5';
 
+// Inlined from _shared/writing-style.ts to avoid shared module import issues
+const AI_SLOP_PATTERNS = [
+  /\bAdditionally\b/gi, /\bdelve\b/gi, /\bcrucial\b/gi, /\bpivotal\b/gi,
+  /\btestament to\b/gi, /\bunderscores\b/gi, /\bhighlights? the\b/gi,
+  /\bshowcases?\b/gi, /\bfostering\b/gi, /\bgarnered\b/gi, /\btapestry\b/gi,
+  /\blandscape\b/gi, /\bintricate\b/gi, /\bvibrant\b/gi, /\benduring\b/gi,
+  /\bsynergy\b/gi, /\bleverage\b/gi, /\bvalue-add\b/gi, /\bcircle back\b/gi,
+  /\bdisrupt\b/gi, /\becosystem\b/gi, /\bscalable\b/gi, /\bholistic\b/gi,
+  /\bimpactful\b/gi, /not only .+ but also/gi, /it's important to note/gi,
+  /it is important to note/gi, /in summary/gi, /in conclusion/gi,
+  /what's more/gi, /having said that/gi, /that said,/gi,
+  /despite .+ faces? challenges?/gi, /—/g, /But the real return\??/gi,
+  /But here'?s what that actually means/gi, /someone in your corner/gi,
+  /You'?ve built something/gi,
+];
+function detectAISlop(text: string): { pattern: string; count: number }[] {
+  const results: { pattern: string; count: number }[] = [];
+  for (const pattern of AI_SLOP_PATTERNS) {
+    const matches = text.match(pattern);
+    if (matches && matches.length > 0) results.push({ pattern: pattern.source, count: matches.length });
+  }
+  return results;
+}
+function getSlopScore(text: string): number {
+  const wordCount = text.split(/\s+/).length;
+  const issues = detectAISlop(text);
+  const totalIssues = issues.reduce((sum, i) => sum + i.count, 0);
+  return Math.min(100, Math.round((totalIssues / Math.max(1, wordCount)) * 1000));
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -100,6 +130,47 @@ function enforcePayrollInObject(obj: any, correctExcessK: number, correctMonthly
   return replacements;
 }
 
+// Gross margin benchmark enforcement (same pattern as payroll)
+function fixGrossMarginInString(text: string, correctMarginPct: number, correctBenchmarkLow: number, correctBenchmarkHigh: number): { text: string; changed: boolean; count: number } {
+  let result = text;
+  let count = 0;
+  if (text.length < 10) return { text, changed: false, count: 0 };
+  const hasGMContext = /gross\s*margin|gm\s*of|margin.*benchmark|margin.*industry/i.test(text);
+  if (!hasGMContext) return { text, changed: false, count: 0 };
+  const benchMid = Math.round((correctBenchmarkLow + correctBenchmarkHigh) / 2);
+  result = result.replace(/(\d{1,2}(?:\.\d)?)\s*%\s*(industry|sector|benchmark|median|typical)\s*(benchmark|average|norm)?/gi, (match: string, foundPct: string) => {
+    const found = parseFloat(foundPct);
+    if (found >= 10 && found <= 90 && Math.abs(found - benchMid) > 3 && Math.abs(found - correctBenchmarkLow) > 3 && Math.abs(found - correctBenchmarkHigh) > 3) { count++; return match.replace(`${foundPct}%`, `${benchMid}%`); }
+    return match;
+  });
+  result = result.replace(/benchmark\s+(?:of\s+)?(\d{1,2}(?:\.\d)?)\s*-\s*(\d{1,2}(?:\.\d)?)\s*%/gi, (match: string, lo: string, hi: string) => {
+    const loN = parseFloat(lo); const hiN = parseFloat(hi);
+    if (Math.abs(loN - correctBenchmarkLow) > 3 || Math.abs(hiN - correctBenchmarkHigh) > 3) { count++; return match.replace(`${lo}-${hi}%`, `${correctBenchmarkLow}-${correctBenchmarkHigh}%`); }
+    return match;
+  });
+  return { text: result, changed: count > 0, count };
+}
+
+function enforceGrossMarginInObject(obj: any, correctMarginPct: number, correctBenchmarkLow: number, correctBenchmarkHigh: number): number {
+  let replacements = 0;
+  if (!obj || correctMarginPct <= 0) return 0;
+  if (typeof obj === 'string') return 0;
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      if (typeof obj[i] === 'string') { const r = fixGrossMarginInString(obj[i], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh); if (r.changed) { obj[i] = r.text; replacements += r.count; } }
+      else { replacements += enforceGrossMarginInObject(obj[i], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh); }
+    }
+    return replacements;
+  }
+  if (typeof obj === 'object') {
+    for (const key of Object.keys(obj)) {
+      if (typeof obj[key] === 'string') { const r = fixGrossMarginInString(obj[key], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh); if (r.changed) { obj[key] = r.text; replacements += r.count; } }
+      else { replacements += enforceGrossMarginInObject(obj[key], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh); }
+    }
+  }
+  return replacements;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -118,6 +189,27 @@ serve(async (req) => {
     const startTime = Date.now();
 
     // ====================================================================
+    // LOCK CHECK: Refuse to regenerate locked reports
+    // ====================================================================
+    const { data: lockCheck } = await supabase
+      .from('discovery_reports')
+      .select('locked_at')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    if (lockCheck?.locked_at) {
+      console.log(`[Pass2B] ⛔ Report is locked (locked_at: ${lockCheck.locked_at}). Refusing to regenerate.`);
+      return new Response(
+        JSON.stringify({
+          error: 'Report is locked',
+          message: 'This report has been locked. Unlock it in admin before regenerating.',
+          locked_at: lockCheck.locked_at
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ====================================================================
     // FETCH: Report (from Pass 2A) + Assessment responses
     // ====================================================================
 
@@ -132,7 +224,8 @@ serve(async (req) => {
         page4_numbers,
         page5_next_steps,
         headline,
-        comprehensive_analysis
+        comprehensive_analysis,
+        client_type
       `)
       .eq('engagement_id', engagementId)
       .maybeSingle();
@@ -365,6 +458,37 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
 
     // ================================================================
+    // REMOVE EM-DASHES AND REPLACE BANNED WORDS
+    // ================================================================
+    let rewriteStr = JSON.stringify(rewrites);
+    rewriteStr = rewriteStr.replace(/ — /g, '. ');
+    rewriteStr = rewriteStr.replace(/—/g, '. ');
+    rewriteStr = rewriteStr.replace(/\bcrucial\b/gi, 'difficult');
+    rewriteStr = rewriteStr.replace(/\bpivotal\b/gi, 'important');
+    rewriteStr = rewriteStr.split('But the real return?').join('In practice:');
+    rewriteStr = rewriteStr.split('But the real return.').join('In practice.');
+    rewriteStr = rewriteStr.split("But here\\'s what that actually means:").join('In practice:');
+    rewriteStr = rewriteStr.split("But here\\'s what that actually means.").join('In practice.');
+    rewriteStr = rewriteStr.split("But here's what that actually means:").join('In practice:');
+    rewriteStr = rewriteStr.split("But here's what that actually means.").join('In practice.');
+    rewriteStr = rewriteStr.split("Here\\'s the thing:").join('');
+    rewriteStr = rewriteStr.split("Here's the thing:").join('');
+    rewriteStr = rewriteStr.split("Here\\'s what matters:").join('');
+    rewriteStr = rewriteStr.split("Here's what matters:").join('');
+    // Strip property/IHT language from non-investment-vehicle reports
+    const p2bClientType = report.client_type || '';
+    if (p2bClientType !== 'investment_vehicle') {
+      rewriteStr = rewriteStr.replace(/your property portfolio/gi, 'your business');
+      rewriteStr = rewriteStr.replace(/the property portfolio/gi, 'the business');
+      rewriteStr = rewriteStr.replace(/property portfolio/gi, 'business');
+      rewriteStr = rewriteStr.replace(/IHT restructuring/gi, 'strategic restructuring');
+      rewriteStr = rewriteStr.replace(/IHT purposes/gi, 'strategic purposes');
+      rewriteStr = rewriteStr.replace(/new acquisitions/gi, 'strategic investment');
+      rewriteStr = rewriteStr.replace(/fund acquisitions/gi, 'fund growth');
+    }
+    rewrites = JSON.parse(rewriteStr);
+
+    // ================================================================
     // UNIVERSAL PAYROLL FIGURE ENFORCEMENT — after Opus parse
     // ================================================================
     console.log(`[Pass2B] Correct payroll figures: £${payrollExcessK}k/year, £${payrollMonthlyK}k/month, ${payrollBenchmark}% benchmark`);
@@ -496,6 +620,17 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     }
 
     // ====================================================================
+    // GROSS MARGIN BENCHMARK SWEEP on merged pages (object-walking)
+    // ====================================================================
+    const gmData = report.comprehensive_analysis?.grossMargin;
+    if (gmData?.grossMarginPct && gmData.industryBenchmark) {
+      let gmSweep = 0;
+      gmSweep += enforceGrossMarginInObject(updatedPage2, gmData.grossMarginPct, gmData.industryBenchmark.low, gmData.industryBenchmark.high);
+      gmSweep += enforceGrossMarginInObject(updatedPage4, gmData.grossMarginPct, gmData.industryBenchmark.low, gmData.industryBenchmark.high);
+      if (gmSweep > 0) console.log(`[Pass2B GM Enforcement] Fixed ${gmSweep} gross margin benchmark figures`);
+    }
+
+    // ====================================================================
     // FINAL HEADLINE ENFORCEMENT — catch £476k in headline before save
     // The headline may come from rewrites OR fall back to old report value
     // ====================================================================
@@ -510,6 +645,34 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     // Also fix in the destination_report meta
     if (updatedDestinationReport.meta) {
       updatedDestinationReport.meta.headline = finalHeadline;
+    }
+
+    // ====================================================================
+    // AI SLOP DETECTION — log score for quality tracking (no auto-fix)
+    // ====================================================================
+    const fullText = JSON.stringify(updatedDestinationReport);
+    const slopScore = getSlopScore(fullText);
+    const slopIssues = detectAISlop(fullText);
+    console.log(`[Pass2B] AI Slop Score: ${slopScore}/100`);
+    if (slopIssues.length > 0) {
+      console.warn(`[Pass2B] Slop patterns found:`, slopIssues.map(i => `${i.pattern} (${i.count}x)`));
+    }
+
+    // ====================================================================
+    // FINAL OVERRIDE: Ensure calculated valuation always wins
+    // Must run AFTER Pass 2B merge, right before database save
+    // ====================================================================
+    const v = report.comprehensive_analysis?.valuation;
+    const finalValuationRange = (v?.conservativeValue != null && v?.optimisticValue != null)
+      ? `£${(v.conservativeValue / 1000000).toFixed(1)}M - £${(v.optimisticValue / 1000000).toFixed(1)}M`
+      : null;
+
+    if (finalValuationRange && updatedPage4) {
+      const current = updatedPage4.indicativeValuation;
+      if (current !== finalValuationRange) {
+        console.log(`[Pass2B] ⚠️ FINAL override indicativeValuation: "${current}" → "${finalValuationRange}"`);
+        updatedPage4.indicativeValuation = finalValuationRange;
+      }
     }
 
     // ====================================================================
@@ -530,6 +693,9 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
         ready_for_client: true,
         published_to_client_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        // Auto-lock on publish to prevent accidental regeneration
+        locked_at: new Date().toISOString(),
+        schema_version: '1.0',
       })
       .eq('engagement_id', engagementId);
 
@@ -544,7 +710,8 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
       .update({
         status: 'published',
         published_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        report_locked: true,
       })
       .eq('id', engagementId);
 

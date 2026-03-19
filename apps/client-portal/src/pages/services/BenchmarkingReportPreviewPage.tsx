@@ -77,9 +77,28 @@ export default function BenchmarkingReportPreviewPage() {
         return;
       }
 
+      const { data: hvaAssessment } = await supabase
+        .from('client_assessments')
+        .select('responses')
+        .eq('client_id', clientSession.clientId)
+        .eq('assessment_type', 'part3')
+        .maybeSingle();
+
+      const hvaResponses = hvaAssessment?.responses;
+      const hva_data = hvaResponses ? {
+        competitive_moat: hvaResponses.competitive_moat || [],
+        unique_methods: typeof hvaResponses.unique_methods === 'string'
+          ? hvaResponses.unique_methods
+          : Array.isArray(hvaResponses.unique_methods)
+            ? hvaResponses.unique_methods.join('; ')
+            : undefined,
+        reputation_build_time: hvaResponses.reputation_build_time,
+      } : undefined;
+
       const parsedReport = {
         ...report,
         pass1_data: typeof report.pass1_data === 'string' ? JSON.parse(report.pass1_data) : report.pass1_data,
+        hva_data,
       };
       setReportData(parsedReport);
 

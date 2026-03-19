@@ -1423,6 +1423,8 @@ function DiscoveryClientModal({
   // NEW: Destination-focused report from discovery_reports table
   const [destinationReport, setDestinationReport] = useState<any>(null);
   const [discoveryEngagement, setDiscoveryEngagement] = useState<any>(null);
+  const [reportLocked, setReportLocked] = useState<boolean>(false);
+  const [unlockingReport, setUnlockingReport] = useState<boolean>(false);
   
   // Specialist service opportunities (from Pass 3)
   const [specialistOpportunities, setSpecialistOpportunities] = useState<any[]>([]);
@@ -1445,6 +1447,9 @@ function DiscoveryClientModal({
   const [pinnedServices, setPinnedServices] = useState<string[]>([]);
   const [blockedServices, setBlockedServices] = useState<string[]>([]);
   const [allServices, setAllServices] = useState<any[]>([]);
+
+  // Admin industry benchmark override (for payroll benchmarks)
+  const [adminIndustryOverride, setAdminIndustryOverride] = useState<string>('');
   const [showServicePrefs, setShowServicePrefs] = useState(false);
   const [resettingFinancials, setResettingFinancials] = useState(false);
   
@@ -1713,6 +1718,7 @@ function DiscoveryClientModal({
         setDiscoveryEngagement(discoveryEngagementData);
         setPinnedServices(discoveryEngagementData.pinned_services || []);
         setBlockedServices(discoveryEngagementData.blocked_services || []);
+        setAdminIndustryOverride(discoveryEngagementData.admin_industry_override || '');
 
         // Load all active services for Pin/Block grid
         const { data: svcList } = await supabase
@@ -1745,8 +1751,10 @@ function DiscoveryClientModal({
             hasComprehensiveAnalysis: !!destReportData.comprehensive_analysis
           });
           setDestinationReport(destReportData);
+          setReportLocked(!!destReportData.locked_at);
         } else {
           setDestinationReport(null);
+          setReportLocked(false);
         }
         
         // Fetch specialist opportunities from Pass 3
@@ -1937,6 +1945,42 @@ function DiscoveryClientModal({
 
   // ================================================================
   // PHASE 1: Deep Analysis (prepare → deep-dive → generate-analysis)
+  // ================================================================
+  // UNLOCK REPORT
+  // ================================================================
+  const handleUnlockReport = async () => {
+    if (!discoveryEngagement?.id) return;
+    const confirmed = window.confirm(
+      'This report is locked. Unlocking will allow regeneration which may change the content. The previous version is preserved in the snapshot. Are you sure?'
+    );
+    if (!confirmed) return;
+
+    setUnlockingReport(true);
+    try {
+      const { error: rpcError } = await supabase.rpc('unlock_discovery_report', {
+        p_engagement_id: discoveryEngagement.id,
+        p_user_id: user?.id || null
+      });
+      if (rpcError) {
+        // Fallback: direct update if RPC doesn't exist yet
+        await supabase
+          .from('discovery_reports')
+          .update({ locked_at: null, locked_by: null })
+          .eq('engagement_id', discoveryEngagement.id);
+        await supabase
+          .from('discovery_engagements')
+          .update({ report_locked: false })
+          .eq('id', discoveryEngagement.id);
+      }
+      setReportLocked(false);
+      console.log('[Admin] Report unlocked');
+    } catch (err) {
+      console.error('[Admin] Unlock failed:', err);
+    } finally {
+      setUnlockingReport(false);
+    }
+  };
+
   // Edge Functions can run 2–3+ minutes; use long timeout to avoid "connection closed".
   // ================================================================
   const PHASE1_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
@@ -2032,7 +2076,10 @@ function DiscoveryClientModal({
     const timeoutId = setTimeout(() => controller.abort(), PHASE2_INVOKE_TIMEOUT_MS);
     const invokeOpts = { signal: controller.signal as AbortSignal };
     try {
-      await supabase.from('discovery_engagements').update({ status: 'pass1_processing' }).eq('id', engagementId);
+      await supabase.from('discovery_engagements').update({
+        status: 'pass1_processing',
+        admin_industry_override: adminIndustryOverride || null,
+      }).eq('id', engagementId);
 
       setPhaseProgress('Calculating scores & benchmarks...');
       const { error: pass1Error } = await supabase.functions.invoke('generate-discovery-report-pass1', {
@@ -2173,6 +2220,10 @@ function DiscoveryClientModal({
       alert('No discovery engagement. Run Phase 2 first.');
       return;
     }
+    // Save admin overrides before Phase 3 (Pass 2A/2B may use engagement data)
+    await supabase.from('discovery_engagements').update({
+      admin_industry_override: adminIndustryOverride || null,
+    }).eq('id', engagementId);
     setCurrentPhase(3);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), PHASE3_INVOKE_TIMEOUT_MS);
@@ -2183,15 +2234,32 @@ function DiscoveryClientModal({
         .eq('id', engagementId);
 
       setPhaseProgress('Generating narrative report...');
-      const { error } = await supabase.functions.invoke('generate-discovery-report-pass2', {
+
+      // Pass 2A: Sonnet generates complete structured report
+      console.log('[Phase3] Running Pass 2A (Sonnet structure)...');
+      const { error: pass2aError } = await supabase.functions.invoke('generate-discovery-report-pass2a', {
         body: { engagementId },
         signal: controller.signal as AbortSignal,
       });
-      if (error) throw new Error(`Report generation failed: ${error.message}`);
+      if (pass2aError) throw new Error(`Report generation failed: ${pass2aError.message}`);
+      console.log('[Phase3] Pass 2A complete. Running Pass 2B (Opus narrative)...');
+
+      // Pass 2B: Opus enhances narrative sections
+      const { data: pass2bResult, error: pass2bError } = await supabase.functions.invoke('generate-discovery-report-pass2b', {
+        body: { engagementId },
+        signal: controller.signal as AbortSignal,
+      });
+
+      const pass2bSucceeded = !pass2bError && pass2bResult?.success !== false;
+
+      if (!pass2bSucceeded) {
+        console.warn('[Phase3] Pass 2B failed (Sonnet report still intact):', pass2bError?.message || pass2bResult?.error);
+        alert('Report generated (Sonnet quality). Opus narrative enhancement failed — you can retry later.');
+      }
 
       await supabase
         .from('discovery_engagements')
-        .update({ status: 'pass2_complete', pass2_completed_at: new Date().toISOString() })
+        .update({ status: pass2bSucceeded ? 'published' : 'pass2_complete', pass2_completed_at: new Date().toISOString() })
         .eq('id', engagementId);
 
       setPhaseProgress('Report generated ✓');
@@ -3801,6 +3869,76 @@ function DiscoveryClientModal({
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Industry Benchmark Override */}
+            <div className="min-w-[200px] max-w-[220px]">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Industry Benchmark
+              </label>
+              <select
+                value={adminIndustryOverride}
+                onChange={(e) => setAdminIndustryOverride(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              >
+                <option value="">Auto-detect (default)</option>
+                <optgroup label="Education & Training">
+                  <option value="education">Education (48%)</option>
+                  <option value="training">Training / Coaching (38%)</option>
+                </optgroup>
+                <optgroup label="Professional Services">
+                  <option value="professional_services">Professional Services (45%)</option>
+                  <option value="accountancy">Accountancy (45%)</option>
+                  <option value="legal">Legal (45%)</option>
+                  <option value="consulting">Consulting (45%)</option>
+                  <option value="financial_services">Financial Services (30%)</option>
+                </optgroup>
+                <optgroup label="Technology">
+                  <option value="technology">Technology (35%)</option>
+                  <option value="saas">SaaS (30%)</option>
+                  <option value="software">Software (35%)</option>
+                </optgroup>
+                <optgroup label="Creative & Agency">
+                  <option value="creative_agency">Creative Agency (40%)</option>
+                  <option value="media">Media / Publishing (33%)</option>
+                  <option value="marketing_services">Marketing Services (30%)</option>
+                </optgroup>
+                <optgroup label="Construction & Trades">
+                  <option value="construction">Construction (22%)</option>
+                  <option value="fit_out">Fit-Out / Interiors (12%)</option>
+                  <option value="trades">Trades (25%)</option>
+                </optgroup>
+                <optgroup label="Healthcare">
+                  <option value="healthcare">Healthcare (45%)</option>
+                  <option value="dental">Dental (38%)</option>
+                  <option value="care_home">Care Home (46%)</option>
+                  <option value="veterinary">Veterinary (36%)</option>
+                </optgroup>
+                <optgroup label="Hospitality & Leisure">
+                  <option value="hospitality">Hospitality (30%)</option>
+                  <option value="restaurant">Restaurant (28%)</option>
+                  <option value="hotel">Hotel (32%)</option>
+                </optgroup>
+                <optgroup label="Retail & Distribution">
+                  <option value="retail">Retail (15%)</option>
+                  <option value="ecommerce">E-commerce (14%)</option>
+                  <option value="wholesale_distribution">Wholesale / Distribution (28%)</option>
+                </optgroup>
+                <optgroup label="Manufacturing">
+                  <option value="manufacturing">Manufacturing (25%)</option>
+                  <option value="engineering">Engineering (27%)</option>
+                </optgroup>
+                <optgroup label="Other">
+                  <option value="recruitment">Recruitment (34%)</option>
+                  <option value="cleaning">Cleaning / Facilities (44%)</option>
+                  <option value="transport">Transport / Logistics (28%)</option>
+                  <option value="general_business">General Business (30%)</option>
+                </optgroup>
+              </select>
+              {adminIndustryOverride && (
+                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  Overrides auto-detection. Payroll &quot;good&quot; benchmark shown in parentheses.
+                </p>
+              )}
+            </div>
             {/* Three-Phase Generation Controls */}
             <div className="flex items-center gap-2">
               <button
@@ -3822,7 +3960,7 @@ function DiscoveryClientModal({
               </button>
               <button
                 onClick={handlePhase2AnalyseAndScore}
-                disabled={currentPhase !== null || !['analysis_processing', 'analysis_complete', 'opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '')}
+                disabled={currentPhase !== null || !['analysis_processing', 'analysis_complete', 'opportunities_complete', 'pass2_complete', 'published'].includes(discoveryEngagement?.status || '')}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
                   ['analysis_processing', 'analysis_complete'].includes(discoveryEngagement?.status || '')
                     ? 'bg-amber-600 text-white hover:bg-amber-700'
@@ -3839,9 +3977,9 @@ function DiscoveryClientModal({
               </button>
               <button
                 onClick={handlePhase3GenerateReport}
-                disabled={currentPhase !== null || !(['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis))}
+                disabled={currentPhase !== null || !(['opportunities_complete', 'pass2_complete', 'published'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis))}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
-                  ['opportunities_complete', 'pass2_complete'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis)
+                  ['opportunities_complete', 'pass2_complete', 'published'].includes(discoveryEngagement?.status || '') || (specialistOpportunities?.length > 0 && !!destinationReport?.comprehensive_analysis)
                     ? 'bg-purple-600 text-white hover:bg-purple-700'
                     : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                 } disabled:opacity-50`}
@@ -3854,6 +3992,21 @@ function DiscoveryClientModal({
                 )}
                 {currentPhase === 3 ? 'Writing...' : '3. Report'}
               </button>
+              {reportLocked && (
+                <span className="flex items-center gap-1.5">
+                  <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    Locked
+                  </span>
+                  <button
+                    onClick={handleUnlockReport}
+                    disabled={unlockingReport}
+                    className="px-2 py-1 rounded text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/30 disabled:opacity-50"
+                    title="Unlock report to allow regeneration"
+                  >
+                    {unlockingReport ? 'Unlocking...' : 'Unlock'}
+                  </button>
+                </span>
+              )}
               <button
                 onClick={handleClearFinancialsAndAnalysis}
                 disabled={resettingFinancials || currentPhase !== null}
@@ -4877,7 +5030,7 @@ function DiscoveryClientModal({
                                         )}
                                         {page4.realReturn && (
                                           <p className="mt-3 pt-3 border-t border-emerald-200 text-emerald-800 italic">
-                                            But the real return? {page4.realReturn}
+                                            {page4.realReturn}
                                           </p>
                                         )}
                                       </div>
@@ -4998,9 +5151,11 @@ function DiscoveryClientModal({
                                                 <p className="text-lg font-bold text-rose-900">
                                                   £{Math.round(destinationReport.comprehensive_analysis.payroll.annualExcess / 1000)}k/year
                                                 </p>
-                                                <p className="text-xs text-rose-700 mt-1">
-                                                  {destinationReport.comprehensive_analysis.payroll.payrollPct?.toFixed(1)}% vs {destinationReport.comprehensive_analysis.payroll.benchmarkPct?.toFixed(1)}% benchmark
-                                                </p>
+                                                {(destinationReport.comprehensive_analysis.payroll.staffCostsPct != null && destinationReport.comprehensive_analysis.payroll.benchmark?.good != null) && (
+                                                  <p className="text-xs text-rose-700 mt-1">
+                                                    {Number(destinationReport.comprehensive_analysis.payroll.staffCostsPct).toFixed(1)}% vs {destinationReport.comprehensive_analysis.payroll.benchmark.good}% benchmark
+                                                  </p>
+                                                )}
                                               </div>
                                             </div>
                                           )}
@@ -5145,6 +5300,30 @@ function DiscoveryClientModal({
                                       </div>
                                     )}
                                     
+                                    {page5.quickWins && Array.isArray(page5.quickWins) && page5.quickWins.length > 0 && (
+                                      <div className="mt-2 mb-2">
+                                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                                          Three Things You Can Do This Week
+                                        </h3>
+                                        <p className="text-sm text-gray-600 mb-4">
+                                          Whether you work with us or not — these will help.
+                                        </p>
+                                        <div className="space-y-4">
+                                          {page5.quickWins.map((win: any, i: number) => (
+                                            <div key={i} className="flex gap-3">
+                                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-sm">
+                                                {i + 1}
+                                              </div>
+                                              <div>
+                                                <p className="text-gray-900 font-medium">{win.action}</p>
+                                                <p className="text-sm text-gray-600 mt-1">{win.why}</p>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
                                     {page5.theAsk && (
                                       <div className="bg-slate-800 rounded-lg p-6 text-center">
                                         <p className="text-slate-300 text-lg mb-4">{page5.theAsk}</p>
@@ -6087,6 +6266,29 @@ function DiscoveryClientModal({
                           </div>
                         </div>
                       )}
+
+                      {/* Quick Wins (admin legacy view) */}
+                      {(() => {
+                        const page5 = destinationReport?.page5_next_steps || destinationReport?.page5_nextSteps;
+                        if (!page5?.quickWins || !Array.isArray(page5.quickWins) || page5.quickWins.length === 0) return null;
+                        return (
+                          <div className="bg-white border border-gray-200 rounded-xl p-6">
+                            <h4 className="font-semibold text-gray-900 mb-2">Three Things You Can Do This Week</h4>
+                            <p className="text-sm text-gray-500 mb-4">Whether you work with us or not — these will help.</p>
+                            <div className="space-y-4">
+                              {page5.quickWins.map((win: any, i: number) => (
+                                <div key={i} className="flex gap-3">
+                                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-700 font-semibold text-sm">{i + 1}</div>
+                                  <div>
+                                    <p className="text-gray-900 font-medium">{win.action}</p>
+                                    <p className="text-sm text-gray-600 mt-1">{win.why}</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Closing Message - Prefer Pass 2 page5_next_steps over Stage 3 closingMessage */}
                       {(() => {
@@ -11621,6 +11823,27 @@ function BenchmarkingClientModal({
     }
   };
 
+  const handleRequestUpdatedHVA = async () => {
+    if (!engagement?.id) return;
+    if (!confirm('Reset HVA responses and set status to Awaiting Client? The client will need to complete the Hidden Value Audit again.')) return;
+    try {
+      const { error: engError } = await supabase
+        .from('bm_engagements')
+        .update({ hva_status: 'pending', hva_completed_at: null })
+        .eq('id', engagement.id);
+      if (engError) throw engError;
+      const { error: respError } = await supabase
+        .from('bm_assessment_responses')
+        .update({ responses: {} })
+        .eq('engagement_id', engagement.id);
+      if (respError) throw respError;
+      await fetchData();
+    } catch (error: any) {
+      console.error('[Benchmarking] Error requesting updated HVA:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+    }
+  };
+
   const canGenerate = engagement?.status === 'assessment_complete' || engagement?.status === 'pass1_complete' || engagement?.status === 'cancelled';
   // Report exists if we have report data (but not if cancelled) OR if engagement status indicates a report was generated
   // Treat 'cancelled' status as "no report" so user can regenerate
@@ -12184,10 +12407,12 @@ function BenchmarkingClientModal({
                               onSaveSupplementaryData={handleSaveSupplementaryData}
                               onRegenerate={handleRegenerateWithNewData}
                               isRegenerating={generating}
-                              // Share with client functionality
                               isSharedWithClient={isBenchmarkShared}
                               onToggleShare={handleToggleBenchmarkShare}
                               isTogglingShare={isTogglingBenchmarkShare}
+                              hvaStatus={engagement?.hva_status}
+                              hvaCompletedAt={engagement?.hva_completed_at}
+                              onRequestUpdatedHVA={handleRequestUpdatedHVA}
                             />
                           );
                         })()

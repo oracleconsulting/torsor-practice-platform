@@ -210,6 +210,81 @@ function enforcePayrollInObject(obj: any, correctExcessK: number, correctMonthly
 }
 
 // ============================================================================
+// GROSS MARGIN BENCHMARK ENFORCEMENT (prevents LLM inventing GM benchmarks)
+// ============================================================================
+
+function fixGrossMarginInString(
+  text: string,
+  correctMarginPct: number,
+  correctBenchmarkLow: number,
+  correctBenchmarkHigh: number
+): { text: string; changed: boolean; count: number } {
+  let result = text;
+  let count = 0;
+  if (text.length < 10) return { text, changed: false, count: 0 };
+
+  const hasGMContext = /gross\s*margin|gm\s*of|margin.*benchmark|margin.*industry/i.test(text);
+  if (!hasGMContext) return { text, changed: false, count: 0 };
+
+  const benchMid = Math.round((correctBenchmarkLow + correctBenchmarkHigh) / 2);
+
+  result = result.replace(
+    /(\d{1,2}(?:\.\d)?)\s*%\s*(industry|sector|benchmark|median|typical)\s*(benchmark|average|norm)?/gi,
+    (match: string, foundPct: string) => {
+      const found = parseFloat(foundPct);
+      if (found >= 10 && found <= 90 && Math.abs(found - benchMid) > 3 && Math.abs(found - correctBenchmarkLow) > 3 && Math.abs(found - correctBenchmarkHigh) > 3) {
+        count++;
+        return match.replace(`${foundPct}%`, `${benchMid}%`);
+      }
+      return match;
+    }
+  );
+
+  result = result.replace(
+    /benchmark\s+(?:of\s+)?(\d{1,2}(?:\.\d)?)\s*-\s*(\d{1,2}(?:\.\d)?)\s*%/gi,
+    (match: string, lo: string, hi: string) => {
+      const loN = parseFloat(lo);
+      const hiN = parseFloat(hi);
+      if (Math.abs(loN - correctBenchmarkLow) > 3 || Math.abs(hiN - correctBenchmarkHigh) > 3) {
+        count++;
+        return match.replace(`${lo}-${hi}%`, `${correctBenchmarkLow}-${correctBenchmarkHigh}%`);
+      }
+      return match;
+    }
+  );
+
+  return { text: result, changed: count > 0, count };
+}
+
+function enforceGrossMarginInObject(obj: any, correctMarginPct: number, correctBenchmarkLow: number, correctBenchmarkHigh: number): number {
+  let replacements = 0;
+  if (!obj || correctMarginPct <= 0) return 0;
+  if (typeof obj === 'string') return 0;
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) {
+      if (typeof obj[i] === 'string') {
+        const r = fixGrossMarginInString(obj[i], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh);
+        if (r.changed) { obj[i] = r.text; replacements += r.count; }
+      } else {
+        replacements += enforceGrossMarginInObject(obj[i], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh);
+      }
+    }
+    return replacements;
+  }
+  if (typeof obj === 'object') {
+    for (const key of Object.keys(obj)) {
+      if (typeof obj[key] === 'string') {
+        const r = fixGrossMarginInString(obj[key], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh);
+        if (r.changed) { obj[key] = r.text; replacements += r.count; }
+      } else {
+        replacements += enforceGrossMarginInObject(obj[key], correctMarginPct, correctBenchmarkLow, correctBenchmarkHigh);
+      }
+    }
+  }
+  return replacements;
+}
+
+// ============================================================================
 // 7-DIMENSION ANALYSIS TYPES (from Pass 1)
 // ============================================================================
 
@@ -897,6 +972,27 @@ serve(async (req) => {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // ========================================================================
+    // LOCK CHECK: Refuse to regenerate locked reports
+    // ========================================================================
+    const { data: lockCheck } = await supabase
+      .from('discovery_reports')
+      .select('locked_at')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    if (lockCheck?.locked_at) {
+      console.log(`[Pass2A] ⛔ Report is locked (locked_at: ${lockCheck.locked_at}). Refusing to regenerate.`);
+      return new Response(
+        JSON.stringify({
+          error: 'Report is locked',
+          message: 'This report has been locked to preserve its current state. Unlock it in the admin panel before regenerating.',
+          locked_at: lockCheck.locked_at
+        }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // ========================================================================
     // GUARD: Refuse to generate if Pass 1 hasn't run (Phase 2 / 2. Score)
@@ -1878,6 +1974,27 @@ USE THESE VERBATIM. THIS IS NOT OPTIONAL.
 
 `;
       }
+
+      // Gross margin benchmark enforcement (always, when GM data exists)
+      const gmData = comprehensiveAnalysis?.grossMargin;
+      if (gmData?.grossMarginPct && gmData.industryBenchmark) {
+        const gmPct = gmData.grossMarginPct.toFixed(1);
+        const gmBenchLow = gmData.industryBenchmark.low;
+        const gmBenchHigh = gmData.industryBenchmark.high;
+        const gmAssessment = gmData.assessment || 'typical';
+        mandatoryPhrasesSection += `
+📊 GROSS MARGIN FIGURES (USE THESE EXACT NUMBERS):
+────────────────────────────────────────────────────────────────────────────
+► Gross margin: ${gmPct}%
+► Industry benchmark range: ${gmBenchLow}-${gmBenchHigh}%
+► Assessment: ${gmAssessment}
+
+⛔ DO NOT invent or change the benchmark percentage.
+⛔ The ${gmBenchLow}-${gmBenchHigh}% range is the correct industry benchmark.
+⛔ DO NOT describe the margin as "below benchmark" if the assessment is excellent or healthy.
+
+`;
+      }
       
       // Employee count context (Session 11)
       if ((preBuiltPhrases as any).employeeCountContext) {
@@ -2216,7 +2333,7 @@ ${fhs.noteworthyRatios.map((r: { name: string; formatted: string; status: string
 - ${r.name}: ${r.formatted}
   Status: ${r.status}
   Narrative: ${r.narrativePhrase}
-  Context: ${r.context}
+  Context: ${r.context}${(r as any).whatItMeans ? `\n  ⛔⛔⛔ MANDATORY EXPLANATION (use this VERBATIM, do NOT invent your own): ${(r as any).whatItMeans}` : ''}
 `).join('')}
 
 RULES FOR USING RATIOS:
@@ -2225,11 +2342,16 @@ RULES FOR USING RATIOS:
 3. Use the pre-built narrative phrases — DO NOT recalculate or reinterpret the numbers
 4. If a ratio supports an existing gap (e.g., current ratio supports liquidity concern), fold it in there
 5. If a ratio reveals something new (e.g., very low gearing = untapped borrowing capacity), it can be a new insight in Page 2
-6. Maximum 3 ratio references across the entire report — be selective, not exhaustive
-7. NEVER present ratios as a data dump or table. They should feel like advisor observations.
+6. NEVER assume the business is property-related unless it is an investment vehicle or the data says so
+7. Maximum 3 ratio references across the entire report — be selective, not exhaustive
+8. NEVER present ratios as a data dump or table. They should feel like advisor observations.
+9. If a ratio has a 'whatItMeans' explanation from Pass 1, USE IT. Do not invent your own explanation. The whatItMeans text is pre-written for this specific business type and is the source of truth.
 
 EXAMPLE OF GOOD RATIO USAGE:
-"Your gearing of 8% tells a clear story — you've built a £6.4M estate with almost no debt. That's conservative, and it's served you well. But it also means there's borrowing capacity you're not using. Whether that matters depends on where you want to take the portfolio next."
+${reportFraming === 'wealth_protection'
+  ? `"Your gearing of 8% tells a clear story. You've built a £6.4M estate with almost no debt. That's conservative, and it's served you well. But it also means there's borrowing capacity you're not using. Whether that matters depends on where you want to take the portfolio next."`
+  : `"Your gearing sits at 34%. Moderate, and manageable. But with an exit in your sightline, buyers will look at this number. Getting it below 25% before you go to market gives you a cleaner balance sheet and a stronger negotiating position."`
+}
 
 EXAMPLE OF BAD RATIO USAGE:
 "Your current ratio is 0.52, gearing is 8%, interest cover is 6.5x, asset turnover is 0.06, and return on equity is -0.7%."
@@ -2953,6 +3075,22 @@ Do NOT:
 - Use service names as headlines (use outcome headlines)
 - Fabricate quotes the client never said
 - Leave any schema field missing or null unless the data genuinely isn't available
+
+BANNED TRANSITIONS (never use these):
+- "But the real return?"
+- "But here's what that actually means"
+- "Here's the thing"
+- "Here's what matters"
+Just say the thing. No preamble.
+
+REPETITION LIMITS:
+- "evenings and weekends" — use max 2 times in entire report
+- "£10k/month passive income" or "£10,000 a month" — use max 3 times
+- "ground-hog day" — use max 1 time (it's powerful once, lazy twice)
+- "conversations you've been avoiding" — use max 2 times
+- "cash flow and paying bills" — use as exact quote once, then vary: "the cash pressure", "the sleepless nights", "keeping the lights on"
+- If you've used a phrase, find a different way to say it next time.
+- Count your uses. If a concept appears more than the limit, rewrite.
 
 Respond with ONLY the JSON object. No markdown, no preamble, no commentary.
 
@@ -4242,10 +4380,31 @@ Before returning, verify:
     // ENHANCEMENT 7: Ensure page4_numbers has calculated values
     // ========================================================================
     if (narratives.page4_numbers) {
-      // Add indicative valuation if not present
-      if (preBuiltPhrases.valuationRange && !narratives.page4_numbers.indicativeValuation) {
-        narratives.page4_numbers.indicativeValuation = preBuiltPhrases.valuationRange;
-        console.log('[Pass2] 📊 Added indicativeValuation to page4_numbers:', preBuiltPhrases.valuationRange);
+      // Build valuation range from Pass 1 if preBuiltPhrases didn't have it
+      const valuationRangeToUse = preBuiltPhrases.valuationRange || (() => {
+        const v = comprehensiveAnalysis?.valuation;
+        if (v?.conservativeValue != null && v?.optimisticValue != null) {
+          const lowM = (v.conservativeValue / 1000000).toFixed(1);
+          const highM = (v.optimisticValue / 1000000).toFixed(1);
+          return `£${lowM}M - £${highM}M`;
+        }
+        return null;
+      })();
+
+      console.log('[Pass2A] 🔍 indicativeValuation override check:', {
+        preBuiltValuationRange: preBuiltPhrases.valuationRange,
+        valuationRangeToUse,
+        llmIndicativeValuation: narratives.page4_numbers?.indicativeValuation,
+        willOverride: !!valuationRangeToUse,
+      });
+
+      // ALWAYS use the calculated valuation range — never trust the LLM's version
+      if (valuationRangeToUse) {
+        if (narratives.page4_numbers.indicativeValuation &&
+            narratives.page4_numbers.indicativeValuation !== valuationRangeToUse) {
+          console.log(`[Pass2A] ⚠️ Overriding LLM indicativeValuation: "${narratives.page4_numbers.indicativeValuation}" → "${valuationRangeToUse}"`);
+        }
+        narratives.page4_numbers.indicativeValuation = valuationRangeToUse;
       }
       
       // Add hidden assets if not present
@@ -4776,6 +4935,95 @@ Before returning, verify:
     const cleanedStr = cleanAllEnabledByStrings(reportJsonStr);
     narratives = JSON.parse(cleanedStr);
 
+    // Fix duplicate and suspiciously large financial impact amounts across gaps
+    if (narratives.page2_gaps?.gaps && Array.isArray(narratives.page2_gaps.gaps)) {
+      const gaps = narratives.page2_gaps.gaps;
+      const amounts = gaps.map((g: any) => {
+        const m = (g.financialImpact || '').match(/£([\d,]+)/);
+        return m ? parseInt(m[1].replace(/,/g, '')) : null;
+      }).filter(Boolean);
+      const allSameAmount = amounts.length >= 2 && new Set(amounts).size === 1;
+
+      narratives.page2_gaps.gaps = gaps.map((gap: any) => {
+        if (!gap.financialImpact) return gap;
+        const impactText = String(gap.financialImpact);
+        const rawNumberMatch = impactText.match(/£([\d,]+)/);
+        if (!rawNumberMatch) return gap;
+
+        const amount = parseInt(rawNumberMatch[1].replace(/,/g, ''));
+        const isPayrollGap = /payroll|staff cost|team cost|headcount|people cost/i.test(gap.title || '');
+        const isMarginGap = /margin|profit|pricing/i.test(gap.title || '');
+
+        // If amount > £10M, it's almost certainly a formatting bug (no SME gap should show £10M+ impact)
+        if (amount > 10000000) {
+          console.log(`[Pass2A] ⚠️ Suspiciously large gap impact: £${amount.toLocaleString()} in "${gap.title}". Replacing.`);
+          const matchingOpp = (curatedOpportunities || []).find((o: any) => {
+            const oppTitle = (o.title || '').toLowerCase();
+            const gapTitle = (gap.title || '').toLowerCase();
+            return gapTitle.split(' ').filter((w: string) => w.length > 4).some((w: string) => oppTitle.includes(w));
+          });
+          if (matchingOpp?.financial_impact_amount) {
+            const correctedAmount = Number(matchingOpp.financial_impact_amount);
+            const correctedK = Math.round(correctedAmount / 1000);
+            gap.financialImpact = impactText.replace(
+              /£[\d,]+/,
+              correctedK >= 1000 ? `£${(correctedAmount / 1000000).toFixed(1)}M` : `£${correctedK}k`
+            );
+            console.log(`[Pass2A] ✅ Corrected to £${correctedK}k from opportunity data`);
+          } else {
+            gap.financialImpact = impactText.replace(/£[\d,]+[^.]*/, 'Significant impact');
+            console.log(`[Pass2A] ✅ Replaced with qualitative description`);
+          }
+          return gap;
+        }
+
+        // Duplicate amounts: if all gaps have same figure, clean non-payroll/non-margin
+        if (allSameAmount && !isPayrollGap && !isMarginGap) {
+          gap.financialImpact = gap.financialImpact.replace(
+            /£[\d,]+(?:k|K|M|m)?[^.]*/,
+            'Significant but unquantified'
+          );
+        }
+        return gap;
+      });
+      if (allSameAmount) {
+        console.log(`[Pass2A] ⚠️ All ${gaps.length} gaps had identical financial impact. Cleaned non-payroll gaps.`);
+      }
+    }
+
+    // Remove em-dashes and replace banned words/transitions (AI tell)
+    let narStr = JSON.stringify(narratives);
+    narStr = narStr.replace(/ — /g, '. ');
+    narStr = narStr.replace(/—/g, '. ');
+    narStr = narStr.replace(/\bcrucial\b/gi, 'difficult');
+    narStr = narStr.replace(/\bpivotal\b/gi, 'important');
+    // Split/join for banned transitions (regex fails on JSON-escaped strings)
+    narStr = narStr.split('But the real return?').join('In practice:');
+    narStr = narStr.split('But the real return.').join('In practice.');
+    narStr = narStr.split('But the real return').join('In practice'); // no punctuation variant
+    narStr = narStr.split("But here\\'s what that actually means:").join('In practice:');
+    narStr = narStr.split("But here\\'s what that actually means.").join('In practice.');
+    narStr = narStr.split("But here's what that actually means:").join('In practice:');
+    narStr = narStr.split("But here's what that actually means.").join('In practice.');
+    narStr = narStr.split("Here\\'s the thing:").join('');
+    narStr = narStr.split("Here's the thing:").join('');
+    narStr = narStr.split("Here\\'s what matters:").join('');
+    narStr = narStr.split("Here's what matters:").join('');
+    // Regex fallback for any remaining "But the real return?" (handles smart quotes, etc.)
+    narStr = narStr.replace(/But\s+the\s+real\s+return\s*[?\.]?\s*/gi, 'In practice: ');
+    // Strip property/IHT language from non-investment-vehicle reports
+    if (clientType !== 'investment_vehicle') {
+      narStr = narStr.replace(/your property portfolio/gi, 'your business');
+      narStr = narStr.replace(/the property portfolio/gi, 'the business');
+      narStr = narStr.replace(/property portfolio/gi, 'business');
+      narStr = narStr.replace(/IHT restructuring/gi, 'strategic restructuring');
+      narStr = narStr.replace(/IHT purposes/gi, 'strategic purposes');
+      narStr = narStr.replace(/new acquisitions/gi, 'strategic investment');
+      narStr = narStr.replace(/fund acquisitions/gi, 'fund growth');
+    }
+    narratives = JSON.parse(narStr);
+    console.log('[Pass2A] Removed em-dashes, banned words/transitions, and type-mismatched language from output');
+
     // Snapshot client-visible opportunities into the report (Option C — hybrid surfacing)
     const clientVisibleSnapshot = (curatedOpportunities || [])
       .filter((o: any) => o.show_in_client_view)
@@ -4806,6 +5054,22 @@ Before returning, verify:
       const payrollReplacements = enforcePayrollInObject(narratives, enforceK, enforceMonthlyK, enforceBench);
       if (payrollReplacements > 0) {
         console.log(`[Pass2A Payroll Enforcement] Fixed ${payrollReplacements} figures. Correct: £${enforceK}k/year, £${enforceMonthlyK}k/month, ${enforceBench}% benchmark`);
+      }
+    }
+
+    // ====================================================================
+    // GROSS MARGIN BENCHMARK ENFORCEMENT — before save (object-walking)
+    // ====================================================================
+    const gmForEnforce = comprehensiveAnalysis?.grossMargin;
+    if (gmForEnforce?.grossMarginPct && gmForEnforce.industryBenchmark) {
+      const gmReplacements = enforceGrossMarginInObject(
+        narratives,
+        gmForEnforce.grossMarginPct,
+        gmForEnforce.industryBenchmark.low,
+        gmForEnforce.industryBenchmark.high
+      );
+      if (gmReplacements > 0) {
+        console.log(`[Pass2A GM Enforcement] Fixed ${gmReplacements} gross margin benchmark figures. Correct: ${gmForEnforce.grossMarginPct.toFixed(1)}% vs ${gmForEnforce.industryBenchmark.low}-${gmForEnforce.industryBenchmark.high}% benchmark`);
       }
     }
 

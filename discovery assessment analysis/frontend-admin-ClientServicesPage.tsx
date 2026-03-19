@@ -1423,6 +1423,8 @@ function DiscoveryClientModal({
   // NEW: Destination-focused report from discovery_reports table
   const [destinationReport, setDestinationReport] = useState<any>(null);
   const [discoveryEngagement, setDiscoveryEngagement] = useState<any>(null);
+  const [reportLocked, setReportLocked] = useState<boolean>(false);
+  const [unlockingReport, setUnlockingReport] = useState<boolean>(false);
   
   // Specialist service opportunities (from Pass 3)
   const [specialistOpportunities, setSpecialistOpportunities] = useState<any[]>([]);
@@ -1749,8 +1751,10 @@ function DiscoveryClientModal({
             hasComprehensiveAnalysis: !!destReportData.comprehensive_analysis
           });
           setDestinationReport(destReportData);
+          setReportLocked(!!destReportData.locked_at);
         } else {
           setDestinationReport(null);
+          setReportLocked(false);
         }
         
         // Fetch specialist opportunities from Pass 3
@@ -1941,6 +1945,42 @@ function DiscoveryClientModal({
 
   // ================================================================
   // PHASE 1: Deep Analysis (prepare → deep-dive → generate-analysis)
+  // ================================================================
+  // UNLOCK REPORT
+  // ================================================================
+  const handleUnlockReport = async () => {
+    if (!discoveryEngagement?.id) return;
+    const confirmed = window.confirm(
+      'This report is locked. Unlocking will allow regeneration which may change the content. The previous version is preserved in the snapshot. Are you sure?'
+    );
+    if (!confirmed) return;
+
+    setUnlockingReport(true);
+    try {
+      const { error: rpcError } = await supabase.rpc('unlock_discovery_report', {
+        p_engagement_id: discoveryEngagement.id,
+        p_user_id: user?.id || null
+      });
+      if (rpcError) {
+        // Fallback: direct update if RPC doesn't exist yet
+        await supabase
+          .from('discovery_reports')
+          .update({ locked_at: null, locked_by: null })
+          .eq('engagement_id', discoveryEngagement.id);
+        await supabase
+          .from('discovery_engagements')
+          .update({ report_locked: false })
+          .eq('id', discoveryEngagement.id);
+      }
+      setReportLocked(false);
+      console.log('[Admin] Report unlocked');
+    } catch (err) {
+      console.error('[Admin] Unlock failed:', err);
+    } finally {
+      setUnlockingReport(false);
+    }
+  };
+
   // Edge Functions can run 2–3+ minutes; use long timeout to avoid "connection closed".
   // ================================================================
   const PHASE1_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
@@ -3952,6 +3992,21 @@ function DiscoveryClientModal({
                 )}
                 {currentPhase === 3 ? 'Writing...' : '3. Report'}
               </button>
+              {reportLocked && (
+                <span className="flex items-center gap-1.5">
+                  <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    Locked
+                  </span>
+                  <button
+                    onClick={handleUnlockReport}
+                    disabled={unlockingReport}
+                    className="px-2 py-1 rounded text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/30 disabled:opacity-50"
+                    title="Unlock report to allow regeneration"
+                  >
+                    {unlockingReport ? 'Unlocking...' : 'Unlock'}
+                  </button>
+                </span>
+              )}
               <button
                 onClick={handleClearFinancialsAndAnalysis}
                 disabled={resettingFinancials || currentPhase !== null}
@@ -4975,7 +5030,7 @@ function DiscoveryClientModal({
                                         )}
                                         {page4.realReturn && (
                                           <p className="mt-3 pt-3 border-t border-emerald-200 text-emerald-800 italic">
-                                            But the real return? {page4.realReturn}
+                                            {page4.realReturn}
                                           </p>
                                         )}
                                       </div>

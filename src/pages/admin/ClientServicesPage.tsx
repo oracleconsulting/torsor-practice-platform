@@ -11748,7 +11748,33 @@ function BenchmarkingClientModal({
     }
   };
 
-  // Handle regenerating the report with updated data
+  // Handle Pass 3 only (opportunities & services) — preserves Pass 1/2 financial data
+  const handleRegeneratePass3Only = async () => {
+    if (!engagement) return;
+    if (!confirm('Re-run opportunities and service recommendations only? Pass 1/2 financial data will be preserved.')) return;
+
+    setGenerating(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke('regenerate-bm-report', {
+        body: {
+          engagementId: engagement.id,
+          passToRun: 'pass3_only',
+          reason: 'Manual Pass 3 regeneration'
+        }
+      });
+
+      if (error) throw error;
+      console.log('[Benchmarking] Pass 3 regeneration result:', result);
+      await fetchData();
+    } catch (error: any) {
+      console.error('[Benchmarking] Error regenerating Pass 3:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Handle regenerating the report with updated data (full pipeline)
   const handleRegenerateWithNewData = async () => {
     if (!engagement) return;
     
@@ -12275,23 +12301,45 @@ function BenchmarkingClientModal({
                             </button>
                           </div>
                         </div>
-                        <button
-                          onClick={handleGenerateReport}
-                          disabled={generating}
-                          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white rounded-lg flex items-center gap-2"
-                        >
-                          {generating ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>Regenerating...</span>
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="w-4 h-4" />
-                              <span>Regenerate Analysis</span>
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleRegeneratePass3Only}
+                            disabled={generating}
+                            className="px-4 py-2 rounded-lg flex items-center gap-2 border border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
+                          >
+                            {generating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Running...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4" />
+                                <span>Re-run Opportunities (Pass 3)</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Full regeneration will re-run ALL analysis passes (1, 2, and 3). This overwrites the current financial analysis. Continue?')) return;
+                              await handleRegenerateWithNewData();
+                            }}
+                            disabled={generating}
+                            className="px-4 py-2 rounded-lg flex items-center gap-2 border border-red-500 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
+                          >
+                            {generating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Running...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4" />
+                                <span>Full Regeneration (All Passes)</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Report Content - New Components */}
@@ -12302,7 +12350,20 @@ function BenchmarkingClientModal({
                             <BenchmarkingClientDashboard
                               data={{
                                 ...report,
-                                created_at: report?.created_at
+                                created_at: report?.created_at,
+                                hva_data: (() => {
+                                  const hvaResponses = hvaStatus?.responses;
+                                  if (!hvaResponses) return undefined;
+                                  return {
+                                    competitive_moat: hvaResponses.competitive_moat || [],
+                                    unique_methods: typeof hvaResponses.unique_methods === 'string'
+                                      ? hvaResponses.unique_methods
+                                      : Array.isArray(hvaResponses.unique_methods)
+                                        ? hvaResponses.unique_methods.join('; ')
+                                        : undefined,
+                                    reputation_build_time: hvaResponses.reputation_build_time,
+                                  };
+                                })(),
                               }}
                               clientName={clientName}
                             />
