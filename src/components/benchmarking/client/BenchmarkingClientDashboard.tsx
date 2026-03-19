@@ -172,6 +172,13 @@ const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T
   return value as T;
 };
 
+/** Coerce value to array — handles HVA fields stored as comma-separated strings */
+const toSafeArray = <T = string>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') return value.split(',').map(s => s.trim()).filter(Boolean) as T[];
+  return [];
+};
+
 const getOrdinalSuffix = (n: number): string => {
   const num = Math.round(n);
   if (num % 100 >= 11 && num % 100 <= 13) return num + 'th';
@@ -529,8 +536,10 @@ export default function BenchmarkingClientDashboard({
 
   // ─── Data Resolution (FROZEN from original — identical logic) ─────────
 
-  const metrics = safeJsonParse<MetricComparison[]>(data.metrics_comparison, []);
-  const rawRecommendations = safeJsonParse(data.recommendations, []);
+  const metricsRaw = safeJsonParse<MetricComparison[] | unknown>(data.metrics_comparison, []);
+  const metrics = Array.isArray(metricsRaw) ? metricsRaw : [];
+  const rawRecs = safeJsonParse<unknown>(data.recommendations, []);
+  const rawRecommendations = Array.isArray(rawRecs) ? rawRecs : [];
   const heroTotal = parseFloat(data.total_annual_opportunity) || 0;
 
   const recommendations = useMemo(() => {
@@ -575,20 +584,21 @@ export default function BenchmarkingClientDashboard({
 
   // Service recommendations (FROZEN)
   const recommendedServices = useMemo((): RecommendedService[] => {
-    const dbRecommendations = data.recommended_services || [];
+    const dbRecommendations = Array.isArray(data.recommended_services) ? data.recommended_services : [];
     if (dbRecommendations.length > 0) {
       return dbRecommendations.map((r: any): RecommendedService => ({
         serviceCode: r.serviceCode || r.code, serviceName: r.serviceName || r.name, description: r.description || '',
         headline: r.headline, priceFrom: r.priceFrom || r.price_from, priceTo: r.priceTo || r.price_to,
         priceUnit: r.priceUnit || r.price_unit, priceRange: r.priceRange, category: r.category,
         whyThisMatters: r.whyThisMatters || r.contextReason || r.description || '',
-        whatYouGet: r.whatYouGet || r.deliverables || [], expectedOutcome: r.expectedOutcome || '',
-        timeToValue: r.timeToValue || r.timeframe || '4-6 weeks', addressesIssues: r.addressesIssues || [],
+        whatYouGet: toSafeArray(r.whatYouGet || r.deliverables), expectedOutcome: r.expectedOutcome || '',
+        timeToValue: r.timeToValue || r.timeframe || '4-6 weeks', addressesIssues: Array.isArray(r.addressesIssues) ? r.addressesIssues : [],
         totalValueAtStake: r.totalValueAtStake, source: r.source || 'opportunity', priority: r.priority || 'secondary',
       }));
     }
-    const opportunities = data.opportunities || [];
-    const blockedCodes = (data.not_recommended_services || []).map((b: any) => b.serviceCode);
+    const opportunities = Array.isArray(data.opportunities) ? data.opportunities : [];
+    const notRec = Array.isArray(data.not_recommended_services) ? data.not_recommended_services : [];
+    const blockedCodes = notRec.map((b: any) => b?.serviceCode || b?.code).filter(Boolean);
     const serviceMap = new Map<string, RecommendedService>();
     for (const opp of opportunities) {
       const service = opp.service;
@@ -603,7 +613,7 @@ export default function BenchmarkingClientDashboard({
           serviceCode: service.code, serviceName: service.name, description: service.description || '',
           headline: service.headline, priceFrom: service.price_from, priceTo: service.price_to, priceUnit: service.price_unit,
           category: service.category, whyThisMatters: opp.service_fit_rationale || opp.talking_point || service.description || '',
-          whatYouGet: service.deliverables || [], expectedOutcome: opp.life_impact || `Addresses ${opp.title}`,
+          whatYouGet: toSafeArray(service.deliverables), expectedOutcome: opp.life_impact || `Addresses ${opp.title}`,
           timeToValue: service.typical_duration || '4-6 weeks', addressesIssues: [newIssue], totalValueAtStake: newIssue.valueAtStake,
           source: opp.opportunity_code?.startsWith('pinned-') ? 'pinned' : 'opportunity',
           priority: opp.opportunity_code?.startsWith('pinned-') || opp.severity === 'critical' || opp.severity === 'high' ? 'primary' : 'secondary',
@@ -1149,7 +1159,9 @@ export default function BenchmarkingClientDashboard({
             )}
 
             {/* Competitive Moat (HVA) */}
-            {data.hva_data?.competitive_moat && data.hva_data.competitive_moat.length > 0 && (
+            {(() => {
+              const competitiveMoat = toSafeArray(data.hva_data?.competitive_moat);
+              return competitiveMoat.length > 0 && (
               <RevealCard delay={hasHiddenValue || hasConcentrationRisk ? 380 : 0} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                   <Shield style={{ width: 20, height: 20, color: C.blue }} />
@@ -1157,14 +1169,14 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 14 }}>Barriers that protect your business from competitors:</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
-                  {(Array.isArray(data.hva_data.competitive_moat) ? data.hva_data.competitive_moat : []).map((moat: string, i: number) => (
+                  {competitiveMoat.map((moat: string, i: number) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: `${C.blue}06`, border: `1px solid ${C.blue}15` }}>
                       <CheckCircle style={{ width: 14, height: 14, color: C.blue, flexShrink: 0 }} />
                       <span style={{ fontSize: 13, color: C.text }}>{moat}</span>
                     </div>
                   ))}
                 </div>
-                {data.hva_data.unique_methods && (
+                {data.hva_data?.unique_methods && (
                   <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
                     <span style={{ ...label, color: C.purple }}>Your Unique Advantage</span>
                     <p style={{ fontSize: 14, fontStyle: 'italic', color: C.text, marginTop: 6, lineHeight: 1.6 }}>"{data.hva_data.unique_methods}"</p>
@@ -1172,9 +1184,10 @@ export default function BenchmarkingClientDashboard({
                   </div>
                 )}
               </RevealCard>
-            )}
+            );
+            })()}
 
-            {!hasHiddenValue && !hasConcentrationRisk && !(data.hva_data?.competitive_moat && data.hva_data.competitive_moat.length > 0) && (
+            {!hasHiddenValue && !hasConcentrationRisk && toSafeArray(data.hva_data?.competitive_moat).length === 0 && (
               <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
                 <p style={{ color: C.textMuted, fontSize: 14 }}>No hidden value or concentration risk data available for this engagement.</p>
               </RevealCard>
@@ -1917,11 +1930,11 @@ export default function BenchmarkingClientDashboard({
                           </div>
                         )}
                         {/* What You Get */}
-                        {svc.whatYouGet && svc.whatYouGet.length > 0 && (
+                        {toSafeArray(svc.whatYouGet).length > 0 && (
                           <div style={{ marginBottom: 14 }}>
                             <span style={{ ...label, marginBottom: 8, display: 'block' }}>What You Get</span>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                              {svc.whatYouGet.map((item: string, j: number) => (
+                              {toSafeArray(svc.whatYouGet).map((item: string, j: number) => (
                                 <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                                   <CheckCircle style={{ width: 14, height: 14, color: C.emerald, flexShrink: 0, marginTop: 2 }} />
                                   <span style={{ fontSize: 13, color: C.textSecondary }}>{item}</span>
@@ -1943,7 +1956,7 @@ export default function BenchmarkingClientDashboard({
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.textMuted }}>
                               <Clock style={{ width: 14, height: 14 }} /> {svc.timeToValue}
                             </div>
-                            {svc.addressesIssues && svc.addressesIssues.length > 0 && (
+                            {Array.isArray(svc.addressesIssues) && svc.addressesIssues.length > 0 && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', fontSize: 12 }}>
                                 <span style={{ color: C.textMuted }}>Addresses:</span>
                                 {svc.addressesIssues.map((issue, j) => (
@@ -2040,26 +2053,32 @@ export default function BenchmarkingClientDashboard({
               )}
 
               {/* Quick Wins (opportunity_synthesis) */}
-              {opportunitySynthesis?.quickWins && opportunitySynthesis.quickWins.length > 0 && (
+              {(() => {
+                const quickWins = toSafeArray(opportunitySynthesis?.quickWins);
+                return quickWins.length > 0 && (
                 <RevealCard delay={250} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
                   <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Quick Wins</h3>
                   <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Immediate actions you can take</p>
                   <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: C.textSecondary, lineHeight: 1.7 }}>
-                    {opportunitySynthesis.quickWins.map((q, i) => <li key={i}>{q}</li>)}
+                    {quickWins.map((q, i) => <li key={i}>{q}</li>)}
                   </ul>
                 </RevealCard>
-              )}
+              );
+              })()}
 
               {/* Watch Outs */}
-              {opportunitySynthesis?.watchOuts && opportunitySynthesis.watchOuts.length > 0 && (
+              {(() => {
+                const watchOuts = toSafeArray(opportunitySynthesis?.watchOuts);
+                return watchOuts.length > 0 && (
                 <RevealCard delay={300} style={{ ...glass({ padding: 24 }), borderLeft: `4px solid ${C.amber}` }}>
                   <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Watch Outs</h3>
                   <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Risks to monitor</p>
                   <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: C.textSecondary, lineHeight: 1.7 }}>
-                    {opportunitySynthesis.watchOuts.map((w, i) => <li key={i}>{w}</li>)}
+                    {watchOuts.map((w, i) => <li key={i}>{w}</li>)}
                   </ul>
                 </RevealCard>
-              )}
+              );
+              })()}
 
               {/* Investment Required (pathTo70) */}
               {exitBreakdown?.pathTo70?.investment != null && exitBreakdown.pathTo70.investment > 0 && (
@@ -2133,26 +2152,32 @@ export default function BenchmarkingClientDashboard({
             </RevealCard>
 
             {/* Quick Wins (opportunity_synthesis) */}
-            {opportunitySynthesis?.quickWins && opportunitySynthesis.quickWins.length > 0 && (
+            {(() => {
+              const quickWins = toSafeArray(opportunitySynthesis?.quickWins);
+              return quickWins.length > 0 && (
               <RevealCard delay={200} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
                 <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Quick Wins</h3>
                 <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Immediate actions you can take</p>
                 <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: C.textSecondary, lineHeight: 1.7 }}>
-                  {opportunitySynthesis.quickWins.map((q, i) => <li key={i}>{q}</li>)}
+                  {quickWins.map((q, i) => <li key={i}>{q}</li>)}
                 </ul>
               </RevealCard>
-            )}
+            );
+            })()}
 
             {/* Watch Outs */}
-            {opportunitySynthesis?.watchOuts && opportunitySynthesis.watchOuts.length > 0 && (
+            {(() => {
+              const watchOuts = toSafeArray(opportunitySynthesis?.watchOuts);
+              return watchOuts.length > 0 && (
               <RevealCard delay={250} style={{ ...glass({ padding: 24 }), borderLeft: `4px solid ${C.amber}` }}>
                 <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Watch Outs</h3>
                 <p style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>Risks to monitor</p>
                 <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14, color: C.textSecondary, lineHeight: 1.7 }}>
-                  {opportunitySynthesis.watchOuts.map((w, i) => <li key={i}>{w}</li>)}
+                  {watchOuts.map((w, i) => <li key={i}>{w}</li>)}
                 </ul>
               </RevealCard>
-            )}
+            );
+            })()}
           </div>
         );
       }
@@ -2230,18 +2255,21 @@ export default function BenchmarkingClientDashboard({
             </RevealCard>
 
             {/* Data sources */}
-            {data.data_sources && data.data_sources.length > 0 && (
+            {(() => {
+              const dataSources = toSafeArray(data.data_sources);
+              return dataSources.length > 0 && (
               <RevealCard delay={300} style={{ ...glass({ padding: '16px 20px' }) }}>
                 <span style={{ ...label, marginBottom: 8, display: 'block' }}>Benchmark Data Sources</span>
                 <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>Analysis based on industry benchmarks as of {data.benchmark_data_as_of || 'recent data'}</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {data.data_sources.slice(0, 8).map((source, i) => (
+                  {dataSources.slice(0, 8).map((source, i) => (
                     <span key={i} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, background: 'rgba(0,0,0,0.03)', color: C.textMuted, border: '1px solid rgba(0,0,0,0.06)' }}>{source}</span>
                   ))}
-                  {data.data_sources.length > 8 && <span style={{ fontSize: 11, color: C.textLight }}>+{data.data_sources.length - 8} more</span>}
+                  {dataSources.length > 8 && <span style={{ fontSize: 11, color: C.textLight }}>+{dataSources.length - 8} more</span>}
                 </div>
               </RevealCard>
-            )}
+            );
+            })()}
           </div>
         );
       }

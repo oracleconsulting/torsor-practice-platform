@@ -12354,8 +12354,13 @@ function BenchmarkingClientModal({
                                 hva_data: (() => {
                                   const hvaResponses = hvaStatus?.responses;
                                   if (!hvaResponses) return undefined;
+                                  const cm = hvaResponses.competitive_moat;
                                   return {
-                                    competitive_moat: hvaResponses.competitive_moat || [],
+                                    competitive_moat: Array.isArray(cm)
+                                      ? cm
+                                      : typeof cm === 'string'
+                                        ? cm.split(',').map((s: string) => s.trim()).filter(Boolean)
+                                        : [],
                                     unique_methods: typeof hvaResponses.unique_methods === 'string'
                                       ? hvaResponses.unique_methods
                                       : Array.isArray(hvaResponses.unique_methods)
