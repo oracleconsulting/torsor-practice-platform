@@ -46,6 +46,25 @@ COMPETITOR ENVY: "${quotes.competitorEnvy || 'Not specified'}"
 MAGIC FIX: "${quotes.magicFix || 'Not specified'}"
 BLIND SPOT FEAR: "${quotes.blindSpotFear || 'Not specified'}"
 
+${pass1Data.assessmentResponses && Object.keys(pass1Data.assessmentResponses).length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+CLIENT CONTEXT (from assessment — use for quotes and goals when Pass 1 quotes are thin)
+═══════════════════════════════════════════════════════════════════════════════
+
+${pass1Data.assessmentResponses.bm_business_description ? `Business description: "${pass1Data.assessmentResponses.bm_business_description}"` : ''}
+${pass1Data.assessmentResponses.bm_business_direction ? `Direction: ${pass1Data.assessmentResponses.bm_business_direction}` : ''}
+${pass1Data.assessmentResponses.bm_business_direction_context ? `Direction context: "${pass1Data.assessmentResponses.bm_business_direction_context}"` : ''}
+${pass1Data.assessmentResponses.bm_exit_timeline ? `Exit timeline: ${pass1Data.assessmentResponses.bm_exit_timeline}` : ''}
+${pass1Data.assessmentResponses.bm_exit_timeline_context ? `Exit context: "${pass1Data.assessmentResponses.bm_exit_timeline_context}"` : ''}
+${pass1Data.assessmentResponses.bm_pricing_confidence ? `Pricing confidence: ${pass1Data.assessmentResponses.bm_pricing_confidence}` : ''}
+${pass1Data.assessmentResponses.bm_pricing_confidence_context ? `Pricing context: "${pass1Data.assessmentResponses.bm_pricing_confidence_context}"` : ''}
+${pass1Data.assessmentResponses.bm_action_readiness ? `Action readiness: ${pass1Data.assessmentResponses.bm_action_readiness}` : ''}
+${pass1Data.assessmentResponses.bm_investment_plans ? `Investment plans: ${pass1Data.assessmentResponses.bm_investment_plans}` : ''}
+${pass1Data.assessmentResponses.bm_investment_plans_context ? `Investment context: "${pass1Data.assessmentResponses.bm_investment_plans_context}"` : ''}
+${pass1Data.assessmentResponses.bm_leadership_effectiveness ? `Leadership effectiveness: ${pass1Data.assessmentResponses.bm_leadership_effectiveness}` : ''}
+${pass1Data.assessmentResponses.bm_leadership_effectiveness_context ? `Leadership context: "${pass1Data.assessmentResponses.bm_leadership_effectiveness_context}"` : ''}
+` : ''}
+
 ═══════════════════════════════════════════════════════════════════════════════
 PASS 1 ANALYSIS
 ═══════════════════════════════════════════════════════════════════════════════
@@ -129,6 +148,92 @@ Confidence: ${pass1Data.surplus_cash.confidence}
 - If surplus cash is material (>${pass1Data.surplus_cash.surplusAsPercentOfRevenue && pass1Data.surplus_cash.surplusAsPercentOfRevenue > 5 ? 'YES, ' + pass1Data.surplus_cash.surplusAsPercentOfRevenue.toFixed(1) + '% of revenue' : '5% of revenue'}), mention this as a STRENGTH
 - State the actual surplus figure (£${pass1Data.surplus_cash.surplusCash ? (pass1Data.surplus_cash.surplusCash / 1000000).toFixed(1) : '0'}M), NOT generic phrases like "healthy cash"
 - This surplus sits OUTSIDE normal earnings-based valuations - it's hidden value
+` : ''}
+
+${pass1Data.hva && Object.keys(pass1Data.hva).length > 0 ? `
+═══════════════════════════════════════════════════════════════════════════════
+HIDDEN VALUE AUDIT — OPERATIONAL & SUCCESSION INTELLIGENCE
+═══════════════════════════════════════════════════════════════════════════════
+
+This data comes from the client's Hidden Value Assessment. It reveals operational
+risks, succession gaps, and structural issues that the financial metrics alone
+cannot show. USE THIS DATA to enrich your narratives significantly.
+
+FOUNDER & KEY PERSON RISK:
+${pass1Data.hva.knowledge_dependency_percentage !== undefined ? `- Knowledge concentrated in founder: ${pass1Data.hva.knowledge_dependency_percentage}%` : ''}
+${pass1Data.hva.personal_brand_percentage !== undefined ? `- Revenue tied to founder's personal brand: ${pass1Data.hva.personal_brand_percentage}%` : ''}
+${pass1Data.hva.team_advocacy_percentage !== undefined ? `- Team advocacy (would recommend working here): ${pass1Data.hva.team_advocacy_percentage}%` : ''}
+
+AUTONOMY SCORES (what happens WITHOUT the founder):
+${pass1Data.hva.autonomy_sales ? `- Sales: ${pass1Data.hva.autonomy_sales}` : ''}
+${pass1Data.hva.autonomy_finance ? `- Finance: ${pass1Data.hva.autonomy_finance}` : ''}
+${pass1Data.hva.autonomy_hiring ? `- Hiring: ${pass1Data.hva.autonomy_hiring}` : ''}
+${pass1Data.hva.autonomy_strategy ? `- Strategy: ${pass1Data.hva.autonomy_strategy}` : ''}
+${pass1Data.hva.autonomy_quality ? `- Quality: ${pass1Data.hva.autonomy_quality}` : ''}
+${pass1Data.hva.autonomy_delivery ? `- Delivery: ${pass1Data.hva.autonomy_delivery}` : ''}
+
+RISK IF KEY PERSON LEAVES:
+${pass1Data.hva.risk_tech_lead ? `- Tech lead departure: ${pass1Data.hva.risk_tech_lead}` : ''}
+${pass1Data.hva.risk_sales_lead ? `- Sales lead departure: ${pass1Data.hva.risk_sales_lead}` : ''}
+${pass1Data.hva.risk_finance_lead ? `- Finance lead departure: ${pass1Data.hva.risk_finance_lead}` : ''}
+${pass1Data.hva.risk_operations_lead ? `- Operations lead departure: ${pass1Data.hva.risk_operations_lead}` : ''}
+${pass1Data.hva.risk_customer_lead ? `- Customer lead departure: ${pass1Data.hva.risk_customer_lead}` : ''}
+
+SUCCESSION READINESS:
+${pass1Data.hva.succession_sales ? `- Sales succession: ${pass1Data.hva.succession_sales}` : ''}
+${pass1Data.hva.succession_operations ? `- Operations succession: ${pass1Data.hva.succession_operations}` : ''}
+${pass1Data.hva.succession_technical ? `- Technical succession: ${pass1Data.hva.succession_technical}` : ''}
+${pass1Data.hva.succession_customer ? `- Customer succession: ${pass1Data.hva.succession_customer}` : ''}
+${pass1Data.hva.succession_your_role ? `- Founder role succession: ${pass1Data.hva.succession_your_role}` : ''}
+
+COMPETITIVE ADVANTAGES:
+${pass1Data.hva.competitive_moat ? `- Competitive moat: ${Array.isArray(pass1Data.hva.competitive_moat) ? pass1Data.hva.competitive_moat.join(', ') : pass1Data.hva.competitive_moat}` : ''}
+${pass1Data.hva.unique_methods ? `- Unique methods/IP: ${pass1Data.hva.unique_methods}` : ''}
+${pass1Data.hva.unique_methods_protection ? `- IP protection status: ${pass1Data.hva.unique_methods_protection}` : ''}
+${pass1Data.hva.reputation_build_time ? `- Time to replicate: ${pass1Data.hva.reputation_build_time}` : ''}
+
+SYSTEMS & PROCESSES:
+${pass1Data.hva.tech_stack_health_percentage !== undefined ? `- Tech/systems health: ${pass1Data.hva.tech_stack_health_percentage}%` : ''}
+${pass1Data.hva.data_re_entry_frequency ? `- Data re-entry frequency: ${pass1Data.hva.data_re_entry_frequency}` : ''}
+${pass1Data.hva.critical_processes_undocumented ? `- Undocumented critical processes: ${Array.isArray(pass1Data.hva.critical_processes_undocumented) ? pass1Data.hva.critical_processes_undocumented.join(', ') : pass1Data.hva.critical_processes_undocumented}` : ''}
+${pass1Data.hva.quality_control_method ? `- Quality control approach: ${pass1Data.hva.quality_control_method}` : ''}
+${pass1Data.hva.culture_preservation_methods ? `- Culture preservation: ${pass1Data.hva.culture_preservation_methods}` : ''}
+
+MARKET & CUSTOMER INTELLIGENCE:
+${pass1Data.hva.market_intelligence_methods ? `- Market tracking: ${pass1Data.hva.market_intelligence_methods}` : ''}
+${pass1Data.hva.customer_data_unutilized ? `- Unused customer data: ${Array.isArray(pass1Data.hva.customer_data_unutilized) ? pass1Data.hva.customer_data_unutilized.join(', ') : pass1Data.hva.customer_data_unutilized}` : ''}
+${pass1Data.hva.active_customer_advocates !== undefined ? `- Active customer advocates: ${pass1Data.hva.active_customer_advocates}` : ''}
+${pass1Data.hva.external_channel_percentage !== undefined ? `- Revenue from external channels: ${pass1Data.hva.external_channel_percentage}%` : ''}
+${pass1Data.hva.top3_customer_revenue_percentage !== undefined ? `- Top 3 customers: ${pass1Data.hva.top3_customer_revenue_percentage}% of revenue` : ''}
+
+PRICING & REVENUE:
+${pass1Data.hva.last_price_increase ? `- Last price increase: ${pass1Data.hva.last_price_increase}` : ''}
+
+UNTAPPED ASSETS:
+${pass1Data.hva.content_assets_unleveraged ? `- Unleveraged content: ${Array.isArray(pass1Data.hva.content_assets_unleveraged) ? pass1Data.hva.content_assets_unleveraged.join(', ') : pass1Data.hva.content_assets_unleveraged}` : ''}
+${pass1Data.hva.hidden_trust_signals ? `- Trust signals: ${Array.isArray(pass1Data.hva.hidden_trust_signals) ? pass1Data.hva.hidden_trust_signals.join(', ') : pass1Data.hva.hidden_trust_signals}` : ''}
+${pass1Data.hva.investability_assets ? `- Investability assets: ${Array.isArray(pass1Data.hva.investability_assets) ? pass1Data.hva.investability_assets.join(', ') : pass1Data.hva.investability_assets}` : ''}
+
+FUNDING AWARENESS:
+${pass1Data.hva.explored_equity ? `- Equity funding: ${pass1Data.hva.explored_equity}` : ''}
+${pass1Data.hva.explored_grants ? `- Grants: ${pass1Data.hva.explored_grants}` : ''}
+${pass1Data.hva.explored_eis_seis ? `- EIS/SEIS: ${pass1Data.hva.explored_eis_seis}` : ''}
+${pass1Data.hva.awareness_patent_box ? `- Patent Box: ${pass1Data.hva.awareness_patent_box}` : ''}
+${pass1Data.hva.awareness_creative_tax ? `- Creative tax relief: ${pass1Data.hva.awareness_creative_tax}` : ''}
+${pass1Data.hva.awareness_innovation_grants ? `- Innovation grants: ${pass1Data.hva.awareness_innovation_grants}` : ''}
+${pass1Data.hva.awareness_rd_tax_credits ? `- R&D tax credits: ${pass1Data.hva.awareness_rd_tax_credits}` : ''}
+
+⚠️ HOW TO USE HVA DATA IN NARRATIVES:
+
+1. EXECUTIVE SUMMARY: If founder dependency is high (knowledge >40%, multiple "would fail" autonomy scores), this MUST appear alongside the financial opportunity. The client's stated goal (step back, exit, growth) should be connected to the succession reality.
+
+2. GAP NARRATIVE: Don't just discuss financial gaps. The operational gaps (undocumented processes, tech health contradictions, data re-entry, missing market intelligence) should form a second layer of gap analysis. These are the "invisible" gaps that don't show up in P&L but erode value.
+
+3. OPPORTUNITY NARRATIVE: Connect the financial opportunity to the HVA findings. If the client wants to exit/step back, the succession and documentation gaps ARE the opportunity, not just the margin improvement.
+
+4. STRENGTH NARRATIVE: If competitive_moat is strong, unique_methods are impressive, or investability_assets are present, weave these into the strengths. These are the foundations of value.
+
+DO NOT reference "HVA" or "Hidden Value Assessment" by name in client-facing narratives. Instead, naturally incorporate the insights: "Half of the critical knowledge sits with you personally", not "The HVA shows knowledge_dependency_percentage of 50%".
 ` : ''}
 
 ${pass1Data.collectedData ? `
@@ -336,12 +441,18 @@ REQUIRED ELEMENTS
 ═══════════════════════════════════════════════════════════════════════════════
 
 EVERY narrative must include:
-- At least ONE verbatim client quote per section
+- At least ONE verbatim client quote per section (draw from THEIR WORDS above, or from CLIENT CONTEXT from assessment when those fields are richer)
 - At least THREE specific numbers per section
 - Their suspected underperformance connected to actual findings
 - If the client specified a magic fix (not "Not specified"), reference it in the opportunity section. If it says "Not specified", skip it entirely and focus on the data-driven opportunity instead.
 - If their blind spot fear was confirmed, address it directly
 - If their perception was wrong, correct it gently with evidence
+${pass1Data.hva && Object.keys(pass1Data.hva).length > 0 ? `
+- HVA operational data is present: gap_narrative MUST include at least one operational or succession insight alongside financial gaps (undocumented processes, autonomy, tech health, knowledge concentration, etc. as relevant)
+- If the client has stated an exit or step-back goal (assessment or quotes), opportunity_narrative MUST connect financial improvements to exit readiness where credible
+- If founder dependency is high (e.g. knowledge concentration >40% or multiple autonomy scores of "Would fail"), executive_summary MUST mention this reality alongside the financial story
+- Cite specific operational signals (knowledge %, tech health %, succession stance, undocumented processes) in natural language alongside financial metrics — never name "HVA" or field keys in client-facing text
+` : ''}
 
 Return ONLY valid JSON.
 `;
@@ -380,19 +491,79 @@ serve(async (req) => {
     if (!report.pass1_data) {
       throw new Error('Pass 1 data not found - run Pass 1 first');
     }
+
+    let pass1Base: Record<string, unknown> =
+      typeof report.pass1_data === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(report.pass1_data as string) as Record<string, unknown>;
+            } catch {
+              throw new Error('Pass 1 data is invalid JSON');
+            }
+          })()
+        : (report.pass1_data as Record<string, unknown>);
     
     const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
     if (!openRouterKey) {
       throw new Error('OPENROUTER_API_KEY not configured');
+    }
+
+    // Fetch HVA (Part 3) data for narrative enrichment
+    let hvaData: Record<string, unknown> = {};
+    try {
+      const { data: engagement } = await supabaseClient
+        .from('bm_engagements')
+        .select('client_id')
+        .eq('id', engagementId)
+        .single();
+
+      if (engagement?.client_id) {
+        const { data: hva } = await supabaseClient
+          .from('client_assessments')
+          .select('responses')
+          .eq('client_id', engagement.client_id)
+          .eq('assessment_type', 'part3')
+          .maybeSingle();
+
+        if (hva?.responses) {
+          hvaData = hva.responses as Record<string, unknown>;
+          console.log('[BM Pass 2] Including HVA data in narrative context:', {
+            fieldsPresent: Object.keys(hvaData).length,
+            hasCompetitiveMoat: !!hvaData.competitive_moat,
+            hasUniqueMethods: !!hvaData.unique_methods,
+            knowledgeDependency: hvaData.knowledge_dependency_percentage,
+            techHealth: hvaData.tech_stack_health_percentage,
+          });
+        }
+      }
+    } catch (err) {
+      console.log('[BM Pass 2] Could not fetch HVA data (continuing without):', err);
+    }
+
+    // Fetch assessment responses for reliable client quotes / direction context
+    let assessmentResponses: Record<string, unknown> = {};
+    try {
+      const { data: assessment } = await supabaseClient
+        .from('bm_assessment_responses')
+        .select('responses')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+
+      if (assessment?.responses) {
+        assessmentResponses = assessment.responses as Record<string, unknown>;
+        console.log('[BM Pass 2] Including assessment responses for client context');
+      }
+    } catch (err) {
+      console.log('[BM Pass 2] Could not fetch assessment responses:', err);
     }
     
     // Build and send prompt
     console.log('[BM Pass 2] Calling Opus for narrative generation...');
     const startTime = Date.now();
     
-    // Merge pass1_data with additional context from report (balance sheet, trends, surplus cash, collected data)
+    // Merge pass1_data with additional context from report (balance sheet, trends, surplus cash, collected data, HVA, assessment)
     const enrichedPass1Data = {
-      ...report.pass1_data,
+      ...pass1Base,
       // Industry code is critical for proper narrative context
       industry_code: report.industry_code,
       balance_sheet: report.balance_sheet,
@@ -406,11 +577,13 @@ serve(async (req) => {
       // Flag that we have collected data
       collectedData: true,
       // These should already be in pass1_data from enrichment, but ensure they're present
-      client_concentration_top3: report.pass1_data?.client_concentration_top3,
-      client_concentration_details: report.pass1_data?.client_concentration_details,
-      project_margin: report.pass1_data?.project_margin,
-      hourly_rate: report.pass1_data?.hourly_rate,
-      utilisation_rate: report.pass1_data?.utilisation_rate
+      client_concentration_top3: pass1Base?.client_concentration_top3,
+      client_concentration_details: pass1Base?.client_concentration_details,
+      project_margin: pass1Base?.project_margin,
+      hourly_rate: pass1Base?.hourly_rate,
+      utilisation_rate: pass1Base?.utilisation_rate,
+      hva: hvaData,
+      assessmentResponses,
     };
     
     // Log industry code for debugging
