@@ -3083,6 +3083,12 @@ BANNED TRANSITIONS (never use these):
 - "Here's what matters"
 Just say the thing. No preamble.
 
+SENSITIVE TOPICS:
+- Never reference marriage, divorce, or romantic relationships directly.
+- If the client mentioned personal sacrifice, use "personal life" or "life outside work" instead.
+- "Your marriage is already gone" — NEVER write this. It's presumptuous and inappropriate for a business report.
+- Acceptable alternatives: "the personal cost has been significant", "your life outside work has suffered", "you've sacrificed more than money to keep this running"
+
 REPETITION LIMITS:
 - "evenings and weekends" — use max 2 times in entire report
 - "£10k/month passive income" or "£10,000 a month" — use max 3 times
@@ -5011,6 +5017,15 @@ Before returning, verify:
     narStr = narStr.split("Here's what matters:").join('');
     // Regex fallback for any remaining "But the real return?" (handles smart quotes, etc.)
     narStr = narStr.replace(/But\s+the\s+real\s+return\s*[?\.]?\s*/gi, 'In practice: ');
+    // Remove marriage references (per Wes)
+    narStr = narStr.split('Your marriage is already gone').join('The personal cost has been significant');
+    narStr = narStr.split('your marriage is already gone').join('the personal cost has been significant');
+    narStr = narStr.split('Your marriage has already paid the price').join('Your personal life has already paid the price');
+    narStr = narStr.split('your marriage has already paid the price').join('your personal life has already paid the price');
+    narStr = narStr.split('sacrificed your marriage').join('sacrificed your personal life');
+    narStr = narStr.split('marriage is on the line').join('personal life is suffering');
+    narStr = narStr.split('marriage is already on the line').join('personal life has already suffered');
+    narStr = narStr.split('cost you your marriage').join('cost you your personal life');
     // Strip property/IHT language from non-investment-vehicle reports
     if (clientType !== 'investment_vehicle') {
       narStr = narStr.replace(/your property portfolio/gi, 'your business');
