@@ -776,7 +776,8 @@ function buildPhase4bPrompt(
   facts: any,
   recommendations: any[],
   phase2: any,
-  discovery: any
+  discovery: any,
+  platformDirection: any = null,
 ): string {
   const systems = facts?.systems || [];
   const sysStr = systems.map((s: any) =>
@@ -836,6 +837,8 @@ NON-NEGOTIABLES (must keep):
 "${nonNegotiables}"
 
 KEEP these systems (satisfaction 4+): ${systems.filter((s: any) => (s.userSatisfaction ?? s.user_satisfaction ?? 0) >= 4).map((s: any) => s.name).join(', ') || 'none'}
+
+${buildPlatformDirectionPromptBlock(platformDirection, 'phase6')}
 
 RULES:
 - Replace underperformers (satisfaction ≤2) with best-in-class alternatives
@@ -1737,8 +1740,134 @@ ${strategyStr}
 `;
 }
 
+/** Injected into Phase 5 / Phase 6 prompts when practice team set platform_direction on the engagement */
+function buildPlatformDirectionPromptBlock(platformDirection: any, variant: 'phase5' | 'phase6'): string {
+  if (platformDirection == null || typeof platformDirection !== 'object') return '';
+  const fc = platformDirection.financial_core || {};
+  const dl = platformDirection.document_layer || {};
+  const fcPlatform = typeof fc.platform === 'string' ? fc.platform : '';
+  const fcRationale = typeof fc.rationale === 'string' ? fc.rationale : '';
+  const constraintsArr = Array.isArray(fc.constraints) ? fc.constraints.map((x: unknown) => String(x)) : [];
+  const dlPlatform = typeof dl.platform === 'string' ? dl.platform : '';
+  const keep = Array.isArray(platformDirection.operational_keep)
+    ? platformDirection.operational_keep.map((x: unknown) => String(x))
+    : [];
+  const mustRep = Array.isArray(platformDirection.must_replace)
+    ? platformDirection.must_replace.map((x: unknown) => String(x))
+    : [];
+  const notes = typeof platformDirection.notes === 'string' ? platformDirection.notes : '';
+  const opBack =
+    typeof platformDirection.operational_backbone === 'string'
+      ? platformDirection.operational_backbone
+      : '';
+
+  const base = `
+═══════════════════════════════════════════════════════════
+PRACTICE TEAM PLATFORM DIRECTION (MANDATORY)
+═══════════════════════════════════════════════════════════
+
+The practice team recommends migrating to ${(fcPlatform || 'unspecified').toUpperCase()} as the financial core.
+
+Rationale: ${fcRationale || 'Not provided'}
+Constraints: ${constraintsArr.join('; ') || 'None specified'}
+Document layer: ${dlPlatform || 'Not specified'}
+Operational backbone (what stays): ${opBack || 'Not specified'}
+Keep these systems: ${keep.join(', ') || 'None specified'}
+Must replace: ${mustRep.join(', ') || 'None specified'}
+Notes: ${notes || ''}
+
+ALL recommendations involving accounting/financial system changes MUST target 
+${fcPlatform || 'the recommended platform'}, 
+NOT the current system. Every recommended tool must integrate natively with 
+${fcPlatform || 'the recommended platform'}.
+If a function cannot be handled natively (e.g. payroll exceeding platform limits), 
+recommend the best specialist tool that integrates seamlessly with 
+${fcPlatform || 'the recommended platform'}.
+DO NOT recommend staying on or upgrading the current accounting platform.
+`;
+
+  if (variant === 'phase5') return base;
+
+  return `${base}
+
+Build the Level 4 optimal stack around ${fcPlatform || 'the recommended financial platform'} 
+as the financial foundation and ${dlPlatform || 'current document platform'} 
+as the document layer.
+
+IMPLEMENTATION ROADMAP: Generate a phased migration plan with 4-6 stages.
+Each stage must include:
+- Phase number, title, and timing (months from start)
+- Which entities are affected
+- What systems change
+- What data migrates (and what doesn't — be specific)
+- Parallel running duration
+- Success criteria before moving to next phase
+- Dependencies on previous phases
+
+SEQUENCING RULES:
+- Quick wins first (no platform dependency)
+- Smallest entity pilots the platform migration
+- Construction/industry-specific tools deploy AFTER at least one entity is live
+- Largest entity migrates last
+- Automation layer deploys after all entities migrated
+- Align payroll migrations with UK tax year boundary (April) where possible
+`;
+}
+
+/** After Phase 4, headline numbers = SUM from sa_findings (single source of truth with DB rows). */
+async function syncHeadlineMetricsFromFindings(supabaseClient: any, engagementId: string): Promise<void> {
+  const { data: rows } = await supabaseClient
+    .from('sa_findings')
+    .select('annual_cost_impact, hours_wasted_weekly')
+    .eq('engagement_id', engagementId);
+
+  let totalAnnual = 0;
+  let totalHours = 0;
+  for (const row of rows || []) {
+    totalAnnual += Number((row as { annual_cost_impact?: number }).annual_cost_impact) || 0;
+    totalHours += Number((row as { hours_wasted_weekly?: number }).hours_wasted_weekly) || 0;
+  }
+
+  const { data: report } = await supabaseClient
+    .from('sa_audit_reports')
+    .select('pass1_data, executive_summary')
+    .eq('engagement_id', engagementId)
+    .single();
+
+  if (!report?.pass1_data?.phase2) {
+    console.warn('[SA Pass 1] syncHeadlineMetricsFromFindings: no phase2, skipping');
+    return;
+  }
+
+  const pass1 = report.pass1_data as Record<string, unknown>;
+  const phase1 = pass1.phase1 as { facts?: { growthMultiplier?: number } } | undefined;
+  const growthMultiplier = Number(phase1?.facts?.growthMultiplier) || 1.3;
+  const phase2 = { ...(pass1.phase2 as Record<string, unknown>) };
+
+  phase2.hoursWastedWeekly = Math.round(totalHours * 100) / 100;
+  phase2.annualCostOfChaos = Math.round(totalAnnual);
+  phase2.projectedCostAtScale = Math.round(totalAnnual * growthMultiplier);
+
+  await supabaseClient
+    .from('sa_audit_reports')
+    .update({
+      pass1_data: { ...pass1, phase2 },
+    })
+    .eq('engagement_id', engagementId);
+
+  console.log(
+    `[SA Pass 1] Headline metrics from sa_findings SUM: annual_cost_impact=${Math.round(totalAnnual)}, hours_wasted_weekly=${totalHours}, projected_at_scale=${phase2.projectedCostAtScale}`,
+  );
+}
+
 // ---------- Phase 4: RECOMMEND (recommendations only — systems maps in separate phase) ----------
-function buildPhase4Prompt(phase1: any, phase2: any, phase3: any, clientName: string): string {
+function buildPhase4Prompt(
+  phase1: any,
+  phase2: any,
+  phase3: any,
+  clientName: string,
+  platformDirection: any = null,
+): string {
   const findingSummaries = (phase3.findings || []).map((f: any) => ({
     title: f.title, severity: f.severity, affectedSystems: f.affectedSystems,
     hoursWastedWeekly: f.hoursWastedWeekly, annualCostImpact: f.annualCostImpact, blocksGoal: f.blocksGoal,
@@ -1789,6 +1918,7 @@ Return JSON:
   ]
 }
 
+${buildPlatformDirectionPromptBlock(platformDirection, 'phase5')}
 Generate AT LEAST 5 recommendations, prioritised. Mix of immediate wins and strategic changes.
 Sum of all recommendations.hoursSavedWeekly must not exceed ${phase2.hoursWastedWeekly} (can't save more hours than are wasted).
 Every recommendation must reference at least one finding and at least one desired_outcome.
@@ -1866,7 +1996,8 @@ Return ONLY valid JSON.
 async function runPhase5Recommendations(
   supabaseClient: any,
   engagementId: string,
-  openRouterKey: string
+  openRouterKey: string,
+  platformDirection: any = null,
 ): Promise<{ success: boolean; phase: number }> {
   const { data: report } = await supabaseClient
     .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
@@ -1879,7 +2010,7 @@ async function runPhase5Recommendations(
   const phase3 = report.pass1_data.phase3;
   const clientName = phase1.facts.companyName || 'the business';
 
-  const prompt = buildPhase4Prompt(phase1, phase2, phase3, clientName);
+  const prompt = buildPhase4Prompt(phase1, phase2, phase3, clientName, platformDirection);
   const { data, tokensUsed, cost, generationTime } = await callSonnet(prompt, 8000, 5, openRouterKey);
 
   console.log('[SA Pass 1] Phase 5: Writing recommendations to DB...');
@@ -1914,7 +2045,8 @@ async function runPhase5Recommendations(
 async function runPhase6SystemsMaps(
   supabaseClient: any,
   engagementId: string,
-  openRouterKey: string
+  openRouterKey: string,
+  platformDirection: any = null,
 ): Promise<{ success: boolean; phase: number }> {
   const { data: report } = await supabaseClient
     .from('sa_audit_reports').select('pass1_data').eq('engagement_id', engagementId).single();
@@ -1934,7 +2066,7 @@ async function runPhase6SystemsMaps(
       .eq('engagement_id', engagementId)
       .single();
     const phase2 = report.pass1_data.phase2 || {};
-    const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow);
+    const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow, platformDirection);
 
     const { data: phase4bData, tokensUsed, generationTime } = await callSonnet(phase4bPrompt, 4000, 6, openRouterKey);
     if (phase4bData?.nodes) {
@@ -2252,21 +2384,24 @@ async function runPhase8Presentation(
     : 0;
   const roiRatio = totalInvestment > 0 ? `${Math.round(totalBenefit / totalInvestment)}:1` : 'Infinite';
 
-  const expectedAnnualCost = Math.round((f.hoursWastedWeekly || 0) * hourlyRate * 52);
-  if (f.annualCostOfChaos !== expectedAnnualCost) {
-    console.log(`[SA McKinsey] Aligning annualCostOfChaos: AI=${f.annualCostOfChaos}, calc=${expectedAnnualCost}. Using calculated.`);
-    f.annualCostOfChaos = expectedAnnualCost;
-    finalPass1Data.facts.annualCostOfChaos = expectedAnnualCost;
+  // Headline cost of chaos and hours wasted = SUM(sa_findings) synced into phase2 after Phase 4 (see syncHeadlineMetricsFromFindings).
+  const headlineAnnual = Math.round(Number(f.annualCostOfChaos) || 0);
+  const hoursImpliedAnnual = Math.round((f.hoursWastedWeekly || 0) * hourlyRate * 52);
+  if (Math.abs(headlineAnnual - hoursImpliedAnnual) > Math.max(1, hoursImpliedAnnual * 0.05)) {
+    console.log(
+      `[SA McKinsey] Headline annual cost from findings SUM: £${headlineAnnual}; hours×rate diagnostic: £${hoursImpliedAnnual}`,
+    );
   }
 
-  const expectedProjected = Math.round((f.annualCostOfChaos || expectedAnnualCost) * (f.growthMultiplier || 1.3) * 1.3);
-  if (f.projectedCostAtScale && Math.abs(f.projectedCostAtScale - expectedProjected) > expectedProjected * 0.20) {
-    console.warn(`[SA McKinsey] projectedCostAtScale divergence: pass1=${f.projectedCostAtScale}, linear=${expectedProjected}. Keeping pass1 value (non-linear scaling is intentional).`);
+  const expectedProjected = Math.round(headlineAnnual * (f.growthMultiplier || 1.3));
+  if (f.projectedCostAtScale == null || Number(f.projectedCostAtScale) === 0) {
+    f.projectedCostAtScale = expectedProjected;
+    finalPass1Data.facts.projectedCostAtScale = expectedProjected;
   }
 
   if (finalPass1Data.clientPresentation?.roiSummary) {
     const roi = finalPass1Data.clientPresentation.roiSummary;
-    roi.currentAnnualCost = f.annualCostOfChaos || expectedAnnualCost;
+    roi.currentAnnualCost = f.annualCostOfChaos || headlineAnnual;
     roi.projectedSavings = totalBenefit;
     roi.implementationCost = totalInvestment;
     roi.paybackPeriod = paybackMonths <= 0 ? 'Immediate' : `${paybackMonths} months`;
@@ -2283,8 +2418,8 @@ async function runPhase8Presentation(
 
   const fmt = (v: any) => String(v ?? 0).replace(/£/g, '');
   console.log(`[SA McKinsey] Reconciliation complete:
-    annualCostOfChaos: £${fmt(f.annualCostOfChaos)} (${f.hoursWastedWeekly}h × £${hourlyRate} × 52)
-    projectedCostAtScale: £${fmt(f.projectedCostAtScale)} (${f.growthMultiplier}x growth)
+    annualCostOfChaos: £${fmt(f.annualCostOfChaos)} (SUM sa_findings.annual_cost_impact; diagnostic hours×rate £${hoursImpliedAnnual})
+    projectedCostAtScale: £${fmt(f.projectedCostAtScale)} (${f.growthMultiplier}x growth on headline annual)
     totalBenefit: £${fmt(totalBenefit)} (${recs.length} recs)
     totalInvestment: £${fmt(totalInvestment)}
     hoursReclaimable: ${hoursReclaimable}h/wk
@@ -2320,7 +2455,7 @@ async function runPhase8Presentation(
     headline: `[PENDING PASS 2] ${f.hoursWastedWeekly || 0} hours/week wasted`,
 
     total_hours_wasted_weekly: Math.round(f.hoursWastedWeekly || 0),
-    total_annual_cost_of_chaos: Math.round(f.annualCostOfChaos || expectedAnnualCost),
+    total_annual_cost_of_chaos: headlineAnnual,
     growth_multiplier: f.growthMultiplier || 1.3,
     projected_cost_at_scale: Math.round(f.projectedCostAtScale || expectedProjected),
 
@@ -2368,6 +2503,151 @@ async function runPhase8Presentation(
   console.log('[SA Pass 1] Phase 8: DB write complete. Status set to pass1_complete.');
 
   return { success: true, phase: 8, reportId: reportRow.id };
+}
+
+/**
+ * Full Pass 1 pipeline (phases 1–8) after the HTTP response returns.
+ * Railway worker was intended to pick up sa_report_jobs; until it exists, we run inline
+ * via EdgeRuntime.waitUntil so the client gets an immediate response while work continues.
+ */
+async function runPass1PipelineInline(
+  supabaseClient: any,
+  jobId: string,
+  engagementId: string,
+  engagement: any,
+  body: { additionalContext?: unknown; preliminaryAnalysis?: unknown },
+  openRouterKey: string,
+  hourlyRate: number,
+  clientName: string,
+  startPhase: number
+): Promise<void> {
+  const iso = () => new Date().toISOString();
+
+  const markJob = async (patch: Record<string, unknown>) => {
+    await supabaseClient.from('sa_report_jobs').update({ ...patch, updated_at: iso() }).eq('id', jobId);
+  };
+
+  const failPipeline = async (failedPhase: number, err: unknown) => {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error(`[SA Pass 1] Pipeline failed at phase ${failedPhase}:`, err);
+
+    const { data: existingReport } = await supabaseClient
+      .from('sa_audit_reports')
+      .select('pass1_data, status')
+      .eq('engagement_id', engagementId)
+      .maybeSingle();
+
+    const hadCompletedReport = existingReport?.pass1_data?.systemsMaps
+      && existingReport?.pass1_data?.findings
+      && existingReport?.pass1_data?.recommendations;
+
+    if (hadCompletedReport) {
+      console.warn('[SA Pass 1] Failure during pipeline but report has complete data from previous run; leaving status as-is');
+    } else {
+      const status = `phase${failedPhase}_failed`;
+      await supabaseClient
+        .from('sa_audit_reports')
+        .update({
+          status,
+          executive_summary: `Report generation failed at phase ${failedPhase}: ${errMsg.slice(0, 500)}. Retry from admin.`,
+        })
+        .eq('engagement_id', engagementId);
+    }
+
+    await markJob({ status: 'failed' });
+  };
+
+  let currentPhase = 0;
+  try {
+    const claimed = await supabaseClient
+      .from('sa_report_jobs')
+      .update({ status: 'claimed', updated_at: iso() })
+      .eq('id', jobId);
+    if (claimed.error) {
+      console.warn('[SA Pass 1] Could not set job status to claimed (may be invalid enum), using processing:', claimed.error.message);
+    }
+    await markJob({ status: 'processing' });
+
+    let additionalContext: { area: string; tag?: string; gap: string; resolution: string; context: string }[] | undefined;
+    if (Array.isArray(body.additionalContext) && body.additionalContext.length > 0) {
+      additionalContext = body.additionalContext as typeof additionalContext;
+    }
+    let preliminaryAnalysis: { confidenceScores?: { area: string; confidence: string; reason: string }[] } | undefined;
+    if (body.preliminaryAnalysis && typeof body.preliminaryAnalysis === 'object') {
+      preliminaryAnalysis = body.preliminaryAnalysis as typeof preliminaryAnalysis;
+    }
+
+    let discovery: any = null;
+    let systems: any[] = [];
+    if (startPhase <= 1) {
+      const { data: d, error: dErr } = await supabaseClient
+        .from('sa_discovery_responses')
+        .select('*')
+        .eq('engagement_id', engagementId)
+        .single();
+      if (dErr || !d) throw new Error(`Discovery not found: ${dErr?.message}`);
+      discovery = d;
+      const { data: sys } = await supabaseClient
+        .from('sa_system_inventory')
+        .select('*')
+        .eq('engagement_id', engagementId);
+      systems = sys || [];
+    }
+
+    if (startPhase <= 1) {
+      currentPhase = 1;
+      await runPhase1(
+        supabaseClient,
+        engagementId,
+        engagement,
+        discovery,
+        systems,
+        clientName,
+        hourlyRate,
+        openRouterKey,
+        additionalContext,
+        preliminaryAnalysis
+      );
+    }
+    if (startPhase <= 2) {
+      currentPhase = 2;
+      await runPhase2Analyse(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
+    }
+    if (startPhase <= 3) {
+      currentPhase = 3;
+      await runPhase3CriticalHigh(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
+    }
+    if (startPhase <= 4) {
+      currentPhase = 4;
+      await runPhase4MediumLowQuickWins(supabaseClient, engagementId, engagement, hourlyRate, openRouterKey);
+      await syncHeadlineMetricsFromFindings(supabaseClient, engagementId);
+    }
+    const platformDirection = engagement?.platform_direction ?? null;
+    if (startPhase <= 5) {
+      currentPhase = 5;
+      await runPhase5Recommendations(supabaseClient, engagementId, openRouterKey, platformDirection);
+    }
+    if (startPhase <= 6) {
+      currentPhase = 6;
+      await runPhase6SystemsMaps(supabaseClient, engagementId, openRouterKey, platformDirection);
+    }
+    if (startPhase <= 7) {
+      currentPhase = 7;
+      await runPhase7AdminGuidance(supabaseClient, engagementId, openRouterKey);
+    }
+    if (startPhase <= 8) {
+      currentPhase = 8;
+      await runPhase8Presentation(supabaseClient, engagementId, openRouterKey);
+    }
+
+    await markJob({ status: 'complete' });
+    console.log(`[SA Pass 1] Job ${jobId} complete (inline pipeline, pass1_complete)`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const m = /Phase (\d+)/i.exec(msg);
+    const failedPhase = m ? parseInt(m[1], 10) : (currentPhase || startPhase || 1);
+    await failPipeline(failedPhase, err);
+  }
 }
 
 // ---------- Entry: route by phase ----------
@@ -2493,6 +2773,25 @@ serve(async (req) => {
 
       console.log(`[SA Pass 1] Created retry job ${retryJob.id} from phase ${phase}`);
       result = { success: true, phase, jobId: retryJob.id };
+    }
+
+    const pipelinePromise = runPass1PipelineInline(
+      supabaseClient,
+      result.jobId!,
+      engagementId,
+      engagement,
+      body,
+      openRouterKey,
+      hourlyRate,
+      clientName,
+      phase
+    );
+    const edgeRt = (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime;
+    if (edgeRt?.waitUntil) {
+      edgeRt.waitUntil(pipelinePromise);
+    } else {
+      console.warn('[SA Pass 1] EdgeRuntime.waitUntil not available; using fire-and-forget (pipeline may not finish if isolate exits)');
+      pipelinePromise.catch((e) => console.error('[SA Pass 1] Inline pipeline error:', e));
     }
 
     return new Response(

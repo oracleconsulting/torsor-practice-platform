@@ -89,6 +89,10 @@ import { AccountsUploadPanel } from '../../components/benchmarking/admin/Account
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
 import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
 import { SprintEditorModal } from '../../components/admin/sprint-editor';
+import {
+  PlatformDirectionGenerateWarning,
+  PlatformDirectionPanel,
+} from '../../components/admin/sa/PlatformDirectionPanel';
 import { getAssessmentByCode } from '../../config/serviceLineAssessments';
 import type { AssessmentQuestion } from '../../config/serviceLineAssessments';
 import { ClientServicesClientList } from './ClientServicesClientList';
@@ -12812,6 +12816,7 @@ function SystemsAuditClientModal({
   const [processingTranscript, setProcessingTranscript] = useState(false);
   const [transcriptText, setTranscriptText] = useState('');
   const [showTranscriptInput, setShowTranscriptInput] = useState(false);
+  const [showPlatformDirectionGenerateWarning, setShowPlatformDirectionGenerateWarning] = useState(false);
 
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
@@ -13155,6 +13160,12 @@ function SystemsAuditClientModal({
 
   const handleGenerateReport = async () => {
     if (!engagement) return;
+
+    if (engagement.platform_direction == null) {
+      setShowPlatformDirectionGenerateWarning(true);
+    } else {
+      setShowPlatformDirectionGenerateWarning(false);
+    }
 
     setGenerating(true);
 
@@ -15125,6 +15136,18 @@ function SystemsAuditClientModal({
                           )}
                         </div>
                       </details>
+
+                      {engagement?.id && (
+                        <PlatformDirectionPanel
+                          engagementId={engagement.id}
+                          platformDirection={engagement.platform_direction}
+                          inventorySystems={stage2Inventory.map((s: { id: string; system_name: string }) => ({
+                            id: s.id,
+                            system_name: s.system_name,
+                          }))}
+                          onSaved={fetchData}
+                        />
+                      )}
                     </>
                   )}
                 </div>
@@ -15133,6 +15156,9 @@ function SystemsAuditClientModal({
               {/* ANALYSIS TAB */}
               {activeTab === 'analysis' && (
                 <div className="space-y-6">
+                  {showPlatformDirectionGenerateWarning && engagement?.platform_direction == null && (
+                    <PlatformDirectionGenerateWarning />
+                  )}
                   {!report ? (
                     <div className="text-center py-12">
                       <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />

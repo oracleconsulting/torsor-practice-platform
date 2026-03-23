@@ -1453,7 +1453,14 @@ function generateServicesFromSuppressors(data: any): any[] {
     });
   }
 
-  const baselineMid = data.valuation?.baseline?.enterpriseValue?.mid || 63300000;
+  const enrichedRevForServices = data.pass1Data?._enriched_revenue || data.revenue || 0;
+  const concMetricSvc = (data.metrics || []).find((m: any) => {
+    const code = (m.metricCode || m.metric_code || '').toLowerCase();
+    return code.includes('concentration');
+  });
+  const concentrationPctSvc = concMetricSvc
+    ? Number(concMetricSvc.clientValue ?? concMetricSvc.client_value ?? 0)
+    : Number(data.pass1Data?.client_concentration_top3 ?? 0);
   const hasConcentration = suppressors.some((s: any) => s.code === 'CUSTOMER_CONCENTRATION');
   services.push({
     name: 'Quarterly BI & Benchmarking',
@@ -1461,7 +1468,7 @@ function generateServicesFromSuppressors(data: any): any[] {
     priceRange: '£500 – £1,000/month or £1,500 – £3,000/quarter',
     frequency: 'Monthly or Quarterly',
     duration: 'Ongoing',
-    whyThisMatters: `With ${formatCurrency(baselineMid)} revenue and margins recovering, ongoing benchmarking tracks your recovery against industry peers and catches margin drift early. Quarterly tracking is especially important with ${hasConcentration ? '99% client concentration' : 'your client mix'}. Early warning on margin erosion gives you time to act.`,
+    whyThisMatters: `With ${formatCurrency(enrichedRevForServices)} revenue and margins recovering, ongoing benchmarking tracks your recovery against industry peers and catches margin drift early. Quarterly tracking is especially important with ${hasConcentration ? `${Math.round(concentrationPctSvc)}% client concentration` : 'your client mix'}. Early warning on margin erosion gives you time to act.`,
     expectedOutcome: 'Addresses issues worth £750k in potential value',
     addressesValue: 750000,
   });
@@ -3076,7 +3083,184 @@ serve(async (req) => {
     const currentValue = valueAnalysis.currentMarketValue?.mid || 0;
     const potentialValue = valueAnalysis.potentialValue?.mid || 0;
     const exitScore = exitBreakdown.totalScore || 0;
-    const enrichedRevenue = report.pass1_data?._enriched_revenue || 63300000;
+    const pass1 = report.pass1_data && typeof report.pass1_data === 'string'
+      ? (() => { try { return JSON.parse(report.pass1_data); } catch { return {}; } })()
+      : (report.pass1_data || {});
+    const enrichedRevenue =
+      pass1._enriched_revenue || pass1.revenue || report.pass1_data?._enriched_revenue || report.pass1_data?.revenue || 0;
+
+    // ====================================================================
+    // SCENARIO PLANNING — Data-driven, not hardcoded
+    // ====================================================================
+    const rawMetricsComparison = report.metrics_comparison;
+    const metricsComparisonArr: any[] = Array.isArray(rawMetricsComparison)
+      ? rawMetricsComparison
+      : typeof rawMetricsComparison === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(rawMetricsComparison || '[]');
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+
+    const concMetricForScenario = metricsComparisonArr.find((m: any) => {
+      const code = (m.metricCode || m.metric_code || '').toLowerCase();
+      return code.includes('concentration');
+    });
+    const scenarioConcentration = concMetricForScenario
+      ? Number(concMetricForScenario.clientValue ?? concMetricForScenario.client_value ?? 0)
+      : Number(pass1?.client_concentration_top3 ?? report.pass1_data?.client_concentration_top3 ?? 0);
+    const scenarioSurplus =
+      report.surplus_cash?.surplusCash || pass1?.surplus_cash?.surplusCash || report.pass1_data?.surplus_cash?.surplusCash || 0;
+    const isHighConcentration = scenarioConcentration >= 40;
+    const frLevel = String(report.founder_risk_level || '').toLowerCase();
+    const hasFounderDependency = frLevel === 'critical' || frLevel === 'high';
+
+    const doNothingMetrics: any[] = [];
+    if (isHighConcentration) {
+      doNothingMetrics.push({
+        label: 'Client Concentration',
+        current: `${Math.round(scenarioConcentration)}%`,
+        projected: `${Math.round(scenarioConcentration)}%`,
+        impact: 'Unchanged - risk remains',
+      });
+    }
+    doNothingMetrics.push({
+      label: 'Business Value',
+      current: formatCurrency(currentValue),
+      projected: formatCurrency(currentValue),
+      impact: 'No improvement - discount persists',
+    });
+    if (hasFounderDependency || exitScore < 70) {
+      doNothingMetrics.push({
+        label: 'Owner Freedom',
+        current: 'Trapped',
+        projected: 'Still trapped',
+        impact: 'Cannot step back without successor',
+      });
+    }
+    if (isHighConcentration) {
+      doNothingMetrics.push({
+        label: 'Risk Exposure',
+        current: 'Critical',
+        projected: 'Critical',
+        impact: 'Client loss threatens viability',
+      });
+    } else {
+      doNothingMetrics.push({
+        label: 'Risk Exposure',
+        current: 'Moderate',
+        projected: 'Moderate',
+        impact: 'Operational risks remain unaddressed',
+      });
+    }
+
+    const doNothingRisks: string[] = [];
+    if (hasFounderDependency) doNothingRisks.push('Owner health issue = business crisis');
+    if (isHighConcentration) {
+      doNothingRisks.push('Loss of any major client is existential crisis');
+      doNothingRisks.push('Market downturn hits concentrated revenue hard');
+    }
+    doNothingRisks.push('Business remains unsellable at fair value');
+    if (exitScore < 70) doNothingRisks.push('Value suppressors continue to erode enterprise value');
+
+    const scenariosPdf: any[] = [
+      {
+        id: 'do_nothing',
+        title: 'If You Do Nothing',
+        description: 'Continue current operations without structural changes',
+        timeframe: '24 months',
+        metrics: doNothingMetrics,
+        risks: doNothingRisks,
+      },
+    ];
+
+    if (isHighConcentration) {
+      const targetConc = Math.max(scenarioConcentration - 30, 30);
+      const surplusForBD =
+        scenarioSurplus > 0
+          ? `Deploy ${formatCurrency(Math.round(scenarioSurplus * 0.3))}-${formatCurrency(Math.round(scenarioSurplus * 0.5))} of surplus into BD or acquisition`
+          : 'Allocate budget for business development';
+      scenariosPdf.push({
+        id: 'diversify',
+        title: 'If You Actively Diversify',
+        description:
+          scenarioSurplus > 0 ? 'Use surplus cash to build broader client base' : 'Invest in building a broader client base',
+        timeframe: '24-36 months',
+        metrics: [
+          {
+            label: 'Client Concentration',
+            current: `${Math.round(scenarioConcentration)}%`,
+            projected: `${Math.round(targetConc)}-${Math.round(targetConc + 10)}%`,
+            impact: `Reduced by ${Math.round(scenarioConcentration - targetConc)}+ points`,
+          },
+          {
+            label: 'Revenue',
+            current: formatCurrency(enrichedRevenue),
+            projected: formatCurrency(enrichedRevenue * 1.15),
+            impact: '+15% from new clients',
+          },
+          {
+            label: 'Business Value',
+            current: formatCurrency(currentValue),
+            projected: formatCurrency(potentialValue * 0.95),
+            impact: `+${formatCurrency(Math.round(potentialValue * 0.95 - currentValue))} unlocked`,
+          },
+          {
+            label: 'Risk Profile',
+            current: 'Existential',
+            projected: 'Manageable',
+            impact: "Losing one client hurts but doesn't kill",
+          },
+        ],
+        requirements: [
+          surplusForBD,
+          'Hire dedicated business development resource',
+          'Target adjacent sectors (new frameworks, new industries)',
+          'Accept lower margins on new clients initially',
+        ],
+        considerations: [
+          'New client acquisition takes 12-18 months to show results',
+          'Requires management attention alongside existing delivery',
+          'New clients may have different margin profiles',
+        ],
+      });
+    }
+
+    scenariosPdf.push({
+      id: 'exit_prep',
+      title: 'If You Prepare for Exit',
+      description: 'Make the business sellable within 3 years',
+      timeframe: '24-36 months',
+      metrics: [
+        { label: 'Documentation', current: 'In heads', projected: 'Fully documented', impact: 'IP becomes transferable asset' },
+        { label: 'Owner Dependency', current: '70-80%', projected: '<40%', impact: 'Successor in place and trained' },
+        { label: 'Exit Readiness', current: `${exitScore}/100`, projected: '70+/100', impact: 'Attractive to trade buyers or PE' },
+        {
+          label: 'Business Value',
+          current: formatCurrency(currentValue),
+          projected: formatCurrency(potentialValue),
+          impact: `+${formatCurrency(Math.round(potentialValue - currentValue))} exit premium`,
+        },
+      ],
+      requirements: [
+        'Document core methodology and IP',
+        'Run systems audit to identify and document critical processes',
+        'Identify successor pathway (internal development or structured transition)',
+        'Engage strategic advisor to support leadership transition',
+        'Build client relationships beyond founder',
+        'Formalise contract terms with all majors',
+      ],
+      considerations: [
+        isHighConcentration
+          ? 'Concentration still impacts valuation even with other fixes'
+          : 'Revenue predictability remains a factor for buyers',
+        'Internal succession pathway requires right candidate',
+        'Requires 2-3 years minimum commitment',
+      ],
+    });
 
     console.log('[PDF Export] Enhanced suppressors:', enhancedSuppressors.length);
     console.log('[PDF Export] All suppressors:', allSuppressors.length);
@@ -3104,8 +3288,8 @@ serve(async (req) => {
       metrics: report.metrics_comparison || [],
       recommendations: Array.isArray(report.recommendations) ? report.recommendations : (typeof report.recommendations === 'string' ? JSON.parse(report.recommendations || '[]') : []),
       surplusCashBreakdown: report.surplus_cash_breakdown || report.surplus_cash || report.pass1_data?.surplus_cash_breakdown || report.pass1_data?.surplus_cash || null,
-      revenue: report.pass1_data?.revenue || report.pass1_data?.financials?.revenue || report.pass1_data?._enriched_revenue || 63328519,
-      pass1Data: report.pass1_data || {},
+      revenue: pass1.revenue || pass1.financials?.revenue || pass1._enriched_revenue || enrichedRevenue || 0,
+      pass1Data: pass1,
       valuation: {
         baseline: {
           enterpriseValue: baseline.enterpriseValue || { low: 0, mid: 0, high: 0 },
@@ -3165,74 +3349,7 @@ serve(async (req) => {
         })),
         pathTo70: exitBreakdown.pathTo70 || { actions: [], timeframe: '18-24 months', investment: 150000, valueUnlocked: 0 },
       },
-      scenarios: [
-        {
-          id: 'do_nothing',
-          title: 'If You Do Nothing',
-          description: 'Continue current operations without structural changes',
-          timeframe: '24 months',
-          metrics: [
-            { label: 'Client Concentration', current: '99%', projected: '99%', impact: 'Unchanged - risk remains' },
-            { label: 'Business Value', current: formatCurrency(currentValue), projected: formatCurrency(currentValue), impact: 'No improvement - discount persists' },
-            { label: 'Owner Freedom', current: 'Trapped', projected: 'Still trapped', impact: 'Cannot step back without successor' },
-            { label: 'Risk Exposure', current: 'Critical', projected: 'Critical', impact: 'One client loss = existential' },
-          ],
-          risks: [
-            'Loss of any major client is existential crisis',
-            'Owner health issue = business crisis',
-            'Market downturn hits concentrated revenue hard',
-            'Business remains unsellable at fair value',
-          ],
-        },
-        {
-          id: 'diversify',
-          title: 'If You Actively Diversify',
-          description: 'Use surplus cash to build broader client base',
-          timeframe: '24-36 months',
-          metrics: [
-            { label: 'Client Concentration', current: '99%', projected: '60-70%', impact: 'Reduced by 30+ points' },
-            { label: 'Revenue', current: formatCurrency(enrichedRevenue), projected: formatCurrency(enrichedRevenue * 1.15), impact: '+15% from new clients' },
-            { label: 'Business Value', current: formatCurrency(currentValue), projected: formatCurrency(potentialValue * 0.95), impact: `+${formatCurrency(Math.round(potentialValue * 0.95 - currentValue))} unlocked` },
-            { label: 'Risk Profile', current: 'Existential', projected: 'Manageable', impact: "Losing one client hurts but doesn't kill" },
-          ],
-          requirements: [
-            'Deploy £2-3M of the £7.7M surplus into BD or acquisition',
-            'Hire dedicated business development resource',
-            'Target adjacent sectors (new frameworks, new industries)',
-            'Accept lower margins on new clients initially',
-          ],
-          considerations: [
-            'New client acquisition takes 12-18 months to show results',
-            'Requires management attention alongside existing delivery',
-            'New clients may have different margin profiles',
-          ],
-        },
-        {
-          id: 'exit_prep',
-          title: 'If You Prepare for Exit',
-          description: 'Make the business sellable within 3 years',
-          timeframe: '24-36 months',
-          metrics: [
-            { label: 'Documentation', current: 'In heads', projected: 'Fully documented', impact: 'IP becomes transferable asset' },
-            { label: 'Owner Dependency', current: '70-80%', projected: '<40%', impact: 'Successor in place and trained' },
-            { label: 'Exit Readiness', current: `${exitScore}/100`, projected: '70+/100', impact: 'Attractive to trade buyers or PE' },
-            { label: 'Business Value', current: formatCurrency(currentValue), projected: formatCurrency(potentialValue * 0.9), impact: `+${formatCurrency(Math.round(potentialValue * 0.9 - currentValue))} exit premium` },
-          ],
-          requirements: [
-            'Document core methodology and IP',
-            'Run systems audit to identify and document critical processes',
-            'Identify successor pathway (internal development or structured transition)',
-            'Engage strategic advisor to support leadership transition',
-            'Build client relationships beyond founder',
-            'Formalise contract terms with all majors',
-          ],
-          considerations: [
-            'Concentration still impacts valuation even with other fixes',
-            'Internal succession pathway requires right candidate',
-            'Requires 2-3 years minimum commitment',
-          ],
-        },
-      ],
+      scenarios: scenariosPdf,
       services: clientServices,
       dataSources: report.data_sources || [],
     };

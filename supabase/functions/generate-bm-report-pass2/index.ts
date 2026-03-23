@@ -650,12 +650,13 @@ serve(async (req) => {
         // Remove "undefined" patterns (e.g. your "undefined" opportunity, their "undefined" in action)
         .replace(/\s*[""\u201C\u201D]undefined[""\u201C\u201D]\s*/gi, ' ')
         .replace(/\bundefined\b/gi, '')  // catch any unquoted "undefined"
-        // Replace em dash with period + space (most common pattern is "X — Y" or "X—Y")
-        .replace(/\s*—\s*/g, '. ')    // em dash
-        .replace(/\s*–\s*/g, '. ')    // en dash used as em dash
-        .replace(/\.\.\s/g, '. ')      // clean up any double periods from replacement
-        .replace(/\.\s\./g, '.')       // clean up ". ." patterns
-        .replace(/\s{2,}/g, ' ')       // collapse multiple spaces
+        // Em/en dashes: do NOT strip hyphens in number ranges (e.g. 18-24, 7-10 months)
+        // Em dash → spaced hyphen; en dash → ASCII hyphen (preserves "18–24" as "18-24")
+        .replace(/\u2014/g, ' - ')
+        .replace(/\u2013/g, '-')
+        .replace(/\.\.\s/g, '. ')
+        .replace(/\.\s\./g, '.')
+        .replace(/\s{2,}/g, ' ')
         .trim();
     };
 
