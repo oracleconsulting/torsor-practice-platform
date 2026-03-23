@@ -26,11 +26,25 @@ function isPass1Assembled(status: string | undefined | null): boolean {
   );
 }
 
+/** Final assembled shape (Phase 8) — may exist without phase1..phase7 keys on legacy rows */
+function hasAssembledPass1Shape(pd: Record<string, unknown> | null | undefined): boolean {
+  if (!pd || typeof pd !== 'object') return false;
+  return Boolean(pd.facts && pd.findings && pd.recommendations);
+}
+
+function hasPhaseSegment(report: SAPhaseReportRow | null | undefined, n: number): boolean {
+  return Boolean(report?.pass1_data?.[`phase${n}`]);
+}
+
 function isPhaseComplete(phaseNum: number, report: SAPhaseReportRow | null | undefined): boolean {
   if (!report) return false;
   if (phaseNum <= 7) {
-    const key = `phase${phaseNum}` as const;
-    return Boolean(report.pass1_data?.[key]);
+    if (hasPhaseSegment(report, phaseNum)) return true;
+    // Legacy: Phase 8 used to drop phase1..phase7 from pass1_data — treat a finished report as all phases done for display
+    if (isPass1Assembled(report.status) && hasAssembledPass1Shape(report.pass1_data ?? undefined)) {
+      return true;
+    }
+    return false;
   }
   return isPass1Assembled(report.status);
 }
@@ -59,13 +73,17 @@ export function getSaPhaseVisualStatus(
   return 'not_run';
 }
 
-/** True if this phase may be started: phase 1 always, else previous phase has data in pass1_data. Re-running a completed phase is allowed. */
+/**
+ * True if this phase may be started: phase 1 always; else `pass1_data.phase{N-1}` must exist.
+ * Phase 8 assembly now preserves phase1..phase7 in the DB — required for resume. Legacy rows
+ * without those keys can only full re-run from phase 1.
+ */
 export function canRunSaPhase(
   phaseNum: number,
   report: SAPhaseReportRow | null | undefined
 ): boolean {
   if (phaseNum === 1) return true;
-  return Boolean(report?.pass1_data?.[`phase${phaseNum - 1}`]);
+  return hasPhaseSegment(report, phaseNum - 1);
 }
 
 export interface SAPhaseControlsProps {
@@ -94,6 +112,10 @@ export function SAPhaseControls({
           generatingFromPhase,
         });
         const canRun = canRunSaPhase(phase.num, report);
+        const legacyAssembledNoSegments =
+          phase.num > 1 &&
+          !hasPhaseSegment(report, 1) &&
+          hasAssembledPass1Shape(report?.pass1_data ?? undefined);
         const st = report?.status ?? '';
         const isPipelineBusy =
           st === 'generating' || st === 'regenerating' || !!isGenerating;
@@ -115,14 +137,21 @@ export function SAPhaseControls({
               status === 'not_run' ? 'bg-gray-100 text-gray-500 border-gray-200' : '',
               status === 'running' ? 'bg-blue-100 text-blue-800 border-blue-300 animate-pulse' : '',
               !isPipelineBusy && canRun && status !== 'running' ? 'cursor-pointer hover:opacity-90' : '',
-              !canRun && !isPipelineBusy ? 'opacity-40 cursor-not-allowed' : '',
+              !canRun && !isPipelineBusy && status !== 'complete' ? 'opacity-40 cursor-not-allowed' : '',
+              !canRun && !isPipelineBusy && status === 'complete' ? 'cursor-not-allowed opacity-75' : '',
               isPipelineBusy ? 'cursor-wait' : '',
             ]
               .filter(Boolean)
               .join(' ')}
             title={`Phase ${phase.num}: ${phase.label}${
               status === 'failed' ? ' — failed; click to retry from here' : ''
-            }${!canRun && phase.num > 1 ? ' — complete the previous phase first' : ''}`}
+            }${
+              legacyAssembledNoSegments
+                ? ' — Run full “Regenerate” (phase 1) once after deploy to store phase data; then per-phase resume works.'
+                : !canRun && phase.num > 1
+                  ? ' — previous phase data missing in pass1_data'
+                  : ''
+            }`}
           >
             {status === 'complete' && '✓ '}
             {status === 'failed' && '✗ '}

@@ -2362,6 +2362,14 @@ async function runPhase8Presentation(
     hoursBreakdown: phase6?.hoursBreakdown ?? pass1Data.hoursBreakdown ?? null,
     adminGuidance: phase7?.adminGuidance ?? null,
     clientPresentation: phase8?.clientPresentation ?? null,
+    // Preserve raw phase outputs so admin can resume from any phase N and UI can show per-phase status
+    phase1: pass1Data.phase1,
+    phase2: pass1Data.phase2,
+    phase3: pass1Data.phase3,
+    phase4: pass1Data.phase4,
+    phase5: pass1Data.phase5,
+    phase6: pass1Data.phase6,
+    phase7: pass1Data.phase7,
   };
 
   const { data: engRow } = await supabaseClient.from('sa_engagements').select('hourly_rate').eq('id', engagementId).single();
