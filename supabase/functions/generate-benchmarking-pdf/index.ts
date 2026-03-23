@@ -13,6 +13,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/** Non-breaking hyphen (U+2011) preserves digit-digit ranges in Puppeteer PDF rendering */
+function safePdfText(text: string): string {
+  if (text == null || text === undefined) return '';
+  return String(text).replace(/(\d+)-(\d+)/g, '$1\u2011$2');
+}
+
 // =============================================================================
 // TYPES
 // =============================================================================
@@ -175,7 +181,8 @@ function renderExecutiveSummary(data: any, config: any): string {
   const showHero = config.showHeroMetrics !== false;
   const totalOpp = data.totalOpportunity || data.annualOpportunity || 0;
   const pct = data.overallPercentile || 55;
-  const heroCaption = (data.headline || data.executiveSummaryHeadline || data.opportunityNarrative || '').substring(0, 200);
+  const heroCaptionRaw = (data.headline || data.executiveSummaryHeadline || data.opportunityNarrative || '').substring(0, 200);
+  const heroCaption = safePdfText(heroCaptionRaw);
   
   return `
     <div class="section">
@@ -196,7 +203,7 @@ function renderExecutiveSummary(data: any, config: any): string {
           </div>
         </div>
       ` : ''}
-      <div class="narrative-text">${data.executiveSummary || ''}</div>
+      <div class="narrative-text">${safePdfText(data.executiveSummary || '')}</div>
       ${showHero && totalOpp > 0 ? `
         <div class="hero-opportunity">
           <div class="hero-label">ANNUAL OPPORTUNITY IDENTIFIED</div>
@@ -482,10 +489,10 @@ function renderNarrative(title: string, content: string, highlights?: string[]):
       <h2 class="section-title">${title}</h2>
       ${highlights ? `
         <div class="highlights">
-          ${highlights.map(h => `<span class="highlight-tag">${h}</span>`).join('')}
+          ${highlights.map(h => `<span class="highlight-tag">${safePdfText(h)}</span>`).join('')}
         </div>
       ` : ''}
-      <div class="narrative-text">${content}</div>
+      <div class="narrative-text">${safePdfText(content)}</div>
     </div>
   `;
 }
@@ -500,10 +507,10 @@ function renderNarrativeContinuation(title: string, content: string, highlights?
       <h3 class="subsection-heading">${title}</h3>
       ${highlights ? `
         <div class="highlights compact">
-          ${highlights.map(h => `<span class="highlight-tag">${h}</span>`).join('')}
+          ${highlights.map(h => `<span class="highlight-tag">${safePdfText(h)}</span>`).join('')}
         </div>
       ` : ''}
-      <div class="narrative-text">${content}</div>
+      <div class="narrative-text">${safePdfText(content)}</div>
     </div>
   `;
 }
@@ -548,37 +555,37 @@ function renderRecommendations(data: any, config: any): string {
           <div class="recommendation-card">
             <div class="rec-header">
               <span class="rec-number">${i + 1}</span>
-              <div class="rec-title">${rec.title}</div>
+              <div class="rec-title">${safePdfText(rec.title || '')}</div>
               ${annualVal ? `<span class="rec-value">${formatCurrency(Number(annualVal))} <span class="rec-value-label">annual value</span></span>` : ''}
             </div>
             ${detailLevel !== 'summary' ? `
-              <div class="rec-description">${rec.description || ''}</div>
+              <div class="rec-description">${safePdfText(rec.description || '')}</div>
               <div class="rec-meta">
                 <span class="effort-badge ${(rec.effort || 'medium').toLowerCase()}">${rec.effort || 'Medium'}</span>
-                <span class="timeframe">${rec.timeframe || '12 months'}</span>
+                <span class="timeframe">${safePdfText(rec.timeframe || '12 months')}</span>
               </div>
             ` : ''}
             ${steps.length > 0 ? `
               <div class="rec-implementation">
                 <strong>How to implement:</strong>
                 <ol>
-                  ${steps.map((step: string) => `<li>${step}</li>`).join('')}
+                  ${steps.map((step: string) => `<li>${safePdfText(step)}</li>`).join('')}
                 </ol>
               </div>
             ` : ''}
             ${quickWins.length > 0 ? `
               <div class="rec-quickwins">
                 <strong>⚡ START THIS WEEK</strong>
-                ${quickWins.map((w: string) => `<div class="quickwin-item">→ ${w}</div>`).join('')}
+                ${quickWins.map((w: string) => `<div class="quickwin-item">→ ${safePdfText(w)}</div>`).join('')}
               </div>
             ` : ''}
             ${rec.whatWeCanHelp ? `
               <div class="rec-help">
-                <strong>How we can help:</strong> ${rec.whatWeCanHelp}
+                <strong>How we can help:</strong> ${safePdfText(rec.whatWeCanHelp)}
               </div>
             ` : ''}
             ${rec.linkedService ? `
-              <div class="rec-service">→ ${rec.linkedService}</div>
+              <div class="rec-service">→ ${safePdfText(rec.linkedService)}</div>
             ` : ''}
           </div>
         `; }).join('')}
@@ -662,8 +669,8 @@ function renderValueWaterfall(data: any, config: any): string {
             <div class="wf-left">
               <strong>${n.name}</strong>
               <span class="severity-badge ${severity}">${n.severity}</span>
-              ${n.evidence ? `<div class="wf-evidence">${n.evidence}</div>` : ''}
-              ${n.pathToFixSummary ? `<div class="wf-remedy">Fixable via ${n.pathToFixSummary}</div>` : n.recoveryTimeframe ? `<div class="wf-remedy">Fixable in ~${n.recoveryTimeframe}</div>` : ''}
+              ${n.evidence ? `<div class="wf-evidence">${safePdfText(n.evidence)}</div>` : ''}
+              ${n.pathToFixSummary ? `<div class="wf-remedy">Fixable via ${safePdfText(n.pathToFixSummary)}</div>` : n.recoveryTimeframe ? `<div class="wf-remedy">Fixable in ~${safePdfText(n.recoveryTimeframe)}</div>` : ''}
             </div>
             <div class="wf-amount negative">-${formatCurrency(displayAmount)}</div>
           </div>
@@ -697,7 +704,7 @@ function renderValueWaterfall(data: any, config: any): string {
       </div>
       ${(val.aggregateDiscount?.methodology) ? `
       <div class="valuation-methodology-note">
-        <strong>Valuation methodology:</strong> ${val.aggregateDiscount.methodology}
+        <strong>Valuation methodology:</strong> ${safePdfText(val.aggregateDiscount.methodology)}
       </div>
       <p class="valuation-disclaimer">This is indicative analysis, not a formal valuation opinion. Discount ranges are grounded in practitioner frameworks (e.g. Pratt, Damodaran, BDO PCPI) and industry calibration; individual outcomes vary by buyer and deal structure.</p>
       ` : ''}
@@ -739,7 +746,7 @@ function renderSuppressors(data: any, config: any): string {
                   <td><span class="severity-badge ${severity}">${n.severity}</span></td>
                   <td class="discount-value">-${n.discountPercent}%</td>
                   <td class="discount-value">${formatCurrency(n.discountValue)}</td>
-                  <td>${n.evidence || n.whyThisDiscount || ''}${n.pathToFixSummary ? `<br><span class="suppressor-remedy">Fix: ${n.pathToFixSummary}</span>` : ''}</td>
+                  <td>${safePdfText(n.evidence || n.whyThisDiscount || '')}${n.pathToFixSummary ? `<br><span class="suppressor-remedy">Fix: ${safePdfText(n.pathToFixSummary)}</span>` : ''}</td>
                 </tr>
               `;
             }).join('')}
@@ -769,38 +776,38 @@ function renderSuppressors(data: any, config: any): string {
               </div>
               ${config.showTargetStates !== false ? `
                 <div class="supp-states">
-                  <div class="current-state"><strong>Current:</strong> ${n.currentLabel}</div>
-                  ${n.targetLabel ? `<div class="target-state"><strong>Target:</strong> ${n.targetLabel}</div>` : ''}
+                  <div class="current-state"><strong>Current:</strong> ${safePdfText(n.currentLabel || '')}</div>
+                  ${n.targetLabel ? `<div class="target-state"><strong>Target:</strong> ${safePdfText(n.targetLabel)}</div>` : ''}
                 </div>
               ` : ''}
               ${config.showRecoveryTimelines !== false && (n.recoveryValue > 0 || n.recoveryTimeframe) ? `
                 <div class="supp-recovery">
                   <span class="recoverable">${n.recoveryValue > 0 ? formatCurrency(n.recoveryValue) : ''}</span>
-                  <span class="timeframe">${n.recoveryTimeframe || ''}</span>
+                  <span class="timeframe">${safePdfText(n.recoveryTimeframe || '')}</span>
                 </div>
               ` : ''}
-              ${n.evidence ? `<div class="supp-evidence">${n.evidence}</div>` : ''}
-              ${n.whyThisDiscount ? `<div class="supp-why">${n.whyThisDiscount}</div>` : ''}
-              ${n.pathToFixSummary ? `<div class="supp-remedy">Fixable via ${n.pathToFixSummary}</div>` : ''}
+              ${n.evidence ? `<div class="supp-evidence">${safePdfText(n.evidence)}</div>` : ''}
+              ${n.whyThisDiscount ? `<div class="supp-why">${safePdfText(n.whyThisDiscount)}</div>` : ''}
+              ${n.pathToFixSummary ? `<div class="supp-remedy">Fixable via ${safePdfText(n.pathToFixSummary)}</div>` : ''}
               ${n.pathToFixSteps?.length > 0 ? `
                 <div class="supp-fix-steps">
                   <strong>Path to fix:</strong>
-                  <ol>${n.pathToFixSteps.map((step: string) => `<li>${step}</li>`).join('')}</ol>
+                  <ol>${n.pathToFixSteps.map((step: string) => `<li>${safePdfText(step)}</li>`).join('')}</ol>
                 </div>
               ` : ''}
               ${n.investment ? `
                 <div class="supp-investment">
-                  <span>Investment: ${typeof n.investment === 'number' ? formatCurrency(n.investment) : n.investment}</span>
-                  ${n.roi ? `<span>ROI: ${n.roi}</span>` : ''}
+                  <span>Investment: ${typeof n.investment === 'number' ? formatCurrency(n.investment) : safePdfText(String(n.investment))}</span>
+                  ${n.roi ? `<span>ROI: ${safePdfText(String(n.roi))}</span>` : ''}
                 </div>
               ` : ''}
-              ${n.dependencies ? `<div class="supp-dependencies"><strong>Dependencies:</strong> ${n.dependencies}</div>` : ''}
+              ${n.dependencies ? `<div class="supp-dependencies"><strong>Dependencies:</strong> ${safePdfText(n.dependencies)}</div>` : ''}
               ${(s.methodology && (s.methodology.sources?.length || s.methodology.calibrationNote)) ? `
                 <div class="supp-methodology">
                   <strong>Methodology &amp; sources:</strong>
-                  ${s.methodology.calibrationNote ? `<p class="supp-methodology-note">${s.methodology.calibrationNote}</p>` : ''}
-                  ${s.methodology.sources?.length ? `<ul class="supp-sources">${s.methodology.sources.map((src: string) => `<li>${src}</li>`).join('')}</ul>` : ''}
-                  ${s.methodology.limitationsNote ? `<p class="supp-limitations italic">${s.methodology.limitationsNote}</p>` : ''}
+                  ${s.methodology.calibrationNote ? `<p class="supp-methodology-note">${safePdfText(s.methodology.calibrationNote)}</p>` : ''}
+                  ${s.methodology.sources?.length ? `<ul class="supp-sources">${s.methodology.sources.map((src: string) => `<li>${safePdfText(src)}</li>`).join('')}</ul>` : ''}
+                  ${s.methodology.limitationsNote ? `<p class="supp-limitations italic">${safePdfText(s.methodology.limitationsNote)}</p>` : ''}
                 </div>
               ` : ''}
             </div>
@@ -838,7 +845,7 @@ function renderValueProtectors(data: any, config: any): string {
         ${protectors.map((p: any) => `
           <div class="protector-card">
             <div class="protector-name">${p.name}</div>
-            <div class="protector-desc">${p.evidence || p.description || ''}</div>
+            <div class="protector-desc">${safePdfText(p.evidence || p.description || '')}</div>
             ${(p.value && p.value > 0) ? `<div class="protector-impact">+${formatCurrency(p.value)} to value</div>` : p.impactLabel ? `<div class="protector-impact">${p.impactLabel}</div>` : ''}
           </div>
         `).join('')}
@@ -873,7 +880,7 @@ function renderPathToValue(data: any, config: any): string {
         ${keyActions.map((action: string, i: number) => `
           <li class="path-action">
             <span class="action-number">${i + 1}</span>
-            <span class="action-text">${action}</span>
+            <span class="action-text">${safePdfText(action)}</span>
           </li>
         `).join('')}
       </ol>
@@ -926,7 +933,7 @@ function renderExitReadiness(data: any, config: any): string {
                     <div class="comp-bar-fill" style="width: ${(compScore / compMax) * 100}%"></div>
                   </div>
                 </div>
-                ${compAction ? `<div class="comp-action">${compAction}</div>` : ''}
+                ${compAction ? `<div class="comp-action">${safePdfText(compAction)}</div>` : ''}
                 <div class="comp-target">Target: ${compTarget}/${compMax} · Gap: ${gapPoints} points</div>
               </div>
             `;
@@ -941,14 +948,14 @@ function renderExitReadiness(data: any, config: any): string {
               ${pathTo70.actions.map((action: string, i: number) => `
                 <div class="path-step">
                   <span class="step-number">${i + 1}</span>
-                  <span class="step-text">${action}</span>
+                  <span class="step-text">${safePdfText(action)}</span>
                 </div>
               `).join('')}
             </div>
           ` : ''}
           <div class="path-metrics">
             <div class="path-metric">
-              <div class="path-metric-value">${pathTo70.timeframe || pathTo70.timeline || '18-24 months'}</div>
+              <div class="path-metric-value">${safePdfText(pathTo70.timeframe || pathTo70.timeline || '18-24 months')}</div>
               <div class="path-metric-label">Timeline</div>
             </div>
             <div class="path-metric">
@@ -1357,14 +1364,14 @@ function renderScenarioPlanning(data: any, config: any): string {
                   <tr>
                     ${mIdx === 0 ? `
                       <td class="scenario-name-cell" rowspan="${metrics.length}">
-                        <strong>${scenario.title || scenario.name || 'Scenario'}</strong>
-                        ${scenario.timeframe ? `<br><span style="font-size: 8px; color: #64748b;">${scenario.timeframe}</span>` : ''}
+                        <strong>${safePdfText(scenario.title || scenario.name || 'Scenario')}</strong>
+                        ${scenario.timeframe ? `<br><span style="font-size: 8px; color: #64748b;">${safePdfText(scenario.timeframe)}</span>` : ''}
                       </td>
                     ` : ''}
-                    <td>${m.label || m.name || ''}</td>
-                    <td>${m.current ?? '-'}</td>
-                    <td>${m.projected ?? '-'}</td>
-                    <td>${m.impact || ''}</td>
+                    <td>${safePdfText(String(m.label || m.name || ''))}</td>
+                    <td>${safePdfText(String(m.current ?? '-'))}</td>
+                    <td>${safePdfText(String(m.projected ?? '-'))}</td>
+                    <td>${safePdfText(m.impact || '')}</td>
                   </tr>
                 `).join('')}
                 ${sIdx < scenarios.length - 1 ? '<tr><td colspan="5" style="height: 4px; border: none;"></td></tr>' : ''}
@@ -1383,19 +1390,19 @@ function renderScenarioPlanning(data: any, config: any): string {
       <p class="section-subtitle">What happens depending on the path you choose</p>
       ${scenarios.map((scenario: any) => `
         <div class="scenario-card ${scenario.id || ''}">
-          <h3 class="scenario-title">${scenario.title || scenario.name || 'Scenario'}</h3>
-          <p class="scenario-desc">${scenario.description || ''}</p>
-          ${scenario.timeframe ? `<div class="scenario-timeframe">Timeframe: ${scenario.timeframe}</div>` : ''}
+          <h3 class="scenario-title">${safePdfText(scenario.title || scenario.name || 'Scenario')}</h3>
+          <p class="scenario-desc">${safePdfText(scenario.description || '')}</p>
+          ${scenario.timeframe ? `<div class="scenario-timeframe">Timeframe: ${safePdfText(scenario.timeframe)}</div>` : ''}
           ${scenario.metrics?.length > 0 ? `
             <table class="scenario-metrics">
               <thead><tr><th>Metric</th><th>Today</th><th>Projected</th><th>Impact</th></tr></thead>
               <tbody>
                 ${scenario.metrics.map((m: any) => `
                   <tr>
-                    <td>${m.label || m.name || ''}</td>
-                    <td>${m.current ?? '-'}</td>
-                    <td>${m.projected ?? '-'}</td>
-                    <td>${m.impact || ''}</td>
+                    <td>${safePdfText(String(m.label || m.name || ''))}</td>
+                    <td>${safePdfText(String(m.current ?? '-'))}</td>
+                    <td>${safePdfText(String(m.projected ?? '-'))}</td>
+                    <td>${safePdfText(m.impact || '')}</td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -1404,19 +1411,19 @@ function renderScenarioPlanning(data: any, config: any): string {
           ${scenario.risks?.length > 0 ? `
             <div class="scenario-risks">
               <h4>What You Risk</h4>
-              <ul>${scenario.risks.map((r: string) => `<li>${r}</li>`).join('')}</ul>
+              <ul>${scenario.risks.map((r: string) => `<li>${safePdfText(r)}</li>`).join('')}</ul>
             </div>
           ` : ''}
           ${scenario.requirements?.length > 0 && config.showRequirements !== false ? `
             <div class="scenario-requirements">
               <h4>What This Requires</h4>
-              <ul>${scenario.requirements.map((r: string) => `<li>${r}</li>`).join('')}</ul>
+              <ul>${scenario.requirements.map((r: string) => `<li>${safePdfText(r)}</li>`).join('')}</ul>
             </div>
           ` : ''}
           ${scenario.considerations?.length > 0 ? `
             <div class="scenario-considerations">
               <h4>Considerations</h4>
-              <ul>${scenario.considerations.map((c: string) => `<li>${c}</li>`).join('')}</ul>
+              <ul>${scenario.considerations.map((c: string) => `<li>${safePdfText(c)}</li>`).join('')}</ul>
             </div>
           ` : ''}
         </div>
@@ -1510,31 +1517,31 @@ function renderServices(data: any, config: any): string {
   const renderServiceCard = (service: any) => `
           <div class="service-card">
             <div class="service-header">
-              <span class="service-price">${service.priceRange || '£TBC'}</span>
-              <span class="service-frequency">${service.frequency || 'One-off'}</span>
+              <span class="service-price">${safePdfText(service.priceRange || '£TBC')}</span>
+              <span class="service-frequency">${safePdfText(service.frequency || 'One-off')}</span>
             </div>
-            <h3 class="service-name">${service.name}</h3>
-            <p class="service-tagline">${service.tagline || ''}</p>
+            <h3 class="service-name">${safePdfText(service.name || '')}</h3>
+            <p class="service-tagline">${safePdfText(service.tagline || '')}</p>
             ${service.whyThisMatters ? `
               <div class="service-why">
                 <h4>Why This Matters For You</h4>
-                <p>${service.whyThisMatters}</p>
+                <p>${safePdfText(service.whyThisMatters)}</p>
               </div>
             ` : ''}
             ${service.whatYouGet?.length > 0 ? `
               <div class="service-deliverables">
                 <h4>What You Get</h4>
-                <ul>${service.whatYouGet.map((item: string) => `<li>${item}</li>`).join('')}</ul>
+                <ul>${service.whatYouGet.map((item: string) => `<li>${safePdfText(item)}</li>`).join('')}</ul>
               </div>
             ` : ''}
             ${service.expectedOutcome ? `
               <div class="service-outcome">
                 <h4>Expected Outcome</h4>
-                <p>${service.expectedOutcome}</p>
+                <p>${safePdfText(service.expectedOutcome)}</p>
               </div>
             ` : ''}
             <div class="service-meta">
-              <span class="service-duration">${service.duration || ''}</span>
+              <span class="service-duration">${safePdfText(service.duration || '')}</span>
               ${service.addressesValue ? `<span class="service-value">Total value at stake: ${service.addressesValue >= 1000 ? formatCurrency(service.addressesValue) : service.addressesValue > 0 ? formatCurrency(service.addressesValue * 1000) + ' (est.)' : ''}</span>` : ''}
             </div>
           </div>
@@ -1566,7 +1573,7 @@ function renderClosing(data: any, config: any): string {
     <div class="section closing-section">
       <h2 class="section-title">Your Position: Summed Up</h2>
       <div class="closing-box">
-        <p>${data.closingSummary || ''}</p>
+        <p>${safePdfText(data.closingSummary || '')}</p>
       </div>
       ${config.showContactCTA ? `
         <div class="contact-cta">
@@ -1635,7 +1642,7 @@ function generateReportHTML(data: any, pdfConfig: PdfConfig): string {
         sectionsHTML += renderNarrativeContinuation('Your Strengths', data.strengthsNarrative);
         break;
       case 'gapsNarrative':
-        sectionsHTML += renderNarrativeContinuation('Performance Gaps', data.gapsNarrative, [`${data.gapCount || 0} gaps identified`]);
+        sectionsHTML += renderNarrativeContinuation('Performance Gaps', data.gapsNarrative, [`${data.gapCount || 0} ${(data.gapCount || 0) === 1 ? 'gap' : 'gaps'} identified`]);
         break;
       case 'opportunityNarrative':
         sectionsHTML += renderNarrativeContinuation('The Opportunity', data.opportunityNarrative, [`${formatCurrency(data.totalOpportunity || 0)} potential`]);

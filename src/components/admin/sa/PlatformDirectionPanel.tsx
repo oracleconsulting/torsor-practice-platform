@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, Save } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { SAPlatformDirection } from '../../../types/sa-platform-direction';
