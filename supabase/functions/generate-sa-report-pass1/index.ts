@@ -2657,12 +2657,14 @@ serve(async (req) => {
   }
 
   let engagementId: string | null = null;
-  let phase = 1;
+  /** Start phase for Pass 1 pipeline (1–8). Accept `startFromPhase` or legacy `phase`. */
+  let fromPhase = 1;
 
   try {
     const body = await req.json();
     engagementId = body.engagementId ?? null;
-    phase = body.phase ?? 1;
+    const raw = body.startFromPhase ?? body.phase ?? 1;
+    fromPhase = Math.min(8, Math.max(1, Number(raw) || 1));
 
     if (!engagementId) {
       throw new Error('engagementId is required');
@@ -2699,12 +2701,32 @@ serve(async (req) => {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
 
-    console.log(`[SA Pass 1] Phase ${phase} starting for: ${engagementId}`);
+    console.log(`[SA Pass 1] Starting from phase ${fromPhase} for: ${engagementId}`);
+
+    if (fromPhase > 1) {
+      const { data: report, error: reportErr } = await supabaseClient
+        .from('sa_audit_reports')
+        .select('pass1_data')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+      if (reportErr) {
+        throw new Error(`Cannot validate prerequisites: ${reportErr.message}`);
+      }
+      if (!report?.pass1_data) {
+        throw new Error(`Cannot start from phase ${fromPhase}: no pass1_data — run from phase 1 first`);
+      }
+      const pd = report.pass1_data as Record<string, unknown>;
+      for (let p = 1; p < fromPhase; p++) {
+        if (!pd[`phase${p}`]) {
+          throw new Error(`Cannot start from phase ${fromPhase}: phase ${p} data is missing`);
+        }
+      }
+    }
 
     let result: { success: boolean; phase: number; reportId?: string; jobId?: string };
 
     // ─── Create report job for Railway worker ───────────────
-    if (phase === 1) {
+    if (fromPhase === 1) {
       const { data: existingReport } = await supabaseClient
         .from('sa_audit_reports')
         .select('status')
@@ -2738,7 +2760,7 @@ serve(async (req) => {
         .insert({
           engagement_id: engagementId,
           job_type: 'pass1_full',
-          start_phase: phase,
+          start_phase: fromPhase,
           config: jobConfig,
           status: 'pending',
         })
@@ -2750,7 +2772,7 @@ serve(async (req) => {
       }
 
       console.log(`[SA Pass 1] Created job ${newJob.id} for engagement ${engagementId}`);
-      result = { success: true, phase: 1, jobId: newJob.id };
+      result = { success: true, phase: fromPhase, jobId: newJob.id };
     } else {
       await supabaseClient.from('sa_report_jobs')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
@@ -2762,7 +2784,7 @@ serve(async (req) => {
         .insert({
           engagement_id: engagementId,
           job_type: 'pass1_from_phase',
-          start_phase: phase,
+          start_phase: fromPhase,
           config: {},
           status: 'pending',
         })
@@ -2771,8 +2793,16 @@ serve(async (req) => {
 
       if (retryError) throw new Error(`Failed to create retry job: ${retryError.message}`);
 
-      console.log(`[SA Pass 1] Created retry job ${retryJob.id} from phase ${phase}`);
-      result = { success: true, phase, jobId: retryJob.id };
+      await supabaseClient
+        .from('sa_audit_reports')
+        .update({
+          status: 'generating',
+          executive_summary: `Resuming from phase ${fromPhase}/8…`,
+        })
+        .eq('engagement_id', engagementId);
+
+      console.log(`[SA Pass 1] Created retry job ${retryJob.id} from phase ${fromPhase}`);
+      result = { success: true, phase: fromPhase, jobId: retryJob.id };
     }
 
     const pipelinePromise = runPass1PipelineInline(
@@ -2784,7 +2814,7 @@ serve(async (req) => {
       openRouterKey,
       hourlyRate,
       clientName,
-      phase
+      fromPhase
     );
     const edgeRt = (globalThis as { EdgeRuntime?: { waitUntil: (p: Promise<unknown>) => void } }).EdgeRuntime;
     if (edgeRt?.waitUntil) {
@@ -2800,7 +2830,8 @@ serve(async (req) => {
         phase: result.phase,
         jobId: result.jobId,
         reportId: (result as any).reportId,
-        nextPhase: phase < 8 ? phase + 1 : null,
+        startFromPhase: fromPhase,
+        nextPhase: fromPhase < 8 ? fromPhase + 1 : null,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -2808,7 +2839,12 @@ serve(async (req) => {
     const errMsg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[SA Pass 1] Error:', error);
 
-    if (engagementId) {
+    const skipPhaseFailedStatus =
+      errMsg.includes('Cannot start from phase') ||
+      errMsg.includes('no pass1_data') ||
+      errMsg.includes('Cannot validate prerequisites');
+
+    if (engagementId && !skipPhaseFailedStatus) {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -2825,25 +2861,25 @@ serve(async (req) => {
         && existingReport?.pass1_data?.recommendations;
 
       if (hadCompletedReport) {
-        console.warn(`[SA Pass 1] Phase ${phase} failed but report has complete data from previous run. Restoring status to 'generated'.`);
+        console.warn(`[SA Pass 1] Request failed but report has complete data from previous run. Restoring status to 'generated'.`);
         await supabaseClient
           .from('sa_audit_reports')
           .update({ status: 'generated' })
           .eq('engagement_id', engagementId);
       } else {
-        const status = `phase${phase}_failed`;
+        const status = `phase${fromPhase}_failed`;
         await supabaseClient
           .from('sa_audit_reports')
           .update({
             status,
-            executive_summary: `Report generation failed at phase ${phase}: ${errMsg}. Retry from admin.`,
+            executive_summary: `Report generation failed at phase ${fromPhase}: ${errMsg}. Retry from admin.`,
           })
           .eq('engagement_id', engagementId);
       }
     }
 
     return new Response(
-      JSON.stringify({ error: errMsg, phase }),
+      JSON.stringify({ error: errMsg, phase: fromPhase }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

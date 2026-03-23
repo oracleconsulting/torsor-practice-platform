@@ -93,6 +93,7 @@ import {
   PlatformDirectionGenerateWarning,
   PlatformDirectionPanel,
 } from '../../components/admin/sa/PlatformDirectionPanel';
+import { SAPhaseControls } from '../../components/admin/sa/SAPhaseControls';
 import { getAssessmentByCode } from '../../config/serviceLineAssessments';
 import type { AssessmentQuestion } from '../../config/serviceLineAssessments';
 import { ClientServicesClientList } from './ClientServicesClientList';
@@ -12817,6 +12818,7 @@ function SystemsAuditClientModal({
   const [transcriptText, setTranscriptText] = useState('');
   const [showTranscriptInput, setShowTranscriptInput] = useState(false);
   const [showPlatformDirectionGenerateWarning, setShowPlatformDirectionGenerateWarning] = useState(false);
+  const [saGeneratingFromPhase, setSaGeneratingFromPhase] = useState<number | null>(null);
 
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
@@ -13158,7 +13160,7 @@ function SystemsAuditClientModal({
     }
   };
 
-  const handleGenerateReport = async () => {
+  const handleGenerateReport = async (startFromPhase = 1) => {
     if (!engagement) return;
 
     if (engagement.platform_direction == null) {
@@ -13168,6 +13170,7 @@ function SystemsAuditClientModal({
     }
 
     setGenerating(true);
+    setSaGeneratingFromPhase(startFromPhase);
 
     try {
       const { data: resolvedGaps } = await supabase
@@ -13207,83 +13210,58 @@ function SystemsAuditClientModal({
         throw new Error(`${label} did not complete within ${maxAttempts * intervalMs / 1000}s`);
       };
 
-      const firePhase = (phaseNum: number) => {
-        const body: { engagementId: string; phase: number; additionalContext?: typeof additionalContext; preliminaryAnalysis?: typeof engagement.preliminary_analysis } = {
+      const firePhaseInvoke = () => {
+        const body: {
+          engagementId: string;
+          phase: number;
+          startFromPhase: number;
+          additionalContext?: typeof additionalContext;
+          preliminaryAnalysis?: typeof engagement.preliminary_analysis;
+        } = {
           engagementId: engagement.id,
-          phase: phaseNum,
+          phase: startFromPhase,
+          startFromPhase,
         };
-        if (phaseNum === 1) {
+        if (startFromPhase === 1) {
           if (additionalContext.length > 0) body.additionalContext = additionalContext;
           if (engagement.preliminary_analysis) body.preliminaryAnalysis = engagement.preliminary_analysis;
         }
         supabase.functions.invoke('generate-sa-report-pass1', {
-          body
+          body,
         }).then(({ data, error }) => {
-          if (error) console.warn(`[SA Report] Phase ${phaseNum} invoke returned error (may still complete):`, error.message);
-          else console.log(`[SA Report] Phase ${phaseNum} invoke returned:`, data);
-        }).catch(err => {
-          console.warn(`[SA Report] Phase ${phaseNum} invoke connection failed (expected, polling DB):`, err.message);
+          if (error) console.warn(`[SA Report] startFromPhase ${startFromPhase} invoke returned error (may still complete):`, error.message);
+          else console.log(`[SA Report] startFromPhase ${startFromPhase} invoke returned:`, data);
+        }).catch((err) => {
+          console.warn(`[SA Report] invoke connection failed (expected, polling DB):`, err.message);
         });
       };
 
-      // ── Fire once: edge function creates job, Railway worker runs all 8 phases ──
-      console.log('[SA Report] Starting report generation...', { engagementId: engagement.id });
-      firePhase(1);
+      console.log('[SA Report] Starting report generation...', { engagementId: engagement.id, startFromPhase });
+      firePhaseInvoke();
 
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase1;
-      }, 'Phase 1', 120, 5000);
-      console.log('[SA Report] Phase 1 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase2;
-      }, 'Phase 2', 120, 5000);
-      console.log('[SA Report] Phase 2 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase3;
-      }, 'Phase 3', 60, 5000);
-      console.log('[SA Report] Phase 3 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase4;
-      }, 'Phase 4', 60, 5000);
-      console.log('[SA Report] Phase 4 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase5;
-      }, 'Phase 5', 60, 5000);
-      console.log('[SA Report] Phase 5 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase6;
-      }, 'Phase 6', 60, 5000);
-      console.log('[SA Report] Phase 6 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase7;
-      }, 'Phase 7', 60, 5000);
-      console.log('[SA Report] Phase 7 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return data?.status === 'pass1_complete' || data?.status === 'generated';
-      }, 'Phase 8 (assembly)', 60, 5000);
+      const phasePollAttempts = startFromPhase <= 2 ? 120 : 60;
+      for (let p = startFromPhase; p <= 8; p++) {
+        await pollDB(
+          async () => {
+            const { data } = await supabase
+              .from('sa_audit_reports')
+              .select('pass1_data, status')
+              .eq('engagement_id', engagement.id)
+              .maybeSingle();
+            if (data?.status?.endsWith('_failed')) {
+              throw new Error(`Report generation failed: ${data.status}`);
+            }
+            if (p === 8) {
+              return data?.status === 'pass1_complete' || data?.status === 'generated';
+            }
+            return !!data?.pass1_data?.[`phase${p}`];
+          },
+          `Phase ${p}`,
+          phasePollAttempts,
+          5000
+        );
+        console.log(`[SA Report] Phase ${p} complete`);
+      }
       console.log('[SA Report] Pass 1 complete. Starting narrative generation (Pass 2)...');
 
       // ── Pass 2: Narrative generation (Opus) ──
@@ -13316,6 +13294,7 @@ function SystemsAuditClientModal({
 
       await fetchData();
       setGenerating(false);
+      setSaGeneratingFromPhase(null);
 
     } catch (error: any) {
       console.error('[SA Report] Generation failed:', error);
@@ -13325,25 +13304,38 @@ function SystemsAuditClientModal({
         .eq('engagement_id', engagement.id)
         .maybeSingle();
 
-      const phasesComplete = [
-        partialReport?.pass1_data?.phase1 ? '1 (Extract)' : null,
-        partialReport?.pass1_data?.phase2 ? '2 (Analyse)' : null,
-        partialReport?.pass1_data?.phase3 ? '3 (Critical Findings)' : null,
-        partialReport?.pass1_data?.phase4 ? '4 (All Findings)' : null,
-        partialReport?.pass1_data?.phase5 ? '5 (Recommend)' : null,
-        partialReport?.pass1_data?.phase6 ? '6 (Maps)' : null,
-        partialReport?.pass1_data?.phase7 ? '7 (Guidance)' : null,
-        partialReport?.status === 'pass1_complete' ? '8 (Presentation)' : null,
-      ].filter(Boolean).join(', ');
+      const phaseNames = [
+        '',
+        'Extract',
+        'Analyse',
+        'Critical Findings',
+        'All Findings',
+        'Recommend',
+        'Maps',
+        'Guidance',
+        'Assembly',
+      ];
+      const completed: string[] = [];
+      for (let p = 1; p <= 7; p++) {
+        if (partialReport?.pass1_data?.[`phase${p}`]) {
+          completed.push(`${p} (${phaseNames[p]})`);
+        }
+      }
+      if (partialReport?.status === 'pass1_complete' || partialReport?.status === 'generated') {
+        completed.push(`8 (${phaseNames[8]})`);
+      }
 
-      if (phasesComplete) {
-        alert(`Report generation stopped at: ${error.message}\n\nPhases completed: ${phasesComplete}. You can retry to continue.`);
+      if (completed.length) {
+        alert(
+          `Report generation stopped at: ${error.message}\n\nPhases completed: ${completed.join(', ')}.\n\nYou can retry from the failed phase using the phase buttons above.`
+        );
       } else {
         alert(`Report generation failed: ${error.message || 'Unknown error'}`);
       }
 
       await fetchData();
       setGenerating(false);
+      setSaGeneratingFromPhase(null);
     }
   };
 
@@ -15188,7 +15180,7 @@ function SystemsAuditClientModal({
                                 You have {identifiedGapsCount} unresolved gap{identifiedGapsCount !== 1 ? 's' : ''}. Complete the review before generating.
                               </div>
                               <button
-                                onClick={handleGenerateReport}
+                                onClick={() => handleGenerateReport(1)}
                                 disabled
                                 className="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm font-medium"
                               >
@@ -15198,7 +15190,7 @@ function SystemsAuditClientModal({
                             </div>
                           ) : (
                             <button
-                              onClick={handleGenerateReport}
+                              onClick={() => handleGenerateReport(1)}
                               disabled={generating || !canGenerateOrRegenerate}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
                             >
@@ -15233,7 +15225,7 @@ function SystemsAuditClientModal({
                             onClick={() => {
                               saReportPollingCancelledRef.current = true;
                               setSaReportPollingAfterError(false);
-                              handleGenerateReport();
+                              handleGenerateReport(1);
                             }}
                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg"
                           >
@@ -15275,30 +15267,39 @@ function SystemsAuditClientModal({
                           </button>
                         </div>
                         
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-gray-900">Generated Analysis</p>
-                            <p className="text-xs text-gray-500">
-                              {report.generated_at && new Date(report.generated_at).toLocaleString()}
-                            </p>
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="text-sm font-medium text-gray-900">Generated Analysis</p>
+                              <p className="text-xs text-gray-500">
+                                {report.generated_at && new Date(report.generated_at).toLocaleString()}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleGenerateReport(1)}
+                              disabled={generating || !canGenerateOrRegenerate}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                            >
+                              {generating ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <span>Regenerating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="w-4 h-4" />
+                                  <span>Regenerate</span>
+                                </>
+                              )}
+                            </button>
                           </div>
-                          <button
-                            onClick={handleGenerateReport}
-                            disabled={generating || !canGenerateOrRegenerate}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
-                          >
-                            {generating ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>Regenerating...</span>
-                              </>
-                            ) : (
-                              <>
-                                <RefreshCw className="w-4 h-4" />
-                                <span>Regenerate</span>
-                              </>
-                            )}
-                          </button>
+                          <SAPhaseControls
+                            report={report}
+                            isGenerating={generating}
+                            generatingFromPhase={saGeneratingFromPhase}
+                            onRunFromPhase={(phase) => handleGenerateReport(phase)}
+                            disabled={!engagement}
+                          />
                         </div>
                       </div>
 

@@ -745,7 +745,7 @@ function renderSuppressors(data: any, config: any): string {
                   <td><strong>${n.name}</strong></td>
                   <td><span class="severity-badge ${severity}">${n.severity}</span></td>
                   <td class="discount-value">-${n.discountPercent}%</td>
-                  <td class="discount-value">${formatCurrency(n.discountValue)}</td>
+                  <td class="discount-value">${formatCurrency(n.waterfallAmount || n.discountValue)}</td>
                   <td>${safePdfText(n.evidence || n.whyThisDiscount || '')}${n.pathToFixSummary ? `<br><span class="suppressor-remedy">Fix: ${safePdfText(n.pathToFixSummary)}</span>` : ''}</td>
                 </tr>
               `;
@@ -772,7 +772,7 @@ function renderSuppressors(data: any, config: any): string {
               </div>
               <div class="supp-impact">
                 <span class="discount">-${n.discountPercent}%</span>
-                <span class="value-loss">${formatCurrency(n.discountValue)}</span>
+                <span class="value-loss">${formatCurrency(n.waterfallAmount || n.discountValue)}</span>
               </div>
               ${config.showTargetStates !== false ? `
                 <div class="supp-states">
@@ -782,7 +782,7 @@ function renderSuppressors(data: any, config: any): string {
               ` : ''}
               ${config.showRecoveryTimelines !== false && (n.recoveryValue > 0 || n.recoveryTimeframe) ? `
                 <div class="supp-recovery">
-                  <span class="recoverable">${n.recoveryValue > 0 ? formatCurrency(n.recoveryValue) : ''}</span>
+                  <span class="recoverable">${n.recoveryValue > 0 ? formatCurrency(Math.min(n.recoveryValue, n.waterfallAmount || n.recoveryValue)) : ''}</span>
                   <span class="timeframe">${safePdfText(n.recoveryTimeframe || '')}</span>
                 </div>
               ` : ''}
