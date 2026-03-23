@@ -2068,7 +2068,7 @@ async function runPhase6SystemsMaps(
     const phase2 = report.pass1_data.phase2 || {};
     const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow, platformDirection);
 
-    const { data: phase4bData, tokensUsed, generationTime } = await callSonnet(phase4bPrompt, 4000, 6, openRouterKey);
+    const { data: phase4bData, tokensUsed, generationTime } = await callSonnet(phase4bPrompt, 12000, 6, openRouterKey);
     if (phase4bData?.nodes) {
       optimalStack = phase4bData;
       console.log(`[SA Pass 1] Phase 6: Optimal stack generated in ${Math.round(generationTime / 1000)}s:`,

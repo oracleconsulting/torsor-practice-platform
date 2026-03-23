@@ -74,22 +74,15 @@ export function getSaPhaseVisualStatus(
 }
 
 /**
- * True if this phase may be started from the admin UI.
- * - Phase 1: always.
- * - Else: previous step exists as `pass1_data.phase{N-1}` (normal pipeline / preserved segments).
- * - If Pass 1 finished (`pass1_complete` / `generated` / …) and merged pass1_data exists, allow any
- *   start phase so you can e.g. re-run from 5 or 8; the edge function validates prerequisites.
+ * True if prerequisites allow starting this phase (prior phase blob exists).
+ * Phase 1 has no prerequisites. Completed phases stay clickable for reruns — only DB `generating`/`regenerating` disables the control.
  */
 export function canRunSaPhase(
   phaseNum: number,
   report: SAPhaseReportRow | null | undefined
 ): boolean {
   if (phaseNum === 1) return true;
-  if (hasPhaseSegment(report, phaseNum - 1)) return true;
-  if (isPass1Assembled(report?.status) && hasAssembledPass1Shape(report?.pass1_data ?? undefined)) {
-    return true;
-  }
-  return false;
+  return Boolean(report?.pass1_data?.[`phase${phaseNum - 1}`]);
 }
 
 export interface SAPhaseControlsProps {
@@ -119,9 +112,9 @@ export function SAPhaseControls({
         });
         const canRun = canRunSaPhase(phase.num, report);
         const st = report?.status ?? '';
-        const isPipelineBusy =
-          st === 'generating' || st === 'regenerating' || !!isGenerating;
-        const blockClick = !!disabled || isPipelineBusy || !canRun;
+        /** Only generating/regenerating disable the control; completed phases stay clickable to rerun. */
+        const reportPipelineBusy = st === 'generating' || st === 'regenerating';
+        const blockClick = !!disabled || reportPipelineBusy || !!isGenerating || !canRun;
 
         return (
           <button
@@ -131,16 +124,16 @@ export function SAPhaseControls({
               if (blockClick) return;
               onRunFromPhase(phase.num);
             }}
-            disabled={isPipelineBusy}
+            disabled={reportPipelineBusy}
             className={[
               'px-2 py-1 rounded text-xs font-medium transition-colors border',
               status === 'complete' ? 'bg-green-100 text-green-800 border-green-300' : '',
               status === 'failed' ? 'bg-red-100 text-red-800 border-red-300 hover:bg-red-200' : '',
               status === 'not_run' ? 'bg-gray-100 text-gray-500 border-gray-200' : '',
               status === 'running' ? 'bg-blue-100 text-blue-800 border-blue-300 animate-pulse' : '',
-              !isPipelineBusy && canRun && status !== 'running' ? 'cursor-pointer hover:opacity-90' : '',
-              !canRun && !isPipelineBusy && status !== 'complete' ? 'opacity-40 cursor-not-allowed' : '',
-              isPipelineBusy ? 'cursor-wait' : '',
+              !reportPipelineBusy && canRun && status !== 'running' ? 'cursor-pointer hover:opacity-90' : '',
+              !canRun && !reportPipelineBusy && status !== 'complete' ? 'opacity-40 cursor-not-allowed' : '',
+              reportPipelineBusy || isGenerating ? 'cursor-wait' : '',
             ]
               .filter(Boolean)
               .join(' ')}
