@@ -2289,13 +2289,101 @@ Return ONLY this JSON:
 Return ONLY valid JSON.`;
 }
 
+/**
+ * Legacy reports stored only the merged "assembled" JSON at the top of pass1_data (facts, findings,
+ * recommendations) and dropped phase1..phase7. Resume-from-phase-N then failed validation. Rebuild
+ * missing phase segments from the merged shape so phase 8 (and earlier resumes) can run without a full regen.
+ */
+function rehydratePass1PhasesFromAssembled(pd: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...pd };
+  const facts = pd.facts as Record<string, unknown> | undefined;
+  const hasCore =
+    facts &&
+    typeof facts === 'object' &&
+    pd.findings != null &&
+    pd.recommendations != null;
+  if (!hasCore) return out;
+
+  if (!out.phase1) {
+    out.phase1 = { facts };
+  }
+  if (!out.phase2) {
+    out.phase2 = {
+      uniquenessBrief: pd.uniquenessBrief ?? null,
+      processes: (facts.processes as unknown[]) ?? [],
+      scores: pd.scores ?? null,
+      hoursWastedWeekly: facts.hoursWastedWeekly,
+      annualCostOfChaos: facts.annualCostOfChaos,
+      projectedCostAtScale: facts.projectedCostAtScale,
+      aspirationGap: facts.aspirationGap,
+      additionalClientQuotes: [],
+    };
+  }
+  if (!out.phase3) {
+    out.phase3 = {
+      findings: pd.findings,
+      quickWins: (pd.quickWins as unknown[]) ?? [],
+    };
+  }
+  if (!out.phase4) {
+    out.phase4 = { findings: [], quickWins: [] };
+  }
+  if (!out.phase5) {
+    out.phase5 = { recommendations: pd.recommendations };
+  }
+  if (!out.phase6) {
+    const prev6 = (pd.phase6 as Record<string, unknown> | undefined) ?? undefined;
+    out.phase6 = {
+      systemsMaps: prev6?.systemsMaps ?? null,
+      techStackSummary: (pd.techStackSummary ?? prev6?.techStackSummary) ?? null,
+      hoursBreakdown: (pd.hoursBreakdown ?? prev6?.hoursBreakdown) ?? null,
+      optimalStack: (pd as { phase4b?: unknown }).phase4b ?? prev6?.optimalStack ?? null,
+    };
+  }
+  if (!out.phase7) {
+    out.phase7 = { adminGuidance: pd.adminGuidance ?? null };
+  }
+  return out;
+}
+
+/**
+ * Before a partial rerun (from phase N), remove phaseN..phase8 blobs (and phase-8-only top-level fields)
+ * so the admin UI cannot treat stale keys as "already complete" while the pipeline is still running.
+ */
+function stripSaPass1FromPhaseOnward(pd: Record<string, unknown>, fromPhase: number): Record<string, unknown> {
+  const out = { ...pd };
+  for (let p = fromPhase; p <= 8; p++) {
+    delete out[`phase${p}`];
+  }
+  if (fromPhase <= 8) {
+    delete out.clientPresentation;
+  }
+  return out;
+}
+
 async function runPhase8Presentation(
   supabaseClient: any,
   engagementId: string,
   openRouterKey: string
 ): Promise<{ success: boolean; phase: number; reportId: string }> {
-  const { data: reportRow } = await supabaseClient
+  let { data: reportRow } = await supabaseClient
     .from('sa_audit_reports').select('id, pass1_data').eq('engagement_id', engagementId).single();
+
+  const pd0 = reportRow?.pass1_data as Record<string, unknown> | undefined;
+  const needsPhaseSegments = (pd: Record<string, unknown> | undefined) =>
+    !pd?.phase1 || !pd.phase2 || !pd.phase3 || !pd.phase5 || !pd.phase7;
+
+  if (pd0 && needsPhaseSegments(pd0) && pd0.facts && pd0.findings && pd0.recommendations) {
+    const fixed = rehydratePass1PhasesFromAssembled({ ...pd0 });
+    await supabaseClient.from('sa_audit_reports').update({ pass1_data: fixed }).eq('engagement_id', engagementId);
+    const { data: row2 } = await supabaseClient
+      .from('sa_audit_reports')
+      .select('id, pass1_data')
+      .eq('engagement_id', engagementId)
+      .single();
+    reportRow = row2;
+  }
+
   if (!reportRow?.pass1_data?.phase1 || !reportRow.pass1_data.phase2 || !reportRow.pass1_data.phase3 || !reportRow.pass1_data.phase5 || !reportRow.pass1_data.phase7) {
     throw new Error('Phase 1, 2, 3, 5, or 7 data not found');
   }
@@ -2723,17 +2811,66 @@ serve(async (req) => {
       if (!report?.pass1_data) {
         throw new Error(`Cannot start from phase ${fromPhase}: no pass1_data — run from phase 1 first`);
       }
-      const pd = report.pass1_data as Record<string, unknown>;
-      const hasAssembled =
-        Boolean(pd.facts && pd.findings && pd.recommendations);
+      const prior = report.pass1_data as Record<string, unknown>;
+      let pd = { ...prior };
+      const hasAssembled = Boolean(pd.facts && pd.findings && pd.recommendations);
+
+      let missingPrereq = false;
+      for (let p = 1; p < fromPhase; p++) {
+        if (!pd[`phase${p}`]) {
+          missingPrereq = true;
+          break;
+        }
+      }
+      if (missingPrereq && hasAssembled) {
+        pd = rehydratePass1PhasesFromAssembled(pd);
+        let added = false;
+        for (let p = 1; p < fromPhase; p++) {
+          if (!prior[`phase${p}`] && pd[`phase${p}`]) added = true;
+        }
+        if (added) {
+          const { error: rehErr } = await supabaseClient
+            .from('sa_audit_reports')
+            .update({ pass1_data: pd })
+            .eq('engagement_id', engagementId);
+          if (rehErr) {
+            console.warn('[SA Pass 1] Failed to persist rehydrated pass1_data:', rehErr.message);
+          } else {
+            console.log('[SA Pass 1] Rehydrated missing phase1..phase7 segments from assembled pass1_data');
+          }
+        }
+      }
+
+      const hasAssembled2 = Boolean(pd.facts && pd.findings && pd.recommendations);
       for (let p = 1; p < fromPhase; p++) {
         if (!pd[`phase${p}`]) {
           throw new Error(
             `Cannot start from phase ${fromPhase}: phase ${p} data is missing in pass1_data.` +
-              (hasAssembled
+              (hasAssembled2
                 ? ' This report may pre-date preserved phase blobs — run a full Regenerate from phase 1 once, then you can resume from any phase.'
                 : ' Run from phase 1 first.'),
           );
+        }
+      }
+    }
+
+    // Partial reruns: clear target phase blobs so polling waits for real completion (not stale keys).
+    if (fromPhase > 1) {
+      const { data: stripRow, error: stripFetchErr } = await supabaseClient
+        .from('sa_audit_reports')
+        .select('pass1_data')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+      if (!stripFetchErr && stripRow?.pass1_data && typeof stripRow.pass1_data === 'object') {
+        const stripped = stripSaPass1FromPhaseOnward(stripRow.pass1_data as Record<string, unknown>, fromPhase);
+        const { error: stripUpdErr } = await supabaseClient
+          .from('sa_audit_reports')
+          .update({ pass1_data: stripped })
+          .eq('engagement_id', engagementId);
+        if (stripUpdErr) {
+          console.warn('[SA Pass 1] Could not strip stale phase blobs:', stripUpdErr.message);
+        } else {
+          console.log(`[SA Pass 1] Cleared pass1_data phase${fromPhase}..phase8 before rerun`);
         }
       }
     }

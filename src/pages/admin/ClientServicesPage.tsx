@@ -13210,34 +13210,36 @@ function SystemsAuditClientModal({
         throw new Error(`${label} did not complete within ${maxAttempts * intervalMs / 1000}s`);
       };
 
-      const firePhaseInvoke = () => {
-        const body: {
-          engagementId: string;
-          phase: number;
-          startFromPhase: number;
-          additionalContext?: typeof additionalContext;
-          preliminaryAnalysis?: typeof engagement.preliminary_analysis;
-        } = {
-          engagementId: engagement.id,
-          phase: startFromPhase,
-          startFromPhase,
-        };
-        if (startFromPhase === 1) {
-          if (additionalContext.length > 0) body.additionalContext = additionalContext;
-          if (engagement.preliminary_analysis) body.preliminaryAnalysis = engagement.preliminary_analysis;
-        }
-        supabase.functions.invoke('generate-sa-report-pass1', {
-          body,
-        }).then(({ data, error }) => {
-          if (error) console.warn(`[SA Report] startFromPhase ${startFromPhase} invoke returned error (may still complete):`, error.message);
-          else console.log(`[SA Report] startFromPhase ${startFromPhase} invoke returned:`, data);
-        }).catch((err) => {
-          console.warn(`[SA Report] invoke connection failed (expected, polling DB):`, err.message);
-        });
+      const body: {
+        engagementId: string;
+        phase: number;
+        startFromPhase: number;
+        additionalContext?: typeof additionalContext;
+        preliminaryAnalysis?: typeof engagement.preliminary_analysis;
+      } = {
+        engagementId: engagement.id,
+        phase: startFromPhase,
+        startFromPhase,
       };
+      if (startFromPhase === 1) {
+        if (additionalContext.length > 0) body.additionalContext = additionalContext;
+        if (engagement.preliminary_analysis) body.preliminaryAnalysis = engagement.preliminary_analysis;
+      }
 
       console.log('[SA Report] Starting report generation...', { engagementId: engagement.id, startFromPhase });
-      firePhaseInvoke();
+      // Await invoke so the edge can strip stale phase blobs before we poll; fire-and-forget raced ahead of DB updates.
+      try {
+        const { data: invokeData, error: invokeError } = await supabase.functions.invoke('generate-sa-report-pass1', {
+          body,
+        });
+        if (invokeError) {
+          console.warn(`[SA Report] startFromPhase ${startFromPhase} invoke returned error (may still complete):`, invokeError.message);
+        } else {
+          console.log(`[SA Report] startFromPhase ${startFromPhase} invoke returned:`, invokeData);
+        }
+      } catch (err: unknown) {
+        console.warn(`[SA Report] invoke connection failed (will still poll DB):`, err instanceof Error ? err.message : err);
+      }
 
       const phasePollAttempts = startFromPhase <= 2 ? 120 : 60;
       for (let p = startFromPhase; p <= 8; p++) {
