@@ -74,16 +74,22 @@ export function getSaPhaseVisualStatus(
 }
 
 /**
- * True if this phase may be started: phase 1 always; else `pass1_data.phase{N-1}` must exist.
- * Phase 8 assembly now preserves phase1..phase7 in the DB — required for resume. Legacy rows
- * without those keys can only full re-run from phase 1.
+ * True if this phase may be started from the admin UI.
+ * - Phase 1: always.
+ * - Else: previous step exists as `pass1_data.phase{N-1}` (normal pipeline / preserved segments).
+ * - If Pass 1 finished (`pass1_complete` / `generated` / …) and merged pass1_data exists, allow any
+ *   start phase so you can e.g. re-run from 5 or 8; the edge function validates prerequisites.
  */
 export function canRunSaPhase(
   phaseNum: number,
   report: SAPhaseReportRow | null | undefined
 ): boolean {
   if (phaseNum === 1) return true;
-  return hasPhaseSegment(report, phaseNum - 1);
+  if (hasPhaseSegment(report, phaseNum - 1)) return true;
+  if (isPass1Assembled(report?.status) && hasAssembledPass1Shape(report?.pass1_data ?? undefined)) {
+    return true;
+  }
+  return false;
 }
 
 export interface SAPhaseControlsProps {
@@ -112,10 +118,6 @@ export function SAPhaseControls({
           generatingFromPhase,
         });
         const canRun = canRunSaPhase(phase.num, report);
-        const legacyAssembledNoSegments =
-          phase.num > 1 &&
-          !hasPhaseSegment(report, 1) &&
-          hasAssembledPass1Shape(report?.pass1_data ?? undefined);
         const st = report?.status ?? '';
         const isPipelineBusy =
           st === 'generating' || st === 'regenerating' || !!isGenerating;
@@ -138,20 +140,13 @@ export function SAPhaseControls({
               status === 'running' ? 'bg-blue-100 text-blue-800 border-blue-300 animate-pulse' : '',
               !isPipelineBusy && canRun && status !== 'running' ? 'cursor-pointer hover:opacity-90' : '',
               !canRun && !isPipelineBusy && status !== 'complete' ? 'opacity-40 cursor-not-allowed' : '',
-              !canRun && !isPipelineBusy && status === 'complete' ? 'cursor-not-allowed opacity-75' : '',
               isPipelineBusy ? 'cursor-wait' : '',
             ]
               .filter(Boolean)
               .join(' ')}
             title={`Phase ${phase.num}: ${phase.label}${
               status === 'failed' ? ' — failed; click to retry from here' : ''
-            }${
-              legacyAssembledNoSegments
-                ? ' — Run full “Regenerate” (phase 1) once after deploy to store phase data; then per-phase resume works.'
-                : !canRun && phase.num > 1
-                  ? ' — previous phase data missing in pass1_data'
-                  : ''
-            }`}
+            }${!canRun && phase.num > 1 ? ' — need prior pipeline output in pass1_data' : ''}`}
           >
             {status === 'complete' && '✓ '}
             {status === 'failed' && '✗ '}

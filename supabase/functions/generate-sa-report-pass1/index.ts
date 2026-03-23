@@ -2724,9 +2724,16 @@ serve(async (req) => {
         throw new Error(`Cannot start from phase ${fromPhase}: no pass1_data — run from phase 1 first`);
       }
       const pd = report.pass1_data as Record<string, unknown>;
+      const hasAssembled =
+        Boolean(pd.facts && pd.findings && pd.recommendations);
       for (let p = 1; p < fromPhase; p++) {
         if (!pd[`phase${p}`]) {
-          throw new Error(`Cannot start from phase ${fromPhase}: phase ${p} data is missing`);
+          throw new Error(
+            `Cannot start from phase ${fromPhase}: phase ${p} data is missing in pass1_data.` +
+              (hasAssembled
+                ? ' This report may pre-date preserved phase blobs — run a full Regenerate from phase 1 once, then you can resume from any phase.'
+                : ' Run from phase 1 first.'),
+          );
         }
       }
     }
