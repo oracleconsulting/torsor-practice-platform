@@ -59,17 +59,20 @@ export function getSaPhaseVisualStatus(
   return 'not_run';
 }
 
+/** True if this phase may be started: phase 1 always, else previous phase has data in pass1_data. Re-running a completed phase is allowed. */
 export function canRunSaPhase(
   phaseNum: number,
   report: SAPhaseReportRow | null | undefined
 ): boolean {
   if (phaseNum === 1) return true;
-  return isPhaseComplete(phaseNum - 1, report);
+  return Boolean(report?.pass1_data?.[`phase${phaseNum - 1}`]);
 }
 
 export interface SAPhaseControlsProps {
   report: SAPhaseReportRow | null | undefined;
+  /** e.g. no engagement — blocks click only, not the same as pipeline busy */
   disabled?: boolean;
+  /** Client-side generating flag (poll in flight); combined with report status */
   isGenerating?: boolean;
   generatingFromPhase?: number | null;
   onRunFromPhase: (phase: number) => void;
@@ -91,25 +94,29 @@ export function SAPhaseControls({
           generatingFromPhase,
         });
         const canRun = canRunSaPhase(phase.num, report);
-        const busy = disabled || isGenerating;
+        const st = report?.status ?? '';
+        const isPipelineBusy =
+          st === 'generating' || st === 'regenerating' || !!isGenerating;
+        const blockClick = !!disabled || isPipelineBusy || !canRun;
 
         return (
           <button
             key={phase.num}
             type="button"
             onClick={() => {
-              if (busy || !canRun) return;
+              if (blockClick) return;
               onRunFromPhase(phase.num);
             }}
-            disabled={busy || !canRun}
+            disabled={isPipelineBusy}
             className={[
               'px-2 py-1 rounded text-xs font-medium transition-colors border',
               status === 'complete' ? 'bg-green-100 text-green-800 border-green-300' : '',
               status === 'failed' ? 'bg-red-100 text-red-800 border-red-300 hover:bg-red-200' : '',
               status === 'not_run' ? 'bg-gray-100 text-gray-500 border-gray-200' : '',
               status === 'running' ? 'bg-blue-100 text-blue-800 border-blue-300 animate-pulse' : '',
-              !busy && canRun && status !== 'running' ? 'cursor-pointer hover:opacity-90' : '',
-              !canRun || busy ? 'opacity-40 cursor-not-allowed' : '',
+              !isPipelineBusy && canRun && status !== 'running' ? 'cursor-pointer hover:opacity-90' : '',
+              !canRun && !isPipelineBusy ? 'opacity-40 cursor-not-allowed' : '',
+              isPipelineBusy ? 'cursor-wait' : '',
             ]
               .filter(Boolean)
               .join(' ')}
