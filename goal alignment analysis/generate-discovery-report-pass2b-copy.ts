@@ -324,6 +324,12 @@ WRITING STYLE
 - Contractions are fine. Imperfect grammar is fine. Sound human.
 - Punch, don't pad. If you can say it in 5 words, don't use 15.
 
+SENSITIVE TOPICS:
+- Never reference marriage, divorce, or romantic relationships directly.
+- If the client mentioned personal sacrifice, use "personal life" or "life outside work" instead.
+- "Your marriage is already gone" — NEVER write this. It's presumptuous and inappropriate for a business report.
+- Acceptable alternatives: "the personal cost has been significant", "your life outside work has suffered", "you've sacrificed more than money to keep this running"
+
 ============================================================================
 CURRENT REPORT (from structural pass)
 ============================================================================
@@ -388,7 +394,7 @@ full pages or any fields not listed here.
   },
 
   "page4_rewrites": {
-    "personalCost": "SPECIFIC personal cost using their words. Sacrifice. Marriage. Health. Time.",
+    "personalCost": "SPECIFIC personal cost using their words. Sacrifice. Health. Time. Do NOT reference marriage or romantic relationships.",
     "realReturn": "Connect the numbers to their life. What does the valuation mean for their family, their freedom, their Tuesday mornings? Do NOT start with 'But the real return?'"
   },
 
@@ -475,6 +481,15 @@ Return ONLY this JSON object. No markdown fences. No preamble.`;
     rewriteStr = rewriteStr.split("Here's the thing:").join('');
     rewriteStr = rewriteStr.split("Here\\'s what matters:").join('');
     rewriteStr = rewriteStr.split("Here's what matters:").join('');
+    // Remove marriage references (per Wes)
+    rewriteStr = rewriteStr.split('Your marriage is already gone').join('The personal cost has been significant');
+    rewriteStr = rewriteStr.split('your marriage is already gone').join('the personal cost has been significant');
+    rewriteStr = rewriteStr.split('Your marriage has already paid the price').join('Your personal life has already paid the price');
+    rewriteStr = rewriteStr.split('your marriage has already paid the price').join('your personal life has already paid the price');
+    rewriteStr = rewriteStr.split('sacrificed your marriage').join('sacrificed your personal life');
+    rewriteStr = rewriteStr.split('marriage is on the line').join('personal life is suffering');
+    rewriteStr = rewriteStr.split('marriage is already on the line').join('personal life has already suffered');
+    rewriteStr = rewriteStr.split('cost you your marriage').join('cost you your personal life');
     // Strip property/IHT language from non-investment-vehicle reports
     const p2bClientType = report.client_type || '';
     if (p2bClientType !== 'investment_vehicle') {

@@ -5616,13 +5616,14 @@ serve(async (req) => {
     let hvaQuotes: any[] = [];
     let hvaContextSection = '';
     
-    if (hvaData) {
+    // Use effectiveHVAData (includes inferred values when Part 3 is missing) so founder risk is always calculated
+    if (effectiveHVAData) {
       // Extract benchmarkable metrics from HVA
-      hvaMetricsForBenchmarking = extractHVAMetrics(hvaData);
+      hvaMetricsForBenchmarking = extractHVAMetrics(effectiveHVAData);
       console.log('[BM Pass 1] Extracted HVA metrics:', Object.keys(hvaMetricsForBenchmarking));
       
       // Calculate founder risk score
-      founderRisk = calculateFounderRisk(hvaData);
+      founderRisk = calculateFounderRisk(effectiveHVAData);
       console.log('[BM Pass 1] Founder risk calculated:', {
         score: founderRisk.overallScore,
         level: founderRisk.riskLevel,
@@ -5630,7 +5631,7 @@ serve(async (req) => {
       });
       
       // Extract narrative quotes
-      hvaQuotes = extractNarrativeQuotes(hvaData);
+      hvaQuotes = extractNarrativeQuotes(effectiveHVAData);
       console.log('[BM Pass 1] Extracted narrative quotes:', hvaQuotes.length);
       
       // Build HVA context section for prompt
@@ -5965,6 +5966,74 @@ When writing narratives:
         }
         pass1Data.opportunitySizing.totalAnnualOpportunity = deterministicFallback;
         pass1Data.opportunitySizing._source = 'deterministic_fallback';
+      }
+    }
+
+    // ====================================================================
+    // POST-LLM: Deterministic percentile, strength/gap counts
+    // ====================================================================
+    // The LLM generates these non-deterministically. Calculate from actual
+    // metric data to ensure stability across regenerations.
+    if (pass1Data.metricsComparison && pass1Data.metricsComparison.length > 0) {
+      const primaryMetrics = pass1Data.metricsComparison.filter((m: any) => {
+        const code = (m.metricCode || m.metric_code || '').toLowerCase();
+        // Only count primary financial metrics, not supplementary ones
+        return (
+          !code.includes('concentration') &&
+          !code.includes('recurring') &&
+          !code.includes('project_margin') &&
+          !code.includes('hourly_rate')
+        );
+      });
+
+      if (primaryMetrics.length > 0) {
+        // Calculate weighted average percentile
+        const avgPercentile = Math.round(
+          primaryMetrics.reduce((sum: number, m: any) => sum + (m.percentile || 50), 0) / primaryMetrics.length
+        );
+
+        // Classify strengths vs gaps
+        // Rule: pct >= 75 = strength
+        //        pct >= 50 AND no material impact = strength
+        //        else = gap
+        let strengths = 0;
+        let gaps = 0;
+        for (const m of primaryMetrics) {
+          const pct = m.percentile || 50;
+          const impact = Math.abs(m.annualImpact || m.annual_impact || m._originalAnnualImpact || 0);
+          if (pct >= 75) {
+            strengths++;
+          } else if (pct >= 50 && impact < 10000) {
+            strengths++;
+          } else {
+            gaps++;
+          }
+        }
+
+        // Round percentile to nearest 5 for cleaner display
+        const roundedPercentile = Math.round(avgPercentile / 5) * 5;
+
+        const llmPercentile = pass1Data.overallPosition?.percentile;
+        const llmStrengths = pass1Data.overallPosition?.strengthCount;
+        const llmGaps = pass1Data.overallPosition?.gapCount;
+
+        if (
+          llmPercentile !== roundedPercentile ||
+          llmStrengths !== strengths ||
+          llmGaps !== gaps
+        ) {
+          console.log(
+            `[Pass 1] Deterministic override: percentile ${llmPercentile}->${roundedPercentile}, strengths ${llmStrengths}->${strengths}, gaps ${llmGaps}->${gaps}`
+          );
+        }
+
+        if (!pass1Data.overallPosition) pass1Data.overallPosition = {};
+        pass1Data.overallPosition._llmPercentile = llmPercentile;
+        pass1Data.overallPosition._llmStrengthCount = llmStrengths;
+        pass1Data.overallPosition._llmGapCount = llmGaps;
+        pass1Data.overallPosition.percentile = roundedPercentile;
+        pass1Data.overallPosition.strengthCount = strengths;
+        pass1Data.overallPosition.gapCount = gaps;
       }
     }
 

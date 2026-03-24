@@ -89,6 +89,11 @@ import { AccountsUploadPanel } from '../../components/benchmarking/admin/Account
 import { FinancialDataReviewModal } from '../../components/benchmarking/admin/FinancialDataReviewModal';
 import { SprintSummaryAdminPreview } from '../../components/admin/SprintSummaryAdminPreview';
 import { SprintEditorModal } from '../../components/admin/sprint-editor';
+import {
+  PlatformDirectionGenerateWarning,
+  PlatformDirectionPanel,
+} from '../../components/admin/sa/PlatformDirectionPanel';
+import { SAPhaseControls } from '../../components/admin/sa/SAPhaseControls';
 import { getAssessmentByCode } from '../../config/serviceLineAssessments';
 import type { AssessmentQuestion } from '../../config/serviceLineAssessments';
 import { ClientServicesClientList } from './ClientServicesClientList';
@@ -1423,6 +1428,8 @@ function DiscoveryClientModal({
   // NEW: Destination-focused report from discovery_reports table
   const [destinationReport, setDestinationReport] = useState<any>(null);
   const [discoveryEngagement, setDiscoveryEngagement] = useState<any>(null);
+  const [reportLocked, setReportLocked] = useState<boolean>(false);
+  const [unlockingReport, setUnlockingReport] = useState<boolean>(false);
   
   // Specialist service opportunities (from Pass 3)
   const [specialistOpportunities, setSpecialistOpportunities] = useState<any[]>([]);
@@ -1749,8 +1756,10 @@ function DiscoveryClientModal({
             hasComprehensiveAnalysis: !!destReportData.comprehensive_analysis
           });
           setDestinationReport(destReportData);
+          setReportLocked(!!destReportData.locked_at);
         } else {
           setDestinationReport(null);
+          setReportLocked(false);
         }
         
         // Fetch specialist opportunities from Pass 3
@@ -1941,6 +1950,42 @@ function DiscoveryClientModal({
 
   // ================================================================
   // PHASE 1: Deep Analysis (prepare → deep-dive → generate-analysis)
+  // ================================================================
+  // UNLOCK REPORT
+  // ================================================================
+  const handleUnlockReport = async () => {
+    if (!discoveryEngagement?.id) return;
+    const confirmed = window.confirm(
+      'This report is locked. Unlocking will allow regeneration which may change the content. The previous version is preserved in the snapshot. Are you sure?'
+    );
+    if (!confirmed) return;
+
+    setUnlockingReport(true);
+    try {
+      const { error: rpcError } = await supabase.rpc('unlock_discovery_report', {
+        p_engagement_id: discoveryEngagement.id,
+        p_user_id: user?.id || null
+      });
+      if (rpcError) {
+        // Fallback: direct update if RPC doesn't exist yet
+        await supabase
+          .from('discovery_reports')
+          .update({ locked_at: null, locked_by: null })
+          .eq('engagement_id', discoveryEngagement.id);
+        await supabase
+          .from('discovery_engagements')
+          .update({ report_locked: false })
+          .eq('id', discoveryEngagement.id);
+      }
+      setReportLocked(false);
+      console.log('[Admin] Report unlocked');
+    } catch (err) {
+      console.error('[Admin] Unlock failed:', err);
+    } finally {
+      setUnlockingReport(false);
+    }
+  };
+
   // Edge Functions can run 2–3+ minutes; use long timeout to avoid "connection closed".
   // ================================================================
   const PHASE1_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
@@ -3952,6 +3997,21 @@ function DiscoveryClientModal({
                 )}
                 {currentPhase === 3 ? 'Writing...' : '3. Report'}
               </button>
+              {reportLocked && (
+                <span className="flex items-center gap-1.5">
+                  <span className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    Locked
+                  </span>
+                  <button
+                    onClick={handleUnlockReport}
+                    disabled={unlockingReport}
+                    className="px-2 py-1 rounded text-xs font-medium border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/30 disabled:opacity-50"
+                    title="Unlock report to allow regeneration"
+                  >
+                    {unlockingReport ? 'Unlocking...' : 'Unlock'}
+                  </button>
+                </span>
+              )}
               <button
                 onClick={handleClearFinancialsAndAnalysis}
                 disabled={resettingFinancials || currentPhase !== null}
@@ -4975,7 +5035,7 @@ function DiscoveryClientModal({
                                         )}
                                         {page4.realReturn && (
                                           <p className="mt-3 pt-3 border-t border-emerald-200 text-emerald-800 italic">
-                                            But the real return? {page4.realReturn}
+                                            {page4.realReturn}
                                           </p>
                                         )}
                                       </div>
@@ -11615,6 +11675,37 @@ function BenchmarkingClientModal({
     }
   };
 
+  /** After pass3_only fire-and-forget, poll until generate-bm-opportunities sets opportunities_generated_at */
+  const pollForPass3Complete = async (engagementId: string, attempts: number = 0, maxAttempts: number = 72) => {
+    const pollInterval = 5000;
+    try {
+      const { data: report } = await supabase
+        .from('bm_reports')
+        .select('opportunities_generated_at')
+        .eq('engagement_id', engagementId)
+        .maybeSingle();
+
+      if (report?.opportunities_generated_at) {
+        console.log('[Benchmarking] Pass 3 completed — refreshing data');
+        await fetchData();
+        setGenerating(false);
+        return;
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(() => pollForPass3Complete(engagementId, attempts + 1, maxAttempts), pollInterval);
+      } else {
+        console.warn('[Benchmarking] Pass 3 polling timeout');
+        alert('Pass 3 is still running or may have failed. Refresh in a minute or check Edge Function logs.');
+        await fetchData();
+        setGenerating(false);
+      }
+    } catch (e) {
+      console.error('[Benchmarking] Error polling for Pass 3:', e);
+      setGenerating(false);
+    }
+  };
+
   const handleGenerateReport = async () => {
     if (!engagement) return;
     
@@ -11693,7 +11784,43 @@ function BenchmarkingClientModal({
     }
   };
 
-  // Handle regenerating the report with updated data
+  // Handle Pass 3 only (opportunities & services) — preserves Pass 1/2 financial data
+  const handleRegeneratePass3Only = async () => {
+    if (!engagement) return;
+    if (!confirm('Re-run opportunities and service recommendations only? Pass 1/2 financial data will be preserved.')) return;
+
+    setGenerating(true);
+    let pollAfterTrigger = false;
+    try {
+      const { data: result, error } = await supabase.functions.invoke('regenerate-bm-report', {
+        body: {
+          engagementId: engagement.id,
+          passToRun: 'pass3_only',
+          reason: 'Manual Pass 3 regeneration'
+        }
+      });
+
+      if (error) throw error;
+      console.log('[Benchmarking] Pass 3 regeneration result:', result);
+      if (result?.status === 'pass3_triggered') {
+        pollAfterTrigger = true;
+        if (result?.message) {
+          // Non-blocking hint — Pass 3 runs async on the server
+          console.log('[Benchmarking]', result.message);
+        }
+        pollForPass3Complete(engagement.id, 0);
+        return;
+      }
+      await fetchData();
+    } catch (error: any) {
+      console.error('[Benchmarking] Error regenerating Pass 3:', error);
+      alert(`Error: ${error.message || 'Unknown error'}`);
+    } finally {
+      if (!pollAfterTrigger) setGenerating(false);
+    }
+  };
+
+  // Handle regenerating the report with updated data (full pipeline)
   const handleRegenerateWithNewData = async () => {
     if (!engagement) return;
     
@@ -12220,23 +12347,45 @@ function BenchmarkingClientModal({
                             </button>
                           </div>
                         </div>
-                        <button
-                          onClick={handleGenerateReport}
-                          disabled={generating}
-                          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white rounded-lg flex items-center gap-2"
-                        >
-                          {generating ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>Regenerating...</span>
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="w-4 h-4" />
-                              <span>Regenerate Analysis</span>
-                            </>
-                          )}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleRegeneratePass3Only}
+                            disabled={generating}
+                            className="px-4 py-2 rounded-lg flex items-center gap-2 border border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
+                          >
+                            {generating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Running...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4" />
+                                <span>Re-run Opportunities (Pass 3)</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm('Full regeneration will re-run ALL analysis passes (1, 2, and 3). This overwrites the current financial analysis. Continue?')) return;
+                              await handleRegenerateWithNewData();
+                            }}
+                            disabled={generating}
+                            className="px-4 py-2 rounded-lg flex items-center gap-2 border border-red-500 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
+                          >
+                            {generating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Running...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4" />
+                                <span>Full Regeneration (All Passes)</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Report Content - New Components */}
@@ -12247,7 +12396,25 @@ function BenchmarkingClientModal({
                             <BenchmarkingClientDashboard
                               data={{
                                 ...report,
-                                created_at: report?.created_at
+                                created_at: report?.created_at,
+                                hva_data: (() => {
+                                  const hvaResponses = hvaStatus?.responses;
+                                  if (!hvaResponses) return undefined;
+                                  const cm = hvaResponses.competitive_moat;
+                                  return {
+                                    competitive_moat: Array.isArray(cm)
+                                      ? cm
+                                      : typeof cm === 'string'
+                                        ? cm.split(',').map((s: string) => s.trim()).filter(Boolean)
+                                        : [],
+                                    unique_methods: typeof hvaResponses.unique_methods === 'string'
+                                      ? hvaResponses.unique_methods
+                                      : Array.isArray(hvaResponses.unique_methods)
+                                        ? hvaResponses.unique_methods.join('; ')
+                                        : undefined,
+                                    reputation_build_time: hvaResponses.reputation_build_time,
+                                  };
+                                })(),
                               }}
                               clientName={clientName}
                             />
@@ -12650,6 +12817,8 @@ function SystemsAuditClientModal({
   const [processingTranscript, setProcessingTranscript] = useState(false);
   const [transcriptText, setTranscriptText] = useState('');
   const [showTranscriptInput, setShowTranscriptInput] = useState(false);
+  const [showPlatformDirectionGenerateWarning, setShowPlatformDirectionGenerateWarning] = useState(false);
+  const [saGeneratingFromPhase, setSaGeneratingFromPhase] = useState<number | null>(null);
 
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
@@ -12991,10 +13160,17 @@ function SystemsAuditClientModal({
     }
   };
 
-  const handleGenerateReport = async () => {
+  const handleGenerateReport = async (startFromPhase = 1) => {
     if (!engagement) return;
 
+    if (engagement.platform_direction == null) {
+      setShowPlatformDirectionGenerateWarning(true);
+    } else {
+      setShowPlatformDirectionGenerateWarning(false);
+    }
+
     setGenerating(true);
+    setSaGeneratingFromPhase(startFromPhase);
 
     try {
       const { data: resolvedGaps } = await supabase
@@ -13034,83 +13210,60 @@ function SystemsAuditClientModal({
         throw new Error(`${label} did not complete within ${maxAttempts * intervalMs / 1000}s`);
       };
 
-      const firePhase = (phaseNum: number) => {
-        const body: { engagementId: string; phase: number; additionalContext?: typeof additionalContext; preliminaryAnalysis?: typeof engagement.preliminary_analysis } = {
-          engagementId: engagement.id,
-          phase: phaseNum,
-        };
-        if (phaseNum === 1) {
-          if (additionalContext.length > 0) body.additionalContext = additionalContext;
-          if (engagement.preliminary_analysis) body.preliminaryAnalysis = engagement.preliminary_analysis;
-        }
-        supabase.functions.invoke('generate-sa-report-pass1', {
-          body
-        }).then(({ data, error }) => {
-          if (error) console.warn(`[SA Report] Phase ${phaseNum} invoke returned error (may still complete):`, error.message);
-          else console.log(`[SA Report] Phase ${phaseNum} invoke returned:`, data);
-        }).catch(err => {
-          console.warn(`[SA Report] Phase ${phaseNum} invoke connection failed (expected, polling DB):`, err.message);
-        });
+      const body: {
+        engagementId: string;
+        phase: number;
+        startFromPhase: number;
+        additionalContext?: typeof additionalContext;
+        preliminaryAnalysis?: typeof engagement.preliminary_analysis;
+      } = {
+        engagementId: engagement.id,
+        phase: startFromPhase,
+        startFromPhase,
       };
+      if (startFromPhase === 1) {
+        if (additionalContext.length > 0) body.additionalContext = additionalContext;
+        if (engagement.preliminary_analysis) body.preliminaryAnalysis = engagement.preliminary_analysis;
+      }
 
-      // ── Fire once: edge function creates job, Railway worker runs all 8 phases ──
-      console.log('[SA Report] Starting report generation...', { engagementId: engagement.id });
-      firePhase(1);
+      console.log('[SA Report] Starting report generation...', { engagementId: engagement.id, startFromPhase });
+      // Await invoke so the edge can strip stale phase blobs before we poll; fire-and-forget raced ahead of DB updates.
+      try {
+        const { data: invokeData, error: invokeError } = await supabase.functions.invoke('generate-sa-report-pass1', {
+          body,
+        });
+        if (invokeError) {
+          console.warn(`[SA Report] startFromPhase ${startFromPhase} invoke returned error (may still complete):`, invokeError.message);
+        } else {
+          console.log(`[SA Report] startFromPhase ${startFromPhase} invoke returned:`, invokeData);
+        }
+      } catch (err: unknown) {
+        console.warn(`[SA Report] invoke connection failed (will still poll DB):`, err instanceof Error ? err.message : err);
+      }
 
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase1;
-      }, 'Phase 1', 120, 5000);
-      console.log('[SA Report] Phase 1 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase2;
-      }, 'Phase 2', 120, 5000);
-      console.log('[SA Report] Phase 2 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase3;
-      }, 'Phase 3', 60, 5000);
-      console.log('[SA Report] Phase 3 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase4;
-      }, 'Phase 4', 60, 5000);
-      console.log('[SA Report] Phase 4 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase5;
-      }, 'Phase 5', 60, 5000);
-      console.log('[SA Report] Phase 5 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase6;
-      }, 'Phase 6', 60, 5000);
-      console.log('[SA Report] Phase 6 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('pass1_data, status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return !!data?.pass1_data?.phase7;
-      }, 'Phase 7', 60, 5000);
-      console.log('[SA Report] Phase 7 complete');
-
-      await pollDB(async () => {
-        const { data } = await supabase.from('sa_audit_reports').select('status').eq('engagement_id', engagement.id).maybeSingle();
-        if (data?.status?.endsWith('_failed')) throw new Error(`Report generation failed: ${data.status}`);
-        return data?.status === 'pass1_complete' || data?.status === 'generated';
-      }, 'Phase 8 (assembly)', 60, 5000);
+      const phasePollAttempts = startFromPhase <= 2 ? 120 : 60;
+      for (let p = startFromPhase; p <= 8; p++) {
+        await pollDB(
+          async () => {
+            const { data } = await supabase
+              .from('sa_audit_reports')
+              .select('pass1_data, status')
+              .eq('engagement_id', engagement.id)
+              .maybeSingle();
+            if (data?.status?.endsWith('_failed')) {
+              throw new Error(`Report generation failed: ${data.status}`);
+            }
+            if (p === 8) {
+              return data?.status === 'pass1_complete' || data?.status === 'generated';
+            }
+            return !!data?.pass1_data?.[`phase${p}`];
+          },
+          `Phase ${p}`,
+          phasePollAttempts,
+          5000
+        );
+        console.log(`[SA Report] Phase ${p} complete`);
+      }
       console.log('[SA Report] Pass 1 complete. Starting narrative generation (Pass 2)...');
 
       // ── Pass 2: Narrative generation (Opus) ──
@@ -13143,6 +13296,7 @@ function SystemsAuditClientModal({
 
       await fetchData();
       setGenerating(false);
+      setSaGeneratingFromPhase(null);
 
     } catch (error: any) {
       console.error('[SA Report] Generation failed:', error);
@@ -13152,25 +13306,38 @@ function SystemsAuditClientModal({
         .eq('engagement_id', engagement.id)
         .maybeSingle();
 
-      const phasesComplete = [
-        partialReport?.pass1_data?.phase1 ? '1 (Extract)' : null,
-        partialReport?.pass1_data?.phase2 ? '2 (Analyse)' : null,
-        partialReport?.pass1_data?.phase3 ? '3 (Critical Findings)' : null,
-        partialReport?.pass1_data?.phase4 ? '4 (All Findings)' : null,
-        partialReport?.pass1_data?.phase5 ? '5 (Recommend)' : null,
-        partialReport?.pass1_data?.phase6 ? '6 (Maps)' : null,
-        partialReport?.pass1_data?.phase7 ? '7 (Guidance)' : null,
-        partialReport?.status === 'pass1_complete' ? '8 (Presentation)' : null,
-      ].filter(Boolean).join(', ');
+      const phaseNames = [
+        '',
+        'Extract',
+        'Analyse',
+        'Critical Findings',
+        'All Findings',
+        'Recommend',
+        'Maps',
+        'Guidance',
+        'Assembly',
+      ];
+      const completed: string[] = [];
+      for (let p = 1; p <= 7; p++) {
+        if (partialReport?.pass1_data?.[`phase${p}`]) {
+          completed.push(`${p} (${phaseNames[p]})`);
+        }
+      }
+      if (partialReport?.status === 'pass1_complete' || partialReport?.status === 'generated') {
+        completed.push(`8 (${phaseNames[8]})`);
+      }
 
-      if (phasesComplete) {
-        alert(`Report generation stopped at: ${error.message}\n\nPhases completed: ${phasesComplete}. You can retry to continue.`);
+      if (completed.length) {
+        alert(
+          `Report generation stopped at: ${error.message}\n\nPhases completed: ${completed.join(', ')}.\n\nYou can retry from the failed phase using the phase buttons above.`
+        );
       } else {
         alert(`Report generation failed: ${error.message || 'Unknown error'}`);
       }
 
       await fetchData();
       setGenerating(false);
+      setSaGeneratingFromPhase(null);
     }
   };
 
@@ -14963,6 +15130,18 @@ function SystemsAuditClientModal({
                           )}
                         </div>
                       </details>
+
+                      {engagement?.id && (
+                        <PlatformDirectionPanel
+                          engagementId={engagement.id}
+                          platformDirection={engagement.platform_direction}
+                          inventorySystems={stage2Inventory.map((s: { id: string; system_name: string }) => ({
+                            id: s.id,
+                            system_name: s.system_name,
+                          }))}
+                          onSaved={fetchData}
+                        />
+                      )}
                     </>
                   )}
                 </div>
@@ -14971,6 +15150,9 @@ function SystemsAuditClientModal({
               {/* ANALYSIS TAB */}
               {activeTab === 'analysis' && (
                 <div className="space-y-6">
+                  {showPlatformDirectionGenerateWarning && engagement?.platform_direction == null && (
+                    <PlatformDirectionGenerateWarning />
+                  )}
                   {!report ? (
                     <div className="text-center py-12">
                       <Sparkles className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -15000,7 +15182,7 @@ function SystemsAuditClientModal({
                                 You have {identifiedGapsCount} unresolved gap{identifiedGapsCount !== 1 ? 's' : ''}. Complete the review before generating.
                               </div>
                               <button
-                                onClick={handleGenerateReport}
+                                onClick={() => handleGenerateReport(1)}
                                 disabled
                                 className="inline-flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm font-medium"
                               >
@@ -15010,7 +15192,7 @@ function SystemsAuditClientModal({
                             </div>
                           ) : (
                             <button
-                              onClick={handleGenerateReport}
+                              onClick={() => handleGenerateReport(1)}
                               disabled={generating || !canGenerateOrRegenerate}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
                             >
@@ -15045,7 +15227,7 @@ function SystemsAuditClientModal({
                             onClick={() => {
                               saReportPollingCancelledRef.current = true;
                               setSaReportPollingAfterError(false);
-                              handleGenerateReport();
+                              handleGenerateReport(1);
                             }}
                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg"
                           >
@@ -15087,30 +15269,39 @@ function SystemsAuditClientModal({
                           </button>
                         </div>
                         
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-sm font-medium text-gray-900">Generated Analysis</p>
-                            <p className="text-xs text-gray-500">
-                              {report.generated_at && new Date(report.generated_at).toLocaleString()}
-                            </p>
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <p className="text-sm font-medium text-gray-900">Generated Analysis</p>
+                              <p className="text-xs text-gray-500">
+                                {report.generated_at && new Date(report.generated_at).toLocaleString()}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleGenerateReport(1)}
+                              disabled={generating || !canGenerateOrRegenerate}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                            >
+                              {generating ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                  <span>Regenerating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="w-4 h-4" />
+                                  <span>Regenerate</span>
+                                </>
+                              )}
+                            </button>
                           </div>
-                          <button
-                            onClick={handleGenerateReport}
-                            disabled={generating || !canGenerateOrRegenerate}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
-                          >
-                            {generating ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>Regenerating...</span>
-                              </>
-                            ) : (
-                              <>
-                                <RefreshCw className="w-4 h-4" />
-                                <span>Regenerate</span>
-                              </>
-                            )}
-                          </button>
+                          <SAPhaseControls
+                            report={report}
+                            isGenerating={generating}
+                            generatingFromPhase={saGeneratingFromPhase}
+                            onRunFromPhase={(phase) => handleGenerateReport(phase)}
+                            disabled={!engagement}
+                          />
                         </div>
                       </div>
 

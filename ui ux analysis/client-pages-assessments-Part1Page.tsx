@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { usePrePopulateFromBM } from '@/hooks/usePrePopulateFromBM';
 import { QuestionRenderer } from '../../components/assessment/QuestionRenderer';
 import { DotProgress } from '../../components/assessment/ProgressBar';
 
@@ -174,6 +175,7 @@ export default function Part1Page() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { clientSession } = useAuth();
+  const { bmData } = usePrePopulateFromBM();
   const isReviewMode = searchParams.get('mode') === 'review';
   
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -243,6 +245,17 @@ export default function Part1Page() {
 
     loadProgress();
   }, [clientSession?.clientId, isReviewMode]);
+
+  // Pre-populate from BM when data is available and form not already filled
+  useEffect(() => {
+    if (!bmData || isLoading) return;
+    setResponses((prev) => {
+      const next = { ...prev };
+      if (!prev.company_name && bmData.company_name) next.company_name = bmData.company_name;
+      next._bm_context = bmData;
+      return next;
+    });
+  }, [bmData, isLoading]);
 
   // Scroll to top when question changes
   useEffect(() => {
@@ -493,6 +506,13 @@ export default function Part1Page() {
 
   return (
     <div className="min-h-screen bg-slate-900">
+      {bmData && (
+        <div className="mx-4 mt-4 mb-2 p-4 bg-teal-500/10 border border-teal-400/30 rounded-lg">
+          <p className="text-sm text-teal-200">
+            <strong>Time saver:</strong> We&apos;ve pulled in some details from your Benchmarking assessment. Review and update anything that&apos;s changed.
+          </p>
+        </div>
+      )}
       {/* Header */}
       <div className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur border-b border-slate-800">
         <div className="max-w-2xl mx-auto px-4 py-4">

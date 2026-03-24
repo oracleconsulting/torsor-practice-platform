@@ -282,17 +282,19 @@ export function BenchmarkingAdminView({
     }
   }, [clientId]);
   
-  const talkingPoints = safeJsonParse(data.admin_talking_points, []);
-  const questionsToAsk = safeJsonParse(data.admin_questions_to_ask, []);
-  const dataCollectionScript = safeJsonParse(data.admin_data_collection_script, []);
-  const nextSteps = safeJsonParse(data.admin_next_steps, []);
-  const tasks = safeJsonParse(data.admin_tasks, []);
-  const riskFlags = safeJsonParse(data.admin_risk_flags, []);
+  const ensureArray = (v: unknown): any[] => Array.isArray(v) ? v : [];
+  const talkingPoints = ensureArray(safeJsonParse(data.admin_talking_points, []));
+  const questionsToAsk = ensureArray(safeJsonParse(data.admin_questions_to_ask, []));
+  const dataCollectionScript = ensureArray(safeJsonParse(data.admin_data_collection_script, []));
+  const nextSteps = ensureArray(safeJsonParse(data.admin_next_steps, []));
+  const tasks = ensureArray(safeJsonParse(data.admin_tasks, []));
+  const riskFlags = ensureArray(safeJsonParse(data.admin_risk_flags, []));
   const pass1Data = safeJsonParse<Pass1Data>(data.pass1_data, {});
   const closingScript = data.admin_closing_script || '';
   
   // Get revenue per employee from metrics comparison (where it was calculated) or fallback to clientData
-  const metrics = safeJsonParse<Array<{ metricCode?: string; clientValue?: number; p50?: number }>>(data.metrics_comparison, []);
+  const metricsRaw = safeJsonParse<unknown>(data.metrics_comparison, []);
+  const metrics: Array<{ metricCode?: string; clientValue?: number; p50?: number }> = Array.isArray(metricsRaw) ? metricsRaw : [];
   
   // ============================================================================
   // SERVICE RECOMMENDATIONS - FROM DATABASE (SINGLE SOURCE OF TRUTH)
@@ -301,7 +303,7 @@ export function BenchmarkingAdminView({
   
   // Issues come from opportunities in database
   const detectedIssues = useMemo((): DetectedIssue[] => {
-    const opportunities = data.opportunities || [];
+    const opportunities = Array.isArray(data.opportunities) ? data.opportunities : [];
     return opportunities
       .filter((o: any) => o.severity === 'critical' || o.severity === 'high' || o.severity === 'medium')
       .slice(0, 6)
@@ -318,7 +320,7 @@ export function BenchmarkingAdminView({
   
   // Service recommendations come ONLY from database (context-aware, Pass 3 authoritative)
   const priorityServices = useMemo((): ServiceRecommendation[] => {
-    const dbRecommendations = data.recommended_services || [];
+    const dbRecommendations = Array.isArray(data.recommended_services) ? data.recommended_services : [];
     
     if (dbRecommendations.length > 0) {
       return dbRecommendations.map((r: any): ServiceRecommendation => ({
@@ -336,9 +338,10 @@ export function BenchmarkingAdminView({
     }
     
     // Fallback: derive from opportunities
-    const opportunities = data.opportunities || [];
+    const opportunities = Array.isArray(data.opportunities) ? data.opportunities : [];
     const seenCodes = new Set<string>();
-    const blockedCodes = (data.not_recommended_services || []).map((b: any) => b.serviceCode);
+    const notRec = Array.isArray(data.not_recommended_services) ? data.not_recommended_services : [];
+    const blockedCodes = notRec.map((b: any) => b?.serviceCode).filter(Boolean);
     
     return opportunities
       .filter((o: any) => {
@@ -786,7 +789,7 @@ export function BenchmarkingAdminView({
                       sourceUrl: m.sourceUrl,
                       confidence: m.confidence
                     }))}
-                    sources={data.data_sources || []}
+                    sources={Array.isArray(data.data_sources) ? data.data_sources : []}
                     detailedSources={data.benchmark_sources_detail}
                     industryName={industryMapping?.name || 'Unknown Industry'}
                     industryCode={industryMapping?.code || data.industry_code || ''}
@@ -831,7 +834,7 @@ export function BenchmarkingAdminView({
                   Recommended Services
                 </h3>
                 <div className="space-y-2">
-                  {safeJsonParse(data.recommendations, []).slice(0, 3).map((rec: any, i: number) => (
+                  {((() => { const r = safeJsonParse(data.recommendations, []); return Array.isArray(r) ? r : []; })()).slice(0, 3).map((rec: any, i: number) => (
                     <div key={i} className="flex items-center justify-between text-sm">
                       <span className="text-slate-700">{rec.linkedService || rec.title}</span>
                       <span className="font-semibold text-emerald-600">

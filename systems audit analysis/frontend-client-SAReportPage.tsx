@@ -164,7 +164,14 @@ interface SAReport {
   status: string;
   generated_at: string;
   created_at: string;
+  admin_risk_flags?: unknown[] | null;
+  admin_tasks?: unknown[] | null;
+  admin_next_steps?: unknown[] | null;
+  admin_talking_points?: unknown[] | null;
+  admin_questions_to_ask?: unknown[] | null;
 }
+
+const EMPTY_SECTION_MSG = 'This section will be available after your follow-up consultation.';
 
 interface SAFinding {
   id: string;
@@ -611,71 +618,6 @@ function ROIWaterfall({ recommendations }: { recommendations: any[] }) {
   );
 }
 
-// ─── System Detail Overlay ───────────────────────────────────────────────────
-function SystemDetailOverlay({ sys, borderColor, onClose }: { sys: any; borderColor: string; onClose: () => void }) {
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      background: 'rgba(15,23,42,0.6)',
-      backdropFilter: 'blur(12px)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 24,
-    }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: '#fff', borderRadius: 20, borderLeft: `4px solid ${borderColor}`,
-        maxWidth: 600, width: '100%', maxHeight: '85vh', overflowY: 'auto',
-        boxShadow: SHADOW.lg,
-        animation: 'slideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1)',
-      }}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: `${borderColor}15`, color: borderColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18, flexShrink: 0 }}>
-            {(sys.name || sys.system_name || '?').charAt(0).toUpperCase()}
-          </div>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontWeight: 700, color: C.text, fontSize: 18, margin: 0 }}>{sys.name || sys.system_name || 'System'}</p>
-            <div style={{ display: 'flex', gap: 12, marginTop: 2 }}>
-              {sys.cost != null && <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{fmt(sys.cost)}/mo</span>}
-              {sys.category && <span style={{ fontSize: 12, color: C.textMuted }}>{(sys.category || '').replace(/_/g, ' ')}</span>}
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: 'rgba(0,0,0,0.04)', border: 'none', cursor: 'pointer', color: C.textMuted, padding: 8, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X style={{ width: 18, height: 18 }} /></button>
-        </div>
-        <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: sys.gaps?.length > 0 && sys.strengths?.length > 0 ? '1fr 1fr' : '1fr', gap: 24 }}>
-          {sys.gaps?.length > 0 && (
-            <div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.red, letterSpacing: '0.08em', textTransform: 'uppercase', ...mono }}>GAPS ({sys.gaps.length})</span>
-              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {sys.gaps.map((g: string, j: number) => (
-                  <div key={j} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <AlertTriangle style={{ width: 14, height: 14, color: C.red, flexShrink: 0, marginTop: 3 }} />
-                    <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.6, margin: 0 }}>{g}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {sys.strengths?.length > 0 && (
-            <div>
-              <span style={{ fontSize: 11, fontWeight: 700, color: C.emerald, letterSpacing: '0.08em', textTransform: 'uppercase', ...mono }}>STRENGTHS ({sys.strengths.length})</span>
-              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {sys.strengths.map((s: string, j: number) => (
-                  <div key={j} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <CheckCircle2 style={{ width: 14, height: 14, color: C.emerald, flexShrink: 0, marginTop: 3 }} />
-                    <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.6, margin: 0 }}>{s}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {(!sys.gaps?.length && !sys.strengths?.length) && (
-            <p style={{ color: C.textMuted, fontSize: 14 }}>No detailed findings for this system.</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -686,12 +628,12 @@ export default function SAReportPage() {
 
   const [loading, setLoading] = useState(true);
   const [report, setReport] = useState<SAReport | null>(null);
+  const [saRecommendations, setSaRecommendations] = useState<any[]>([]);
   const [findings, setFindings] = useState<SAFinding[]>([]);
   const [expandedRec, setExpandedRec] = useState<string | null>(null);
   const [expandedProcess, setExpandedProcess] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState('overview');
   const [expandedQW, setExpandedQW] = useState<number | null>(null);
-  const [selectedSystem, setSelectedSystem] = useState<number | null>(null);
   const [transitioning, setTransitioning] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -785,6 +727,12 @@ export default function SAReportPage() {
         .order('severity', { ascending: true });
 
       setFindings(findingsData || []);
+
+      const { data: recRows } = await supabase
+        .from('sa_recommendations')
+        .select('*')
+        .eq('engagement_id', engagement.id);
+      setSaRecommendations(recRows || []);
     } catch (err) {
       console.error('Error loading SA report:', err);
     } finally {
@@ -795,22 +743,22 @@ export default function SAReportPage() {
   // ─── Navigation Items (FROZEN) ─────────────────────────────────────────
   const NAV_ITEMS: { id: string; label: string; icon: typeof BarChart3; section: string }[] = [
     { id: 'overview', label: 'Overview', icon: BarChart3, section: 'overview' },
+    { id: 'diagnostic', label: 'Diagnostic', icon: Activity, section: 'analysis' },
+    { id: 'chaos', label: 'Cost of Chaos', icon: DollarSign, section: 'analysis' },
     { id: 'systems', label: 'Systems', icon: Monitor, section: 'analysis' },
-    { id: 'health', label: 'Health', icon: Activity, section: 'analysis' },
-    { id: 'chaos', label: 'Cost', icon: DollarSign, section: 'analysis' },
     { id: 'processes', label: 'Processes', icon: Workflow, section: 'analysis' },
     { id: 'findings', label: 'Findings', icon: AlertTriangle, section: 'analysis' },
-    { id: 'techmap', label: 'Tech Map', icon: Layers, section: 'roadmap' },
-    { id: 'quickwins', label: 'Quick Wins', icon: Zap, section: 'action' },
-    { id: 'roadmap', label: 'Roadmap', icon: CalendarClock, section: 'action' },
-    { id: 'investment', label: 'ROI', icon: TrendingUp, section: 'action' },
-    { id: 'monday', label: 'Vision', icon: Coffee, section: 'action' },
+    { id: 'risks', label: 'Risks', icon: Shield, section: 'analysis' },
+    { id: 'recommendations', label: 'Recommendations', icon: Target, section: 'plan' },
+    { id: 'investment', label: 'Investment', icon: TrendingUp, section: 'plan' },
+    { id: 'roadmap', label: 'Roadmap', icon: Layers, section: 'plan' },
+    { id: 'quickwins', label: 'Quick Wins', icon: Zap, section: 'plan' },
+    { id: 'actions', label: 'Actions', icon: CalendarClock, section: 'plan' },
   ];
   const SECTION_GROUPS: Record<string, string> = {
     overview: 'Overview',
     analysis: 'Analysis',
-    roadmap: 'Roadmap',
-    action: 'Action',
+    plan: 'Plan',
   };
 
   if (loading) {
@@ -844,17 +792,29 @@ export default function SAReportPage() {
   const m = resolveMetrics(report);
   const p1Findings = p1.findings || [];
   const p1Recs = p1.recommendations || [];
+  const recsFromDb = (saRecommendations || []).map((r: any) => ({
+    ...r,
+    title: r.title,
+    estimatedCost: r.estimated_cost ?? r.estimatedCost ?? 0,
+    annualBenefit: r.annual_cost_savings ?? r.annualBenefit ?? 0,
+    hoursSavedWeekly: r.hours_saved_weekly ?? r.hoursSavedWeekly,
+    implementationPhase: r.implementation_phase ?? r.implementationPhase ?? 'short_term',
+    description: r.description ?? r.rationale ?? '',
+  }));
+  const displayRecs = recsFromDb.length > 0 ? recsFromDb : p1Recs;
   const quickWins = p1.quickWins || report.quick_wins || [];
   const systemsMaps = p1.systemsMaps;
   const processes = facts.processes || [];
   const clientPresentation = p1.clientPresentation || {};
   const adminGuidance = p1.adminGuidance || {};
+  const riskFlags = (report.admin_risk_flags || []) as Array<{ flag?: string; mitigation?: string; severity?: string }>;
+  const adminTasksList = (report.admin_tasks || []) as Array<{ task?: string; assignTo?: string; dueDate?: string; deliverable?: string }>;
+  const adminNextStepsList = (report.admin_next_steps || []) as Array<{ action?: string; owner?: string; timing?: string; outcome?: string; priority?: string }>;
 
   const displayFindings = p1Findings.length > 0 ? p1Findings : findings;
   const criticalCount = displayFindings.filter((f: any) => f.severity === 'critical').length;
   const highCount = displayFindings.filter((f: any) => f.severity === 'high').length;
 
-  const displayRecs = p1Recs.length > 0 ? p1Recs : [];
   const totalBenefit = displayRecs.reduce((s: number, r: any) => s + (r.annualBenefit || r.annual_cost_savings || 0), 0) || m.totalAnnualBenefit;
   const totalHoursSaved = displayRecs.reduce((s: number, r: any) => s + (parseFloat(r.hoursSavedWeekly || r.hours_saved_weekly) || 0), 0) || m.hoursReclaimable;
   const totalInvestment = displayRecs.reduce((s: number, r: any) => s + (r.estimatedCost || r.estimated_cost || 0), 0) || m.totalInvestment;
@@ -1015,76 +975,106 @@ export default function SAReportPage() {
                 </div>
               </RevealCard>
             )}
+
+            {/* Your Future — condensed from former Vision section */}
+            <RevealCard delay={400} style={{
+              ...glass({ padding: 32 }),
+              borderLeft: `4px solid ${C.emerald}`,
+              background: `linear-gradient(135deg, ${C.emerald}05, ${C.blue}03, rgba(255,255,255,0.97))`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Rocket style={{ width: 18, height: 18, color: C.emerald }} />
+                <span style={{ fontSize: 11, letterSpacing: '0.12em', color: C.emerald, textTransform: 'uppercase', fontWeight: 600, ...mono }}>Your Future</span>
+              </div>
+              <Quote style={{ width: 24, height: 24, color: `${C.emerald}40`, marginBottom: 10 }} />
+              <p style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: 16, lineHeight: 1.8, color: C.text, maxWidth: '62ch', marginBottom: 16 }}>
+                {clientPresentation?.mondayMorning || splitNarrative(report.time_freedom_narrative, 1)[0] || 'Imagine opening your laptop on Monday with clarity instead of chaos.'}
+              </p>
+              {splitNarrative(report.time_freedom_narrative, 2).slice(1).map((para, i) => (
+                <p key={i} style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.75, maxWidth: '62ch', marginBottom: 10 }}>{para}</p>
+              ))}
+            </RevealCard>
           </div>
         );
 
-      // ─── SYSTEMS ─────────────────────────────────────────────────────────
+      // ─── SYSTEMS (system-by-system assessment) ───────────────────────
       case 'systems': {
-        const critGap = systemsList.filter((s: any) => (s.gaps?.length || 0) >= 3).length;
-        const medGap = systemsList.filter((s: any) => (s.gaps?.length || 0) >= 1 && (s.gaps?.length || 0) < 3).length;
-        const okCount = systemsList.filter((s: any) => !(s.gaps?.length > 0)).length;
+        if (!systemsList.length) {
+          return (
+            <div style={{ ...sectionWrap }}>
+              <p style={{ color: C.textMuted, fontSize: 15 }}>{EMPTY_SECTION_MSG}</p>
+            </div>
+          );
+        }
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Summary bar */}
-            <RevealCard style={{ ...glass({ padding: 24 }), display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-              <div>
-                <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>{systemsList.length} Systems</h2>
-                <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>Across your technology stack</p>
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                {critGap > 0 && <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.red}12`, color: C.red, border: `1px solid ${C.red}25` }}>{critGap} critical</span>}
-                {medGap > 0 && <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.orange}12`, color: C.orange, border: `1px solid ${C.orange}25` }}>{medGap} gaps</span>}
-                {okCount > 0 && <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.emerald}12`, color: C.emerald, border: `1px solid ${C.emerald}25` }}>{okCount} strong</span>}
-              </div>
-            </RevealCard>
-
-            {/* System grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
-              {systemsList.map((sys: any, i: number) => {
-                const gapCount = sys.gaps?.length || 0;
-                const statusColor = gapCount >= 3 ? C.red : gapCount >= 1 ? C.orange : C.emerald;
-                return (
-                  <RevealCard key={i} delay={i * 50}
-                    style={{ ...glass({ padding: 20, cursor: 'pointer' }), borderTop: `3px solid ${statusColor}` }}
-                  >
-                    <div onClick={() => setSelectedSystem(i)}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{ fontSize: 16, fontWeight: 700, color: C.text }}>{sys.name || sys.system_name}</span>
-                        {gapCount > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: statusColor, width: 24, height: 24, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', ...mono }}>{gapCount}</span>}
-                      </div>
-                      {sys.category && <span style={{ fontSize: 12, color: C.textMuted }}>{(sys.category || '').replace(/_/g, ' ')}</span>}
-                      {/* Status bar */}
-                      <div style={{ height: 4, borderRadius: 2, background: 'rgba(0,0,0,0.06)', marginTop: 14, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: gapCount >= 3 ? '100%' : gapCount >= 1 ? '60%' : '20%', background: statusColor, borderRadius: 2, transition: `width 0.8s ${EASE.spring}` }} />
-                      </div>
-                      {/* Gap preview pills */}
-                      {gapCount > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 12 }}>
-                          {sys.gaps.slice(0, 2).map((g: string, j: number) => (
-                            <span key={j} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 4, background: `${C.red}08`, color: C.red, border: `1px solid ${C.red}15`, lineHeight: 1.4, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{g}</span>
-                          ))}
-                          {gapCount > 2 && <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 500 }}>+{gapCount - 2} more</span>}
-                        </div>
-                      )}
-                    </div>
-                  </RevealCard>
-                );
-              })}
+            <div>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>System-by-System Assessment</h2>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 6 }}>Each platform in your stack — gaps, strengths, and operational load</p>
             </div>
-
-            {selectedSystem !== null && systemsList[selectedSystem] && (
-              <SystemDetailOverlay
-                sys={systemsList[selectedSystem]}
-                borderColor={(systemsList[selectedSystem].gaps?.length || 0) >= 3 ? C.red : (systemsList[selectedSystem].gaps?.length || 0) >= 1 ? C.orange : C.emerald}
-                onClose={() => setSelectedSystem(null)}
-              />
-            )}
+            {systemsList.map((sys: any, i: number) => {
+              const crit = sys.criticality || sys.criticality_level || '—';
+              const monthly = sys.monthlyCost ?? sys.monthly_cost;
+              const integ = sys.integrationMethod || sys.integration_method || '—';
+              const dq = sys.dataQuality ?? sys.data_quality;
+              const sat = sys.userSatisfaction ?? sys.user_satisfaction;
+              const manualHours = Number(sys.manualHours ?? sys.manual_hours ?? 0) || 0;
+              const painPoints = sys.painPoints || sys.pain_points || [];
+              return (
+                <RevealCard key={i} delay={i * 40} style={{ ...glass({ padding: 24 }), border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: C.text, flex: '1 1 auto' }}>{sys.name || sys.system_name}</h3>
+                    {sys.category && <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 8, background: `${C.blue}12`, color: C.blue, fontWeight: 600 }}>{String(sys.category).replace(/_/g, ' ')}</span>}
+                    <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 8, background: `${C.amber}18`, color: C.amber, fontWeight: 600 }}>{String(crit)}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 12, fontSize: 13, color: C.textSecondary, ...mono }}>
+                    {monthly != null && <span>Monthly cost: <strong style={{ color: C.text }}>£{Number(monthly).toLocaleString()}</strong></span>}
+                    <span>Users: [{integ}]</span>
+                    {dq != null && <span>Data quality: <strong>{dq}/5</strong></span>}
+                    {sat != null && <span>Satisfaction: <strong>{sat}/5</strong></span>}
+                  </div>
+                  {manualHours > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 12px', borderRadius: 999, background: `${C.red}12`, color: C.red }}>{manualHours} hours/month manual work</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20 }}>
+                    <div>
+                      <span style={{ ...label, color: C.red, marginBottom: 8, display: 'block' }}>GAPS</span>
+                      {(sys.gaps || []).length > 0 ? (sys.gaps || []).map((g: string, j: number) => (
+                        <div key={j} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
+                          <AlertTriangle style={{ width: 14, height: 14, color: C.red, flexShrink: 0, marginTop: 3 }} />
+                          <p style={{ fontSize: 14, color: C.textSecondary, margin: 0 }}>{g}</p>
+                        </div>
+                      )) : <p style={{ color: C.textMuted, fontSize: 13 }}>None listed</p>}
+                    </div>
+                    <div>
+                      <span style={{ ...label, color: C.emerald, marginBottom: 8, display: 'block' }}>STRENGTHS</span>
+                      {(sys.strengths || []).length > 0 ? (sys.strengths || []).map((s: string, j: number) => (
+                        <div key={j} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
+                          <CheckCircle2 style={{ width: 14, height: 14, color: C.emerald, flexShrink: 0, marginTop: 3 }} />
+                          <p style={{ fontSize: 14, color: C.textSecondary, margin: 0 }}>{s}</p>
+                        </div>
+                      )) : <p style={{ color: C.textMuted, fontSize: 13 }}>None listed</p>}
+                    </div>
+                  </div>
+                  {painPoints.length > 0 && (
+                    <div style={{ marginTop: 16, padding: 14, background: `${C.amber}08`, borderRadius: 12, border: `1px solid ${C.amber}20` }}>
+                      <span style={{ ...label, color: C.amber }}>Pain points</span>
+                      <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: C.textSecondary, fontSize: 14, lineHeight: 1.6 }}>
+                        {painPoints.map((p: string, j: number) => <li key={j}>{p}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </RevealCard>
+              );
+            })}
           </div>
         );
       }
 
-      // ─── HEALTH ──────────────────────────────────────────────────────────
-      case 'health': {
+      // ─── DIAGNOSTIC (scores) ───────────────────────────────────────────
+      case 'diagnostic': {
         const healthItems = [
           { key: 'overall', label: 'Overall', score: m.overallScore, evidence: m.overallEvidence },
           { key: 'integration', label: 'Integration', score: m.integrationScore, evidence: m.integrationEvidence },
@@ -1252,7 +1242,7 @@ export default function SAReportPage() {
                     const barColor = pct > 80 ? C.red : pct > 50 ? C.orange : C.amber;
                     return (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: C.text, flex: '0 0 200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.name}</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: C.text, flex: '0 0 200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{proc.chainName || proc.name || 'Process'}</span>
                         <div style={{ flex: 1, height: 32, borderRadius: 8, background: 'rgba(0,0,0,0.04)', overflow: 'hidden', position: 'relative' }}>
                           <div style={{
                             height: '100%', width: `${pct}%`, borderRadius: 8,
@@ -1277,33 +1267,37 @@ export default function SAReportPage() {
       case 'processes': {
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <RevealCard style={{ ...glass({ padding: 24 }) }}>
-              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>{sortedProcesses.length} Process Chains</h2>
-              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>Total <strong style={{ color: C.red, ...mono }}>{totalProcessHours}h</strong> wasted weekly across your operations</p>
-            </RevealCard>
+            <div>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Process Analysis</h2>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 6 }}>{sortedProcesses.length} chains · <strong style={{ color: C.red, ...mono }}>{totalProcessHours}h</strong>/month wasted in aggregate</p>
+            </div>
 
             {sortedProcesses.map((proc: any, i: number) => {
               const hours = proc.hoursWasted ?? proc.hours_wasted ?? 0;
-              const isExpanded = expandedProcess === proc.code;
+              const procKey = proc.chainCode || proc.code || `p-${i}`;
+              const isExpanded = expandedProcess === procKey;
+              const chainName = proc.chainName || proc.name || 'Process';
+              const keyPain = proc.keyPainPoints || proc.key_pain_points || [];
+              const metrics = proc.specificMetrics || proc.specific_metrics;
               const pct = (hours / maxProcessHours) * 100;
               const barColor = pct > 80 ? C.red : pct > 50 ? C.orange : C.amber;
               return (
-                <RevealCard key={proc.code || i} delay={i * 60} style={{ ...glass({ padding: 0, overflow: 'hidden' }) }}>
+                <RevealCard key={procKey} delay={i * 60} style={{ ...glass({ padding: 0, overflow: 'hidden' }) }}>
                   {/* Clickable header — v5: shows process NAME prominently */}
                   <div
-                    onClick={() => setExpandedProcess(isExpanded ? null : proc.code)}
+                    onClick={() => setExpandedProcess(isExpanded ? null : procKey)}
                     style={{ padding: '18px 24px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}
                   >
                     <div style={{ width: 42, height: 42, borderRadius: 12, background: `${barColor}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: barColor, flexShrink: 0 }}>
-                      <ChainIcon code={proc.code} size={20} />
+                      <ChainIcon code={proc.chainCode || proc.code} size={20} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{proc.name}</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{chainName}</p>
                       <span style={{ fontSize: 12, color: C.textMuted }}>
                         {(proc.criticalGaps || proc.critical_gaps || []).length} gaps · {(proc.clientQuotes || proc.client_quotes || []).length} quotes
                       </span>
                     </div>
-                    <span style={{ fontSize: 26, fontWeight: 800, color: barColor, ...mono, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{hours}h</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 999, background: `${C.red}12`, color: C.red, ...mono }}>{hours} hrs/month wasted</span>
                     <div style={{ color: C.textMuted, transition: 'transform 0.2s ease', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)' }}>
                       <ChevronDown style={{ width: 18, height: 18 }} />
                     </div>
@@ -1315,21 +1309,38 @@ export default function SAReportPage() {
                   {/* Expanded content — v5: better readability */}
                   <div style={{ maxHeight: isExpanded ? 800 : 0, overflow: 'hidden', transition: `max-height 0.4s ${EASE.out}` }}>
                     <div style={{ padding: '20px 24px 24px' }}>
+                      {keyPain.length > 0 && (
+                        <div style={{ marginBottom: 18 }}>
+                          <span style={{ ...label, color: C.text, marginBottom: 8, display: 'block' }}>Key pain points</span>
+                          <ul style={{ margin: 0, paddingLeft: 18, color: C.textSecondary, fontSize: 14, lineHeight: 1.65 }}>
+                            {keyPain.map((pt: string, j: number) => <li key={j}>{pt}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      {metrics && typeof metrics === 'object' && (
+                        <div style={{ marginBottom: 18, display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                          {Object.entries(metrics).map(([k, v]) => (
+                            <span key={k} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 8, background: 'rgba(0,0,0,0.04)', color: C.textSecondary, ...mono }}>
+                              {k}: <strong style={{ color: C.text }}>{String(v)}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       {(proc.criticalGaps || proc.critical_gaps || []).length > 0 && (
                         <div style={{ marginBottom: 18 }}>
                           <span style={{ ...label, color: C.red, marginBottom: 8, display: 'block' }}>Critical Gaps</span>
                           {(proc.criticalGaps || proc.critical_gaps).map((g: string, j: number) => (
-                            <p key={j} style={{ fontSize: 14, color: C.textSecondary, marginBottom: 8, paddingLeft: 14, borderLeft: `3px solid ${C.red}50`, lineHeight: 1.65 }}>{g}</p>
+                            <p key={j} style={{ fontSize: 14, color: C.textSecondary, marginBottom: 8, padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.red}35`, lineHeight: 1.65 }}>{g}</p>
                           ))}
                         </div>
                       )}
                       {(proc.clientQuotes || proc.client_quotes || []).length > 0 && (
                         <div>
-                          <span style={{ ...label, color: C.purple, marginBottom: 8, display: 'block' }}>What your team said</span>
+                          <span style={{ ...label, color: C.textMuted, marginBottom: 8, display: 'block' }}>Client quotes</span>
                           {(proc.clientQuotes || proc.client_quotes).map((q: string, j: number) => (
-                            <div key={j} style={{ padding: '14px 18px', background: `${C.purple}06`, borderRadius: 12, marginBottom: 10, borderLeft: `3px solid ${C.purple}40` }}>
-                              <p style={{ fontSize: 14, fontStyle: 'italic', color: C.text, lineHeight: 1.7, margin: 0, fontFamily: "'Playfair Display', serif" }}>&quot;{q}&quot;</p>
-                            </div>
+                            <blockquote key={j} style={{ padding: '14px 18px', margin: '0 0 10px', borderLeft: '4px solid #f59e0b', fontStyle: 'italic', color: '#475569', fontSize: 14, lineHeight: 1.7, background: 'rgba(245,158,11,0.06)', borderRadius: '0 10px 10px 0' }}>
+                              &quot;{q}&quot;
+                            </blockquote>
                           ))}
                         </div>
                       )}
@@ -1360,32 +1371,46 @@ export default function SAReportPage() {
           </div>
         );
 
-      // ─── TECH MAP ─────────────────────────────────────────────────────────
-      case 'techmap':
+      // ─── RISKS ───────────────────────────────────────────────────────────
+      case 'risks': {
+        const sevStyle = (s: string | undefined) => {
+          const x = (s || '').toLowerCase();
+          if (x === 'high') return { bg: `${C.red}12`, color: C.red, border: `1px solid ${C.red}30` };
+          if (x === 'medium') return { bg: `${C.amber}12`, color: C.amber, border: `1px solid ${C.amber}30` };
+          return { bg: `${C.amber}08`, color: '#ca8a04', border: `1px solid rgba(234,179,8,0.35)` };
+        };
+        if (!riskFlags.length) {
+          return (
+            <div style={{ ...sectionWrap }}>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>Risks & Concerns</h2>
+              <p style={{ color: C.textMuted, fontSize: 15 }}>{EMPTY_SECTION_MSG}</p>
+            </div>
+          );
+        }
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <RevealCard style={{ ...glass({ padding: 24 }) }}>
-              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Technology Map</h2>
-              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>How your systems connect and where the gaps are</p>
-            </RevealCard>
-            {(systemsMaps?.length > 0 || (facts?.systems && facts.systems.length > 0)) ? (
-              <RevealCard delay={100} style={{
-                borderRadius: 16, overflow: 'hidden',
-                boxShadow: SHADOW.md,
-                border: '1px solid rgba(22,35,64,0.08)',
-                background: '#0f172a',
-              }}>
-                <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
-                  <SystemsMapSection systemsMaps={systemsMaps} facts={facts} layout="split" />
-                </div>
-              </RevealCard>
-            ) : (
-              <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
-                <p style={{ color: C.textMuted }}>Technology map not yet generated.</p>
-              </RevealCard>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Risks & Concerns</h2>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 999, background: `${C.red}10`, color: C.red }}>{riskFlags.length}</span>
+            </div>
+            {riskFlags.map((rf, i) => {
+              const st = sevStyle(rf.severity);
+              return (
+                <RevealCard key={i} delay={i * 50} style={{ ...glass({ padding: 24 }), border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 8, ...st }}>{(rf.severity || 'risk').toUpperCase()}</span>
+                  </div>
+                  <p style={{ fontSize: 15, color: C.text, lineHeight: 1.65, margin: '0 0 12px' }}>{rf.flag}</p>
+                  <div style={{ paddingLeft: 12, borderLeft: '3px solid rgba(0,0,0,0.08)' }}>
+                    <span style={{ ...label, display: 'block', marginBottom: 4 }}>Mitigation</span>
+                    <p style={{ fontSize: 14, color: C.textSecondary, margin: 0, lineHeight: 1.6 }}>{rf.mitigation || '—'}</p>
+                  </div>
+                </RevealCard>
+              );
+            })}
           </div>
         );
+      }
 
       // ─── QUICK WINS ───────────────────────────────────────────────────────
       case 'quickwins': {
@@ -1473,8 +1498,8 @@ export default function SAReportPage() {
         );
       }
 
-      // ─── ROADMAP ──────────────────────────────────────────────────────────
-      case 'roadmap': {
+      // ─── RECOMMENDATIONS (phased implementation) ─────────────────────
+      case 'recommendations': {
         const phaseColors: Record<string, string> = {
           immediate: C.emerald, quick_win: C.emerald, foundation: C.blue,
           short_term: C.blue, strategic: C.purple, medium_term: C.purple,
@@ -1484,7 +1509,7 @@ export default function SAReportPage() {
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <RevealCard style={{ ...glass({ padding: 24 }) }}>
-              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Implementation Roadmap</h2>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Recommendations</h2>
               <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>{displayRecs.length} recommendations across {activePhases.length} phases</p>
             </RevealCard>
 
@@ -1571,14 +1596,41 @@ export default function SAReportPage() {
         );
       }
 
+      // ─── ROADMAP (technology maps) ─────────────────────────────────────
+      case 'roadmap':
+        return (
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Technology Roadmap</h2>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 6 }}>How your systems connect and where the gaps are</p>
+            </div>
+            {(systemsMaps?.length > 0 || (facts?.systems && facts.systems.length > 0)) ? (
+              <RevealCard delay={100} style={{
+                borderRadius: 16, overflow: 'hidden',
+                boxShadow: SHADOW.md,
+                border: '1px solid rgba(22,35,64,0.08)',
+                background: '#0f172a',
+              }}>
+                <div style={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+                  <SystemsMapSection systemsMaps={systemsMaps} facts={facts} layout="split" />
+                </div>
+              </RevealCard>
+            ) : (
+              <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
+                <p style={{ color: C.textMuted }}>{EMPTY_SECTION_MSG}</p>
+              </RevealCard>
+            )}
+          </div>
+        );
+
       // ─── INVESTMENT & ROI ─────────────────────────────────────────────────
       case 'investment': {
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <RevealCard style={{ ...glass({ padding: 24 }) }}>
-              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Return on Investment</h2>
-            </RevealCard>
-
+            <div>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Investment Summary</h2>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 6 }}>Costs, savings, and time reclaimed by recommendation</p>
+            </div>
             {/* Hero stat tiles */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
               {[
@@ -1614,21 +1666,19 @@ export default function SAReportPage() {
                 <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                   <thead>
                     <tr style={{ background: 'rgba(240,242,247,0.8)' }}>
-                      {['Phase', 'Title', 'Cost', 'Benefit', 'Hours'].map(h => (
+                      {['Recommendation', 'Investment', 'Annual saving', 'Hours/week'].map(h => (
                         <th key={h} style={{ ...label, padding: '14px 16px', textAlign: 'left', borderBottom: '2px solid rgba(0,0,0,0.06)', position: 'sticky', top: 0, background: 'rgba(240,242,247,0.95)' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {displayRecs.map((rec: any, i: number) => {
-                      const phase = rec.implementationPhase || rec.implementation_phase || 'short_term';
                       return (
                         <tr key={i}
                           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.02)'}
                           onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                         >
-                          <td style={{ padding: '14px 16px', borderBottom: '1px solid rgba(0,0,0,0.04)' }}><PhaseBadge phase={phase} /></td>
-                          <td style={{ padding: '14px 16px', borderBottom: '1px solid rgba(0,0,0,0.04)', maxWidth: 350, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14, color: C.text, fontWeight: 500 }}>{rec.title}</td>
+                          <td style={{ padding: '14px 16px', borderBottom: '1px solid rgba(0,0,0,0.04)', maxWidth: 380, fontSize: 14, color: C.text, fontWeight: 500 }}>{rec.title}</td>
                           <td style={{ padding: '14px 16px', borderBottom: '1px solid rgba(0,0,0,0.04)', ...mono, fontSize: 14, color: C.text, fontVariantNumeric: 'tabular-nums' }}>{fmt(rec.estimatedCost || rec.estimated_cost || 0)}</td>
                           <td style={{ padding: '14px 16px', borderBottom: '1px solid rgba(0,0,0,0.04)', ...mono, fontSize: 14, color: C.emerald, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>£{(rec.annualBenefit || rec.annual_cost_savings || 0).toLocaleString()}</td>
                           <td style={{ padding: '14px 16px', borderBottom: '1px solid rgba(0,0,0,0.04)', ...mono, fontSize: 14, color: C.text, fontVariantNumeric: 'tabular-nums' }}>{parseFloat(rec.hoursSavedWeekly || rec.hours_saved_weekly) || 0}h</td>
@@ -1636,7 +1686,7 @@ export default function SAReportPage() {
                       );
                     })}
                     <tr style={{ fontWeight: 700 }}>
-                      <td style={{ padding: '14px 16px', borderTop: '2px solid rgba(0,0,0,0.08)' }} colSpan={2}>
+                      <td style={{ padding: '14px 16px', borderTop: '2px solid rgba(0,0,0,0.08)' }}>
                         <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>TOTAL</span>
                       </td>
                       <td style={{ padding: '14px 16px', borderTop: '2px solid rgba(0,0,0,0.08)', ...mono, fontSize: 14, color: C.text, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmt(totalInvestment)}</td>
@@ -1647,110 +1697,72 @@ export default function SAReportPage() {
                 </table>
               </div>
             </RevealCard>
+
+            <RevealCard delay={500} style={{ ...glass({ padding: 28 }) }}>
+              <p style={{ fontSize: 14, color: C.textSecondary, lineHeight: 1.75, marginBottom: 14 }}>
+                <strong style={{ color: C.text }}>Payback</strong> {m.paybackMonths} months · <strong style={{ color: C.text }}>ROI</strong> {m.roiRatio} · <strong style={{ color: C.text }}>Hours reclaimable</strong> {Math.round(totalHoursSaved)}h/week · <strong style={{ color: C.text }}>3-year ROI context:</strong> see recommendation detail above.
+              </p>
+              <p style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.65, margin: 0 }}>
+                Investment figures cover software and estimated migration costs. Implementation advisory support available separately — contact your practice team.
+              </p>
+            </RevealCard>
           </div>
         );
       }
 
-      // ─── VISION ───────────────────────────────────────────────────────────
-      case 'monday': {
+      // ─── ACTIONS & NEXT STEPS ────────────────────────────────────────────
+      case 'actions': {
+        const nNext = adminNextStepsList.length;
+        const nTasks = adminTasksList.length;
+        const nTotal = nNext + nTasks;
+        if (nTotal === 0) {
+          return (
+            <div style={{ ...sectionWrap }}>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>What To Do Next</h2>
+              <p style={{ color: C.textMuted, fontSize: 15 }}>{EMPTY_SECTION_MSG}</p>
+            </div>
+          );
+        }
         return (
-          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
-            {/* Dark cinematic hero */}
-            <RevealCard style={{
-              borderRadius: 20, overflow: 'hidden', position: 'relative',
-              background: 'linear-gradient(135deg, #0F172A 0%, #162340 40%, #1E293B 100%)',
-              padding: 'clamp(40px, 5vw, 56px)', textAlign: 'center',
-              border: 'none', boxShadow: SHADOW.lg,
-            }}>
-              <DotGrid opacity={0.05} />
-              <NoiseOverlay opacity={0.15} />
-              {/* Aurora blobs */}
-              <div style={{ position: 'absolute', top: '-15%', left: '10%', width: 280, height: 280, borderRadius: '50%', background: `radial-gradient(circle, ${C.blue}18 0%, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none', animation: 'float 20s ease infinite' }} />
-              <div style={{ position: 'absolute', bottom: '-10%', right: '10%', width: 220, height: 220, borderRadius: '50%', background: `radial-gradient(circle, ${C.emerald}15 0%, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none', animation: 'float 15s ease infinite 5s' }} />
-              <div style={{ position: 'absolute', top: '40%', left: '50%', width: 180, height: 180, borderRadius: '50%', background: `radial-gradient(circle, ${C.purple}12 0%, transparent 70%)`, filter: 'blur(60px)', pointerEvents: 'none', animation: 'float 18s ease infinite 3s' }} />
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
-                  <Rocket style={{ width: 16, height: 16, color: C.emeraldLight }} />
-                  <span style={{ fontSize: 11, letterSpacing: '0.15em', color: C.emeraldLight, textTransform: 'uppercase', fontWeight: 600, ...mono }}>Your Future</span>
-                </div>
-                <h2 style={{ fontSize: 'clamp(24px, 3.5vw, 38px)', fontWeight: 800, color: '#fff', lineHeight: 1.2, margin: '0 auto 32px', letterSpacing: '-0.02em', maxWidth: '20ch' }}>
-                  Ready to Reclaim <span style={{ color: C.emeraldLight }}>{totalHoursSaved}</span> Hours Every Week?
-                </h2>
-                {/* Stat tiles */}
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
-                  {[
-                    { val: `${totalHoursSaved}`, sub: 'Hours/week reclaimed', bg: `${C.emerald}20` },
-                    { val: `£${Math.round(totalBenefit / 1000)}k`, sub: 'Annual benefit', bg: `${C.blue}20` },
-                    { val: `<${m.paybackMonths}`, sub: 'Month payback', bg: 'rgba(255,255,255,0.12)' },
-                  ].map((s, i) => (
-                    <div key={i} style={{ background: s.bg, borderRadius: 16, padding: '20px 32px', border: '1px solid rgba(255,255,255,0.12)', minWidth: 140, backdropFilter: 'blur(8px)' }}>
-                      <p style={{ fontSize: 36, fontWeight: 800, color: '#fff', margin: 0, ...mono, fontVariantNumeric: 'tabular-nums' }}>{s.val}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>{s.sub}</p>
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>What To Do Next</h2>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: '4px 12px', borderRadius: 999, background: `${C.blue}10`, color: C.blue }}>{nTotal}</span>
+            </div>
+
+            {nNext > 0 && (
+              <>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>Recommended Next Steps</h3>
+                {adminNextStepsList.map((step, i) => (
+                  <RevealCard key={`ns-${i}`} delay={i * 40} style={{ ...glass({ padding: 20 }), border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, color: C.blue, ...mono }}>#{i + 1}</span>
+                      {step.priority && <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, background: `${C.purple}12`, color: C.purple }}>{step.priority}</span>}
+                      {step.owner && <span style={{ fontSize: 12, color: C.textMuted }}>Owner: {step.owner}</span>}
+                      {step.timing && <span style={{ fontSize: 12, color: C.textMuted }}>· {step.timing}</span>}
                     </div>
-                  ))}
-                </div>
-              </div>
-            </RevealCard>
-
-            {/* Monday morning quote — v5: properly contained */}
-            <RevealCard delay={200} style={{
-              ...glass({ padding: 32 }),
-              borderLeft: `4px solid ${C.emerald}`,
-              background: `linear-gradient(135deg, ${C.emerald}05, ${C.blue}03, rgba(255,255,255,0.97))`,
-            }}>
-              <Quote style={{ width: 28, height: 28, color: `${C.emerald}40`, marginBottom: 12 }} />
-              <p style={{ fontFamily: "'Playfair Display', serif", fontStyle: 'italic', fontSize: 17, lineHeight: 1.8, color: C.text, maxWidth: '60ch' }}>
-                {clientPresentation?.mondayMorning || splitNarrative(report.time_freedom_narrative, 1)[0] || 'Imagine opening your laptop on Monday morning and having everything you need at your fingertips.'}
-              </p>
-            </RevealCard>
-
-            {/* How we get there — v5: properly contained text */}
-            <RevealCard delay={300} style={{ ...glass({ padding: 32 }) }}>
-              <span style={{ ...label, color: C.text, marginBottom: 14, display: 'block' }}>HOW WE GET THERE</span>
-              {splitNarrative(report.time_freedom_narrative, 4).map((para, i) => (
-                <p key={i} style={{ color: C.textSecondary, fontSize: 15, lineHeight: 1.8, maxWidth: '62ch', marginBottom: 14 }}>{para}</p>
-              ))}
-            </RevealCard>
-
-            {/* Freedom stories */}
-            {(clientPresentation?.freedomStories || adminGuidance?.freedomStories || []).length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-                {(clientPresentation?.freedomStories || adminGuidance?.freedomStories || []).map((story: any, i: number) => (
-                  <RevealCard key={i} delay={i * 80} style={{ ...glass({ padding: 22 }), borderTop: `3px solid ${C.emerald}` }}>
-                    <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, margin: 0 }}>{typeof story === 'string' ? story : story.text || story.description || JSON.stringify(story)}</p>
+                    <p style={{ fontSize: 15, color: C.text, fontWeight: 600, margin: '0 0 8px' }}>{step.action}</p>
+                    {step.outcome && <p style={{ fontSize: 14, color: C.textSecondary, margin: 0, lineHeight: 1.6 }}>{step.outcome}</p>}
                   </RevealCard>
                 ))}
-              </div>
+              </>
             )}
 
-            {/* CTA banner */}
-            <RevealCard delay={500} style={{
-              borderRadius: 20, overflow: 'hidden', position: 'relative',
-              background: 'linear-gradient(135deg, #0F172A, #1E293B)',
-              padding: 40, textAlign: 'center', border: 'none', boxShadow: SHADOW.lg,
-            }}>
-              <DotGrid opacity={0.04} />
-              <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-                <Phone style={{ width: 24, height: 24, color: C.emeraldLight }} />
-                <h3 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0 }}>Ready to Start?</h3>
-                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', maxWidth: '42ch', margin: 0 }}>
-                  Book a call to discuss your implementation roadmap
-                </p>
-                <button
-                  style={{
-                    background: `linear-gradient(135deg, ${C.emerald}, #047857)`, color: '#fff',
-                    padding: '14px 40px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                    fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8,
-                    boxShadow: SHADOW.glow(C.emerald, 0.4),
-                    transition: 'all 0.3s ease',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = SHADOW.glow(C.emerald, 0.6); }}
-                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = SHADOW.glow(C.emerald, 0.4); }}
-                >
-                  Book a Call <ArrowRight style={{ width: 18, height: 18 }} />
-                </button>
-              </div>
-            </RevealCard>
+            {nTasks > 0 && (
+              <>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: '8px 0 0' }}>Tasks to Assign</h3>
+                {adminTasksList.map((t, i) => (
+                  <RevealCard key={`tk-${i}`} delay={i * 40} style={{ ...glass({ padding: 20 }), border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16 }}>
+                    <p style={{ fontSize: 15, fontWeight: 600, color: C.text, margin: '0 0 8px' }}>{t.task}</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 13, color: C.textSecondary }}>
+                      {t.assignTo && <span><strong>Assign:</strong> {t.assignTo}</span>}
+                      {t.dueDate && <span><strong>Due:</strong> {t.dueDate}</span>}
+                    </div>
+                    {t.deliverable && <p style={{ fontSize: 14, color: C.textSecondary, margin: '10px 0 0', lineHeight: 1.6 }}>{t.deliverable}</p>}
+                  </RevealCard>
+                ))}
+              </>
+            )}
           </div>
         );
       }
