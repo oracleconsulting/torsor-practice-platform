@@ -13,75 +13,65 @@ const corsHeaders = {
 // Updates report with status 'generated'
 // =============================================================================
 
-function buildNumberLock(pass1Data: any, report: any): string {
-  // Use Phase 8 reconciled DB columns as the SINGLE SOURCE OF TRUTH. Round before embedding.
+/** Must appear at the very top of the Opus prompt — reconciled DB + pass1_data only. */
+function buildMandatoryNumbersLockBlock(pass1Data: any, report: any): string {
   const recs = pass1Data.recommendations || [];
-  const qwins = pass1Data.quickWins || [];
-  const scores = pass1Data.scores || {};
+  const findings = pass1Data.findings || [];
   const f = pass1Data.facts || {};
 
-  const totalBenefit = Math.round(report.total_annual_benefit ?? recs.reduce((s: number, r: any) => s + (r.annualBenefit || 0), 0));
-  const totalInvestment = Math.round(report.total_recommended_investment ?? recs.reduce((s: number, r: any) => s + (r.estimatedCost || 0), 0));
-  const hoursReclaimable = Math.round(report.hours_reclaimable_weekly ?? recs.reduce((s: number, r: any) => s + (parseFloat(r.hoursSavedWeekly) || 0), 0));
+  const totalBenefit = Math.round(
+    report.total_annual_benefit ??
+      recs.reduce((s: number, r: any) => s + (r.annualBenefit || r.annual_cost_savings || 0), 0),
+  );
+  const totalInvestment = Math.round(
+    report.total_recommended_investment ??
+      recs.reduce((s: number, r: any) => s + (r.estimatedCost || r.estimated_cost || 0), 0),
+  );
+  const hoursReclaimable = Math.round(
+    report.hours_reclaimable_weekly ??
+      recs.reduce((s: number, r: any) => s + (parseFloat(r.hoursSavedWeekly || r.hours_saved_weekly) || 0), 0),
+  );
   const paybackMonths = report.overall_payback_months ?? 0;
   const roiRatio = report.roi_ratio || (totalInvestment > 0 ? `${Math.round(totalBenefit / totalInvestment)}:1` : 'Infinite');
   const annualCostOfChaos = Math.round(report.total_annual_cost_of_chaos ?? f.annualCostOfChaos ?? 0);
   const hoursWastedWeekly = report.total_hours_wasted_weekly ?? f.hoursWastedWeekly ?? 0;
-  const growthMultiplier = report.growth_multiplier ?? f.growthMultiplier ?? 1.3;
   const projectedCostAtScale = Math.round(report.projected_cost_at_scale ?? f.projectedCostAtScale ?? 0);
 
-  const qwinHours = qwins.reduce((sum: number, q: any) =>
-    sum + (parseFloat(q.hoursSavedWeekly) || 0), 0);
+  const recsCount = recs.length;
+  const findingsCount = findings.length;
+  const criticalCount = findings.filter((x: any) => x.severity === 'critical').length;
+  const highCount = findings.filter((x: any) => x.severity === 'high').length;
+  const mediumCount = findings.filter((x: any) => x.severity === 'medium').length;
+  const lowCount = findings.filter((x: any) => x.severity === 'low').length;
 
-  return `
-╔═══════════════════════════════════════════════════════════════════════════╗
-NUMBER LOCK — USE THESE EXACT NUMBERS IN ALL NARRATIVES
-These are FINAL RECONCILED figures. DO NOT recalculate or re-derive.
-DO NOT round differently. DO NOT count recommendations yourself.
-Copy them EXACTLY into your prose.
-╚═══════════════════════════════════════════════════════════════════════════╝
+  return `═══ NUMBERS LOCK — MANDATORY ═══
+Every number in your output MUST match one of these exactly. Do NOT 
+approximate, round differently, or invent alternative figures.
 
-COST OF CHAOS:
-- Hours wasted weekly: ${hoursWastedWeekly}
-- Annual cost of chaos: £${Number(annualCostOfChaos).toLocaleString()}
-- Growth multiplier: ${growthMultiplier}x
-- Projected cost at scale: £${Number(projectedCostAtScale).toLocaleString()}
+Annual cost of chaos: £${annualCostOfChaos.toLocaleString()}
+Hours wasted weekly: ${hoursWastedWeekly}
+Projected at growth: £${projectedCostAtScale.toLocaleString()}
+Total investment: £${totalInvestment.toLocaleString()}
+Total annual benefit: £${totalBenefit.toLocaleString()}
+Hours reclaimable: ${hoursReclaimable}
+Payback: ${paybackMonths} months
+ROI: ${roiRatio}
+Recommendations: ${recsCount}
+Findings: ${findingsCount} (${criticalCount} critical, ${highCount} high, ${mediumCount} medium, ${lowCount} low)
 
-BENEFIT:
-- Total annual benefit (all ${recs.length} recommendations): £${Number(totalBenefit).toLocaleString()}
-- Hours reclaimable weekly: ${Math.round(Number(hoursReclaimable))}
-- Quick wins only: ${qwins.length} actions, ${qwinHours}h/week
+If rounding for prose, use: "£Xk" matching the locked figure 
+(e.g., "£516k" for £515,980, NOT "£374k" or "£520k").
+═══ END NUMBERS LOCK ═══
 
-INVESTMENT:
-- Total investment: £${Number(totalInvestment).toLocaleString()}${totalInvestment === 0 ? ' (process fixes only)' : ''}
-- Payback: ${paybackMonths <= 0 ? 'Immediate' : `${paybackMonths} months`}
-- ROI (Year 1): ${roiRatio}
-- ROI (3 Year): ${totalInvestment > 0 ? `${Math.round(Number(totalBenefit) * 3 / Number(totalInvestment))}:1` : 'Infinite'}
-
-SCORES:
-- Integration: ${scores.integration?.score || 0}/100
-- Automation: ${scores.automation?.score || 0}/100
-- Data Accessibility: ${scores.dataAccessibility?.score || 0}/100
-- Scalability: ${scores.scalability?.score || 0}/100
-
-RECOMMENDATIONS: ${recs.length} total (USE THIS COUNT — do not count them yourself)
-${recs.map((r: any, i: number) => `  ${i + 1}. ${r.title} — £${(r.annualBenefit || 0).toLocaleString()}/yr, ${r.hoursSavedWeekly || 0}h/wk, £${(r.estimatedCost || 0).toLocaleString()} cost`).join('\n')}
-
-═══════════════════════════════════════════════════════════════════════════
-MANDATORY PHRASING (use these exact formulations):
-- "${recs.length} recommendations" — not eight, not 8, not "several"
-- "£${Number(annualCostOfChaos).toLocaleString()}" — the annual cost headline
-- "${Math.round(Number(hoursReclaimable))} hours" — for time reclaimed
-- "£${Number(totalBenefit).toLocaleString()}" — for total annual benefit
-- "£${Number(totalInvestment).toLocaleString()}" — for total investment
-═══════════════════════════════════════════════════════════════════════════
 `;
 }
 
 function buildPass2Prompt(pass1Data: any, report: any): string {
   const f = pass1Data.facts;
-  
+  const numbersLock = buildMandatoryNumbersLockBlock(pass1Data, report);
+
   return `
+${numbersLock}
 You are writing the narrative sections of a Systems Audit report. Your job is to tell a STORY, not list problems.
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -309,8 +299,6 @@ GOOD: "You can't make good decisions with bad numbers. This fixes the numbers."
 BAD: "Not only does this address operational challenges, but it also positions you for sustainable long-term growth in an evolving market landscape."
 
 GOOD: "This fixes the chaos. Then you can grow."
-
-${buildNumberLock(pass1Data, report)}
 
 Return ONLY the JSON object with these four fields. No markdown wrapping.
 `;

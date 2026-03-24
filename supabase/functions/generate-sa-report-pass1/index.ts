@@ -2255,10 +2255,71 @@ async function runPhase7AdminGuidance(
 }
 
 // ---------- Phase 8: CLIENT PRESENTATION + FINAL ASSEMBLY ----------
-function buildPhase8ClientPresentationPrompt(phase1: any, phase2: any, phase3: any, phase5: any, clientName: string): string {
+function buildPhase8NumbersLockBlock(lock: {
+  annualCostOfChaos: number;
+  hoursWastedWeekly: number;
+  projectedCostAtScale: number;
+  totalInvestment: number;
+  totalBenefit: number;
+  hoursReclaimable: number;
+  paybackMonths: number;
+  roiRatio: string;
+  recsCount: number;
+  findingsCount: number;
+  criticalCount: number;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+}): string {
+  return `═══ NUMBERS LOCK — MANDATORY ═══
+Every number in your output MUST match one of these exactly. Do NOT 
+approximate, round differently, or invent alternative figures.
+
+Annual cost of chaos: £${lock.annualCostOfChaos.toLocaleString()}
+Hours wasted weekly: ${lock.hoursWastedWeekly}
+Projected at growth: £${lock.projectedCostAtScale.toLocaleString()}
+Total investment: £${lock.totalInvestment.toLocaleString()}
+Total annual benefit: £${lock.totalBenefit.toLocaleString()}
+Hours reclaimable: ${lock.hoursReclaimable}
+Payback: ${lock.paybackMonths} months
+ROI: ${lock.roiRatio}
+Recommendations: ${lock.recsCount}
+Findings: ${lock.findingsCount} (${lock.criticalCount} critical, ${lock.highCount} high, ${lock.mediumCount} medium, ${lock.lowCount} low)
+
+If rounding for prose, use: "£Xk" matching the locked figure 
+(e.g., "£516k" for £515,980, NOT "£374k" or "£520k").
+═══ END NUMBERS LOCK ═══
+
+`;
+}
+
+function buildPhase8ClientPresentationPrompt(
+  phase1: any,
+  phase2: any,
+  phase3: any,
+  phase5: any,
+  clientName: string,
+  lock: {
+    annualCostOfChaos: number;
+    hoursWastedWeekly: number;
+    projectedCostAtScale: number;
+    totalInvestment: number;
+    totalBenefit: number;
+    hoursReclaimable: number;
+    paybackMonths: number;
+    roiRatio: string;
+    recsCount: number;
+    findingsCount: number;
+    criticalCount: number;
+    highCount: number;
+    mediumCount: number;
+    lowCount: number;
+  },
+): string {
   const topFindings = (phase3.findings || []).slice(0, 5).map((f: any) => ({ title: f.title, severity: f.severity, annualCostImpact: f.annualCostImpact }));
   const topRecs = (phase5.recommendations || []).slice(0, 5).map((r: any) => ({ title: r.title, estimatedCost: r.estimatedCost, annualBenefit: r.annualBenefit }));
   return `
+${buildPhase8NumbersLockBlock(lock)}
 Given the full analysis for ${clientName}, generate the client-facing presentation summary only. Jargon-free for an MD.
 
 CONTEXT:
@@ -2396,10 +2457,42 @@ async function runPhase8Presentation(
   const phase7 = reportRow.pass1_data.phase7;
   const clientName = phase1.facts.companyName || 'the business';
 
+  const recsForLock = phase5Recs.recommendations || [];
+  const findingsForLock = phase3.findings || [];
+  const totalInvestmentL = Math.round(recsForLock.reduce((s: number, r: any) => s + (r.estimatedCost || 0), 0));
+  const totalBenefitL = Math.round(recsForLock.reduce((s: number, r: any) => s + (r.annualBenefit || 0), 0));
+  const hoursReclaimableL = Math.round(recsForLock.reduce((s: number, r: any) => s + (parseFloat(r.hoursSavedWeekly) || 0), 0));
+  const paybackMonthsL = totalBenefitL > 0 && totalInvestmentL > 0
+    ? Math.max(1, Math.round(totalInvestmentL / (totalBenefitL / 12)))
+    : 0;
+  const roiRatioL = totalInvestmentL > 0 ? `${Math.round(totalBenefitL / totalInvestmentL)}:1` : 'Infinite';
+  const annualCostL = Math.round(Number(phase2.annualCostOfChaos) || 0);
+  const hoursWastedL = typeof phase2.hoursWastedWeekly === 'number'
+    ? phase2.hoursWastedWeekly
+    : parseFloat(String(phase2.hoursWastedWeekly).replace(/[£,]/g, '')) || 0;
+  const projectedL = Math.round(Number(phase2.projectedCostAtScale) || 0);
+
+  const phase8Lock = {
+    annualCostOfChaos: annualCostL,
+    hoursWastedWeekly: hoursWastedL,
+    projectedCostAtScale: projectedL,
+    totalInvestment: totalInvestmentL,
+    totalBenefit: totalBenefitL,
+    hoursReclaimable: hoursReclaimableL,
+    paybackMonths: paybackMonthsL,
+    roiRatio: roiRatioL,
+    recsCount: recsForLock.length,
+    findingsCount: findingsForLock.length,
+    criticalCount: findingsForLock.filter((x: any) => x.severity === 'critical').length,
+    highCount: findingsForLock.filter((x: any) => x.severity === 'high').length,
+    mediumCount: findingsForLock.filter((x: any) => x.severity === 'medium').length,
+    lowCount: findingsForLock.filter((x: any) => x.severity === 'low').length,
+  };
+
   let phase8: any = { clientPresentation: null };
   let tokensUsed = 0, cost = 0, generationTime = 0;
   try {
-    const prompt = buildPhase8ClientPresentationPrompt(phase1, phase2, phase3, phase5Recs, clientName);
+    const prompt = buildPhase8ClientPresentationPrompt(phase1, phase2, phase3, phase5Recs, clientName, phase8Lock);
     const phase8Result = await callSonnet(prompt, 8000, 8, openRouterKey, 0);
     phase8 = phase8Result.data || { clientPresentation: null };
     tokensUsed = phase8Result.tokensUsed;
@@ -2470,6 +2563,22 @@ async function runPhase8Presentation(
   const recs = finalPass1Data.recommendations || [];
   const qwins = finalPass1Data.quickWins || [];
   const assembledScores = finalPass1Data.scores || {};
+
+  // Authoritative annual cost: bottom-up SUM(findings.annualCostImpact) — not flat rate × hours
+  const findingsList = [...(finalPass1Data.findings || [])];
+  const findingsSumCost = Math.round(
+    findingsList.reduce((s, fnd: any) => s + (Number(fnd.annualCostImpact ?? fnd.annual_cost_impact) || 0), 0),
+  );
+  const findingsSumHours = findingsList.reduce(
+    (s, fnd: any) => s + (Number(fnd.hoursWastedWeekly ?? fnd.hours_wasted_weekly) || 0),
+    0,
+  );
+  if (findingsSumCost > 0) {
+    f.annualCostOfChaos = findingsSumCost;
+    f.hoursWastedWeekly = findingsSumHours > 0 ? findingsSumHours : f.hoursWastedWeekly;
+    finalPass1Data.facts = { ...finalPass1Data.facts, ...f };
+    console.log(`[SA McKinsey] Using findings SUM: £${findingsSumCost}`);
+  }
 
   const totalInvestment = recs.reduce((sum: number, r: any) => sum + (r.estimatedCost || 0), 0);
   const totalBenefit = recs.reduce((sum: number, r: any) => sum + (r.annualBenefit || 0), 0);
