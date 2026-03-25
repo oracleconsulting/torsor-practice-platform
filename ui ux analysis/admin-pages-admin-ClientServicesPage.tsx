@@ -15568,6 +15568,8 @@ function SystemsAuditClientModal({
                         <SAClientReportView 
                           report={report}
                           companyName={clientName}
+                          findings={findings}
+                          saRecommendations={recommendations}
                         />
                       )}
                     </div>
