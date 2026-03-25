@@ -888,6 +888,329 @@ export function SAClientReportView({ report, companyName, findings: propFindings
     }
   };
 
+  // ─── Markdown Export ─────────────────────────────────────────────────────
+  const buildMarkdownExport = () => {
+    const hr = '\n---\n';
+    const lines: string[] = [];
+    const add = (...s: string[]) => s.forEach(l => lines.push(l));
+
+    const compName = facts?.companyName || companyName || 'Client';
+    const dateStr = report.generated_at ? new Date(report.generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+
+    // Title
+    add(`# Systems Audit Report — ${compName}`, '');
+    add(`**Date:** ${dateStr}`);
+    add(`**Industry:** ${facts?.industry || '—'}  `);
+    add(`**Team size:** ${facts?.teamSize || '—'}  `);
+    add(`**Revenue:** ${facts?.confirmedRevenue || facts?.revenueBand || '—'}  `);
+    add('');
+
+    // 1. Overview
+    add(`## 1. Overview`, '');
+    add(`### Headline`, `> ${report.headline}`, '');
+    add(`| Metric | Value |`, `|---|---|`);
+    add(`| Annual cost of chaos | £${m.annualCostOfChaos.toLocaleString()} |`);
+    add(`| Projected at ${m.growthMultiplier}× growth | £${m.projectedCostAtScale.toLocaleString()} |`);
+    add(`| Hours wasted weekly | ${m.hoursWastedWeekly} |`);
+    add('');
+    add(`### Executive Summary`, report.executive_summary || '—', '');
+    if (facts?.desired_outcomes?.length > 0) {
+      add(`### Desired Outcomes`);
+      facts.desired_outcomes.forEach((o: string) => add(`- ${displayOutcome(o)}`));
+      add('');
+    }
+    add(`### Your Future`, clientPresentation?.mondayMorning || splitNarrative(report.time_freedom_narrative, 1)[0] || '—', '');
+
+    // 2. Diagnostic
+    add(hr, `## 2. Diagnostic — System Health`, '');
+    const healthItems = [
+      { label: 'Overall', score: m.overallScore },
+      { label: 'Integration', score: m.integrationScore, evidence: m.integrationEvidence },
+      { label: 'Automation', score: m.automationScore, evidence: m.automationEvidence },
+      { label: 'Visibility', score: m.visibilityScore, evidence: m.visibilityEvidence },
+    ];
+    if (healthItems[0].score === 0 && (healthItems[1].score > 0 || healthItems[2].score > 0 || healthItems[3].score > 0)) {
+      healthItems[0].score = Math.round((healthItems[1].score + healthItems[2].score + healthItems[3].score) / 3);
+    }
+    add(`| Dimension | Score (/100) |`, `|---|---|`);
+    healthItems.forEach(h => add(`| ${h.label} | ${h.score} |`));
+    add('');
+    healthItems.slice(1).forEach(h => {
+      if (h.evidence) add(`**${h.label}:** ${h.evidence}`, '');
+    });
+
+    // 3. Cost of Chaos
+    add(hr, `## 3. Cost of Chaos`, '');
+    add(`- **Annual cost:** £${m.annualCostOfChaos.toLocaleString()}`);
+    add(`- **Hours wasted weekly:** ${m.hoursWastedWeekly}`);
+    add(`- **Projected at ${m.growthMultiplier}× growth:** £${m.projectedCostAtScale.toLocaleString()}`);
+    add('');
+    add(`### Narrative`, report.cost_of_chaos_narrative || '—', '');
+    if (bestQuote) add(`> "${bestQuote}" — Staff interview`, '');
+    if (sortedProcesses.length > 0) {
+      add(`### Where the Hours Go`, '');
+      add(`| Process | Hours wasted/month |`, `|---|---|`);
+      sortedProcesses.forEach((p: any) => add(`| ${p.chainName || p.name || '—'} | ${p.hoursWasted ?? p.hours_wasted ?? 0} |`));
+      add('');
+    }
+
+    // 4. Systems
+    add(hr, `## 4. System-by-System Assessment`, '');
+    if (systemsList.length === 0) { add('No system data available.', ''); } else {
+      systemsList.forEach((sys: any, i: number) => {
+        const crit = sys.criticality || sys.criticality_level || '—';
+        const monthly = sys.monthlyCost ?? sys.monthly_cost;
+        const dq = sys.dataQuality ?? sys.data_quality;
+        const sat = sys.userSatisfaction ?? sys.user_satisfaction;
+        const mh = Number(sys.manualHours ?? sys.manual_hours ?? 0) || 0;
+        add(`### ${i + 1}. ${sys.name || sys.system_name}`);
+        add(`**Category:** ${(sys.category || '—').replace(/_/g, ' ')} | **Criticality:** ${crit} | **Monthly cost:** ${monthly != null ? `£${Number(monthly).toLocaleString()}` : '—'} | **Data quality:** ${dq ?? '—'}/5 | **Satisfaction:** ${sat ?? '—'}/5`);
+        if (mh > 0) add(`⚠️ **${mh} hours/month manual work**`);
+        add('');
+        if ((sys.gaps || []).length > 0) { add('**Gaps:**'); sys.gaps.forEach((g: string) => add(`- ❌ ${g}`)); add(''); }
+        if ((sys.strengths || []).length > 0) { add('**Strengths:**'); sys.strengths.forEach((s: string) => add(`- ✅ ${s}`)); add(''); }
+        const pp = sys.painPoints || sys.pain_points || [];
+        if (pp.length > 0) { add('**Pain points:**'); pp.forEach((p: string) => add(`- ${p}`)); add(''); }
+      });
+    }
+
+    // 5. Processes
+    add(hr, `## 5. Process Analysis`, '');
+    add(`${sortedProcesses.length} process chains · ${totalProcessHours} hours/month wasted`, '');
+    sortedProcesses.forEach((proc: any, i: number) => {
+      const hours = proc.hoursWasted ?? proc.hours_wasted ?? 0;
+      const chainName = proc.chainName || proc.name || 'Process';
+      const keyPain = proc.keyPainPoints || proc.key_pain_points || [];
+      const critGaps = proc.criticalGaps || proc.critical_gaps || [];
+      const quotes = proc.clientQuotes || proc.client_quotes || [];
+      const metrics = proc.specificMetrics || proc.specific_metrics;
+      add(`### ${i + 1}. ${chainName} — ${hours} hrs/month wasted`);
+      if (keyPain.length > 0) { add('**Pain points:**'); keyPain.forEach((p: string) => add(`- ${p}`)); add(''); }
+      if (critGaps.length > 0) { add('**Critical gaps:**'); critGaps.forEach((g: string) => add(`- ${g}`)); add(''); }
+      if (quotes.length > 0) { quotes.forEach((q: string) => add(`> "${q}"`)); add(''); }
+      if (metrics && typeof metrics === 'object') {
+        add('**Metrics:**');
+        Object.entries(metrics).forEach(([k, v]) => add(`- ${k}: ${v}`));
+        add('');
+      }
+    });
+
+    // 6. Findings
+    add(hr, `## 6. Findings (${displayFindings.length})`, '');
+    add(`${criticalCount} critical · ${highCount} high · ${displayFindings.filter((f: any) => f.severity === 'medium').length} medium · ${displayFindings.filter((f: any) => f.severity === 'low').length} low`, '');
+    displayFindings.forEach((f: any, i: number) => {
+      const hoursVal = f.hours_wasted_weekly ?? f.hoursWastedWeekly ?? f.hoursPerWeek ?? 0;
+      const costVal = f.annual_cost_impact ?? f.annualCostImpact ?? f.annualCost ?? 0;
+      const affected = f.affected_systems ?? f.affectedSystems ?? [];
+      add(`### ${i + 1}. [${(f.severity || '—').toUpperCase()}] ${f.title || 'Finding'}`);
+      if (f.category) add(`**Category:** ${(f.category || '').replace(/_/g, ' ')}`);
+      add('', f.description || '', '');
+      if (f.evidence?.length > 0) { add('**Evidence:**'); f.evidence.forEach((e: string) => add(`- ${e}`)); add(''); }
+      if (f.client_quote || f.clientQuote) add(`> "${f.client_quote || f.clientQuote}"`, '');
+      const stats: string[] = [];
+      if (hoursVal > 0) stats.push(`**Hours/week:** ${hoursVal}`);
+      if (costVal > 0) stats.push(`**Annual cost:** £${Number(costVal).toLocaleString()}`);
+      if (affected.length > 0) stats.push(`**Affects:** ${affected.join(', ')}`);
+      if (stats.length > 0) add(stats.join(' | '), '');
+      if (f.recommendation) add(`**Recommendation:** ${f.recommendation}`, '');
+      if (f.scalability_impact || f.scalabilityImpact) add(`**Scalability impact:** ${f.scalability_impact || f.scalabilityImpact}`);
+      if (f.blocks_goal || f.blocksGoal) add(`**Blocks goal:** ${displayOutcome(f.blocks_goal || f.blocksGoal || '')}`);
+      add('');
+    });
+
+    // 7. Risks
+    add(hr, `## 7. Risks & Concerns (${riskFlags.length})`, '');
+    if (riskFlags.length === 0) { add('No risk flags recorded.', ''); } else {
+      riskFlags.forEach((rf: any, i: number) => {
+        add(`### ${i + 1}. [${(rf.severity || 'RISK').toUpperCase()}] ${rf.flag}`);
+        add(`**Mitigation:** ${rf.mitigation || '—'}`, '');
+      });
+    }
+
+    // 8. Governance
+    add(hr, `## 8. Governance & Change Readiness`, '');
+    add('Technology changes only succeed if the organisation is ready to adopt them.', '');
+    const govCards = [
+      { title: 'Leadership Buy-In', kw: ['shareholder', 'cheque', 'physical sign', 'invoice sign', 'paper'], rec: 'Demonstrate that digital approval workflows provide a stronger audit trail than physical signatures — with faster throughput.' },
+      { title: 'Shadow IT & Workarounds', kw: ['bypass', 'shadow', 'google doc', 'workaround', 'unofficial', 'ollie'], rec: 'New systems must be fast enough that workarounds are not needed. Address the root cause, not the symptom.' },
+      { title: 'Key Person Dependencies', kw: ['key person', 'single point', 'debbie', 'ann', 'irreplaceable', 'only person'], rec: 'Document all critical processes and cross-train before any system migration. Remove single points of failure.' },
+      { title: 'Control vs Speed Trade-off', kw: ['approval', 'disabled', 'control', 'limit', 'override', 'speed'], rec: 'New purchasing and approval systems must deliver speed AND controls simultaneously.' },
+    ];
+    govCards.forEach((card, i) => {
+      const lk = card.kw.map(k => k.toLowerCase());
+      const hit = displayFindings.find((f: any) => lk.some(k => (f.title || '').toLowerCase().includes(k) || (f.description || '').toLowerCase().includes(k)));
+      const rHit = riskFlags.find((r: any) => lk.some(k => (r.flag || '').toLowerCase().includes(k)));
+      add(`### ${i + 1}. ${card.title}`);
+      add(hit?.description || rHit?.flag || 'Identified as a factor affecting change readiness.', '');
+      add(`**Recommendation:** ${card.rec}`, '');
+    });
+
+    // 9. Recommendations
+    add(hr, `## 9. Recommendations (${displayRecs.length})`, '');
+    add(`${activePhases.length} phases`, '');
+    const phaseLabelsLocal: Record<string, string> = { immediate: 'Quick Win', quick_win: 'Quick Win', foundation: 'Foundation', short_term: 'Short Term', strategic: 'Strategic', medium_term: 'Medium Term', optimization: 'Optimisation', long_term: 'Long Term' };
+    activePhases.forEach(phase => {
+      const phaseRecs = recsByPhase[phase] || [];
+      add(`### Phase: ${phaseLabelsLocal[phase] || phase} (${phaseRecs.length})`, '');
+      phaseRecs.forEach((rec: any, ri: number) => {
+        const cost = rec.estimatedCost || rec.estimated_cost || 0;
+        const benefit = rec.annualBenefit || rec.annual_cost_savings || 0;
+        const hrs = parseFloat(rec.hoursSavedWeekly || rec.hours_saved_weekly) || 0;
+        const payback = cost > 0 && benefit > 0 ? Math.max(1, Math.round(cost / (benefit / 12))) : null;
+        add(`**${ri + 1}. ${rec.title}**`);
+        add(rec.description || '', '');
+        add(`| Investment | Annual benefit | Hours saved/wk | Payback |`, `|---|---|---|---|`);
+        add(`| £${cost.toLocaleString()} | £${benefit.toLocaleString()} | ${hrs}h | ${payback ? `${payback} mo` : '—'} |`);
+        if (rec.mondayMorning) add('', `> ${rec.mondayMorning}`);
+        if (rec.addresses) add(`Addresses: ${rec.addresses}`);
+        add('');
+      });
+    });
+
+    // 10. Investment
+    add(hr, `## 10. Investment Summary`, '');
+    add(`| Metric | Value |`, `|---|---|`);
+    add(`| Total investment | £${Math.round(totalInvestment).toLocaleString()} |`);
+    add(`| Total annual benefit | £${Math.round(totalBenefit).toLocaleString()} |`);
+    add(`| Hours reclaimable/week | ${Math.round(totalHoursSaved)} |`);
+    add(`| Payback period | ${m.paybackMonths} months |`);
+    add(`| ROI | ${m.roiRatio} |`);
+    add('');
+    add(`### Breakdown by Recommendation`, '');
+    add(`| # | Recommendation | Investment | Annual saving | Hours/wk |`, `|---|---|---|---|---|`);
+    displayRecs.forEach((rec: any, i: number) => {
+      add(`| ${i + 1} | ${rec.title} | £${(rec.estimatedCost || rec.estimated_cost || 0).toLocaleString()} | £${(rec.annualBenefit || rec.annual_cost_savings || 0).toLocaleString()} | ${parseFloat(rec.hoursSavedWeekly || rec.hours_saved_weekly) || 0}h |`);
+    });
+    add(`| | **TOTAL** | **£${Math.round(totalInvestment).toLocaleString()}** | **£${Math.round(totalBenefit).toLocaleString()}** | **${Math.round(totalHoursSaved)}h** |`);
+    add('', 'Investment figures cover software and estimated migration costs. Implementation advisory support available separately.', '');
+
+    // 11. Decisions
+    add(hr, `## 11. Decision Matrix`, '');
+    const qwHours = (quickWins || []).reduce((s: number, q: any) => s + (parseFloat(q.hoursSavedWeekly || q.hoursSaved || q.hours_saved || 0) || 0), 0);
+    const qwBenefit = (quickWins || []).reduce((s: number, q: any) => s + (parseFloat(q.annualBenefit || q.annual_benefit || 0) || 0), 0);
+    add(`| Scenario | Year 1 cost | 3-year net | Hours back | Investment |`, `|---|---|---|---|---|`);
+    add(`| Do Nothing | £${m.annualCostOfChaos.toLocaleString()} | £${(m.annualCostOfChaos * 3).toLocaleString()} | 0 | £0 |`);
+    add(`| Quick Wins Only | £${(m.annualCostOfChaos - qwBenefit).toLocaleString()} | £${((m.annualCostOfChaos - qwBenefit) * 3).toLocaleString()} | +${qwHours}h/wk | £0 |`);
+    const y3Full = totalInvestment - (totalBenefit * 3);
+    add(`| Full Transformation | £${totalInvestment.toLocaleString()} | ${y3Full < 0 ? '-' : ''}£${Math.abs(y3Full).toLocaleString()} | +${Math.round(totalHoursSaved)}h/wk | £${totalInvestment.toLocaleString()} |`);
+    add('', '**Recommendation:** Implement quick wins immediately, then begin full transformation in phases.', '');
+
+    // 12. Roadmap
+    add(hr, `## 12. Technology Roadmap`, '');
+    if (systemsMaps && Array.isArray(systemsMaps) && systemsMaps.length > 0) {
+      systemsMaps.forEach((map: any, mi: number) => {
+        add(`### Map ${mi + 1}: ${map.title || `Level ${mi + 1}`}`);
+        if (map.subtitle) add(`*${map.subtitle}*`);
+        add('');
+        const met = map.metrics || {};
+        add(`| Software/mo | Manual hrs/wk | Annual waste | Annual savings | Investment | Payback |`, `|---|---|---|---|---|---|`);
+        add(`| £${(met.monthlySoftware || 0).toLocaleString()} | ${met.manualHours || 0} | £${(met.annualWaste || 0).toLocaleString()} | £${(met.annualSavingsVsMap1 ?? met.annualSavings ?? 0).toLocaleString()} | ${(met.investment || 0) === 0 ? '£0' : `£${(met.investment || 0).toLocaleString()}`} | ${met.payback || '—'} |`);
+        add('');
+        if (map.changes && map.changes.length > 0) {
+          add('**Changes:**');
+          map.changes.forEach((ch: any) => {
+            const action = ch.action ? `[${ch.action.toUpperCase()}]` : '';
+            add(`- ${action} **${ch.system || '—'}**: ${ch.description || '—'}${ch.impact ? ` (Impact: ${ch.impact})` : ''}${ch.cost ? ` (Cost: ${ch.cost})` : ''}`);
+            if (ch.why) add(`  > ${ch.why}`);
+          });
+          add('');
+        }
+      });
+    } else {
+      add('Technology roadmap maps not yet generated.', '');
+    }
+
+    // 13. Quick Wins
+    add(hr, `## 13. Quick Wins (${quickWins.length})`, '');
+    const totalQWHours = quickWins.reduce((s: number, q: any) => s + (parseFloat(q.hoursSaved || q.hours_saved || q.hoursSavedWeekly || 0) || 0), 0);
+    add(`Zero cost · ${totalQWHours} hours saved/week`, '');
+    quickWins.forEach((qw: any, i: number) => {
+      const hours = parseFloat(qw.hoursSaved || qw.hours_saved || qw.hoursSavedWeekly || 0) || 0;
+      const owner = qw.owner || qw.assignee || '';
+      add(`### ${i + 1}. ${qw.title || qw.action} (+${hours}h/wk)`);
+      if (owner) add(`**Owner:** ${owner}`);
+      if (qw.steps || qw.implementation) add(`**Steps:** ${qw.steps || qw.implementation}`);
+      if (qw.impact || qw.mondayMorning) add(`> ${qw.impact || qw.mondayMorning}`);
+      const affected = qw.affectedSystems || qw.affected_systems || [];
+      if (affected.length > 0) add(`**Systems:** ${affected.join(', ')}`);
+      add('');
+    });
+
+    // 14. Actions
+    add(hr, `## 14. What To Do Next`, '');
+    if (adminNextStepsList.length > 0) {
+      add(`### Recommended Next Steps (${adminNextStepsList.length})`, '');
+      adminNextStepsList.forEach((step: any, i: number) => {
+        add(`**${i + 1}. ${step.action}**`);
+        const tags: string[] = [];
+        if (step.priority) tags.push(`Priority: ${step.priority}`);
+        if (step.owner) tags.push(`Owner: ${step.owner}`);
+        if (step.timing) tags.push(`Timing: ${step.timing}`);
+        if (tags.length > 0) add(tags.join(' · '));
+        if (step.outcome) add(`Expected outcome: ${step.outcome}`);
+        add('');
+      });
+    }
+    if (adminTasksList.length > 0) {
+      add(`### Tasks to Assign (${adminTasksList.length})`, '');
+      adminTasksList.forEach((t: any, i: number) => {
+        add(`**${i + 1}. ${t.task}**`);
+        const tags: string[] = [];
+        if (t.assignTo) tags.push(`Assign: ${t.assignTo}`);
+        if (t.dueDate) tags.push(`Due: ${t.dueDate}`);
+        if (tags.length > 0) add(tags.join(' · '));
+        if (t.deliverable) add(`Deliverable: ${t.deliverable}`);
+        add('');
+      });
+    }
+    if (adminNextStepsList.length === 0 && adminTasksList.length === 0) add('No next steps or tasks recorded yet.', '');
+
+    // Admin-only data (talking points, questions)
+    const talkingPts = (report.admin_talking_points || []) as any[];
+    const questionsToAsk = (report.admin_questions_to_ask || []) as any[];
+    if (talkingPts.length > 0 || questionsToAsk.length > 0) {
+      add(hr, `## Appendix: Admin Guidance (not shown to client)`, '');
+      if (talkingPts.length > 0) {
+        add(`### Talking Points`);
+        talkingPts.forEach((tp: any) => add(`- ${typeof tp === 'string' ? tp : (tp.point || tp.topic || JSON.stringify(tp))}`));
+        add('');
+      }
+      if (questionsToAsk.length > 0) {
+        add(`### Questions to Ask`);
+        questionsToAsk.forEach((q: any) => add(`- ${typeof q === 'string' ? q : (q.question || JSON.stringify(q))}`));
+        add('');
+      }
+    }
+
+    // Raw scores appendix
+    add(hr, `## Appendix: Raw Data Summary`, '');
+    add(`| Field | Value |`, `|---|---|`);
+    add(`| Systems count | ${systemsList.length} |`);
+    add(`| Findings count | ${displayFindings.length} |`);
+    add(`| Recommendations count | ${displayRecs.length} |`);
+    add(`| Quick wins count | ${quickWins.length} |`);
+    add(`| Risk flags | ${riskFlags.length} |`);
+    add(`| Next steps | ${adminNextStepsList.length} |`);
+    add(`| Tasks | ${adminTasksList.length} |`);
+    add(`| Report status | ${report.status || '—'} |`);
+    add(`| Generated at | ${dateStr} |`);
+    add('');
+
+    return lines.join('\n');
+  };
+
+  const handleExportMarkdown = () => {
+    const md = buildMarkdownExport();
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const compName = (facts?.companyName || companyName || 'client').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+    a.href = url;
+    a.download = `sa-report-${compName}-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   // ─── Layout ──────────────────────────────────────────────────────────────
   let lastGroup = '';
 
@@ -898,6 +1221,13 @@ export function SAClientReportView({ report, companyName, findings: propFindings
         <div className="px-3 py-4 border-b border-white/5">
           <p className="text-white font-bold text-sm">Client Preview</p>
           <p className="text-slate-500 text-[10px] font-mono mt-0.5">14 sections</p>
+          <button
+            onClick={handleExportMarkdown}
+            className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1.5 text-[10px] font-semibold rounded-md bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            Export for Analysis
+          </button>
         </div>
         <nav className="py-2">
           {NAV_ITEMS.map(item => {
