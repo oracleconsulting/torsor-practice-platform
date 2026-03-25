@@ -635,7 +635,19 @@ export default function SAReportPage() {
   const [activeSection, setActiveSection] = useState('overview');
   const [expandedQW, setExpandedQW] = useState<number | null>(null);
   const [transitioning, setTransitioning] = useState(false);
+  const [printMode, setPrintMode] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onBefore = () => setPrintMode(true);
+    const onAfter = () => setPrintMode(false);
+    window.addEventListener('beforeprint', onBefore);
+    window.addEventListener('afterprint', onAfter);
+    return () => {
+      window.removeEventListener('beforeprint', onBefore);
+      window.removeEventListener('afterprint', onAfter);
+    };
+  }, []);
 
   // ─── Persistent visited sections (localStorage) ─────────────────────────
   const storageKey = report?.id ? `sa-visited-${report.id}` : null;
@@ -749,16 +761,19 @@ export default function SAReportPage() {
     { id: 'processes', label: 'Processes', icon: Workflow, section: 'analysis' },
     { id: 'findings', label: 'Findings', icon: AlertTriangle, section: 'analysis' },
     { id: 'risks', label: 'Risks', icon: Shield, section: 'analysis' },
+    { id: 'governance', label: 'Governance', icon: Users, section: 'analysis' },
     { id: 'recommendations', label: 'Recommendations', icon: Target, section: 'plan' },
     { id: 'investment', label: 'Investment', icon: TrendingUp, section: 'plan' },
+    { id: 'decisions', label: 'Decisions', icon: Gauge, section: 'plan' },
     { id: 'roadmap', label: 'Roadmap', icon: Layers, section: 'plan' },
     { id: 'quickwins', label: 'Quick Wins', icon: Zap, section: 'plan' },
-    { id: 'actions', label: 'Actions', icon: CalendarClock, section: 'plan' },
+    { id: 'actions', label: 'Actions', icon: CalendarClock, section: 'action' },
   ];
   const SECTION_GROUPS: Record<string, string> = {
     overview: 'Overview',
     analysis: 'Analysis',
     plan: 'Plan',
+    action: 'Action',
   };
 
   if (loading) {
@@ -839,7 +854,7 @@ export default function SAReportPage() {
   function SASidebar() {
     let lastGroup = '';
     return (
-      <aside style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 220, background: C.navy, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', zIndex: 30 }}>
+      <aside className="sa-sidebar" style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 220, background: C.navy, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', zIndex: 30 }}>
         <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ color: '#fff', fontWeight: 700, fontSize: 18, fontFamily: "'DM Sans', sans-serif" }}>RPGCC</span>
@@ -895,8 +910,8 @@ export default function SAReportPage() {
   // v5 SECTION RENDERERS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const renderSection = () => {
-    switch (activeSection) {
+  const renderSection = (sectionId?: string) => {
+    switch (sectionId || activeSection) {
 
       // ─── OVERVIEW ────────────────────────────────────────────────────────
       case 'overview':
@@ -1412,6 +1427,226 @@ export default function SAReportPage() {
         );
       }
 
+      // ─── GOVERNANCE & CHANGE READINESS ──────────────────────────────────
+      case 'governance': {
+        const governanceCards = useMemo(() => {
+          const allQuotes = (p1.clientPresentation?.clientQuotes || []) as string[];
+          const allFindings = displayFindings as any[];
+          const allFlags = riskFlags as any[];
+
+          const search = (keywords: string[]) => {
+            const lk = keywords.map(k => k.toLowerCase());
+            const findF = allFindings.find(f =>
+              lk.some(k => (f.title || '').toLowerCase().includes(k) || (f.description || '').toLowerCase().includes(k))
+            );
+            const findR = allFlags.find(r =>
+              lk.some(k => (r.flag || '').toLowerCase().includes(k) || (r.mitigation || '').toLowerCase().includes(k))
+            );
+            const findQ = allQuotes.find(q => lk.some(k => q.toLowerCase().includes(k)));
+            return { finding: findF, risk: findR, quote: findQ };
+          };
+
+          const cards: { title: string; icon: any; color: string; observations: string[]; recommendation: string; quote?: string }[] = [];
+
+          const leadershipHits = search(['shareholder', 'cheque', 'physical sign', 'invoice sign', 'paper']);
+          cards.push({
+            title: 'Leadership Buy-In',
+            icon: Building2, color: C.purple,
+            observations: [
+              leadershipHits.finding?.description || 'Shareholder requires physical invoice signing and cheques, creating tension with digital transformation.',
+              'Digital audit trails provide stronger financial control than paper-based processes.',
+            ].filter(Boolean),
+            recommendation: 'Demonstrate that digital approval workflows provide a stronger audit trail than physical signatures — with faster throughput.',
+            quote: leadershipHits.quote,
+          });
+
+          const shadowItHits = search(['bypass', 'shadow', 'google doc', 'workaround', 'unofficial', 'ollie']);
+          cards.push({
+            title: 'Shadow IT & Workarounds',
+            icon: Eye, color: C.amber,
+            observations: [
+              shadowItHits.finding?.description || 'When official systems are too slow or cumbersome, people build their own workarounds.',
+              'Informal tools create data silos and compliance blind spots.',
+            ].filter(Boolean),
+            recommendation: 'New systems must be fast enough that workarounds are not needed. Address the root cause, not the symptom.',
+            quote: shadowItHits.quote,
+          });
+
+          const keyPersonHits = search(['key person', 'single point', 'debbie', 'ann', 'irreplaceable', 'when she', 'when he', 'only person']);
+          cards.push({
+            title: 'Key Person Dependencies',
+            icon: Users, color: C.red,
+            observations: [
+              keyPersonHits.finding?.description || 'Critical processes depend on specific individuals — when they are unavailable, work stops.',
+              'Undocumented processes create unacceptable business continuity risk.',
+            ].filter(Boolean),
+            recommendation: 'Document all critical processes and cross-train before any system migration. Remove single points of failure.',
+            quote: keyPersonHits.quote,
+          });
+
+          const controlHits = search(['approval', 'disabled', 'control', 'limit', 'override', 'speed']);
+          cards.push({
+            title: 'Control vs Speed Trade-off',
+            icon: Shield, color: C.orange,
+            observations: [
+              controlHits.finding?.description || 'Financial controls have been weakened or disabled because current systems are too slow.',
+              'The business chose operational speed over proper governance — new systems must deliver both.',
+            ].filter(Boolean),
+            recommendation: 'New purchasing and approval systems must deliver speed AND controls simultaneously — not one at the expense of the other.',
+            quote: controlHits.quote,
+          });
+
+          return cards;
+        }, [displayFindings, riskFlags, p1]);
+
+        return (
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Governance & Change Readiness</h2>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 6 }}>Technology changes only succeed if the organisation is ready to adopt them</p>
+            </div>
+            {governanceCards.map((card, i) => {
+              const Icon = card.icon;
+              return (
+                <RevealCard key={i} delay={i * 70} style={{ ...glass({ padding: 24 }), border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: `${card.color}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: card.color, flexShrink: 0 }}>
+                      <Icon style={{ width: 18, height: 18 }} />
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: C.text }}>{card.title}</h3>
+                  </div>
+                  {card.observations.map((obs, j) => (
+                    <p key={j} style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 10, paddingLeft: 14, borderLeft: `3px solid ${card.color}25` }}>{obs}</p>
+                  ))}
+                  {card.quote && (
+                    <blockquote style={{ padding: '12px 18px', margin: '12px 0', borderLeft: `4px solid ${C.amber}`, fontStyle: 'italic', color: '#475569', fontSize: 14, lineHeight: 1.7, background: 'rgba(245,158,11,0.06)', borderRadius: '0 10px 10px 0' }}>
+                      &quot;{card.quote}&quot;
+                    </blockquote>
+                  )}
+                  <div style={{ marginTop: 14, padding: '12px 16px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}` }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.emerald, ...mono, textTransform: 'uppercase' }}>Recommendation</span>
+                    <p style={{ color: C.textSecondary, fontSize: 14, margin: '6px 0 0 0', lineHeight: 1.6 }}>{card.recommendation}</p>
+                  </div>
+                </RevealCard>
+              );
+            })}
+          </div>
+        );
+      }
+
+      // ─── DECISION MATRIX ────────────────────────────────────────────────
+      case 'decisions': {
+        const quickWinHours = (quickWins || []).reduce((s: number, q: any) => s + (parseFloat(q.hoursSavedWeekly || q.hoursSaved || q.hours_saved || 0) || 0), 0);
+        const quickWinBenefit = (quickWins || []).reduce((s: number, q: any) => s + (parseFloat(q.annualBenefit || q.annual_benefit || 0) || 0), 0);
+
+        const scenarios = [
+          {
+            title: 'Do Nothing',
+            subtitle: 'Accept current costs and risks',
+            color: C.red,
+            year1Cost: m.annualCostOfChaos,
+            year3Cost: m.annualCostOfChaos * 3,
+            hoursBack: 0,
+            investmentAmt: 0,
+            risks: [
+              'Key person dependencies remain',
+              'Manual processes scale linearly with growth',
+              'Loss-making contracts remain invisible',
+              'Financial controls gap persists',
+            ],
+          },
+          {
+            title: 'Quick Wins Only',
+            subtitle: 'Zero-cost fixes you can do this week',
+            color: C.amber,
+            year1Cost: m.annualCostOfChaos - quickWinBenefit,
+            year3Cost: (m.annualCostOfChaos - quickWinBenefit) * 3,
+            hoursBack: quickWinHours,
+            investmentAmt: 0,
+            risks: [
+              'Core integration gaps remain',
+              'Manual data transfers continue',
+              'Period-close mismatch persists',
+              'Partial improvement only',
+            ],
+          },
+          {
+            title: 'Full Transformation',
+            subtitle: 'Complete technology overhaul',
+            color: C.emerald,
+            year1Cost: totalInvestment,
+            year3Cost: totalInvestment - (totalBenefit * 3),
+            hoursBack: totalHoursSaved,
+            investmentAmt: totalInvestment,
+            risks: [
+              'Migration disruption (mitigated by phased approach)',
+              'Requires team adoption and training',
+              'Shareholder buy-in needed for digital approvals',
+            ],
+          },
+        ];
+
+        return (
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <div>
+              <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Decision Matrix</h2>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 6 }}>Three scenarios — the cost of action versus inaction</p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              {scenarios.map((sc, i) => (
+                <RevealCard key={i} delay={i * 100} style={{ ...glass({ padding: 0, overflow: 'hidden' }), border: '1px solid rgba(0,0,0,0.08)', borderRadius: 16, display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '20px 20px 16px', borderBottom: `3px solid ${sc.color}`, background: `${sc.color}05` }}>
+                    <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: sc.color }}>{sc.title}</h3>
+                    <p style={{ color: C.textMuted, fontSize: 13, marginTop: 4 }}>{sc.subtitle}</p>
+                  </div>
+                  <div style={{ padding: 20, flex: 1, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div style={{ textAlign: 'center', padding: 12, background: 'rgba(0,0,0,0.02)', borderRadius: 10 }}>
+                        <span style={{ ...label }}>YEAR 1 COST</span>
+                        <p style={{ fontSize: 18, fontWeight: 800, color: sc.year1Cost > 0 ? C.red : C.emerald, margin: '6px 0 0', ...mono, fontVariantNumeric: 'tabular-nums' }}>
+                          {sc.year1Cost < 0 ? '-' : ''}{fmt(Math.abs(sc.year1Cost))}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: 'center', padding: 12, background: 'rgba(0,0,0,0.02)', borderRadius: 10 }}>
+                        <span style={{ ...label }}>3-YEAR NET</span>
+                        <p style={{ fontSize: 18, fontWeight: 800, color: sc.year3Cost > 0 ? C.red : C.emerald, margin: '6px 0 0', ...mono, fontVariantNumeric: 'tabular-nums' }}>
+                          {sc.year3Cost < 0 ? '-' : ''}{fmt(Math.abs(sc.year3Cost))}
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div style={{ textAlign: 'center', padding: 12, background: 'rgba(0,0,0,0.02)', borderRadius: 10 }}>
+                        <span style={{ ...label }}>HOURS BACK</span>
+                        <p style={{ fontSize: 18, fontWeight: 800, color: sc.hoursBack > 0 ? C.blue : C.textMuted, margin: '6px 0 0', ...mono }}>{sc.hoursBack > 0 ? `+${sc.hoursBack}h/wk` : '0'}</p>
+                      </div>
+                      <div style={{ textAlign: 'center', padding: 12, background: 'rgba(0,0,0,0.02)', borderRadius: 10 }}>
+                        <span style={{ ...label }}>INVESTMENT</span>
+                        <p style={{ fontSize: 18, fontWeight: 800, color: C.text, margin: '6px 0 0', ...mono, fontVariantNumeric: 'tabular-nums' }}>{sc.investmentAmt > 0 ? fmt(sc.investmentAmt) : '£0'}</p>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ ...label, display: 'block', marginBottom: 8 }}>RESIDUAL RISKS</span>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: C.textSecondary, lineHeight: 1.6 }}>
+                        {sc.risks.map((r, j) => <li key={j}>{r}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+                </RevealCard>
+              ))}
+            </div>
+
+            <RevealCard delay={350} style={{ ...glass({ padding: 24 }), borderLeft: `4px solid ${C.emerald}`, background: `linear-gradient(135deg, ${C.emerald}05, rgba(255,255,255,0.97))` }}>
+              <p style={{ color: C.text, fontSize: 15, fontWeight: 600, margin: '0 0 6px' }}>Our recommendation</p>
+              <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, margin: 0 }}>
+                Implement quick wins immediately (this week), then begin the full transformation in phases.
+                See the Implementation Roadmap for the step-by-step plan.
+              </p>
+            </RevealCard>
+          </div>
+        );
+      }
+
       // ─── QUICK WINS ───────────────────────────────────────────────────────
       case 'quickwins': {
         const qwList = quickWins || [];
@@ -1791,12 +2026,32 @@ export default function SAReportPage() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 3px; }
         ::selection { background: ${C.blue}30; }
+
+        @media print {
+          aside, nav, .sa-sidebar { display: none !important; }
+          .sa-header-actions { display: none !important; }
+          .sa-content-area {
+            margin-left: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .sa-content-area > div { max-width: 100% !important; }
+          body, html { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .print-section { break-inside: avoid; page-break-inside: avoid; margin-bottom: 24px; }
+          .print-page-break { page-break-before: always; }
+          @page {
+            margin: 1.5cm 2cm;
+            @bottom-center { content: "Systems Audit Report — Prepared by Torsor"; }
+          }
+        }
       `}</style>
 
       <SASidebar />
 
       <div
         ref={contentRef}
+        className="sa-content-area"
         style={{
           marginLeft: 220, flex: 1, padding: '24px 32px', overflowY: 'auto', height: '100vh',
           background: C.bg,
@@ -1816,16 +2071,38 @@ export default function SAReportPage() {
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+            <div className="sa-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+              <button
+                onClick={() => window.print()}
+                style={{
+                  padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.blue}`,
+                  background: 'transparent', color: C.blue, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >
+                <FileText style={{ width: 14, height: 14 }} />
+                Download PDF
+              </button>
               <CostClock annualCost={m.annualCostOfChaos} />
               <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>
                 {report.generated_at ? new Date(report.generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
               </span>
             </div>
           </div>
-          <div key={activeSection} style={{ animation: 'fadeIn 0.4s ease' }}>
-            {renderSection()}
-          </div>
+          {printMode ? (
+            <div>
+              {NAV_ITEMS.map((item, idx) => (
+                <div key={item.id} className={idx > 0 ? 'print-page-break print-section' : 'print-section'}>
+                  {renderSection(item.id)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div key={activeSection} style={{ animation: 'fadeIn 0.4s ease' }}>
+              {renderSection()}
+            </div>
+          )}
         </div>
       </div>
     </div>

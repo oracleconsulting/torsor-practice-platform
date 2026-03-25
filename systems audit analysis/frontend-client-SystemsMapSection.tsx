@@ -415,6 +415,7 @@ export default function SystemsMapSection({ systemsMaps, facts, layout = 'stacke
   const [activeMap, setActiveMap] = useState(0);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const maps = useMemo(() => {
     if (systemsMaps && Array.isArray(systemsMaps) && systemsMaps.length > 0) {
@@ -749,6 +750,130 @@ export default function SystemsMapSection({ systemsMaps, facts, layout = 'stacke
     </div>
   ) : null;
 
+  // ─── Implementation Guide ──────────────────────────────────────────────────
+  const guideSteps: { title: string; owner: string; detail: string; extra?: string }[] = useMemo(() => {
+    if (activeMap === 0) return [];
+
+    const changes: any[] = current.changes || [];
+    if (activeMap === 1) {
+      return changes.map((ch: any) => ({
+        title: ch.system ? `${ch.system}: ${ch.description || 'Native fix'}` : (ch.description || 'Fix'),
+        owner: 'Your finance/IT team',
+        detail: ch.why || `Contact ${ch.system || 'vendor'} support to enable this configuration. Test in parallel before switching off manual processes.`,
+        extra: 'Verify the manual workaround is no longer needed after enabling.',
+      }));
+    }
+    if (activeMap === 2) {
+      return changes.filter((ch: any) => ch.action === 'connected' || (ch.description || '').toLowerCase().includes('connect')).map((ch: any) => ({
+        title: ch.system ? `${ch.system}` : (ch.description || 'Connection'),
+        owner: 'Technical team member or integration specialist',
+        detail: ch.description || 'Configure middleware trigger and action flow. Build time estimate: 8-12 hours including testing.',
+        extra: ch.impact || (
+          (ch.description || '').toLowerCase().includes('zapier') || (ch.description || '').toLowerCase().includes('make')
+            ? 'GDPR note: Data passes through US servers. Evaluate whether Power Automate (M365 environment) is preferred for data that includes personal information.'
+            : undefined
+        ),
+      }));
+    }
+    if (activeMap === 3) {
+      const stages = current.implementationStages;
+      if (stages && Array.isArray(stages) && stages.length > 0) {
+        return stages.map((st: any, idx: number) => ({
+          title: `Phase ${idx + 1}: ${st.title || st.phase || 'Implementation'}`,
+          owner: st.owner || 'Advisory team',
+          detail: st.description || [st.timing, st.tools].filter(Boolean).join(' — ') || 'See recommendation detail.',
+          extra: st.timing ? `Timeline: ${st.timing}` : undefined,
+        }));
+      }
+      const replaces = changes.filter((c: any) => c.action === 'added' || (c.description || '').includes('replac'));
+      const reconfigs = changes.filter((c: any) => c.action === 'reconfigured');
+      const steps: typeof guideSteps = [];
+      if (replaces.length > 0) {
+        steps.push({
+          title: `Phase 1: Replacements (${replaces.length})`,
+          owner: 'Project lead + vendor',
+          detail: replaces.map((c: any) => c.system || c.description).filter(Boolean).join(', '),
+        });
+      }
+      if (reconfigs.length > 0) {
+        steps.push({
+          title: `Phase 2: Reconfigurations (${reconfigs.length})`,
+          owner: 'Internal IT / vendor support',
+          detail: reconfigs.map((c: any) => c.system || c.description).filter(Boolean).join(', '),
+        });
+      }
+      if (steps.length === 0) {
+        changes.forEach((ch: any, idx: number) => {
+          steps.push({
+            title: `Step ${idx + 1}: ${ch.system || ch.description || 'Change'}`,
+            owner: 'Advisory team',
+            detail: ch.description || ch.why || '',
+          });
+        });
+      }
+      return steps;
+    }
+    return [];
+  }, [activeMap, current]);
+
+  const guidePanel = guideSteps.length > 0 ? (
+    <div style={{
+      marginTop: '16px', background: '#0a1628',
+      border: '1px solid #1e293b', borderRadius: '12px', overflow: 'hidden',
+    }}>
+      <button onClick={() => setGuideOpen(!guideOpen)} style={{
+        width: '100%', padding: '14px 20px', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: '10px',
+        background: guideOpen ? '#22c55e10' : 'transparent',
+        border: 'none', borderBottom: guideOpen ? '1px solid #1e293b' : 'none',
+      }}>
+        <span style={{ fontSize: '14px', transform: guideOpen ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.2s ease', display: 'inline-block' }}>▶</span>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: '#22c55e', fontFamily: "'DM Sans', sans-serif" }}>
+          Implementation Guide — {guideSteps.length} step{guideSteps.length !== 1 ? 's' : ''}
+        </span>
+      </button>
+      {guideOpen && (
+        <div style={{ padding: '4px 0' }}>
+          {guideSteps.map((step, i) => (
+            <div key={i} style={{ padding: '14px 20px', borderBottom: i < guideSteps.length - 1 ? '1px solid #1e293b' : 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <span style={{
+                  width: '22px', height: '22px', borderRadius: '11px',
+                  background: '#22c55e20', color: '#22c55e',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '11px', fontWeight: 700, flexShrink: 0,
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}>{i + 1}</span>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', fontFamily: "'DM Sans', sans-serif" }}>{step.title}</span>
+              </div>
+              <div style={{ marginLeft: '32px' }}>
+                <span style={{
+                  fontSize: '10px', padding: '2px 8px', borderRadius: '4px',
+                  background: '#7c3aed15', color: '#a78bfa', border: '1px solid #7c3aed30',
+                  fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
+                }}>{step.owner}</span>
+                <p style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6', margin: '8px 0 0', fontFamily: "'DM Sans', sans-serif" }}>{step.detail}</p>
+                {step.extra && (
+                  <div style={{ marginTop: '8px', padding: '8px 12px', background: '#f59e0b08', borderLeft: '2px solid #f59e0b40', borderRadius: '0 6px 6px 0' }}>
+                    <span style={{ fontSize: '11px', color: '#fbbf24', fontStyle: 'italic', fontFamily: "'DM Sans', sans-serif", lineHeight: '1.5' }}>{step.extra}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          {activeMap === 3 && (
+            <div style={{ padding: '14px 20px', borderTop: '1px solid #1e293b', background: '#22c55e05' }}>
+              <p style={{ fontSize: '12px', color: '#94a3b8', lineHeight: '1.6', margin: 0, fontFamily: "'DM Sans', sans-serif" }}>
+                This implementation plan is designed to be self-contained. Your team can begin making these changes independently.
+                For guided support through the transition, contact your advisory team about implementation packages.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <div
       style={{
@@ -848,6 +973,7 @@ export default function SystemsMapSection({ systemsMaps, facts, layout = 'stacke
               className="scrollbar-hide"
             >
               {changesPanel}
+              {guidePanel}
             </div>
           </div>
         </>
@@ -859,6 +985,7 @@ export default function SystemsMapSection({ systemsMaps, facts, layout = 'stacke
           {bottomStats(4)}
           {legend}
           {changesPanel && <div style={{ marginTop: '20px' }}>{changesPanel}</div>}
+          {guidePanel && <div style={{ marginTop: '12px' }}>{guidePanel}</div>}
         </>
       )}
     </div>
