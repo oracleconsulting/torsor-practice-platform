@@ -51,7 +51,9 @@ import {
   Brain,
   Quote,
   Phone,
-  XCircle
+  XCircle,
+  Play,
+  Map as MapIcon
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
@@ -7583,6 +7585,32 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               )}
             </button>
 
+            {/* Generate Roadmap Button — first-time generation only */}
+            {!client?.roadmap && (
+              <button
+                onClick={async () => {
+                  if (confirm('Generate roadmap for this client? This will run the full pipeline and may take 2–3 minutes.')) {
+                    await handleRegenerate();
+                  }
+                }}
+                disabled={regenerating}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm font-medium"
+                title="Generate roadmap for this client"
+              >
+                {regenerating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Generate Roadmap
+                  </>
+                )}
+              </button>
+            )}
+
             {/* Pipeline Control Buttons */}
             {client?.roadmap && (
               <>
@@ -10341,9 +10369,65 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         : null}
                     </>
                   ) : (
-                    <div className="text-center py-12">
-                      <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500">No roadmap generated yet</p>
+                    <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+                      <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-5">
+                        <MapIcon className="w-8 h-8 text-indigo-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No roadmap generated yet</h3>
+                      <p className="text-sm text-gray-500 mb-6 max-w-sm">
+                        The pipeline will generate a Fit Profile, 5-Year Vision, 6-Month Shift, 12-Week Sprint Plan, and Value Analysis.
+                      </p>
+
+                      <div className="w-full max-w-sm bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6 text-left space-y-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Assessment Readiness</p>
+                        {[
+                          { label: 'Part 1 — Life Design', key: 'part1' },
+                          { label: 'Part 2 — Business Deep Dive', key: 'part2' },
+                          { label: 'Part 3 — Hidden Value Audit', key: 'part3' },
+                        ].map(({ label, key }) => {
+                          const isComplete = client?.assessments?.some(
+                            (a: any) => a.assessment_type === key && a.status === 'completed'
+                          );
+                          return (
+                            <div key={key} className="flex items-center gap-2">
+                              {isComplete ? (
+                                <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                              )}
+                              <span className={`text-sm ${isComplete ? 'text-gray-700' : 'text-gray-400'}`}>
+                                {label}
+                              </span>
+                              {isComplete && (
+                                <span className="ml-auto text-xs text-emerald-600 font-medium">Complete</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        onClick={async () => {
+                          if (confirm('Generate roadmap for this client? This will run the full pipeline and may take 2–3 minutes.')) {
+                            await handleRegenerate();
+                          }
+                        }}
+                        disabled={regenerating}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:bg-indigo-400 font-medium"
+                      >
+                        {regenerating ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4" />
+                            Generate Roadmap
+                          </>
+                        )}
+                      </button>
+                      <p className="text-xs text-gray-400 mt-3">Takes 2–3 minutes to complete</p>
                     </div>
                   )}
 
