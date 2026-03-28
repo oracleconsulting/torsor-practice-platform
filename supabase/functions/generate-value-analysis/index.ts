@@ -960,7 +960,8 @@ async function generateNarrativeSummary(
   riskRegister: any[],
   valueGaps: any[],
   fitProfile: any,
-  vision: any
+  vision: any,
+  bmCrossRef?: any
 ): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) {
@@ -991,6 +992,17 @@ ${criticalRisks.map(r => `- ${r.risk}: ${r.description}`).join('\n') || 'No crit
 ## QUICK WINS
 ${quickWins.map(qw => `- ${qw.gap}: £${qw.opportunity?.toLocaleString()} opportunity`).join('\n') || 'No quick wins identified'}
 
+${bmCrossRef ? `## BENCHMARKING REPORT FINDINGS (from completed BM analysis)
+This client has a completed Benchmarking Clarity Report. Use these findings to make your narrative more specific and grounded.
+
+- Exit Readiness Score: ${bmCrossRef.exitReadiness || 'Not assessed'}/100
+- Annual Opportunity Identified: £${(bmCrossRef.annualOpportunity || 0).toLocaleString()}
+- Hidden Assets Found: ${bmCrossRef.hiddenAssets || 0}
+- Value Suppressors: ${bmCrossRef.valueSuppressors?.join(', ') || 'None identified'}
+
+When writing the "uncomfortable truth", reference specific BM findings if relevant.
+Do NOT just repeat BM numbers — translate them into what they mean for this person's life and North Star.
+` : ''}
 ## YOUR TASK
 
 Create a narrative summary with:
@@ -4594,6 +4606,81 @@ serve(async (req) => {
         valueGaps
       );
       
+      // Build BM cross-reference for narrative and output
+      let bmCrossReference: any = null;
+      if (bmValueAnalysis) {
+        console.log('[ValueAnalysis] Building BM cross-reference');
+        const bmExit = bmValueAnalysis.exitReadinessScore || bmValueAnalysis.exitReadiness || {};
+        bmCrossReference = {
+          exitReadiness: bmExit.overall || bmExit.score || null,
+          hiddenAssets: (bmValueAnalysis.hiddenAssets || []).length,
+          valueSuppressors: (bmValueAnalysis.valueSuppressors || bmValueAnalysis.value_suppressors || []).map((s: any) => s.name || s.title || s.suppressor || '').filter(Boolean),
+          annualOpportunity: bmValueAnalysis.totalOpportunity || bmValueAnalysis.annual_opportunity || 0,
+          source: 'benchmarking_report'
+        };
+      }
+
+      // BM exit readiness enrichment — use BM's score if more comprehensive
+      if (bmValueAnalysis && businessValuation.exitReadiness) {
+        const bmExit = bmValueAnalysis.exitReadinessScore || bmValueAnalysis.exitReadiness || {};
+        const bmScore = bmExit.overall || bmExit.score;
+        if (typeof bmScore === 'number' && bmScore > 0) {
+          businessValuation.exitReadiness = {
+            ...businessValuation.exitReadiness,
+            score: bmScore,
+            blockers: bmExit.blockers || businessValuation.exitReadiness.blockers,
+            recommendations: bmExit.recommendations || businessValuation.exitReadiness.recommendations,
+            timeToExit: bmExit.timeToExit || businessValuation.exitReadiness.timeToExit,
+            source: 'benchmarking_report',
+            breakdown: bmExit.breakdown || bmExit.scoreBreakdown || null
+          };
+          console.log(`[ValueAnalysis] Using BM exit readiness: ${bmScore}/100`);
+        }
+
+        const bmSuppressors = bmValueAnalysis.valueSuppressors || bmValueAnalysis.value_suppressors || [];
+        for (const suppressor of bmSuppressors) {
+          const name = suppressor.name || suppressor.title || suppressor.suppressor || '';
+          if (!name) continue;
+          const existing = riskRegister.find((r: any) => r.risk?.toLowerCase().includes(name.toLowerCase()) || r.description?.toLowerCase().includes(name.toLowerCase()));
+          if (!existing) {
+            riskRegister.push({
+              risk: name,
+              description: suppressor.description || suppressor.detail || 'Identified in Benchmarking assessment',
+              severity: suppressor.severity || 'High',
+              likelihood: 'Medium',
+              financialExposure: suppressor.valueImpact || suppressor.value_impact || 0,
+              mitigation: suppressor.fixVia || suppressor.fix_via || suppressor.recommendation || 'Address via targeted improvement programme',
+              mitigationCost: suppressor.fixCost || suppressor.investment || 0,
+              mitigationTimeframe: suppressor.fixTimeframe || suppressor.timeframe || '6-12 months',
+              monitoringMetric: 'Track via BM re-assessment',
+              source: 'benchmarking_report'
+            });
+          }
+        }
+      }
+
+      // Merge BM opportunities into value gaps
+      if (bmReportData) {
+        const bmOpps = bmReportData.opportunities || bmReportData.topGaps || [];
+        for (const opp of bmOpps) {
+          const oppName = opp.area || opp.metric || opp.title || '';
+          const oppValue = opp.annualImpact || opp.potential || opp.value || 0;
+          if (oppName && oppValue > 0) {
+            const existing = valueGaps.find((g: any) => g.gap?.toLowerCase().includes(oppName.toLowerCase()) || g.area?.toLowerCase().includes(oppName.toLowerCase()));
+            if (!existing) {
+              valueGaps.push({
+                gap: oppName, area: opp.category || 'Financial',
+                currentState: opp.currentPosition || opp.clientValue || 'Below benchmark',
+                targetState: opp.targetPosition || opp.benchmark || 'Industry median',
+                opportunity: typeof oppValue === 'number' ? oppValue : parseFloat(String(oppValue).replace(/[£,]/g, '')) || 0,
+                effort: opp.effort || opp.difficulty || 'Medium', timeframe: opp.timeframe || '3-6 months',
+                source: 'benchmarking_report'
+              });
+            }
+          }
+        }
+      }
+
       // Try LLM-generated narrative, fall back to financial-aware version
       const narrativeSummary = await generateNarrativeSummary(
         stageContext,
@@ -4603,7 +4690,8 @@ serve(async (req) => {
         riskRegister,
         valueGaps,
         fitProfile,
-        vision
+        vision,
+        bmCrossReference
       );
 
       const valueAnalysis = {
@@ -4677,6 +4765,15 @@ serve(async (req) => {
         totalOpportunity,
         valuationImpact,
         thirtyDayPlan,
+        bmCrossReference: bmCrossReference || null,
+        dataSourceSummary: {
+          financial: integratedFinancials.dataSource,
+          financialConfidence: integratedFinancials.confidence,
+          bmReportAvailable: !!bmReportData,
+          bmValueAnalysisAvailable: !!bmValueAnalysis,
+          contextDocsCount: (contextDocs || []).length,
+          part3Completed: Object.keys(part3Responses || {}).length > 0
+        },
         generatedAt: new Date().toISOString(),
         generationDurationMs: Date.now() - startTime
       };

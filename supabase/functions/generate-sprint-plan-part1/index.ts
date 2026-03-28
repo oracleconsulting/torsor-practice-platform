@@ -287,6 +287,20 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
 
     const sprintPart1 = await generateSprintPart1(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock);
 
+    // Enforce Life Design Thread — every week must have at least one life task
+    if (Array.isArray(sprintPart1?.weeks)) {
+      const lifeCtx: LifeTaskSource = {
+        tuesdayTest: context.tuesdayTest || context.relationshipMirror || '',
+        sacrifices: context.sacrifices || [],
+        northStar: context.northStar || '',
+        quarterlyLifePriority: context.quarterlyLifePriority || context.lbQuarterPriority || '',
+        magicAwayTask: context.magicAwayTask || '',
+        targetWorkingHours: String(context.targetWorkingHours || context.commitmentHours || ''),
+        lifeCommitments: context.lifeCommitments || []
+      };
+      sprintPart1.weeks = enforceLifeDesignThread(sprintPart1.weeks, lifeCtx, { min: 1, max: 6 });
+    }
+
     const duration = Date.now() - startTime;
 
     try {
@@ -992,4 +1006,76 @@ Return this JSON:
 6. Tuesday check-ins measure EMOTIONAL state, not task completion
 7. Week themes should be memorable (not "Week 1: Process Review")
 8. Celebration moments help them recognise progress they might miss`;
+}
+
+// ============================================================================
+// LIFE DESIGN THREAD ENFORCEMENT
+// ============================================================================
+
+interface LifeTaskSource {
+  tuesdayTest: string;
+  sacrifices: string[];
+  northStar: string;
+  quarterlyLifePriority: string;
+  magicAwayTask: string;
+  targetWorkingHours: string;
+  lifeCommitments: any[];
+}
+
+function enforceLifeDesignThread(weeks: any[], ctx: LifeTaskSource, weekRange: { min: number; max: number }): any[] {
+  if (!weeks || weeks.length === 0) return weeks;
+  const pool = buildLifeTaskPool(ctx);
+  let poolIdx = 0;
+  for (const week of weeks) {
+    if (week.weekNumber < weekRange.min || week.weekNumber > weekRange.max) continue;
+    const tasks = week.tasks || [];
+    const hasLifeTask = tasks.some((t: any) => { const c = (t.category || '').toLowerCase(); return c.startsWith('life_') || c === 'personal' || c === 'wellbeing'; });
+    if (!hasLifeTask) {
+      const base = pool[poolIdx % pool.length]; poolIdx++;
+      const evolved = evolveLifeTaskLanguage(base, week.weekNumber, weekRange);
+      const insertPos = tasks.length > 0 && tasks[tasks.length - 1]?.title?.toLowerCase().includes('review') ? tasks.length - 1 : tasks.length;
+      tasks.splice(insertPos, 0, evolved);
+      week.tasks = tasks;
+      console.log(`[LifeDesignThread] Inserted life task in Week ${week.weekNumber}: "${evolved.title}"`);
+    }
+  }
+  return weeks;
+}
+
+function buildLifeTaskPool(ctx: LifeTaskSource): any[] {
+  const pool: any[] = [];
+  if (ctx.lifeCommitments?.length > 0) {
+    for (const c of ctx.lifeCommitments) {
+      pool.push({ id: `life_${c.id || pool.length + 1}`, title: c.commitment || 'Honour your life commitment', description: `This comes from what you told us matters most. ${c.source || ''}`.trim(), whyThisMatters: 'Your North Star includes this. Without protecting it, the business changes mean nothing.', category: c.category || 'life_time', milestone: 'Life Design Thread', timeEstimate: c.frequency === 'daily' ? '30 mins' : '1-2 hours', deliverable: 'Protected time, honoured', celebrationMoment: 'Notice how it feels when you keep this promise to yourself', source: 'life_commitment' });
+    }
+  }
+  if (ctx.tuesdayTest) {
+    const t = ctx.tuesdayTest.toLowerCase();
+    if (t.includes('writ') || t.includes('personal writing')) pool.push({ id: `life_writing_${pool.length+1}`, title: 'Protect your writing time', description: 'Block out undisturbed time for your personal writing. Close the laptop. Silence the phone.', whyThisMatters: 'You described writing as part of your ideal day.', category: 'life_identity', milestone: 'Life Design Thread', timeEstimate: '2 hours', deliverable: 'Writing session completed', celebrationMoment: 'You wrote. That\'s enough.', source: 'tuesday_test' });
+    if (t.includes('children') || t.includes('kids') || t.includes('family') || t.includes('wife') || t.includes('partner') || t.includes('husband')) pool.push({ id: `life_family_${pool.length+1}`, title: 'Be fully present with your family this evening', description: 'Leave work at the time you said you want to. No checking emails. Be there — properly.', whyThisMatters: 'You said you want evenings free from urgent fires.', category: 'life_relationship', milestone: 'Life Design Thread', timeEstimate: 'An evening', deliverable: 'One evening fully present, phone away', celebrationMoment: 'Ask yourself: did anyone at work even notice I wasn\'t available?', source: 'tuesday_test' });
+    if (t.includes('exercise') || t.includes('run') || t.includes('gym') || t.includes('bike') || t.includes('walk') || t.includes('swim')) pool.push({ id: `life_exercise_${pool.length+1}`, title: 'Move your body — on your terms', description: 'You mentioned exercise as part of your ideal day. Schedule it. Protect it.', whyThisMatters: 'You listed this in your ideal Tuesday.', category: 'life_health', milestone: 'Life Design Thread', timeEstimate: '30-60 mins', deliverable: 'Exercise session completed', celebrationMoment: 'Notice your energy for the rest of the day', source: 'tuesday_test' });
+    const timeMatch = t.match(/finish.*?(\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm|o'clock))/i) || t.match(/wrap.*?(\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm|o'clock))/i) || t.match(/leave.*?(\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm|o'clock))/i);
+    if (timeMatch) pool.push({ id: `life_boundary_${pool.length+1}`, title: `Close the laptop by ${timeMatch[1]}`, description: `You said you want to finish work at ${timeMatch[1]}. This week, do it at least twice.`, whyThisMatters: 'Every week you don\'t honour this boundary, you prove the business owns your time.', category: 'life_time', milestone: 'Life Design Thread', timeEstimate: 'N/A', deliverable: `Two days where you stopped at ${timeMatch[1]}`, celebrationMoment: 'The world didn\'t end.', source: 'tuesday_test' });
+  }
+  if (ctx.sacrifices?.length > 0) {
+    for (const sac of ctx.sacrifices.slice(0, 2)) {
+      const sl = sac.toLowerCase();
+      if (sl.includes('hobby') || sl.includes('hobbies')) pool.push({ id: `life_hobby_${pool.length+1}`, title: 'Reclaim one hour for something you used to love', description: 'You said you\'ve sacrificed hobbies. Take one hour back.', whyThisMatters: 'The business took your hobbies. You\'re taking them back.', category: 'life_experience', milestone: 'Life Design Thread', timeEstimate: '1 hour', deliverable: 'One hour for you', celebrationMoment: 'Did it feel indulgent? Good.', source: 'sacrifices' });
+      if (sl.includes('sleep') || sl.includes('rest')) pool.push({ id: `life_rest_${pool.length+1}`, title: 'Get to bed on time — three nights this week', description: 'You said you\'ve sacrificed sleep. Be in bed by your target time at least three nights.', whyThisMatters: 'You can\'t build freedom if you\'re running on empty.', category: 'life_health', milestone: 'Life Design Thread', timeEstimate: 'N/A', deliverable: 'Three nights of proper rest', celebrationMoment: 'How did Thursday morning feel?', source: 'sacrifices' });
+      if (sl.includes('fitness') || sl.includes('health')) pool.push({ id: `life_fitness_${pool.length+1}`, title: 'Move your body this week', description: 'You said you\'ve sacrificed fitness. One session this week — anything counts.', whyThisMatters: 'Your body is keeping score.', category: 'life_health', milestone: 'Life Design Thread', timeEstimate: '30-60 mins', deliverable: 'One exercise session', celebrationMoment: 'You showed up for yourself.', source: 'sacrifices' });
+    }
+  }
+  if (ctx.quarterlyLifePriority) pool.push({ id: `life_quarterly_${pool.length+1}`, title: 'Check in on your quarterly life priority', description: `You said your priority this quarter is: "${ctx.quarterlyLifePriority}". What's one small step this week?`, whyThisMatters: 'This is what you said matters most right now — outside the business.', category: 'life_experience', milestone: 'Life Design Thread', timeEstimate: '15 mins + action', deliverable: 'One step taken', celebrationMoment: 'Progress, not perfection', source: 'quarterly_priority' });
+  if (pool.length === 0) pool.push({ id: 'life_generic_1', title: 'Protect one hour for yourself this week', description: 'Block one hour for something that has nothing to do with the business. Walk. Read. Sit quietly.', whyThisMatters: `Your North Star: "${ctx.northStar?.substring(0, 80) || 'A life worth building'}..." — this only happens if you practise it.`, category: 'life_time', milestone: 'Life Design Thread', timeEstimate: '1 hour', deliverable: 'One protected hour, used', celebrationMoment: 'You chose yourself.', source: 'fallback' });
+  return pool;
+}
+
+function evolveLifeTaskLanguage(task: any, weekNumber: number, weekRange: { min: number; max: number }): any {
+  const evolved = { ...task };
+  const rel = weekNumber - weekRange.min + 1;
+  if (rel <= 2) { evolved.description = `This is new. It might feel indulgent or uncomfortable. Do it anyway. ${task.description}`; evolved.celebrationMoment = task.celebrationMoment || 'You started. That\'s the hardest part.'; }
+  else if (rel <= 4) { evolved.description = `You've done this before. Notice: is it getting easier? ${task.description}`; evolved.celebrationMoment = task.celebrationMoment || 'Third time. Did the world end? Keep going.'; }
+  else { evolved.description = `This should feel normal now. If it still feels like a fight, that's a signal about your systems. ${task.description}`; evolved.celebrationMoment = task.celebrationMoment || 'This is becoming who you are.'; }
+  evolved.id = `${task.id}_w${weekNumber}`;
+  return evolved;
 }
