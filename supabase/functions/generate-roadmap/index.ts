@@ -830,21 +830,56 @@ function parseIncome(str: string | undefined): number {
 }
 
 // ============================================================================
+// REVENUE BAND PARSER
+// ============================================================================
+
+function parseRevenueBandRoadmap(band: string): number {
+  if (!band || band === '£0' || band === '') return 0;
+
+  const b = band.toLowerCase().replace(/\s+/g, '');
+
+  const numericMatch = band.replace(/[£,\s]/g, '').match(/^(\d+)$/);
+  if (numericMatch) {
+    const val = parseInt(numericMatch[1]);
+    if (val > 1000) return val;
+  }
+
+  if (b.includes('£10m+') || b.includes('10m+') || b.includes('over£10m') || b.includes('£10m-')) return 15000000;
+  if (b.includes('£5m') && (b.includes('£10m') || b.includes('10m'))) return 7500000;
+  if (b.includes('£5m')) return 7500000;
+  if (b.includes('£2.5m') || (b.includes('£2m') && b.includes('£5m'))) return 3500000;
+  if (b.includes('£1m') && (b.includes('£5m') || b.includes('5m'))) return 3000000;
+  if (b.includes('£1m') && (b.includes('£2.5m') || b.includes('£2m'))) return 1750000;
+  if (b.includes('£1m')) return 1500000;
+  if (b.includes('£500k') && b.includes('£1m')) return 750000;
+  if (b.includes('£500k')) return 750000;
+  if (b.includes('£250k') && b.includes('£500k')) return 375000;
+  if (b.includes('£250k')) return 375000;
+  if (b.includes('£100k') && b.includes('£250k')) return 175000;
+  if (b.includes('£100k')) return 125000;
+  if (b.includes('under') || b.includes('lessthan') || b.includes('pre-revenue') || b.includes('prerevenue')) return 50000;
+
+  const suffixMatch = band.match(/£?([\d.]+)\s*(k|m)/i);
+  if (suffixMatch) {
+    const num = parseFloat(suffixMatch[1]);
+    const multiplier = suffixMatch[2].toLowerCase() === 'm' ? 1000000 : 1000;
+    return num * multiplier;
+  }
+
+  console.warn(`[parseRevenueBandRoadmap] Could not parse: "${band}" — returning 0`);
+  return 0;
+}
+
+// ============================================================================
 // CONTEXT BUILDER
 // ============================================================================
 
 function buildContext(part1: Record<string, any>, part2: Record<string, any>, financialContext?: FinancialContext): RoadmapContext {
   const emotionalAnchors = extractEmotionalAnchors(part1, part2);
   
-  // Parse revenue
+  // Parse revenue (robust band parser)
   const turnoverStr = part2.annual_turnover || '';
-  let revenueNumeric = 0;
-  if (turnoverStr.includes('Under £100k')) revenueNumeric = 50000;
-  else if (turnoverStr.includes('£100k-£250k')) revenueNumeric = 175000;
-  else if (turnoverStr.includes('£250k-£500k')) revenueNumeric = 375000;
-  else if (turnoverStr.includes('£500k-£1m')) revenueNumeric = 750000;
-  else if (turnoverStr.includes('£1m-£2.5m')) revenueNumeric = 1750000;
-  else if (turnoverStr.includes('£2.5m')) revenueNumeric = 3500000;
+  let revenueNumeric = parseRevenueBandRoadmap(turnoverStr);
 
   // Parse years trading
   const yearsStr = part2.years_trading || '0';

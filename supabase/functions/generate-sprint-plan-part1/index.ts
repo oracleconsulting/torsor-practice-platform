@@ -661,36 +661,124 @@ function extractPhasesObject(input: string): any {
 }
 
 function extractWeeksArray(input: string): any[] {
+  // PASS 1: Try full JSON parse (handles 90%+ of cases)
+  try {
+    const jsonStart = input.indexOf('{');
+    const jsonEnd = input.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
+      const jsonStr = input.substring(jsonStart, jsonEnd + 1);
+      const parsed = JSON.parse(jsonStr);
+
+      const weeks = parsed.weeks || parsed.sprint?.weeks || [];
+      if (Array.isArray(weeks) && weeks.length > 0) {
+        const validated = weeks
+          .filter((w: any) => w.weekNumber && w.weekNumber >= 1 && w.weekNumber <= 6)
+          .map((w: any) => ({
+            weekNumber: w.weekNumber,
+            theme: w.theme || `Week ${w.weekNumber}`,
+            narrative: w.narrative || '',
+            phase: w.phase || (w.weekNumber <= 2 ? 'Immediate Relief' : w.weekNumber <= 4 ? 'Foundation' : 'Implementation'),
+            tasks: normaliseTasks(w.tasks || [], w.weekNumber),
+            weekMilestone: w.weekMilestone || `Week ${w.weekNumber} milestone achieved`,
+            tuesdayCheckIn: w.tuesdayCheckIn || 'How do I feel about progress?'
+          }));
+
+        if (validated.length > 0) {
+          console.log(`[extractWeeksArray] JSON parse succeeded: ${validated.length} weeks extracted`);
+          return validated;
+        }
+      }
+    }
+  } catch (e) {
+    console.log(`[extractWeeksArray] Full JSON parse failed, trying regex extraction: ${(e as Error).message}`);
+  }
+
+  // PASS 2: Regex-based extraction (handles malformed JSON / field reordering)
+  return extractWeeksWithRegex(input, 1, 6);
+}
+
+function extractWeeksWithRegex(input: string, minWeek: number, maxWeek: number): any[] {
   const weeks: any[] = [];
-  
-  // Find each week object by looking for weekNumber patterns
-  const weekPattern = /\{\s*"weekNumber"\s*:\s*(\d+)[^}]*?"theme"\s*:\s*"([^"]+)"[^}]*?"narrative"\s*:\s*"([^"]*(?:\\"[^"]*)*)"/g;
-  
+
+  const weekNumPattern = /"weekNumber"\s*:\s*(\d+)/g;
   let match;
-  while ((match = weekPattern.exec(input)) !== null) {
+  const positions: { weekNum: number; pos: number }[] = [];
+
+  while ((match = weekNumPattern.exec(input)) !== null) {
     const weekNum = parseInt(match[1]);
-    if (weekNum >= 1 && weekNum <= 6) {
-      weeks.push({
-        weekNumber: weekNum,
-        theme: match[2],
-        narrative: match[3].replace(/\\"/g, '"').replace(/\\n/g, ' '),
-        phase: weekNum <= 2 ? 'Immediate Relief' : weekNum <= 4 ? 'Foundation' : 'Implementation',
-        tasks: extractTasksForWeek(input, weekNum),
-        weekMilestone: extractStringAfterPattern(input, `week ${weekNum}`, 'weekMilestone') || `Week ${weekNum} milestone achieved`,
-        tuesdayCheckIn: extractStringAfterPattern(input, `week ${weekNum}`, 'tuesdayCheckIn') || `How do I feel about progress?`
-      });
+    if (weekNum >= minWeek && weekNum <= maxWeek) {
+      positions.push({ weekNum, pos: match.index });
     }
   }
-  
-  // Sort by week number and deduplicate
-  const seen = new Set();
+
+  for (let i = 0; i < positions.length; i++) {
+    const start = findObjectStart(input, positions[i].pos);
+    const end = i < positions.length - 1
+      ? findObjectStart(input, positions[i + 1].pos) - 1
+      : findObjectEnd(input, positions[i].pos);
+
+    if (start === -1 || end <= start) continue;
+    const chunk = input.substring(start, end + 1);
+    const weekNum = positions[i].weekNum;
+
+    const theme = extractFieldValue(chunk, 'theme') || `Week ${weekNum}`;
+    const narrative = extractFieldValue(chunk, 'narrative') || '';
+    const phase = extractFieldValue(chunk, 'phase') || (weekNum <= 2 ? 'Immediate Relief' : weekNum <= 4 ? 'Foundation' : 'Implementation');
+    const weekMilestone = extractFieldValue(chunk, 'weekMilestone') || `Week ${weekNum} milestone achieved`;
+    const tuesdayCheckIn = extractFieldValue(chunk, 'tuesdayCheckIn') || 'How do I feel about progress?';
+    const tasks = extractTasksForWeek(input, weekNum);
+
+    weeks.push({ weekNumber: weekNum, theme, narrative, phase, tasks, weekMilestone, tuesdayCheckIn });
+  }
+
+  console.log(`[extractWeeksArray] Regex extraction: ${weeks.length} weeks found`);
+
+  const seen = new Set<number>();
   return weeks
-    .filter(w => {
-      if (seen.has(w.weekNumber)) return false;
-      seen.add(w.weekNumber);
-      return true;
-    })
+    .filter(w => { if (seen.has(w.weekNumber)) return false; seen.add(w.weekNumber); return true; })
     .sort((a, b) => a.weekNumber - b.weekNumber);
+}
+
+function extractFieldValue(chunk: string, fieldName: string): string | null {
+  const pattern = new RegExp(`"${fieldName}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 's');
+  const match = chunk.match(pattern);
+  if (match) return match[1].replace(/\\"/g, '"').replace(/\\n/g, ' ').replace(/\\\\/g, '\\').trim();
+  return null;
+}
+
+function findObjectStart(input: string, fromPos: number): number {
+  let depth = 0;
+  for (let i = fromPos; i >= 0; i--) {
+    if (input[i] === '}') depth++;
+    if (input[i] === '{') { if (depth === 0) return i; depth--; }
+  }
+  return -1;
+}
+
+function findObjectEnd(input: string, fromPos: number): number {
+  let depth = 0;
+  for (let i = fromPos; i < input.length; i++) {
+    if (input[i] === '{') depth++;
+    if (input[i] === '}') { depth--; if (depth <= 0) return i; }
+  }
+  return input.length - 1;
+}
+
+function normaliseTasks(tasks: any[], weekNum: number): any[] {
+  if (!Array.isArray(tasks) || tasks.length === 0) return generateMinimalTasks(weekNum);
+  return tasks.map((t: any, i: number) => ({
+    id: t.id || `w${weekNum}_t${i + 1}`,
+    title: t.title || `Task ${i + 1}`,
+    description: t.description || '',
+    whyThisMatters: t.whyThisMatters || '',
+    category: t.category || 'operations',
+    milestone: t.milestone || '',
+    tools: t.tools || '',
+    timeEstimate: t.timeEstimate || '1-2 hours',
+    deliverable: t.deliverable || '',
+    celebrationMoment: t.celebrationMoment || '',
+    priority: t.priority || 'medium'
+  }));
 }
 
 function extractTasksForWeek(input: string, weekNum: number): any[] {

@@ -1023,12 +1023,41 @@ function parseActualCurrency(value: string | number | undefined): number | null 
 // Helper to parse revenue from band (fallback only)
 function parseRevenueBand(band: string): number {
   if (!band || band === '£0' || band === '') return 0;
-  if (band.includes('Under £100k')) return 50000;
-  if (band.includes('£100k-£250k')) return 175000;
-  if (band.includes('£250k-£500k')) return 375000;
-  if (band.includes('£500k-£1m')) return 750000;
-  if (band.includes('£1m-£2.5m')) return 1750000;
-  if (band.includes('£2.5m')) return 3500000;
+
+  const b = band.toLowerCase().replace(/\s+/g, '');
+
+  // Try to extract a raw numeric value first (handles "£3,700,000" or "3700000")
+  const numericMatch = band.replace(/[£,\s]/g, '').match(/^(\d+)$/);
+  if (numericMatch) {
+    const val = parseInt(numericMatch[1]);
+    if (val > 1000) return val;
+  }
+
+  // Band matching — ordered largest-to-smallest to avoid partial matches
+  if (b.includes('£10m+') || b.includes('10m+') || b.includes('over£10m') || b.includes('£10m-')) return 15000000;
+  if (b.includes('£5m') && (b.includes('£10m') || b.includes('10m'))) return 7500000;
+  if (b.includes('£5m')) return 7500000;
+  if (b.includes('£2.5m') || (b.includes('£2m') && b.includes('£5m'))) return 3500000;
+  if (b.includes('£1m') && (b.includes('£5m') || b.includes('5m'))) return 3000000;
+  if (b.includes('£1m') && (b.includes('£2.5m') || b.includes('£2m'))) return 1750000;
+  if (b.includes('£1m')) return 1500000;
+  if (b.includes('£500k') && b.includes('£1m')) return 750000;
+  if (b.includes('£500k')) return 750000;
+  if (b.includes('£250k') && b.includes('£500k')) return 375000;
+  if (b.includes('£250k')) return 375000;
+  if (b.includes('£100k') && b.includes('£250k')) return 175000;
+  if (b.includes('£100k')) return 125000;
+  if (b.includes('under') || b.includes('lessthan') || b.includes('pre-revenue') || b.includes('prerevenue')) return 50000;
+
+  // Fallback: parse any number with k/m suffix
+  const suffixMatch = band.match(/£?([\d.]+)\s*(k|m)/i);
+  if (suffixMatch) {
+    const num = parseFloat(suffixMatch[1]);
+    const multiplier = suffixMatch[2].toLowerCase() === 'm' ? 1000000 : 1000;
+    return num * multiplier;
+  }
+
+  console.warn(`[parseRevenueBand] Could not parse revenue band: "${band}" — returning 0`);
   return 0;
 }
 
