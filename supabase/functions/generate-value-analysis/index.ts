@@ -29,8 +29,10 @@ async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string):
       try {
         const { data: d } = await supabase.from('client_financial_data').select('*').eq('client_id', clientId).order('period_end', { ascending: false }).limit(1).maybeSingle();
         if (d) { const rev = d.revenue ?? d.turnover; const s = rev ? `Revenue: £${(Number(rev) / 1000).toFixed(0)}k` : ''; const g = d.gross_margin != null ? `; Gross margin: ${(Number(d.gross_margin) * 100).toFixed(1)}%` : ''; return { source: 'uploaded_accounts', summary: (s + g || 'Uploaded accounts data.') + '.' }; }
-        const { data: bm } = await supabase.from('bm_assessment_responses').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        if (bm) return { source: 'bm_assessment', summary: bm.revenue_numeric ? `Revenue: £${(bm.revenue_numeric / 1000).toFixed(0)}k` : 'BM assessment data.' };
+        const { data: bmReport } = await supabase.from('bm_reports').select('report_data').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (bmReport?.report_data) { const rd = bmReport.report_data as Record<string, any>; const hist = Array.isArray(rd.historical_financials) ? [...rd.historical_financials].sort((a: any, b: any) => (b.fiscal_year || 0) - (a.fiscal_year || 0)) : []; const latest = hist[0]; if (latest?.revenue) { const parts: string[] = []; parts.push(`Revenue: £${(latest.revenue / 1000).toFixed(0)}k`); if (latest.gross_margin) parts.push(`Gross margin: ${latest.gross_margin.toFixed(1)}%`); if (latest.net_profit) parts.push(`Net profit: £${(latest.net_profit / 1000).toFixed(0)}k`); return { source: 'bm_report', summary: parts.join('; ') + '.' }; } const assess = rd.assessment || rd.client_data || {}; if (assess.revenue_numeric) return { source: 'bm_report', summary: `Revenue: £${(assess.revenue_numeric / 1000).toFixed(0)}k.` }; }
+        const { data: bmEng } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (bmEng?.id) { const { data: bmResp } = await supabase.from('bm_assessment_responses').select('responses').eq('engagement_id', bmEng.id).limit(1).maybeSingle(); if (bmResp?.responses) { const r = bmResp.responses as Record<string, any>; if (r.bm_revenue) return { source: 'bm_assessment', summary: `Revenue: £${(Number(r.bm_revenue) / 1000).toFixed(0)}k.` }; return { source: 'bm_assessment', summary: 'BM assessment data available.' }; } }
         const { data: bi } = await supabase.from('service_line_assessments').select('responses').eq('client_id', clientId).in('service_line_code', ['business_intelligence', 'management_accounts']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
         if (bi?.responses) return { source: 'bi_assessment', summary: 'Financial data from BI assessment.' };
         return null;
@@ -404,7 +406,8 @@ function buildIntegratedFinancialData(
   contextDocs: any[],
   stageContext: any,
   part2Responses: Record<string, any>,
-  part3Responses: Record<string, any>
+  part3Responses: Record<string, any>,
+  bmReportData?: any
 ): IntegratedFinancialData {
   
   console.log('[FinancialIntegration] Building integrated financial data...');
@@ -520,6 +523,83 @@ function buildIntegratedFinancialData(
     }
   }
   
+  // Source: BM report data (cross-service financial bridge)
+  if (!currentYear && bmReportData) {
+    console.log('[FinancialIntegration] Using BM report as financial data source');
+    const hist = Array.isArray(bmReportData.historical_financials) ? [...bmReportData.historical_financials].sort((a: any, b: any) => (b.fiscal_year || b.year || 0) - (a.fiscal_year || a.year || 0)) : [];
+    const latest = hist[0];
+    const prior = hist[1];
+    let revenue = 0, grossProfit = 0, grossMargin = 0, operatingProfit = 0, netProfit = 0, netMargin = 0;
+
+    if (latest) {
+      revenue = latest.revenue || latest.turnover || 0;
+      grossProfit = latest.gross_profit || 0;
+      grossMargin = latest.gross_margin ? latest.gross_margin / 100 : (grossProfit > 0 && revenue > 0 ? grossProfit / revenue : 0);
+      operatingProfit = latest.operating_profit || 0;
+      netProfit = latest.net_profit || latest.profit_after_tax || 0;
+      netMargin = revenue > 0 ? netProfit / revenue : 0;
+    }
+
+    if (revenue === 0) {
+      const metrics = bmReportData.metricsComparison || bmReportData.metrics || [];
+      if (Array.isArray(metrics)) {
+        for (const m of metrics) {
+          const code = m.metricCode || m.metric_code || '';
+          const val = m.clientValue || m.client_value || 0;
+          if ((code === 'gross_margin' || code === 'gross_profit_margin') && typeof val === 'number') grossMargin = val > 1 ? val / 100 : val;
+          if ((code === 'net_margin' || code === 'net_profit_margin') && typeof val === 'number') netMargin = val > 1 ? val / 100 : val;
+        }
+      }
+      const financials = bmReportData.financials || bmReportData.financial_data || {};
+      if (financials.revenue || financials.turnover) { revenue = financials.revenue || financials.turnover; grossProfit = financials.gross_profit || 0; operatingProfit = financials.operating_profit || 0; netProfit = financials.net_profit || 0; }
+    }
+
+    if (revenue === 0) {
+      const assess = bmReportData.assessment || bmReportData.client_data || {};
+      const revNum = assess.revenue_numeric || assess.annual_revenue;
+      if (revNum && revNum > 0) revenue = revNum;
+    }
+
+    if (revenue > 0) {
+      if (grossProfit === 0 && grossMargin > 0) grossProfit = revenue * grossMargin;
+      if (operatingProfit === 0 && grossProfit > 0) operatingProfit = grossProfit * 0.5;
+
+      currentYear = {
+        periodEnd: 'From BM Report',
+        revenue,
+        costOfSales: revenue - grossProfit,
+        grossProfit,
+        grossMargin: grossMargin > 0 ? grossMargin : (grossProfit > 0 ? grossProfit / revenue : 0.3),
+        operatingProfit,
+        operatingMargin: revenue > 0 ? operatingProfit / revenue : 0,
+        netProfit: netProfit || operatingProfit * 0.8,
+        netMargin: netMargin > 0 ? netMargin : (revenue > 0 ? (netProfit || operatingProfit * 0.8) / revenue : 0)
+      };
+      dataSource = 'extracted_metrics';
+      confidence = 'high';
+      console.log(`[FinancialIntegration] BM bridge: Revenue £${revenue.toLocaleString()}, GP £${grossProfit.toLocaleString()}, GM ${(currentYear.grossMargin * 100).toFixed(1)}%`);
+
+      if (prior) {
+        const pRev = prior.revenue || prior.turnover || 0;
+        const pGP = prior.gross_profit || 0;
+        const pGM = prior.gross_margin ? prior.gross_margin / 100 : (pGP > 0 && pRev > 0 ? pGP / pRev : 0);
+        if (pRev > 0) {
+          priorYear = {
+            periodEnd: 'Prior Year (from BM)',
+            revenue: pRev,
+            costOfSales: pRev - pGP,
+            grossProfit: pGP,
+            grossMargin: pGM > 0 ? pGM : 0.3,
+            operatingProfit: pGP * 0.5,
+            operatingMargin: pRev > 0 ? (pGP * 0.5) / pRev : 0,
+            netProfit: pGP * 0.4,
+            netMargin: pRev > 0 ? (pGP * 0.4) / pRev : 0
+          };
+        }
+      }
+    }
+  }
+
   // Fall back to stageContext if no better data
   if (!currentYear) {
     currentYear = {
@@ -1655,7 +1735,8 @@ function extractFinancialsFromContext(
   contextDocuments: any[],
   stageContext: StageContext,
   part2Responses: Record<string, any>,
-  part3Responses?: Record<string, any>
+  part3Responses?: Record<string, any>,
+  bmReportData?: any
 ): FinancialData {
   // Start with what we know from assessments (may already have actual figures from determineBusinessStage)
   let revenue = stageContext.revenue;
@@ -1851,6 +1932,27 @@ function extractFinancialsFromContext(
     }
   }
   
+  // BM report bridge — if we still only have assessment band revenue, try BM report
+  if (bmReportData && revenue === stageContext.revenue) {
+    const hist = Array.isArray(bmReportData.historical_financials) ? [...bmReportData.historical_financials].sort((a: any, b: any) => (b.fiscal_year || 0) - (a.fiscal_year || 0)) : [];
+    const latest = hist[0];
+    if (latest?.revenue && latest.revenue > 0) {
+      revenue = latest.revenue;
+      if (latest.gross_profit) grossProfit = latest.gross_profit;
+      else grossProfit = revenue * (latest.gross_margin ? latest.gross_margin / 100 : 0.35);
+      if (latest.operating_profit) operatingProfit = latest.operating_profit;
+      else operatingProfit = grossProfit * 0.6;
+      if (latest.net_profit) netProfit = latest.net_profit;
+      else netProfit = operatingProfit * 0.8;
+      console.log(`[extractFinancials] BM bridge override: Revenue £${revenue.toLocaleString()}, GP £${grossProfit.toLocaleString()}`);
+      const prior = hist[1];
+      if (prior?.revenue && prior.revenue > 0) yearOnYearGrowth = (revenue - prior.revenue) / prior.revenue;
+    } else {
+      const assess = bmReportData.assessment || bmReportData.client_data || {};
+      if (assess.revenue_numeric && assess.revenue_numeric > revenue) { revenue = assess.revenue_numeric; grossProfit = revenue * 0.35; operatingProfit = grossProfit * 0.6; }
+    }
+  }
+
   console.log(`[extractFinancials] Final values - Revenue: £${revenue.toLocaleString()}, Gross Profit: £${grossProfit.toLocaleString()}`);
 
   // Estimate net profit if not found
@@ -4403,13 +4505,29 @@ serve(async (req) => {
       const fitProfile = fitStage?.approved_content || fitStage?.generated_content || {};
       const vision = visionStage?.approved_content || visionStage?.generated_content || {};
 
+      // ============ BM REPORT BRIDGE ============
+      let bmReportData: any = null;
+      let bmValueAnalysis: any = null;
+      try {
+        const { data: bmRpt } = await supabase
+          .from('bm_reports')
+          .select('report_data, value_analysis')
+          .eq('client_id', clientId)
+          .in('status', ['generated', 'approved', 'published', 'delivered'])
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (bmRpt?.report_data) { bmReportData = bmRpt.report_data; bmValueAnalysis = bmRpt.value_analysis; console.log('[ValueAnalysis] Found BM report data for cross-service bridge'); }
+      } catch (e) { console.warn('[ValueAnalysis] BM report fetch failed:', e); }
+
       // ============ INTEGRATED FINANCIAL DATA ============
       // Build comprehensive financial picture BEFORE risk assessment
       const integratedFinancials = buildIntegratedFinancialData(
         contextDocs || [],
         stageContext,
         part2,
-        part3Responses
+        part3Responses,
+        bmReportData
       );
       
       console.log(`[ValueAnalysis] Financial data source: ${integratedFinancials.dataSource}, confidence: ${integratedFinancials.confidence}`);
@@ -4430,7 +4548,8 @@ serve(async (req) => {
         contextDocs || [],
         stageContext,
         part2,
-        part3Responses
+        part3Responses,
+        bmReportData
       );
 
       // Analyze value drivers
