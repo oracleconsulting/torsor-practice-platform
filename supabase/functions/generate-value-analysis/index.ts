@@ -16,23 +16,29 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
-async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string): Promise<{ promptContext: string }> {
+async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string): Promise<{ promptContext: string; hasEnrichment?: boolean }> {
   const log = (msg: string) => console.log(`[ContextEnrichment] ${msg}`);
   log(`Enriching context for client ${clientId}`);
   interface Fin { source: string; summary: string }
   interface Sys { source: string; stage: string; systemsCount: number; integrationScore: number | null; automationScore: number | null; painPoints: string[]; findings: Array<{ title: string; severity: string; category: string }>; manualHoursMonthly: number | null; summary: string }
-  interface Mkt { source: string; industry: string | null; subSector: string | null; belowMedian: string[]; aboveMedian: string[]; opportunities: Array<{ area: string; potential: string }>; summary: string }
+  interface Mkt { source: string; summary: string }
   interface VA { source: string; summary: string }
   interface Disc { responses: Record<string, unknown>; serviceScores: Record<string, number>; summary: string }
+
+  let bmEngId: string | null = null;
+  try { const { data: eng } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle(); bmEngId = eng?.id || null; } catch (_) {}
+
   const [financial, systems, market, valueAnalysis, discovery] = await Promise.all([
     (async (): Promise<Fin | null> => {
       try {
         const { data: d } = await supabase.from('client_financial_data').select('*').eq('client_id', clientId).order('period_end', { ascending: false }).limit(1).maybeSingle();
         if (d) { const rev = d.revenue ?? d.turnover; const s = rev ? `Revenue: £${(Number(rev) / 1000).toFixed(0)}k` : ''; const g = d.gross_margin != null ? `; Gross margin: ${(Number(d.gross_margin) * 100).toFixed(1)}%` : ''; return { source: 'uploaded_accounts', summary: (s + g || 'Uploaded accounts data.') + '.' }; }
-        const { data: bmReport } = await supabase.from('bm_reports').select('report_data').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
-        if (bmReport?.report_data) { const rd = bmReport.report_data as Record<string, any>; const hist = Array.isArray(rd.historical_financials) ? [...rd.historical_financials].sort((a: any, b: any) => (b.fiscal_year || 0) - (a.fiscal_year || 0)) : []; const latest = hist[0]; if (latest?.revenue) { const parts: string[] = []; parts.push(`Revenue: £${(latest.revenue / 1000).toFixed(0)}k`); if (latest.gross_margin) parts.push(`Gross margin: ${latest.gross_margin.toFixed(1)}%`); if (latest.net_profit) parts.push(`Net profit: £${(latest.net_profit / 1000).toFixed(0)}k`); return { source: 'bm_report', summary: parts.join('; ') + '.' }; } const assess = rd.assessment || rd.client_data || {}; if (assess.revenue_numeric) return { source: 'bm_report', summary: `Revenue: £${(assess.revenue_numeric / 1000).toFixed(0)}k.` }; }
-        const { data: bmEng } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        if (bmEng?.id) { const { data: bmResp } = await supabase.from('bm_assessment_responses').select('responses').eq('engagement_id', bmEng.id).limit(1).maybeSingle(); if (bmResp?.responses) { const r = bmResp.responses as Record<string, any>; if (r.bm_revenue) return { source: 'bm_assessment', summary: `Revenue: £${(Number(r.bm_revenue) / 1000).toFixed(0)}k.` }; return { source: 'bm_assessment', summary: 'BM assessment data available.' }; } }
+        if (bmEngId) {
+          const { data: bmRpt } = await supabase.from('bm_reports').select('pass1_data, total_annual_opportunity, overall_percentile, historical_financials').eq('engagement_id', bmEngId).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+          if (bmRpt?.pass1_data) { const p1 = bmRpt.pass1_data as Record<string, any>; const rev = p1._enriched_revenue; const gm = p1.gross_margin; const nm = p1.net_margin; const pts: string[] = []; if (rev) pts.push(`Revenue: £${(rev / 1000).toFixed(0)}k`); if (gm) pts.push(`Gross margin: ${typeof gm === 'number' && gm < 1 ? (gm * 100).toFixed(1) : gm}%`); if (nm) pts.push(`Net margin: ${typeof nm === 'number' && nm < 1 ? (nm * 100).toFixed(1) : nm}%`); if (bmRpt.total_annual_opportunity) pts.push(`Opportunity: £${bmRpt.total_annual_opportunity.toLocaleString()}`); if (pts.length) return { source: 'bm_report', summary: pts.join('; ') + '.' }; }
+          const { data: bmResp } = await supabase.from('bm_assessment_responses').select('responses').eq('engagement_id', bmEngId).limit(1).maybeSingle();
+          if (bmResp?.responses) { const r = bmResp.responses as Record<string, any>; if (r.bm_revenue) return { source: 'bm_assessment', summary: `Revenue: £${(Number(r.bm_revenue) / 1000).toFixed(0)}k.` }; return { source: 'bm_assessment', summary: 'BM assessment data available.' }; }
+        }
         const { data: bi } = await supabase.from('service_line_assessments').select('responses').eq('client_id', clientId).in('service_line_code', ['business_intelligence', 'management_accounts']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
         if (bi?.responses) return { source: 'bi_assessment', summary: 'Financial data from BI assessment.' };
         return null;
@@ -53,23 +59,26 @@ async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string):
     })(),
     (async (): Promise<Mkt | null> => {
       try {
-        const { data: r } = await supabase.from('bm_reports').select('report_data').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
-        if (!r?.report_data) return null;
-        const d = r.report_data as Record<string, unknown>;
-        const percentiles = (d.percentiles || d.rankings || {}) as Record<string, number>;
+        if (!bmEngId) return null;
+        const { data: r } = await supabase.from('bm_reports').select('pass1_data, overall_percentile, total_annual_opportunity, top_strengths, top_gaps').eq('engagement_id', bmEngId).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!r?.pass1_data) return null;
+        const d = r.pass1_data as Record<string, any>;
+        const metricsArr = (d.metricsComparison || []) as any[];
         const below: string[] = []; const above: string[] = [];
-        for (const [k, v] of Object.entries(percentiles)) { if (typeof v === 'number') { if (v < 50) below.push(k); else above.push(k); } }
-        const opps = ((d.opportunities as any[]) || []).slice(0, 5).map((o: any) => ({ area: o.area || o.title || '', potential: o.potential || o.value || '' }));
-        return { source: 'bm_report', industry: (d.industry as string) ?? null, subSector: (d.classification as any)?.sub_sector ?? null, belowMedian: below, aboveMedian: above, opportunities: opps, summary: `Industry: ${(d.industry as string) || 'N/A'}; below median: ${below.join(', ') || 'none'}.` };
+        for (const m of metricsArr) { if (typeof m.percentile === 'number') { if (m.percentile < 50) below.push(m.metricName || m.metricCode); else above.push(m.metricName || m.metricCode); } }
+        const opps = ((d.opportunitySizing as any)?.breakdown || []).slice(0, 5).map((o: any) => `${o.metric || o.title || ''}: £${o.annualImpact?.toLocaleString() || 'N/A'}`);
+        return { source: 'bm_report', summary: `Overall ${r.overall_percentile || 'N/A'}th pctile; below median: ${below.join(', ') || 'none'}; opportunity: £${(r.total_annual_opportunity || 0).toLocaleString()}. ${opps.length ? 'Gaps: ' + opps.join('; ') : ''}` };
       } catch (e) { console.warn('[ContextEnrichment] Market failed', e); return null; }
     })(),
     (async (): Promise<VA | null> => {
       try {
-        const { data: bm } = await supabase.from('bm_reports').select('value_analysis').eq('client_id', clientId).not('value_analysis', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!bmEngId) return null;
+        const { data: bm } = await supabase.from('bm_reports').select('value_analysis, exit_readiness_breakdown, enhanced_suppressors').eq('engagement_id', bmEngId).not('value_analysis', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
         if (!bm?.value_analysis) return null;
         const va = bm.value_analysis as any;
-        const s = `Exit readiness: ${va.exitReadinessScore?.overall ?? va.exitReadiness?.score ?? 'N/A'}; hidden assets: ${(va.hiddenAssets || []).length}.`;
-        return { source: 'bm_report', summary: s };
+        const exitScore = bm.exit_readiness_breakdown?.totalScore || va.exitReadinessScore?.overall || va.exitReadiness?.score || 'N/A';
+        const suppressorCount = (bm.enhanced_suppressors || []).length;
+        return { source: 'bm_report', summary: `Exit readiness: ${exitScore}/100; value suppressors: ${suppressorCount}.` };
       } catch (e) { console.warn('[ContextEnrichment] Value analysis failed', e); return null; }
     })(),
     (async (): Promise<Disc | null> => {
@@ -88,7 +97,7 @@ async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string):
   if (discovery) parts.push(`## Discovery\n${discovery.summary}`);
   const promptContext = parts.length > 0 ? `\n\n# ENRICHMENT DATA FROM OTHER SERVICE LINES\nUse as authoritative context.\n\n${parts.join('\n\n')}` : '';
   log(`Complete. financial=${!!financial}, systems=${!!systems}, market=${!!market}, valueAnalysis=${!!valueAnalysis}, discovery=${!!discovery}`);
-  return { promptContext };
+  return { promptContext, hasEnrichment: parts.length > 0 };
 }
 
 const corsHeaders = {
@@ -4301,15 +4310,20 @@ serve(async (req) => {
         : 1;
 
       // ----- BM/HVA CROSS-READ: If client has BM value_analysis, use it and skip Part 3 generation -----
-      const { data: bmReport } = await supabase
-        .from('bm_reports')
-        .select('value_analysis, report_data, status, updated_at')
-        .eq('client_id', clientId)
-        .not('value_analysis', 'is', null)
-        .in('status', ['generated', 'approved', 'published', 'delivered'])
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: bmEngHva } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      let bmReport: any = null;
+      if (bmEngHva?.id) {
+        const { data: rpt } = await supabase
+          .from('bm_reports')
+          .select('value_analysis, pass1_data, status, updated_at')
+          .eq('engagement_id', bmEngHva.id)
+          .not('value_analysis', 'is', null)
+          .in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered'])
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        bmReport = rpt;
+      }
 
       const hasBmValueAnalysis = bmReport?.value_analysis && Object.keys(bmReport.value_analysis).length > 0;
 
@@ -4521,15 +4535,11 @@ serve(async (req) => {
       let bmReportData: any = null;
       let bmValueAnalysis: any = null;
       try {
-        const { data: bmRpt } = await supabase
-          .from('bm_reports')
-          .select('report_data, value_analysis')
-          .eq('client_id', clientId)
-          .in('status', ['generated', 'approved', 'published', 'delivered'])
-          .order('updated_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (bmRpt?.report_data) { bmReportData = bmRpt.report_data; bmValueAnalysis = bmRpt.value_analysis; console.log('[ValueAnalysis] Found BM report data for cross-service bridge'); }
+        const { data: bmEng2 } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (bmEng2?.id) {
+          const { data: bmRpt } = await supabase.from('bm_reports').select('pass1_data, value_analysis, total_annual_opportunity, overall_percentile, enhanced_suppressors, exit_readiness_breakdown, top_strengths, top_gaps').eq('engagement_id', bmEng2.id).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+          if (bmRpt?.pass1_data) { bmReportData = bmRpt.pass1_data; bmValueAnalysis = bmRpt.value_analysis; console.log('[ValueAnalysis] Found BM report data for cross-service bridge'); }
+        }
       } catch (e) { console.warn('[ValueAnalysis] BM report fetch failed:', e); }
 
       // ============ INTEGRATED FINANCIAL DATA ============
