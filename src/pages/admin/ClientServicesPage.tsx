@@ -7474,12 +7474,13 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
       console.log('clientId:', clientId);
       console.log('practiceId:', client.practice_id);
 
-      // Clear ALL existing queue items for this client (not just pending)
+      // Clear ALL existing queue items for this client
       await supabase
         .from('generation_queue')
         .delete()
-        .eq('client_id', clientId)
-        .in('status', ['pending', 'processing', 'completed', 'failed']);
+        .eq('client_id', clientId);
+      
+      console.log('✓ Cleared generation queue');
 
       // Reset existing roadmap stages so the orchestrator doesn't skip them as "already done"
       const { error: resetError } = await supabase
@@ -7499,7 +7500,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
           'sprint_plan_part2', 
           'value_analysis'
         ])
-        .in('status', ['generated', 'approved', 'generating']);
+        .in('status', ['generated', 'approved', 'generating', 'failed']);
 
       if (resetError) {
         console.warn('Warning: Could not reset existing stages:', resetError.message);
