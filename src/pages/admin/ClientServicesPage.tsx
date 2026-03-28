@@ -7474,12 +7474,38 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
       console.log('clientId:', clientId);
       console.log('practiceId:', client.practice_id);
 
-      // Clear any existing pending items for this client
+      // Clear ALL existing queue items for this client (not just pending)
       await supabase
         .from('generation_queue')
         .delete()
         .eq('client_id', clientId)
-        .eq('status', 'pending');
+        .in('status', ['pending', 'processing', 'completed', 'failed']);
+
+      // Reset existing roadmap stages so the orchestrator doesn't skip them as "already done"
+      const { error: resetError } = await supabase
+        .from('roadmap_stages')
+        .update({ 
+          status: 'not_started',
+          generation_started_at: null,
+          generation_completed_at: null,
+          generation_duration_ms: null
+        })
+        .eq('client_id', clientId)
+        .in('stage_type', [
+          'fit_assessment', 
+          'five_year_vision', 
+          'six_month_shift', 
+          'sprint_plan_part1', 
+          'sprint_plan_part2', 
+          'value_analysis'
+        ])
+        .in('status', ['generated', 'approved', 'generating']);
+
+      if (resetError) {
+        console.warn('Warning: Could not reset existing stages:', resetError.message);
+      } else {
+        console.log('✓ Reset existing roadmap stages to not_started');
+      }
 
       // Queue only the first stage - the rest will be auto-queued by database triggers
       const { error: queueError } = await supabase
