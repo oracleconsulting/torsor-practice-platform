@@ -283,9 +283,16 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
       }
     }
 
+    // Fetch BM report summary for cross-service context
+    let bmSummaryBlock = '';
+    try {
+      const { data: bmRpt } = await supabase.from('bm_reports').select('report_data, value_analysis').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+      if (bmRpt?.report_data) { bmSummaryBlock = buildBmSummaryBlock(bmRpt.report_data, bmRpt.value_analysis); console.log(`[Sprint1] BM summary block: ${bmSummaryBlock.length} chars`); }
+    } catch (e) { console.warn('[Sprint1] BM fetch failed:', e); }
+
     console.log(`Generating weeks 1-6 for ${context.userName}...`);
 
-    const sprintPart1 = await generateSprintPart1(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock);
+    const sprintPart1 = await generateSprintPart1(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
 
     // Enforce Life Design Thread — every week must have at least one life task
     if (Array.isArray(sprintPart1?.weeks)) {
@@ -299,6 +306,16 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
         lifeCommitments: context.lifeCommitments || []
       };
       sprintPart1.weeks = enforceLifeDesignThread(sprintPart1.weeks, lifeCtx, { min: 1, max: 6 });
+    }
+
+    // Enforce task field completeness
+    if (Array.isArray(sprintPart1?.weeks)) {
+      const taskCtx: TaskEnforcementContext = {
+        northStar: context.northStar || '', shiftMilestones: context.shiftMilestones || [],
+        tuesdayTest: context.tuesdayTest || '', magicAwayTask: context.magicAwayTask || '',
+        dangerZone: context.dangerZone || '', commitmentHours: context.commitmentHours || ''
+      };
+      sprintPart1.weeks = enforceTaskFields(sprintPart1.weeks, taskCtx);
     }
 
     const duration = Date.now() - startTime;
@@ -1078,4 +1095,122 @@ function evolveLifeTaskLanguage(task: any, weekNumber: number, weekRange: { min:
   else { evolved.description = `This should feel normal now. If it still feels like a fight, that's a signal about your systems. ${task.description}`; evolved.celebrationMoment = task.celebrationMoment || 'This is becoming who you are.'; }
   evolved.id = `${task.id}_w${weekNumber}`;
   return evolved;
+}
+
+// ============================================================================
+// SPRINT TASK QUALITY ENFORCEMENT
+// ============================================================================
+
+interface TaskEnforcementContext {
+  northStar: string;
+  shiftMilestones: Array<{ milestone: string; targetMonth: number; measurable?: string }>;
+  tuesdayTest: string;
+  magicAwayTask: string;
+  dangerZone: string;
+  commitmentHours: string;
+}
+
+function enforceTaskFields(weeks: any[], ctx: TaskEnforcementContext): any[] {
+  for (const week of weeks) {
+    if (!week.tasks || !Array.isArray(week.tasks)) continue;
+    for (let i = 0; i < week.tasks.length; i++) {
+      const t = week.tasks[i];
+      if (!t.id) t.id = `w${week.weekNumber}_t${i + 1}`;
+      if (!t.category || t.category === 'undefined' || t.category === '') t.category = detectCategory(t.title || '', t.description || '');
+      if (!t.whyThisMatters || t.whyThisMatters.length < 10) t.whyThisMatters = genWhyMatters(t, week, ctx);
+      if (!t.timeEstimate || t.timeEstimate === '') t.timeEstimate = estTime(t.title || '', t.description || '');
+      if (!t.deliverable || t.deliverable === '') t.deliverable = genDeliverable(t.title || '', t.description || '');
+      if (!t.celebrationMoment || t.celebrationMoment === '') t.celebrationMoment = genCelebration(t, week.weekNumber);
+      if (!t.milestone || t.milestone === '') t.milestone = nearestMilestone(week.weekNumber, ctx.shiftMilestones);
+      if (!t.priority) t.priority = i === 0 ? 'high' : i === 1 ? 'medium' : 'low';
+    }
+  }
+  return weeks;
+}
+
+function detectCategory(title: string, desc: string): string {
+  const t = (title + ' ' + desc).toLowerCase();
+  if (t.includes('writ') && (t.includes('personal') || t.includes('undisturb'))) return 'life_identity';
+  if (t.includes('family') || t.includes('children') || t.includes('kids') || t.includes('wife') || t.includes('partner') || t.includes('husband') || t.includes('evening')) return 'life_relationship';
+  if (t.includes('exercise') || t.includes('run ') || t.includes('gym') || t.includes('bike') || t.includes('sleep') || t.includes('rest') || t.includes('health')) return 'life_health';
+  if (t.includes('hobby') || t.includes('holiday') || t.includes('travel')) return 'life_experience';
+  if (t.includes('protect') && t.includes('time')) return 'life_time';
+  if (t.includes('boundary') || (t.includes('laptop') && t.includes('close'))) return 'life_time';
+  if (t.includes('price') || t.includes('pricing') || t.includes('margin') || t.includes('invoice') || t.includes('payment') || t.includes('cash') || t.includes('revenue') || t.includes('profit') || t.includes('financial') || t.includes('cost')) return 'financial';
+  if (t.includes('hire') || t.includes('recruit') || t.includes('team') || t.includes('delegate') || t.includes('staff') || t.includes('train')) return 'team';
+  if (t.includes('process') || t.includes('workflow') || t.includes('system') || t.includes('automat') || t.includes('sop')) return 'systems';
+  if (t.includes('customer') || t.includes('client') || t.includes('sales') || t.includes('lead') || t.includes('market')) return 'marketing';
+  if (t.includes('strateg') || t.includes('vision') || t.includes('review') || t.includes('kpi')) return 'strategy';
+  return 'operations';
+}
+
+function genWhyMatters(task: any, week: any, ctx: TaskEnforcementContext): string {
+  const wn = week.weekNumber || 0;
+  if (wn <= 3) {
+    if (ctx.magicAwayTask) return `You said you'd magic away "${ctx.magicAwayTask.substring(0, 40)}" — this is the first step.`;
+    if (ctx.dangerZone) return `Your danger zone is "${ctx.dangerZone.substring(0, 40)}" — this reduces that risk.`;
+    return 'This addresses the immediate friction you described. Small step, real relief.';
+  }
+  if (wn <= 8) { const m = nearestMilestone(wn, ctx.shiftMilestones); return m ? `Moves you toward: "${m.substring(0, 50)}". Each step compounds.` : 'Building on the foundation. This is where momentum starts.'; }
+  return `Connects to your North Star: "${ctx.northStar?.substring(0, 60) || 'the life you described'}..."`;
+}
+
+function estTime(title: string, desc: string): string {
+  const t = (title + ' ' + desc).toLowerCase();
+  if (t.includes('quick') || t.includes('list') || t.includes('check')) return '30 mins';
+  if (t.includes('conversation') || t.includes('call') || t.includes('meeting')) return '30-60 mins';
+  if (t.includes('document') || t.includes('write') || t.includes('draft') || t.includes('create')) return '1-2 hours';
+  if (t.includes('spreadsheet') || t.includes('analysis') || t.includes('research') || t.includes('audit')) return '2-3 hours';
+  if (t.includes('implement') || t.includes('restructure')) return '3-4 hours';
+  return '1-2 hours';
+}
+
+function genDeliverable(title: string, desc: string): string {
+  const t = (title + ' ' + desc).toLowerCase();
+  if (t.includes('list') || t.includes('document')) return 'A written document you can reference';
+  if (t.includes('conversation') || t.includes('call')) return 'Notes and agreed next steps';
+  if (t.includes('spreadsheet') || t.includes('data')) return 'A spreadsheet with the data captured';
+  if (t.includes('schedule') || t.includes('plan')) return 'A schedule someone else can follow';
+  if (t.includes('framework') || t.includes('process')) return 'A documented framework ready to share';
+  return 'A tangible output you can point to';
+}
+
+function genCelebration(task: any, weekNum: number): string {
+  const c = (task.category || '').toLowerCase();
+  if (c.startsWith('life_')) return 'You chose yourself. That\'s the shift.';
+  if (c === 'financial') return 'You looked at the numbers honestly. Most people don\'t.';
+  if (c === 'team') return 'You trusted someone else with this. That\'s leadership.';
+  if (c === 'systems') return 'This process now exists outside your head. That\'s freedom.';
+  if (weekNum <= 3) return 'You started. That\'s the hardest part.';
+  if (weekNum <= 8) return 'Notice how this is getting easier. That\'s the compound effect.';
+  return 'Look how far you\'ve come from Week 1.';
+}
+
+function nearestMilestone(weekNum: number, milestones: any[]): string {
+  if (!milestones?.length) return '';
+  const approxMonth = Math.ceil(weekNum / 2);
+  let best = milestones[0], minDist = Math.abs((best.targetMonth || 2) - approxMonth);
+  for (const m of milestones) { const d = Math.abs((m.targetMonth || 2) - approxMonth); if (d < minDist) { best = m; minDist = d; } }
+  return best.milestone || best.title || '';
+}
+
+// ============================================================================
+// BM SUMMARY BLOCK BUILDER
+// ============================================================================
+
+function buildBmSummaryBlock(reportData: any, valueAnalysis: any): string {
+  if (!reportData) return '';
+  const p: string[] = ['## BENCHMARKING REPORT FINDINGS (use to make tasks more specific)', ''];
+  const strengths = reportData.topStrengths || reportData.top_strengths || [];
+  if (strengths.length) { p.push('Strengths (protect):'); for (const s of strengths.slice(0, 3)) p.push(`- ${s.metric || s.name}: ${s.position || s.assessment || ''}`); p.push(''); }
+  const gaps = reportData.topGaps || reportData.top_gaps || reportData.performanceGaps || [];
+  if (gaps.length) { p.push('Gaps (address in tasks):'); for (const g of gaps.slice(0, 3)) { const imp = g.annualImpact || g.annual_impact; p.push(`- ${g.metric || g.name}: ${g.position || ''} ${imp ? `(£${typeof imp === 'number' ? imp.toLocaleString() : imp} annual)` : ''}`); if (g.rootCauseHypothesis || g.root_cause) p.push(`  Root cause: ${g.rootCauseHypothesis || g.root_cause}`); } p.push(''); }
+  const opp = reportData.opportunitySizing || reportData.opportunity_sizing || {};
+  const total = opp.totalAnnualOpportunity || opp.total_annual_opportunity;
+  if (total) p.push(`Total annual opportunity: £${typeof total === 'number' ? total.toLocaleString() : total}`);
+  const recs = reportData.recommendations || [];
+  if (recs.length) { p.push(''); p.push('BM recommendations:'); for (const r of recs.slice(0, 3)) p.push(`- ${r.title || r.name || r.recommendation}: ${r.timeframe || ''}`); }
+  if (valueAnalysis) { const es = valueAnalysis.exitReadinessScore?.overall || valueAnalysis.exitReadiness?.score; if (es) { p.push(`\nExit readiness: ${es}/100`); const sup = valueAnalysis.valueSuppressors || valueAnalysis.value_suppressors || []; if (sup.length) { p.push('Value suppressors:'); for (const s of sup.slice(0, 3)) p.push(`- ${s.name || s.title || s.suppressor}: ${s.description || ''}`); } } }
+  p.push(''); p.push('Reference specific BM findings in tasks. Translate numbers into actions, don\'t just repeat them.');
+  return p.join('\n');
 }

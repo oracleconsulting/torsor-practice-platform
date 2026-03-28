@@ -25,8 +25,10 @@ async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string):
       try {
         const { data: d } = await supabase.from('client_financial_data').select('*').eq('client_id', clientId).order('period_end', { ascending: false }).limit(1).maybeSingle();
         if (d) { const rev = d.revenue ?? d.turnover; const s = rev ? `Revenue: £${(Number(rev) / 1000).toFixed(0)}k` : ''; const g = d.gross_margin != null ? `; Gross margin: ${(Number(d.gross_margin) * 100).toFixed(1)}%` : ''; return { source: 'uploaded_accounts', summary: (s + g || 'Uploaded accounts data.') + '.' }; }
-        const { data: bm } = await supabase.from('bm_assessment_responses').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        if (bm) return { source: 'bm_assessment', summary: bm.revenue_numeric ? `Revenue: £${(bm.revenue_numeric / 1000).toFixed(0)}k` : 'BM assessment data.' };
+        const { data: bmReport } = await supabase.from('bm_reports').select('report_data').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (bmReport?.report_data) { const rd = bmReport.report_data as Record<string, any>; const hist = Array.isArray(rd.historical_financials) ? [...rd.historical_financials].sort((a: any, b: any) => (b.fiscal_year || 0) - (a.fiscal_year || 0)) : []; const latest = hist[0]; if (latest?.revenue) { const parts: string[] = []; parts.push(`Revenue: £${(latest.revenue / 1000).toFixed(0)}k`); if (latest.gross_margin) parts.push(`Gross margin: ${latest.gross_margin.toFixed(1)}%`); if (latest.net_profit) parts.push(`Net profit: £${(latest.net_profit / 1000).toFixed(0)}k`); return { source: 'bm_report', summary: parts.join('; ') + '.' }; } const assess = rd.assessment || rd.client_data || {}; if (assess.revenue_numeric) return { source: 'bm_report', summary: `Revenue: £${(assess.revenue_numeric / 1000).toFixed(0)}k.` }; }
+        const { data: bmEng } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (bmEng?.id) { const { data: bmResp } = await supabase.from('bm_assessment_responses').select('responses').eq('engagement_id', bmEng.id).limit(1).maybeSingle(); if (bmResp?.responses) { const r = bmResp.responses as Record<string, any>; if (r.bm_revenue) return { source: 'bm_assessment', summary: `Revenue: £${(Number(r.bm_revenue) / 1000).toFixed(0)}k.` }; return { source: 'bm_assessment', summary: 'BM assessment data available.' }; } }
         const { data: bi } = await supabase.from('service_line_assessments').select('responses').eq('client_id', clientId).in('service_line_code', ['business_intelligence', 'management_accounts']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
         if (bi?.responses) return { source: 'bi_assessment', summary: 'Financial data from BI assessment.' };
         return null;
@@ -221,10 +223,17 @@ serve(async (req) => {
       console.log('[generate-six-month-shift] Adaptive assessment — skipped sections:', assessmentMeta.metadata.skippedSections?.map((s: any) => s.sectionId).join(', '));
     }
 
+    // Fetch BM report summary for cross-service context
+    let bmSummaryBlock = '';
+    try {
+      const { data: bmRpt } = await supabase.from('bm_reports').select('report_data, value_analysis').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+      if (bmRpt?.report_data) { bmSummaryBlock = buildBmSummaryBlock(bmRpt.report_data, bmRpt.value_analysis); console.log(`[Shift] BM summary block built: ${bmSummaryBlock.length} chars`); }
+    } catch (e) { console.warn('[Shift] BM fetch failed:', e); }
+
     console.log(`Generating 6-month shift for ${context.userName}...`);
 
-    // Generate shift (with optional enrichment)
-    const shift = await generateShift(context, enrichedContext?.promptContext || '');
+    // Generate shift (with optional enrichment + BM context)
+    const shift = await generateShift(context, (enrichedContext?.promptContext || '') + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
 
     const duration = Date.now() - startTime;
 
@@ -543,4 +552,19 @@ Return this JSON structure:
 6. Risk mitigation must address their stated danger_zone
 7. If financial data shows a problem, include financialRealityCheck
 8. Use their exact words wherever possible`;
+}
+
+function buildBmSummaryBlock(reportData: any, valueAnalysis: any): string {
+  if (!reportData) return '';
+  const p: string[] = ['## BENCHMARKING REPORT FINDINGS (use to make milestones more specific)', ''];
+  const strengths = reportData.topStrengths || reportData.top_strengths || [];
+  if (strengths.length) { p.push('Strengths (protect):'); for (const s of strengths.slice(0, 3)) p.push(`- ${s.metric || s.name}: ${s.position || s.assessment || ''}`); p.push(''); }
+  const gaps = reportData.topGaps || reportData.top_gaps || reportData.performanceGaps || [];
+  if (gaps.length) { p.push('Gaps (address in milestones):'); for (const g of gaps.slice(0, 3)) { const imp = g.annualImpact || g.annual_impact; p.push(`- ${g.metric || g.name}: ${g.position || ''} ${imp ? `(£${typeof imp === 'number' ? imp.toLocaleString() : imp} annual)` : ''}`); } p.push(''); }
+  const opp = reportData.opportunitySizing || reportData.opportunity_sizing || {};
+  const total = opp.totalAnnualOpportunity || opp.total_annual_opportunity;
+  if (total) p.push(`Total annual opportunity: £${typeof total === 'number' ? total.toLocaleString() : total}`);
+  if (valueAnalysis) { const es = valueAnalysis.exitReadinessScore?.overall || valueAnalysis.exitReadiness?.score; if (es) p.push(`Exit readiness: ${es}/100`); }
+  p.push(''); p.push('If BM found specific opportunities (overhead gap, pricing power, debtor days), include these as milestone targets where they align with the client\'s stated priorities.');
+  return p.join('\n');
 }
