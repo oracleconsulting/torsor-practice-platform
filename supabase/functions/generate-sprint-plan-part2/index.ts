@@ -1069,15 +1069,25 @@ interface LifeTaskSource {
   lifeCommitments: any[];
 }
 
+function getMaxLifeTasksPerWeek(hours: string): number {
+  const h = (hours || '').toLowerCase();
+  if (h.includes('less than 5') || h.includes('< 5') || h.includes('under 5')) return 1;
+  if (h.includes('5-10') || h.includes('5 to 10')) return 1;
+  if (h.includes('10-15')) return 2;
+  return 1;
+}
+
 function enforceLifeDesignThread(weeks: any[], ctx: LifeTaskSource, weekRange: { min: number; max: number }): any[] {
   if (!weeks || weeks.length === 0) return weeks;
   const pool = buildLifeTaskPool(ctx);
   let poolIdx = 0;
+  const maxPerWeek = getMaxLifeTasksPerWeek(ctx.targetWorkingHours || '');
   for (const week of weeks) {
     if (week.weekNumber < weekRange.min || week.weekNumber > weekRange.max) continue;
     const tasks = week.tasks || [];
-    const hasLifeTask = tasks.some((t: any) => { const c = (t.category || '').toLowerCase(); return c.startsWith('life_') || c === 'personal' || c === 'wellbeing'; });
-    if (!hasLifeTask) {
+    const existingLife = tasks.filter((t: any) => { const c = (t.category || '').toLowerCase(); return c.startsWith('life_') || c === 'personal' || c === 'wellbeing'; });
+    if (existingLife.length >= maxPerWeek) continue;
+    if (existingLife.length === 0) {
       const base = pool[poolIdx % pool.length]; poolIdx++;
       const evolved = evolveLifeTaskLanguage(base, week.weekNumber, weekRange);
       const insertPos = tasks.length > 0 && tasks[tasks.length - 1]?.title?.toLowerCase().includes('review') ? tasks.length - 1 : tasks.length;
@@ -1098,7 +1108,7 @@ function buildLifeTaskPool(ctx: LifeTaskSource): any[] {
   }
   if (ctx.tuesdayTest) {
     const t = ctx.tuesdayTest.toLowerCase();
-    if (t.includes('writ') || t.includes('personal writing')) pool.push({ id: `life_writing_${pool.length+1}`, title: 'Protect your writing time', description: 'Block out undisturbed time for your personal writing. Close the laptop. Silence the phone.', whyThisMatters: 'You described writing as part of your ideal day.', category: 'life_identity', milestone: 'Life Design Thread', timeEstimate: '2 hours', deliverable: 'Writing session completed', celebrationMoment: 'You wrote. That\'s enough.', source: 'tuesday_test' });
+    if (t.includes('writ') || t.includes('personal writing')) pool.push({ id: `life_writing_${pool.length+1}`, title: 'Protect your writing time — one session this week', description: 'Block one 2-hour writing session this week. Close the laptop. Silence the phone. This is non-negotiable — you said so yourself.', whyThisMatters: 'You described writing as part of your ideal Tuesday. One session per week is the starting point.', category: 'life_identity', milestone: 'Life Design Thread', timeEstimate: '2 hours', deliverable: 'One writing session completed, undisturbed', celebrationMoment: 'You wrote. That\'s enough.', source: 'tuesday_test' });
     if (t.includes('children') || t.includes('kids') || t.includes('family') || t.includes('wife') || t.includes('partner') || t.includes('husband')) pool.push({ id: `life_family_${pool.length+1}`, title: 'Be fully present with your family this evening', description: 'Leave work at the time you said you want to. No checking emails. Be there — properly.', whyThisMatters: 'You said you want evenings free from urgent fires.', category: 'life_relationship', milestone: 'Life Design Thread', timeEstimate: 'An evening', deliverable: 'One evening fully present, phone away', celebrationMoment: 'Ask yourself: did anyone at work even notice I wasn\'t available?', source: 'tuesday_test' });
     if (t.includes('exercise') || t.includes('run') || t.includes('gym') || t.includes('bike') || t.includes('walk') || t.includes('swim')) pool.push({ id: `life_exercise_${pool.length+1}`, title: 'Move your body — on your terms', description: 'You mentioned exercise as part of your ideal day. Schedule it. Protect it.', whyThisMatters: 'You listed this in your ideal Tuesday.', category: 'life_health', milestone: 'Life Design Thread', timeEstimate: '30-60 mins', deliverable: 'Exercise session completed', celebrationMoment: 'Notice your energy for the rest of the day', source: 'tuesday_test' });
     const timeMatch = t.match(/finish.*?(\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm|o'clock))/i) || t.match(/wrap.*?(\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm|o'clock))/i) || t.match(/leave.*?(\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm|o'clock))/i);

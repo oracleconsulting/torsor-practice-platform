@@ -535,20 +535,36 @@ function buildIntegratedFinancialData(
   // Source: BM report data (cross-service financial bridge)
   if (!currentYear && bmReportData) {
     console.log('[FinancialIntegration] Using BM report as financial data source');
-    const hist = Array.isArray(bmReportData.historical_financials) ? [...bmReportData.historical_financials].sort((a: any, b: any) => (b.fiscal_year || b.year || 0) - (a.fiscal_year || a.year || 0)) : [];
-    const latest = hist[0];
-    const prior = hist[1];
     let revenue = 0, grossProfit = 0, grossMargin = 0, operatingProfit = 0, netProfit = 0, netMargin = 0;
 
-    if (latest) {
-      revenue = latest.revenue || latest.turnover || 0;
-      grossProfit = latest.gross_profit || 0;
-      grossMargin = latest.gross_margin ? latest.gross_margin / 100 : (grossProfit > 0 && revenue > 0 ? grossProfit / revenue : 0);
-      operatingProfit = latest.operating_profit || 0;
-      netProfit = latest.net_profit || latest.profit_after_tax || 0;
-      netMargin = revenue > 0 ? netProfit / revenue : 0;
+    // Priority 1: Direct enriched fields from pass1_data (most reliable)
+    if (bmReportData._enriched_revenue && bmReportData._enriched_revenue > 0) {
+      revenue = bmReportData._enriched_revenue;
+      const gm = bmReportData.gross_margin;
+      const nm = bmReportData.net_margin;
+      grossMargin = gm ? (typeof gm === 'number' && gm > 1 ? gm / 100 : gm) : 0;
+      netMargin = nm ? (typeof nm === 'number' && nm > 1 ? nm / 100 : nm) : 0;
+      grossProfit = revenue * grossMargin;
+      netProfit = revenue * netMargin;
+      operatingProfit = netProfit > 0 ? netProfit * 1.3 : grossProfit * 0.5;
+      console.log(`[FinancialIntegration] BM pass1_data: Revenue £${revenue.toLocaleString()}, GM ${(grossMargin*100).toFixed(1)}%, NM ${(netMargin*100).toFixed(1)}%`);
     }
 
+    // Priority 2: historical_financials array (multi-year P&L)
+    const hist = Array.isArray(bmReportData.historical_financials) ? [...bmReportData.historical_financials].sort((a: any, b: any) => (b.fiscal_year || b.year || 0) - (a.fiscal_year || a.year || 0)) : [];
+    if (revenue === 0 && hist.length > 0) {
+      const latest = hist[0];
+      if (latest) {
+        revenue = latest.revenue || latest.turnover || 0;
+        grossProfit = latest.gross_profit || 0;
+        grossMargin = latest.gross_margin ? (latest.gross_margin > 1 ? latest.gross_margin / 100 : latest.gross_margin) : (grossProfit > 0 && revenue > 0 ? grossProfit / revenue : 0);
+        operatingProfit = latest.operating_profit || 0;
+        netProfit = latest.net_profit || latest.profit_after_tax || 0;
+        netMargin = revenue > 0 ? netProfit / revenue : 0;
+      }
+    }
+
+    // Priority 3: metricsComparison array
     if (revenue === 0) {
       const metrics = bmReportData.metricsComparison || bmReportData.metrics || [];
       if (Array.isArray(metrics)) {
@@ -559,14 +575,6 @@ function buildIntegratedFinancialData(
           if ((code === 'net_margin' || code === 'net_profit_margin') && typeof val === 'number') netMargin = val > 1 ? val / 100 : val;
         }
       }
-      const financials = bmReportData.financials || bmReportData.financial_data || {};
-      if (financials.revenue || financials.turnover) { revenue = financials.revenue || financials.turnover; grossProfit = financials.gross_profit || 0; operatingProfit = financials.operating_profit || 0; netProfit = financials.net_profit || 0; }
-    }
-
-    if (revenue === 0) {
-      const assess = bmReportData.assessment || bmReportData.client_data || {};
-      const revNum = assess.revenue_numeric || assess.annual_revenue;
-      if (revNum && revNum > 0) revenue = revNum;
     }
 
     if (revenue > 0) {
@@ -588,10 +596,11 @@ function buildIntegratedFinancialData(
       confidence = 'high';
       console.log(`[FinancialIntegration] BM bridge: Revenue £${revenue.toLocaleString()}, GP £${grossProfit.toLocaleString()}, GM ${(currentYear.grossMargin * 100).toFixed(1)}%`);
 
+      const prior = hist.length >= 2 ? hist[1] : null;
       if (prior) {
         const pRev = prior.revenue || prior.turnover || 0;
         const pGP = prior.gross_profit || 0;
-        const pGM = prior.gross_margin ? prior.gross_margin / 100 : (pGP > 0 && pRev > 0 ? pGP / pRev : 0);
+        const pGM = prior.gross_margin ? (prior.gross_margin > 1 ? prior.gross_margin / 100 : prior.gross_margin) : (pGP > 0 && pRev > 0 ? pGP / pRev : 0);
         if (pRev > 0) {
           priorYear = {
             periodEnd: 'Prior Year (from BM)',
@@ -4537,8 +4546,22 @@ serve(async (req) => {
       try {
         const { data: bmEng2 } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
         if (bmEng2?.id) {
-          const { data: bmRpt } = await supabase.from('bm_reports').select('pass1_data, value_analysis, total_annual_opportunity, overall_percentile, enhanced_suppressors, exit_readiness_breakdown, top_strengths, top_gaps').eq('engagement_id', bmEng2.id).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
-          if (bmRpt?.pass1_data) { bmReportData = bmRpt.pass1_data; bmValueAnalysis = bmRpt.value_analysis; console.log('[ValueAnalysis] Found BM report data for cross-service bridge'); }
+          const { data: bmRpt } = await supabase.from('bm_reports').select('pass1_data, value_analysis, historical_financials, total_annual_opportunity, overall_percentile, enhanced_suppressors, exit_readiness_breakdown, top_strengths, top_gaps').eq('engagement_id', bmEng2.id).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+          if (bmRpt?.pass1_data) {
+            // Merge top-level columns into pass1_data so downstream functions find everything in one place
+            bmReportData = {
+              ...(bmRpt.pass1_data as Record<string, any>),
+              historical_financials: bmRpt.historical_financials || (bmRpt.pass1_data as any).multi_year_profile || null,
+              total_annual_opportunity: bmRpt.total_annual_opportunity,
+              overall_percentile: bmRpt.overall_percentile,
+              enhanced_suppressors: bmRpt.enhanced_suppressors,
+              exit_readiness_breakdown: bmRpt.exit_readiness_breakdown,
+              top_strengths: bmRpt.top_strengths || (bmRpt.pass1_data as any).topStrengths,
+              top_gaps: bmRpt.top_gaps || (bmRpt.pass1_data as any).topGaps,
+            };
+            bmValueAnalysis = bmRpt.value_analysis;
+            console.log(`[ValueAnalysis] BM bridge: revenue=${bmReportData._enriched_revenue}, gm=${bmReportData.gross_margin}, hist=${Array.isArray(bmReportData.historical_financials) ? bmReportData.historical_financials.length + ' years' : 'none'}`);
+          }
         }
       } catch (e) { console.warn('[ValueAnalysis] BM report fetch failed:', e); }
 
