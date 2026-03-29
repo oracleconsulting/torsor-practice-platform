@@ -57,6 +57,20 @@ serve(async (req) => {
     const prevSummary = prevSummaryContent?.summary || {};
     const prevAnalytics = prevSummaryContent?.analytics || {};
 
+    // Fetch Sprint N task completion data
+    const { data: tasks } = await supabase
+      .from('client_tasks')
+      .select('title, week_number, status, category, completion_feedback')
+      .eq('client_id', clientId)
+      .eq('sprint_number', prevSprint)
+      .order('week_number', { ascending: true });
+
+    const completedTasks = (tasks || []).filter((t: any) => t.status === 'completed');
+    const skippedTasks = (tasks || []).filter((t: any) => t.status === 'skipped');
+    const lifeTasks = (tasks || []).filter((t: any) => ((t.category as string) || '').startsWith('life_'));
+    const lifeTasksCompleted = lifeTasks.filter((t: any) => t.status === 'completed');
+    const totalTasks = (tasks || []).length;
+
     const updatedTuesday = lifeCheck?.tuesday_test_update || part1.tuesday_test || '';
     const updatedNorthStar =
       (prevSummary?.renewalRecommendations?.lifeDesignAdjustment as string) ||
@@ -84,11 +98,28 @@ serve(async (req) => {
       priorityShift: lifeCheck?.priority_shift ?? null,
       nextSprintWish: lifeCheck?.next_sprint_wish ?? null,
 
-      sprint1CompletionRate: prevAnalytics?.completionRate ?? null,
-      sprint1SkipPatterns: prevSummary?.skipAnalysis ?? null,
+      sprint1CompletionRate: prevAnalytics?.completionRate ?? (totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : null),
+      sprint1SkipPatterns: prevSummary?.skipAnalysis ?? (skippedTasks.length > 0 ? skippedTasks.map((t: any) => t.title) : null),
       sprint1Strengths: prevSummary?.strengthsRevealed ?? [],
       sprint1GrowthAreas: prevSummary?.growthAreas ?? [],
       sprint1RenewalRecommendations: prevSummary?.renewalRecommendations ?? null,
+      _sprintContext: {
+        previousSprintNumber: prevSprint,
+        taskSummary: {
+          total: totalTasks,
+          completed: completedTasks.length,
+          skipped: skippedTasks.length,
+          completionRate: totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 0,
+          lifeTasksTotal: lifeTasks.length,
+          lifeTasksCompleted: lifeTasksCompleted.length,
+          skippedTitles: skippedTasks.map((t: any) => t.title),
+          feedbackHighlights: completedTasks
+            .filter((t: any) => t.completion_feedback?.whatWentWell || t.completion_feedback?.whatDidntWork)
+            .slice(0, 5)
+            .map((t: any) => ({ title: t.title, well: t.completion_feedback?.whatWentWell, didnt: t.completion_feedback?.whatDidntWork })),
+        },
+        lifeCheck,
+      },
 
       tuesdayTestEvolution: {
         original: part1.tuesday_test || '',

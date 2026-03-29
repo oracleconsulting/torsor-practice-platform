@@ -293,6 +293,22 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
       }
     }
 
+    // Sprint carry-forward (Sprint 2+)
+    let sprintCarryForward = '';
+    if (sprintNumber > 1) {
+      const prevSprintNum = sprintNumber - 1;
+      const refreshStage = await fetchStage('life_design_refresh', sprintNumber);
+      const sprintCtx = refreshStage?._sprintContext;
+      const lc = sprintCtx?.lifeCheck;
+      const ts = sprintCtx?.taskSummary;
+      const prevSprintContent = await fetchStage('sprint_plan_part2', prevSprintNum);
+      const prevThemes = (prevSprintContent?.weeks || []).map((w: any) => `Week ${w.weekNumber}: ${w.theme}`).join(', ');
+      if (ts || lc) {
+        sprintCarryForward = `\n\n## SPRINT ${prevSprintNum} OUTCOMES (Build on these — don't repeat them)\n\n### Task Completion\n- ${ts?.completed || 0}/${ts?.total || 0} tasks completed (${ts?.completionRate || 0}%)\n- Life tasks: ${ts?.lifeTasksCompleted || 0}/${ts?.lifeTasksTotal || 0}\n${ts?.skippedTitles?.length ? `- Skipped: ${ts.skippedTitles.join(', ')}` : ''}\n\n### Client's Own Words\n${lc ? `- Biggest win: "${lc.biggest_win || 'N/A'}"\n- Still frustrating: "${lc.biggest_frustration || 'N/A'}"\n- Wish: "${lc.next_sprint_wish || 'N/A'}"` : 'No life check.'}\n\n### Previous Sprint Themes (don't repeat — evolve)\n${prevThemes || 'N/A'}\n\nDO NOT repeat Sprint ${prevSprintNum} tasks. Build on outcomes. Evolve life tasks.`;
+        console.log(`[Sprint2] Carry-forward context: ${sprintCarryForward.length} chars`);
+      }
+    }
+
     // Fetch BM report summary for cross-service context
     let bmSummaryBlock = '';
     try {
@@ -304,7 +320,7 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
 
     console.log(`Generating weeks 7-12 for ${context.userName}...`);
 
-    const sprintPart2 = await generateSprintPart2(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
+    const sprintPart2 = await generateSprintPart2(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + sprintCarryForward + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
 
     // Enforce Life Design Thread — every week must have at least one life task
     if (Array.isArray(sprintPart2?.weeks)) {

@@ -63,21 +63,22 @@ serve(async (req) => {
     let bmContext = '';
     let saContext = '';
     try {
-      const { data: bmReport } = await supabase
-        .from('bm_reports')
-        .select('report_data')
-        .eq('client_id', clientId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (bmReport?.report_data) {
-        const d = bmReport.report_data as any;
-        bmContext = `
-## BENCHMARKING DATA (since Sprint 1)
-Industry: ${d.industry || 'N/A'}
-Key findings: ${JSON.stringify(d.keyFindings || d.opportunities || [])}
-Value gaps: ${JSON.stringify(d.valueGaps || [])}
+      const { data: bmEng } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (bmEng?.id) {
+        const { data: bmReport } = await supabase.from('bm_reports').select('pass1_data, total_annual_opportunity, overall_percentile, top_strengths, top_gaps, enhanced_suppressors, exit_readiness_breakdown').eq('engagement_id', bmEng.id).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (bmReport?.pass1_data) {
+          const p1 = bmReport.pass1_data as any;
+          const gaps = (p1.topGaps || []).slice(0, 3).map((g: any) => `${g.metric || g.name}: £${g.annualImpact?.toLocaleString() || 'N/A'}`).join('; ');
+          const strengths = (p1.topStrengths || []).slice(0, 3).map((s: any) => `${s.metric || s.name}: ${s.position || ''}`).join('; ');
+          bmContext = `
+## BENCHMARKING DATA
+Revenue: £${p1._enriched_revenue ? (p1._enriched_revenue / 1000000).toFixed(1) + 'M' : 'N/A'}. Gross margin: ${p1.gross_margin || 'N/A'}%. Overall ${bmReport.overall_percentile || 'N/A'}th percentile.
+Strengths: ${strengths || 'N/A'}
+Gaps: ${gaps || 'N/A'}
+Annual opportunity: £${bmReport.total_annual_opportunity?.toLocaleString() || 'N/A'}
+Exit readiness: ${bmReport.exit_readiness_breakdown?.totalScore || 'N/A'}/100
 `;
+        }
       }
     } catch (_) {}
 

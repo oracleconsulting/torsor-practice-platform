@@ -292,6 +292,22 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
       }
     }
 
+    // Sprint carry-forward (Sprint 2+)
+    let sprintCarryForward = '';
+    if (sprintNumber > 1) {
+      const prevSprintNum = sprintNumber - 1;
+      const refreshStage = await fetchStage('life_design_refresh', sprintNumber);
+      const sprintCtx = refreshStage?._sprintContext;
+      const lc = sprintCtx?.lifeCheck;
+      const ts = sprintCtx?.taskSummary;
+      const prevSprintContent = await fetchStage('sprint_plan_part2', prevSprintNum);
+      const prevThemes = (prevSprintContent?.weeks || []).map((w: any) => `Week ${w.weekNumber}: ${w.theme}`).join(', ');
+      if (ts || lc) {
+        sprintCarryForward = `\n\n## SPRINT ${prevSprintNum} OUTCOMES (Build on these — don't repeat them)\n\n### Task Completion\n- ${ts?.completed || 0}/${ts?.total || 0} tasks completed (${ts?.completionRate || 0}%)\n- Life tasks: ${ts?.lifeTasksCompleted || 0}/${ts?.lifeTasksTotal || 0}\n${ts?.skippedTitles?.length ? `- Skipped: ${ts.skippedTitles.join(', ')}` : ''}\n\n### Client's Own Words (quarterly life check)\n${lc ? `- Tuesday now: "${lc.tuesday_test_update || 'N/A'}"\n- Time reclaimed: "${lc.time_reclaim_progress || 'N/A'}"\n- Biggest win: "${lc.biggest_win || 'N/A'}"\n- Still frustrating: "${lc.biggest_frustration || 'N/A'}"\n- Goal shift: "${lc.priority_shift || 'N/A'}"\n- Wish: "${lc.next_sprint_wish || 'N/A'}"` : 'No life check.'}\n\n### Previous Sprint Themes (don't repeat — evolve)\n${prevThemes || 'N/A'}\n\n### SPRINT ${sprintNumber} RULES\n1. DO NOT repeat Sprint ${prevSprintNum} tasks.\n2. Skipped tasks may return in different form or be dropped.\n3. Client's frustration → priority. Client's wish → theme in weeks 1-3.\n4. Life tasks evolve (if writing was established, deepen it).\n5. Reference Sprint ${prevSprintNum} achievements: "Last sprint you proved X. This sprint we make it permanent."`;
+        console.log(`[Sprint1] Carry-forward context: ${sprintCarryForward.length} chars`);
+      }
+    }
+
     // Fetch BM report summary for cross-service context
     let bmSummaryBlock = '';
     try {
@@ -303,7 +319,7 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
 
     console.log(`Generating weeks 1-6 for ${context.userName}...`);
 
-    const sprintPart1 = await generateSprintPart1(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
+    const sprintPart1 = await generateSprintPart1(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + sprintCarryForward + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
 
     // Guarantee all 6 weeks exist — fill any gaps the LLM missed
     if (Array.isArray(sprintPart1?.weeks)) {
