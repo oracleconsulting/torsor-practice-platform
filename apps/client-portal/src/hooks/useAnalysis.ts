@@ -233,6 +233,8 @@ export interface RoadmapData {
   isActive: boolean;
   /** True when client is Partner tier and a sprint exists but is not yet published (advisor must publish from Sprint Editor). */
   hasUnpublishedSprint?: boolean;
+  renewalStatus?: string | null;
+  currentSprintNumber?: number;
 }
 
 export interface Part3Question {
@@ -772,15 +774,19 @@ export function useRoadmap() {
     try {
       // Fetch client's GA tier for visibility gating (Partner = only show published sprint)
       let clientTier: string | null = null;
+      let renewalStatus: string | null = null;
+      let currentSprintNumber: number = 1;
       const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
       if (sl?.id) {
         const { data: enrollment } = await supabase
           .from('client_service_lines')
-          .select('tier_name')
+          .select('tier_name, renewal_status, current_sprint_number')
           .eq('client_id', clientSession.clientId)
           .eq('service_line_id', sl.id)
           .maybeSingle();
         clientTier = enrollment?.tier_name ?? null;
+        renewalStatus = enrollment?.renewal_status ?? null;
+        currentSprintNumber = enrollment?.current_sprint_number ?? 1;
       }
 
       // Fetch from new staged architecture (roadmap_stages)
@@ -873,6 +879,8 @@ export function useRoadmap() {
           createdAt: stagesData[0].created_at,
           isActive: true,
           hasUnpublishedSprint: hasUnpublishedSprint || undefined,
+          renewalStatus,
+          currentSprintNumber,
         });
         return { roadmapData, valueAnalysis };
       }
@@ -900,7 +908,9 @@ export function useRoadmap() {
           roadmapData: data.roadmap_data,
           valueAnalysis: data.value_analysis,
           createdAt: data.created_at,
-          isActive: data.is_active
+          isActive: data.is_active,
+          renewalStatus,
+          currentSprintNumber,
         });
         return data;
       }

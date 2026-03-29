@@ -10348,6 +10348,27 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               })}
                             </div>
 
+                            {lifeCheckComplete && client.lifeCheckData && (
+                              <div className="mt-4 bg-indigo-50 rounded-lg p-4 border border-indigo-100">
+                                <h4 className="text-sm font-semibold text-indigo-900 mb-3">Life Check Responses</h4>
+                                <div className="space-y-3 text-sm">
+                                  {[
+                                    { label: 'Tuesday now', value: client.lifeCheckData.tuesday_test_update },
+                                    { label: 'Time reclaimed', value: client.lifeCheckData.time_reclaim_progress },
+                                    { label: 'Biggest win', value: client.lifeCheckData.biggest_win },
+                                    { label: 'Still frustrating', value: client.lifeCheckData.biggest_frustration },
+                                    { label: 'Goal shift', value: client.lifeCheckData.priority_shift },
+                                    { label: 'Next sprint wish', value: client.lifeCheckData.next_sprint_wish },
+                                  ].filter(q => q.value).map(q => (
+                                    <div key={q.label}>
+                                      <p className="text-indigo-600 font-medium text-xs uppercase">{q.label}</p>
+                                      <p className="text-gray-800 mt-0.5">{q.value}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             {nextSprintPublished && (
                               <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
                                 Sprint {nextSprint} is live. Client can now start their next 12 weeks.

@@ -12,6 +12,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { useRoadmap, useGenerateAnalysis, useTasks, useGenerateValueAnalysis } from '@/hooks/useAnalysis';
+import { QuarterlyLifeCheckBanner } from '@/components/sprint/QuarterlyLifeCheck';
 import { useAssessmentProgress } from '@/hooks/useAssessmentProgress';
 import { TaskCompletionModal } from '@/components/tasks/TaskCompletionModal';
 import { Link } from 'react-router-dom';
@@ -251,6 +252,16 @@ export default function RoadmapPage() {
       subtitle="Your comprehensive 365 transformation plan"
     >
       <div className="space-y-6">
+
+        {/* Quarterly Life Check banner — shown when renewal is pending */}
+        {roadmap?.renewalStatus === 'life_check_pending' && clientSession?.clientId && clientSession?.practiceId && (
+          <QuarterlyLifeCheckBanner
+            clientId={clientSession.clientId}
+            practiceId={clientSession.practiceId}
+            sprintNumber={roadmap.currentSprintNumber ?? 1}
+            onComplete={() => fetchRoadmap()}
+          />
+        )}
         
         {/* ================================================================
             NAVIGATION TABS

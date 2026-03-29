@@ -3,7 +3,7 @@
 // ============================================================================
 
 import { useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Heart, ChevronRight, Send, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export interface QuarterlyLifeCheckResponses {
@@ -214,6 +214,101 @@ export function QuarterlyLifeCheck({
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// ============================================================================
+// QUARTERLY LIFE CHECK BANNER — Roadmap page trigger
+// ============================================================================
+
+interface LifeCheckBannerProps {
+  clientId: string;
+  practiceId: string;
+  sprintNumber: number;
+  onComplete: () => void;
+}
+
+const BANNER_QUESTIONS = [
+  { key: 'tuesday_test_update', title: 'Your Tuesday — then and now', question: "Think back to the Tuesday you described when you started. How does a typical Tuesday feel now? What's different? What's still the same?", placeholder: "Be honest — not what you think we want to hear...", hint: "We're looking for the real texture of your day." },
+  { key: 'time_reclaim_progress', title: 'Time reclaimed', question: "How many hours per week have you genuinely reclaimed from the business? What are you doing with that time?", placeholder: "Even 2 hours matters. What did you do with them?", hint: "Writing? Family? Exercise? All valid." },
+  { key: 'biggest_win', title: 'Your biggest win', question: "What's the single thing from the last 12 weeks that made you think 'this is actually working'?", placeholder: "A moment, a number, a conversation, a feeling...", hint: "Sometimes the win is the absence of a problem." },
+  { key: 'biggest_frustration', title: "What's still grinding", question: "What's the one thing that still pulls you back into the business when you don't want to be there?", placeholder: "The thing that undoes the progress...", hint: "This becomes a priority for the next sprint." },
+  { key: 'priority_shift', title: 'Has the goal shifted?', question: "Is your North Star still what matters most — or has something changed?", placeholder: "Goals evolve. That's not failure — it's clarity.", hint: "If the goal has shifted, that's important for us to know." },
+  { key: 'next_sprint_wish', title: 'Your wish for the next 12 weeks', question: "If the next sprint could change one thing about your daily life, what would it be?", placeholder: "One thing. The thing that would make the biggest difference.", hint: "Think life first, then business." },
+] as const;
+
+type BannerResponseKey = typeof BANNER_QUESTIONS[number]['key'];
+
+export function QuarterlyLifeCheckBanner({ clientId, practiceId, sprintNumber, onComplete }: LifeCheckBannerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      <div className="mb-6 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-5">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
+            <Heart className="w-6 h-6 text-indigo-600" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold text-indigo-900 text-lg">Time for a life check-in</h3>
+            <p className="text-indigo-700 text-sm mt-1">
+              You&apos;ve completed Sprint {sprintNumber}. Before we build your next sprint, we want to know: how has your life actually changed? Six questions, five minutes.
+            </p>
+            <button onClick={() => setIsOpen(true)} className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium">
+              Start your life check-in <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+      {isOpen && <LifeCheckModal clientId={clientId} practiceId={practiceId} sprintNumber={sprintNumber} onClose={() => setIsOpen(false)} onComplete={() => { setIsOpen(false); onComplete(); }} />}
+    </>
+  );
+}
+
+function LifeCheckModal({ clientId, practiceId, sprintNumber, onClose, onComplete }: LifeCheckBannerProps & { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const [responses, setResponses] = useState<Record<BannerResponseKey, string>>({ tuesday_test_update: '', time_reclaim_progress: '', biggest_win: '', biggest_frustration: '', priority_shift: '', next_sprint_wish: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  const q = BANNER_QUESTIONS[step];
+  const isLast = step === BANNER_QUESTIONS.length - 1;
+  const canProceed = responses[q.key].trim().length > 10;
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      const { error: insertError } = await supabase.from('quarterly_life_checks').upsert({ client_id: clientId, practice_id: practiceId, sprint_number: sprintNumber, ...responses, completed_at: new Date().toISOString() }, { onConflict: 'client_id,sprint_number' });
+      if (insertError) throw insertError;
+      const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').single();
+      if (sl?.id) await supabase.from('client_service_lines').update({ renewal_status: 'life_check_complete' }).eq('client_id', clientId).eq('service_line_id', sl.id);
+      onComplete();
+    } catch (err) { console.error('Failed to save life check:', err); alert('Something went wrong. Please try again.'); } finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white flex flex-col">
+      <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div><h2 className="text-lg font-semibold text-slate-900">Quarterly Life Check-In</h2><p className="text-sm text-slate-500">Sprint {sprintNumber} reflection</p></div>
+        <div className="flex items-center gap-4"><span className="text-sm text-slate-400">{step + 1} of {BANNER_QUESTIONS.length}</span><button onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100"><X className="w-5 h-5 text-slate-400" /></button></div>
+      </div>
+      <div className="h-1 bg-slate-100"><div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${((step + 1) / BANNER_QUESTIONS.length) * 100}%` }} /></div>
+      <div className="flex-1 flex items-center justify-center px-6">
+        <div className="max-w-xl w-full">
+          <p className="text-xs text-indigo-600 font-medium uppercase tracking-wide mb-2">{q.title}</p>
+          <h3 className="text-2xl font-semibold text-slate-900 mb-4 leading-snug">{q.question}</h3>
+          <textarea value={responses[q.key]} onChange={(e) => setResponses(prev => ({ ...prev, [q.key]: e.target.value }))} placeholder={q.placeholder} rows={5} className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none text-slate-900 placeholder-slate-400" autoFocus />
+          <p className="text-xs text-slate-400 mt-2 italic">{q.hint}</p>
+        </div>
+      </div>
+      <div className="border-t border-slate-200 px-6 py-4 flex items-center justify-between">
+        <button onClick={() => setStep(s => Math.max(0, s - 1))} disabled={step === 0} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900 disabled:opacity-30">Back</button>
+        {isLast ? (
+          <button onClick={handleSubmit} disabled={!canProceed || submitting} className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors font-medium"><Send className="w-4 h-4" />{submitting ? 'Sending...' : 'Submit your check-in'}</button>
+        ) : (
+          <button onClick={() => setStep(s => s + 1)} disabled={!canProceed} className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 transition-colors font-medium">Next <ChevronRight className="w-4 h-4" /></button>
+        )}
+      </div>
     </div>
   );
 }
