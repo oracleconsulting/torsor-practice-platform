@@ -353,6 +353,11 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
       sprintPart1.weeks = enforceTaskFields(sprintPart1.weeks, taskCtx);
     }
 
+    // Normalise field names so both admin and client portal find them
+    if (Array.isArray(sprintPart1?.weeks)) {
+      sprintPart1.weeks = normaliseFieldNames(sprintPart1.weeks);
+    }
+
     const duration = Date.now() - startTime;
 
     try {
@@ -1265,4 +1270,25 @@ function buildBmSummaryBlock(bmReport: any): string {
   if (va) { const es = bmReport.exit_readiness_breakdown?.totalScore || va.exitReadinessScore?.overall || va.exitReadiness?.score; if (es) { p.push(`\nExit readiness: ${es}/100`); const sup = bmReport.enhanced_suppressors || va.valueSuppressors || va.value_suppressors || []; if (sup.length) { p.push('Value suppressors:'); for (const s of sup.slice(0, 3)) p.push(`- ${s.name || s.title || s.suppressor}: ${s.description || ''}`); } } }
   p.push(''); p.push('Reference specific BM findings in tasks. Translate numbers into actions, don\'t just repeat them.');
   return p.join('\n');
+}
+
+// ============================================================================
+// FIELD NAME NORMALISATION
+// ============================================================================
+
+function normaliseFieldNames(weeks: any[]): any[] {
+  for (const week of weeks) {
+    if (week.weekMilestone && !week.milestone) week.milestone = week.weekMilestone;
+    if (week.milestone && !week.weekMilestone) week.weekMilestone = week.milestone;
+    if (week.tuesdayCheckIn && !week.tuesdayTransformation) week.tuesdayTransformation = week.tuesdayCheckIn;
+    if (week.tuesdayTransformation && !week.tuesdayCheckIn) week.tuesdayCheckIn = week.tuesdayTransformation;
+    if (week.narrative && !week.focus) week.focus = week.narrative;
+    for (const task of week.tasks || []) {
+      if (task.whyThisMatters && !task.why) task.why = task.whyThisMatters;
+      if (task.why && !task.whyThisMatters) task.whyThisMatters = task.why;
+      if (task.timeEstimate && !task.estimatedHours) { const m = task.timeEstimate.match(/([\d.]+)/); if (m) task.estimatedHours = parseFloat(m[1]); }
+      if (task.estimatedHours && !task.timeEstimate) task.timeEstimate = `${task.estimatedHours} hours`;
+    }
+  }
+  return weeks;
 }

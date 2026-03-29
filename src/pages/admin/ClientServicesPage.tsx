@@ -10862,16 +10862,24 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     <div className="space-y-4">
                       {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
                         <div key={week.weekNumber} className="border border-gray-200 rounded-xl overflow-hidden">
-                          <div className="bg-gray-50 p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
-                                {week.weekNumber}
-                              </span>
-                              <div>
-                                <p className="font-medium text-gray-900">{week.theme}</p>
-                                <p className="text-sm text-gray-500">{week.phase} • {week.tasks?.length || 0} tasks</p>
+                          <div className="bg-gray-50 p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                                  {week.weekNumber}
+                                </span>
+                                <div>
+                                  <p className="font-medium text-gray-900">{week.theme}</p>
+                                  <p className="text-sm text-gray-500">{week.phase} • {week.tasks?.length || 0} tasks</p>
+                                </div>
                               </div>
                             </div>
+                            {week.narrative && (
+                              <p className="mt-2 pl-[52px] text-sm text-gray-600 italic leading-relaxed">{week.narrative}</p>
+                            )}
+                            {(week.weekMilestone || week.milestone) && (
+                              <p className="mt-1 pl-[52px] text-xs text-indigo-600 font-medium">🎯 {week.weekMilestone || week.milestone}</p>
+                            )}
                           </div>
                           <div className="p-4 space-y-3">
                             {week.tasks?.map((task: any) => (
@@ -10959,6 +10967,43 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                                 )}
                                               </div>
                                             )}
+                                            {(task.whyThisMatters || task.why) && (
+                                              <p className="text-sm text-indigo-600 mt-2 italic">Why: {task.whyThisMatters || task.why}</p>
+                                            )}
+                                            <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+                                              {task.category && (
+                                                <span className={`px-2 py-0.5 rounded font-medium ${
+                                                  (task.category || '').startsWith('life_') ? 'bg-purple-100 text-purple-700' :
+                                                  task.category === 'financial' ? 'bg-emerald-100 text-emerald-700' :
+                                                  task.category === 'team' ? 'bg-blue-100 text-blue-700' :
+                                                  task.category === 'systems' ? 'bg-amber-100 text-amber-700' :
+                                                  task.category === 'strategy' ? 'bg-cyan-100 text-cyan-700' :
+                                                  task.category === 'marketing' ? 'bg-pink-100 text-pink-700' :
+                                                  'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                  {(task.category || '').replace('life_', '✨ ').replace('_', ' ')}
+                                                </span>
+                                              )}
+                                              {(task.timeEstimate || task.estimatedHours) && (
+                                                <span className="text-gray-500 flex items-center gap-1">
+                                                  <Clock className="w-3 h-3" />
+                                                  {task.timeEstimate || `${task.estimatedHours}h`}
+                                                </span>
+                                              )}
+                                              {task.priority && task.priority !== 'medium' && (
+                                                <span className={`px-2 py-0.5 rounded ${
+                                                  task.priority === 'critical' ? 'bg-red-100 text-red-700' :
+                                                  task.priority === 'high' ? 'bg-amber-100 text-amber-700' :
+                                                  'bg-gray-100 text-gray-600'
+                                                }`}>{task.priority}</span>
+                                              )}
+                                            </div>
+                                            {task.deliverable && (
+                                              <p className="text-xs text-gray-400 mt-1">📋 Deliverable: {task.deliverable}</p>
+                                            )}
+                                            {task.celebrationMoment && (
+                                              <p className="text-xs text-gray-400 mt-1 italic">🎉 {task.celebrationMoment}</p>
+                                            )}
                                           </div>
                                         </div>
                                         
@@ -11002,6 +11047,12 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 )}
                               </div>
                             ))}
+                            {(week.tuesdayCheckIn || week.tuesdayTransformation) && (
+                              <div className="mt-3 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                <p className="text-xs font-medium text-indigo-600 uppercase tracking-wide mb-1">Tuesday Check-In</p>
+                                <p className="text-sm text-indigo-800 italic">{week.tuesdayCheckIn || week.tuesdayTransformation}</p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}

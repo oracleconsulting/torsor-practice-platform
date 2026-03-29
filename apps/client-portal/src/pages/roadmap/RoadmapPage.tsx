@@ -1120,7 +1120,7 @@ function WeekCard({
               </span>
             )}
           </div>
-          <p className="text-sm text-slate-500">{week.focus}</p>
+          <p className="text-sm text-slate-500">{week.focus || week.narrative}</p>
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -1232,12 +1232,12 @@ function WeekCard({
                         {task.title}
                       </h5>
                       <p className="text-sm text-slate-500 mt-1">{task.description}</p>
-                      {task.why && (
-                        <p className="text-sm text-indigo-600 mt-2 italic">Why: {task.why}</p>
+                      {(task.why || task.whyThisMatters) && (
+                        <p className="text-sm text-indigo-600 mt-2 italic">Why: {task.why || task.whyThisMatters}</p>
                       )}
                       <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
                         <span className="bg-slate-100 px-2 py-0.5 rounded">{task.category}</span>
-                        {task.estimatedHours && <span><Clock className="w-3 h-3 inline mr-1" />{task.estimatedHours}h</span>}
+                        {(task.estimatedHours || task.timeEstimate) && <span><Clock className="w-3 h-3 inline mr-1" />{task.estimatedHours ? `${task.estimatedHours}h` : task.timeEstimate}</span>}
                         <span className={`px-2 py-0.5 rounded ${
                           task.priority === 'critical' ? 'bg-red-100 text-red-700' :
                           task.priority === 'high' ? 'bg-amber-100 text-amber-700' :
@@ -1246,6 +1246,12 @@ function WeekCard({
                           {task.priority}
                         </span>
                       </div>
+                      {task.deliverable && (
+                        <p className="text-xs text-slate-400 mt-1">📋 {task.deliverable}</p>
+                      )}
+                      {task.celebrationMoment && (
+                        <p className="text-xs text-slate-400 mt-1 italic">🎉 {task.celebrationMoment}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1253,18 +1259,18 @@ function WeekCard({
             })}
           </div>
           
-          {week.milestone && (
+          {(week.milestone || week.weekMilestone) && (
             <div className="ml-16 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm font-medium text-amber-800">
-                <span className="uppercase text-xs tracking-wide">Milestone:</span> {week.milestone}
+                <span className="uppercase text-xs tracking-wide">Milestone:</span> {week.milestone || week.weekMilestone}
               </p>
             </div>
           )}
 
-          {week.tuesdayTransformation && (
+          {(week.tuesdayTransformation || week.tuesdayCheckIn) && (
             <div className="ml-16 mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
               <p className="text-sm text-indigo-800">
-                <span className="font-medium">Tuesday Evolution:</span> {week.tuesdayTransformation}
+                <span className="font-medium">Tuesday Evolution:</span> {week.tuesdayTransformation || week.tuesdayCheckIn}
               </p>
             </div>
           )}
