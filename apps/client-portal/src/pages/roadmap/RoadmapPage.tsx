@@ -13,6 +13,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { useRoadmap, useGenerateAnalysis, useTasks, useGenerateValueAnalysis } from '@/hooks/useAnalysis';
 import { QuarterlyLifeCheckBanner } from '@/components/sprint/QuarterlyLifeCheck';
+import { FinancialPulse } from '@/components/roadmap/FinancialPulse';
 import { useAssessmentProgress } from '@/hooks/useAssessmentProgress';
 import { TaskCompletionModal } from '@/components/tasks/TaskCompletionModal';
 import { Link } from 'react-router-dom';
@@ -263,6 +264,9 @@ export default function RoadmapPage() {
           />
         )}
         
+        {/* Financial Pulse — BM data cards */}
+        <FinancialPulse valueAnalysis={valueAnalysis} />
+
         {/* ================================================================
             NAVIGATION TABS
         ================================================================ */}
