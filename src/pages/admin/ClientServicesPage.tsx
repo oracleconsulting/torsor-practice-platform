@@ -10237,6 +10237,84 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         );
                       })()}
 
+                      {/* Quarterly Insight Report */}
+                      {serviceLineCode === '365_method' && (() => {
+                        const currentSprint = client.gaEnrollment?.current_sprint_number ?? 1;
+                        const insightStage = (client.roadmapStages || []).find((s: any) => s.stage_type === 'insight_report' && (s.sprint_number ?? 1) === currentSprint);
+                        const content = insightStage?.approved_content || insightStage?.generated_content;
+                        const sprintTasks = (client.tasks || []).filter((t: any) => (t.sprint_number ?? 1) === currentSprint);
+                        const completionRate = sprintTasks.length > 0 ? Math.round(sprintTasks.filter((t: any) => t.status === 'completed' || t.status === 'skipped').length / sprintTasks.length * 100) : 0;
+
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                  <BarChart3 className="w-5 h-5 text-cyan-600" />
+                                  Quarterly Insight Report
+                                </h3>
+                                <p className="text-xs text-gray-500">Sprint {currentSprint} — for the quarterly catch-up</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {!insightStage && completionRate >= 50 && (
+                                  <button onClick={async () => { try { await supabase.functions.invoke('generate-insight-report', { body: { clientId, practiceId: client.practice_id, sprintNumber: currentSprint } }); await fetchClientDetail(); } catch (e) { console.error(e); alert('Failed to generate insight report.'); } }} className="px-3 py-1.5 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-sm font-medium">Generate Insight Report</button>
+                                )}
+                                {!insightStage && completionRate < 50 && (
+                                  <span className="text-xs text-gray-400">Available when sprint is 50%+ complete ({completionRate}% now)</span>
+                                )}
+                                {insightStage && (
+                                  <button onClick={async () => { try { await supabase.functions.invoke('generate-insight-report', { body: { clientId, practiceId: client.practice_id, sprintNumber: currentSprint } }); await fetchClientDetail(); } catch (e) { console.error(e); alert('Failed to regenerate.'); } }} className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs">Regenerate</button>
+                                )}
+                              </div>
+                            </div>
+                            {content && (
+                              <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-5 space-y-4">
+                                {content.lifeMetrics && (
+                                  <div>
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-2">Life Progress</h4>
+                                    <p className="text-sm text-gray-800">{content.lifeMetrics.summary}</p>
+                                    {content.lifeMetrics.highlight && <p className="text-sm text-emerald-700 mt-1">✨ {content.lifeMetrics.highlight}</p>}
+                                    {content.lifeMetrics.gap && <p className="text-sm text-amber-700 mt-1">⚠️ {content.lifeMetrics.gap}</p>}
+                                  </div>
+                                )}
+                                {content.businessMetrics && (
+                                  <div className="pt-3 border-t border-cyan-200">
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-2">Business Progress</h4>
+                                    <p className="text-sm text-gray-800">{content.businessMetrics.summary}</p>
+                                  </div>
+                                )}
+                                {content.insight && (
+                                  <div className="pt-3 border-t border-cyan-200 bg-white rounded-lg p-4 border border-cyan-100">
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-2">Key Insight</h4>
+                                    <p className="text-sm font-medium text-gray-900">{content.insight.headline}</p>
+                                    <p className="text-sm text-gray-700 mt-1">{content.insight.detail}</p>
+                                    <p className="text-sm text-cyan-700 mt-2 font-medium">→ {content.insight.action}</p>
+                                  </div>
+                                )}
+                                {content.question && (
+                                  <div className="pt-3 border-t border-cyan-200">
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-1">Question for Catch-Up</h4>
+                                    <p className="text-sm text-gray-800 italic">&ldquo;{content.question.forCatchUp}&rdquo;</p>
+                                  </div>
+                                )}
+                                {content.nextSprint && (
+                                  <div className="pt-3 border-t border-cyan-200">
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-1">Next Sprint Preview</h4>
+                                    <p className="text-sm text-gray-800">{content.nextSprint.preview}</p>
+                                  </div>
+                                )}
+                                <div className="pt-3 border-t border-cyan-200 flex items-center gap-2">
+                                  {insightStage?.status === 'generated' && (
+                                    <button onClick={async () => { await supabase.from('roadmap_stages').update({ status: 'approved', approved_content: content }).eq('id', insightStage.id); await fetchClientDetail(); }} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm">Approve &amp; Share with Client</button>
+                                  )}
+                                  {insightStage?.status === 'approved' && <span className="text-xs text-emerald-600 font-medium">✓ Shared with client</span>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
                       {/* Sprint Renewal (Phase 4) — only for 365_method — Renewal Progress Tracker */}
                       {serviceLineCode === '365_method' && client.gaEnrollment
                         ? (() => {

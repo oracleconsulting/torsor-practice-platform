@@ -235,6 +235,7 @@ export interface RoadmapData {
   hasUnpublishedSprint?: boolean;
   renewalStatus?: string | null;
   currentSprintNumber?: number;
+  insightReport?: any;
 }
 
 export interface Part3Question {
@@ -868,6 +869,10 @@ export function useRoadmap() {
           roadmapData.sprintSummary = stagesMap['sprint_summary'];
         }
 
+        // Insight report (approved = visible to client)
+        const insightReportStage = stagesData.find(s => s.stage_type === 'insight_report' && ['approved', 'published'].includes(s.status));
+        const insightReport = insightReportStage ? (insightReportStage.approved_content || insightReportStage.generated_content) : null;
+
         const hasUnpublishedSprint = isPartner && stagesData.some(
           (s: any) => ['sprint_plan_part2', 'sprint_plan', 'sprint_plan_part1'].includes(s.stage_type) && s.status !== 'published'
         );
@@ -881,6 +886,7 @@ export function useRoadmap() {
           hasUnpublishedSprint: hasUnpublishedSprint || undefined,
           renewalStatus,
           currentSprintNumber,
+          insightReport,
         });
         return { roadmapData, valueAnalysis };
       }

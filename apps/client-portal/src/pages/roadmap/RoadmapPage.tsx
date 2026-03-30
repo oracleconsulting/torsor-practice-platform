@@ -264,6 +264,23 @@ export default function RoadmapPage() {
           />
         )}
         
+        {/* Quarterly Insight Report — if shared by practice */}
+        {roadmap?.insightReport && (
+          <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-5 mb-6">
+            <h3 className="font-semibold text-cyan-900 text-lg mb-3">Your Sprint {roadmap.insightReport.sprintNumber} Review</h3>
+            {roadmap.insightReport.lifeMetrics?.summary && <p className="text-sm text-gray-800 mb-2">{roadmap.insightReport.lifeMetrics.summary}</p>}
+            {roadmap.insightReport.lifeMetrics?.highlight && <p className="text-sm text-emerald-700 mb-2">✨ {roadmap.insightReport.lifeMetrics.highlight}</p>}
+            {roadmap.insightReport.insight && (
+              <div className="bg-white rounded-lg p-4 border border-cyan-100 mt-3">
+                <p className="text-sm font-medium text-gray-900">{roadmap.insightReport.insight.headline}</p>
+                <p className="text-sm text-gray-600 mt-1">{roadmap.insightReport.insight.detail}</p>
+                {roadmap.insightReport.insight.action && <p className="text-sm text-cyan-700 mt-2 font-medium">→ {roadmap.insightReport.insight.action}</p>}
+              </div>
+            )}
+            {roadmap.insightReport.nextSprint?.preview && <p className="text-sm text-cyan-700 mt-3">{roadmap.insightReport.nextSprint.preview}</p>}
+          </div>
+        )}
+
         {/* Financial Pulse — BM data cards */}
         <FinancialPulse valueAnalysis={valueAnalysis} />
 
