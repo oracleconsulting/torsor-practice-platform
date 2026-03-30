@@ -10144,6 +10144,99 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           })()
                         : null}
 
+                      {/* Advisory Brief (Practice-Only) */}
+                      {(() => {
+                        const advisoryStage = (client.roadmapStages || []).find((s: any) => s.stage_type === 'advisory_brief' && ['generated', 'approved'].includes(s.status));
+                        if (!advisoryStage) return null;
+                        const brief = advisoryStage.generated_content || advisoryStage.approved_content;
+                        if (!brief || brief._parseError) return null;
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                  <FileText className="w-5 h-5 text-amber-600" />
+                                  Advisory Brief
+                                </h3>
+                                <p className="text-xs text-gray-500">Practice only — not visible to client</p>
+                              </div>
+                              {brief.generatedAt && <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">Generated {new Date(brief.generatedAt).toLocaleDateString()}</span>}
+                            </div>
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-5 max-h-[600px] overflow-y-auto">
+                              {brief.executiveSummary && (
+                                <div>
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Executive Summary</h4>
+                                  <p className="text-sm text-gray-800 leading-relaxed">{brief.executiveSummary}</p>
+                                </div>
+                              )}
+                              {brief.catchUpTalkingPoints?.length > 0 && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Catch-Up Talking Points</h4>
+                                  <div className="space-y-3">
+                                    {brief.catchUpTalkingPoints.map((p: any, i: number) => (
+                                      <div key={i} className="bg-white rounded-lg p-3 border border-amber-100">
+                                        <p className="text-sm font-medium text-gray-900">{p.topic}</p>
+                                        <p className="text-xs text-gray-600 mt-1">Data: {p.dataPoint}</p>
+                                        <p className="text-xs text-amber-700 mt-1 font-medium">→ {p.suggestedAction}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {brief.sprintAdvisoryTasks?.length > 0 && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Suggested Sprint Additions</h4>
+                                  <div className="space-y-2">
+                                    {brief.sprintAdvisoryTasks.map((t: any, i: number) => (
+                                      <div key={i} className="bg-white rounded-lg p-3 border border-amber-100">
+                                        <p className="text-sm font-medium text-gray-900">{t.title}</p>
+                                        <p className="text-xs text-gray-600 mt-1">{t.description}</p>
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">{t.category}</span>
+                                          {t.suggestedWeek > 0 && <span className="text-xs text-amber-600">Week {t.suggestedWeek}</span>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {brief.crossServiceOpportunities?.length > 0 && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Cross-Service Opportunities</h4>
+                                  <div className="space-y-2">
+                                    {brief.crossServiceOpportunities.map((o: any, i: number) => (
+                                      <div key={i} className="bg-white rounded-lg p-3 border border-amber-100 flex items-start gap-3">
+                                        <div className="flex-1"><p className="text-sm font-medium text-gray-900">{o.service}</p><p className="text-xs text-gray-600 mt-1">Trigger: {o.trigger}</p><p className="text-xs text-gray-500">Timing: {o.timing}</p></div>
+                                        {o.valueAtStake && <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded whitespace-nowrap">{o.valueAtStake}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {brief.riskRegister?.length > 0 && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Risk Register</h4>
+                                  <div className="space-y-2">
+                                    {brief.riskRegister.map((r: any, i: number) => (
+                                      <div key={i} className={`rounded-lg p-3 border ${r.severity === 'Critical' ? 'bg-red-50 border-red-200' : r.severity === 'High' ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+                                        <div className="flex items-center gap-2"><span className={`text-xs font-bold px-2 py-0.5 rounded ${r.severity === 'Critical' ? 'bg-red-100 text-red-700' : r.severity === 'High' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{r.severity}</span><p className="text-sm font-medium text-gray-900">{r.risk}</p></div>
+                                        {r.trigger && <p className="text-xs text-gray-600 mt-1">Trigger: {r.trigger}</p>}
+                                        {r.mitigation && <p className="text-xs text-gray-500 mt-1">Mitigation: {r.mitigation}</p>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {brief._dataSources && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <p className="text-xs text-amber-600">Sources: {[brief._dataSources.gaAssessment && 'GA Assessment', brief._dataSources.bmReport && 'BM Report', brief._dataSources.exitReadiness && 'Exit Readiness', brief._dataSources.suppressors && 'Value Suppressors'].filter(Boolean).join(' · ')}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Sprint Renewal (Phase 4) — only for 365_method — Renewal Progress Tracker */}
                       {serviceLineCode === '365_method' && client.gaEnrollment
                         ? (() => {
