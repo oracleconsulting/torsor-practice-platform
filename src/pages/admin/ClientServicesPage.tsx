@@ -6957,6 +6957,22 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         lifeCheckData = lc;
       }
 
+      // Detect sibling directors (same company, enrolled in GA)
+      let siblingDirectors: any[] = [];
+      if (clientData.client_company && serviceLineCode === '365_method') {
+        try {
+          const { data: siblings } = await supabase.from('practice_members').select('id, name, email').eq('practice_id', clientData.practice_id).eq('client_company', clientData.client_company).eq('member_type', 'client').neq('id', clientId);
+          if (siblings?.length) {
+            const slRow = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+            if (slRow.data?.id) {
+              const { data: sibEnrollments } = await supabase.from('client_service_lines').select('client_id').in('client_id', siblings.map(s => s.id)).eq('service_line_id', slRow.data.id);
+              const enrolledIds = new Set((sibEnrollments || []).map(e => e.client_id));
+              siblingDirectors = siblings.filter(s => enrolledIds.has(s.id));
+            }
+          }
+        } catch (e) { console.warn('Sibling director detection failed:', e); }
+      }
+
       setClient({
         ...clientData,
         roadmap: roadmap ? {
@@ -6973,7 +6989,8 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         assessments: allAssessments,
         context: context || [],
         documents: documents,
-        tasks: clientTasks || []
+        tasks: clientTasks || [],
+        siblingDirectors,
       });
     } catch (error) {
       console.error('Error fetching client:', error);
@@ -10309,6 +10326,95 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                   )}
                                   {insightStage?.status === 'approved' && <span className="text-xs text-emerald-600 font-medium">✓ Shared with client</span>}
                                 </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Director Alignment Map (Partner tier, multi-director) */}
+                      {serviceLineCode === '365_method' && (client.siblingDirectors?.length > 0) && (() => {
+                        const alignStage = (client.roadmapStages || []).find((s: any) => s.stage_type === 'director_alignment' && ['generated', 'approved'].includes(s.status));
+                        const alignMap = alignStage?.generated_content;
+                        const allDirIds = [clientId, ...(client.siblingDirectors || []).map((s: any) => s.id)];
+
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                  <Users className="w-5 h-5 text-purple-600" />
+                                  Director Alignment Map
+                                </h3>
+                                <p className="text-xs text-gray-500">
+                                  {client.client_company} — {allDirIds.length} directors: {client.name}{client.siblingDirectors.map((s: any) => ', ' + s.name).join('')}
+                                </p>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await supabase.functions.invoke('generate-director-alignment', { body: { directorIds: allDirIds, practiceId: client.practice_id, primaryDirectorId: clientId } });
+                                    await fetchClientDetail();
+                                  } catch (e) { console.error(e); alert('Failed to generate alignment map.'); }
+                                }}
+                                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
+                              >
+                                {alignStage ? 'Regenerate' : 'Generate'} Alignment Map
+                              </button>
+                            </div>
+                            {alignMap && !alignMap._parseError && (
+                              <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 space-y-4 max-h-[600px] overflow-y-auto">
+                                {alignMap.snapshots?.length > 0 && (
+                                  <div>
+                                    <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wide mb-2">Director Snapshots</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      {alignMap.snapshots.map((s: any, i: number) => (
+                                        <div key={i} className="bg-white rounded-lg p-3 border border-purple-100">
+                                          <p className="text-sm font-semibold text-gray-900">{s.name}</p>
+                                          <p className="text-sm text-gray-700 mt-1">{s.summary}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {alignMap.alignmentZone && (
+                                  <div className="pt-3 border-t border-purple-200">
+                                    <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wide mb-2">Alignment Zone</h4>
+                                    <p className="text-sm text-gray-800">{alignMap.alignmentZone.commonGround}</p>
+                                    {alignMap.alignmentZone.sharedGoals?.length > 0 && <ul className="mt-2 space-y-1">{alignMap.alignmentZone.sharedGoals.map((g: string, i: number) => <li key={i} className="text-sm text-emerald-700">✓ {g}</li>)}</ul>}
+                                  </div>
+                                )}
+                                {alignMap.tensionMap?.length > 0 && (
+                                  <div className="pt-3 border-t border-purple-200">
+                                    <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">Tensions</h4>
+                                    <div className="space-y-2">{alignMap.tensionMap.map((t: any, i: number) => (
+                                      <div key={i} className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                                        <p className="text-sm font-medium text-gray-900">{t.tension}</p>
+                                        <p className="text-xs text-amber-700 mt-1">Impact: {t.impact}</p>
+                                        <p className="text-xs text-gray-600 mt-1">Resolution: {t.resolution}</p>
+                                      </div>
+                                    ))}</div>
+                                  </div>
+                                )}
+                                {alignMap.blindSpots?.length > 0 && (
+                                  <div className="pt-3 border-t border-purple-200">
+                                    <h4 className="text-xs font-bold text-red-800 uppercase tracking-wide mb-2">Blind Spots</h4>
+                                    {alignMap.blindSpots.map((b: string, i: number) => <p key={i} className="text-sm text-red-700 mt-1">⚠️ {b}</p>)}
+                                  </div>
+                                )}
+                                {alignMap.shared12MonthGoal && (
+                                  <div className="pt-3 border-t border-purple-200 bg-white rounded-lg p-4 border border-purple-100">
+                                    <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wide mb-2">Shared 12-Month Goal</h4>
+                                    <p className="text-sm font-medium text-gray-900">{alignMap.shared12MonthGoal.goal}</p>
+                                    <p className="text-xs text-gray-600 mt-1">Measurable: {alignMap.shared12MonthGoal.measurable}</p>
+                                  </div>
+                                )}
+                                {alignMap.facilitationQuestions?.length > 0 && (
+                                  <div className="pt-3 border-t border-purple-200">
+                                    <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wide mb-2">Facilitation Questions</h4>
+                                    <ol className="space-y-1 list-decimal list-inside">{alignMap.facilitationQuestions.map((q: string, i: number) => <li key={i} className="text-sm text-gray-700">{q}</li>)}</ol>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

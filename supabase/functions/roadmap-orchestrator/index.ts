@@ -29,6 +29,7 @@ const STAGE_FUNCTIONS: Record<string, string> = {
   'value_analysis': 'generate-value-analysis',
   'advisory_brief': 'generate-advisory-brief',
   'insight_report': 'generate-insight-report',
+  'director_alignment': 'generate-director-alignment',
   'sprint_summary': 'generate-sprint-summary',
   'life_design_refresh': 'generate-life-design-refresh',
   'vision_update': 'generate-vision-update',
