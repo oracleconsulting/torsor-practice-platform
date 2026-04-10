@@ -21,7 +21,7 @@ import {
   Rocket, Wallet, Info,
   X, Check
 } from 'lucide-react';
-import type { ValueAnalysis, ValueSuppressor, ValueEnhancer } from '../../../types/benchmarking';
+import type { ValueAnalysis, ValueEnhancer } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 import type {
   EnhancedValueSuppressor,
@@ -1200,6 +1200,29 @@ export default function BenchmarkingClientDashboard({
       case 'value': {
         if (!valueAnalysis) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Value analysis not available for this engagement.</p></RevealCard>;
         const { baseline, suppressors, currentMarketValue, valueGap, pathToValue, enhancers } = valueAnalysis;
+        // Prefer enhanced_suppressors (granular items) over value_analysis.suppressors (often a single rolled-up item).
+        // Enhanced suppressors carry waterfallAmount for correct marginal contributions vs standalone discounts.
+        const waterfallSuppressors: Array<{
+          id: string;
+          name: string;
+          severity: string;
+          evidence: string;
+          impactAmount: { low: number; high: number };
+          pathToFix?: { summary: string };
+        }> =
+          enhancedSuppressors.length > 0
+            ? enhancedSuppressors.map((es) => {
+                const marginal = es.waterfallAmount ?? es.current?.waterfallAmount ?? es.current?.discountValue ?? 0;
+                return {
+                  id: es.code || es.name,
+                  name: es.name,
+                  severity: es.severity?.toLowerCase() || 'medium',
+                  evidence: es.evidence,
+                  impactAmount: { low: marginal, high: marginal },
+                  pathToFix: es.pathToFix,
+                };
+              })
+            : suppressors;
         const gapPercent = valueAnalysis.valueGapPercent || 0;
         const exitBlockers = valueAnalysis.exitReadiness?.blockers ?? [];
         const exitStrengths = valueAnalysis.exitReadiness?.strengths ?? [];
@@ -1242,11 +1265,10 @@ export default function BenchmarkingClientDashboard({
               </div>
               {/* Suppressors below */}
               {/* Suppressors */}
-              {suppressors.map((s: ValueSuppressor) => {
+              {waterfallSuppressors.map((s) => {
                 const avgImpact = (s.impactAmount.low + s.impactAmount.high) / 2;
-                const sevColor = s.severity === 'critical' ? C.red : s.severity === 'high' ? C.orange : s.severity === 'medium' ? C.amber : C.textMuted;
-                // Cross-reference enhanced suppressor for fix hint
-                const enhancedMatch = enhancedSuppressors.find(e => e.name === s.name || e.code === s.id);
+                const sev = String(s.severity).toLowerCase();
+                const sevColor = sev === 'critical' ? C.red : sev === 'high' ? C.orange : sev === 'medium' ? C.amber : C.textMuted;
                 return (
                   <div key={s.id} style={{ padding: '12px 18px', borderRadius: 10, background: `${sevColor}06`, border: `1px solid ${sevColor}15`, marginLeft: 20, marginBottom: 6 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1262,10 +1284,10 @@ export default function BenchmarkingClientDashboard({
                       </div>
                       <span style={{ fontSize: 16, fontWeight: 700, color: sevColor, ...mono, flexShrink: 0 }}>-{fmt(avgImpact)}</span>
                     </div>
-                    {enhancedMatch?.pathToFix?.summary && (
+                    {s.pathToFix?.summary && (
                       <div style={{ marginTop: 6, marginLeft: 26, display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 11, color: C.blue }}>
                         <Clock style={{ width: 12, height: 12, flexShrink: 0, marginTop: 1 }} />
-                        <span>Fixable via {enhancedMatch.pathToFix.summary}</span>
+                        <span>Fixable via {s.pathToFix.summary}</span>
                       </div>
                     )}
                   </div>
