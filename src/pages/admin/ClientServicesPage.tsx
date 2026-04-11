@@ -11603,19 +11603,27 @@ function BenchmarkingClientModal({
     try {
       const timestamp = newSharedStatus ? new Date().toISOString() : null;
       
-      // Update bm_reports
-      const { error: reportError } = await supabase
+      // Update bm_reports (must affect a row or client RLS / portal will not see the report)
+      const { data: updatedReportRows, error: reportError } = await supabase
         .from('bm_reports')
         .update({
           is_shared_with_client: newSharedStatus,
           shared_at: timestamp,
           shared_by: newSharedStatus ? currentMember?.id : null
         })
-        .eq('engagement_id', engagement.id);
+        .eq('engagement_id', engagement.id)
+        .select('id');
       
       if (reportError) {
         console.error('[Benchmarking] Error toggling share on bm_reports:', reportError);
         alert(`Failed to ${newSharedStatus ? 'share' : 'unshare'} report: ${reportError.message}`);
+        return;
+      }
+      if (!updatedReportRows?.length) {
+        console.error('[Benchmarking] No bm_reports row for engagement; cannot sync share flags', engagement.id);
+        alert(
+          'No benchmarking report row found for this engagement. Generate or save the report first, then share again.'
+        );
         return;
       }
       
