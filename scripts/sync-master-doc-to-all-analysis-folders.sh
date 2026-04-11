@@ -2,7 +2,8 @@
 # Copies docs/TORSOR_PRACTICE_PLATFORM_MASTER.md into every analysis folder so each has an up-to-date copy.
 # Run from repo root: ./torsor-practice-platform/scripts/sync-master-doc-to-all-analysis-folders.sh
 # Also run automatically when you run any of the service-specific sync scripts (they copy the master into their own folder).
-# Use this script to refresh the master doc in all folders at once, including benchmarking (which has no full sync script).
+# Use this script to refresh the master doc in all folders at once. For benchmarking code copies, also run
+# ./torsor-practice-platform/scripts/sync-benchmarking-assessment-copies.sh
 
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

@@ -22,6 +22,7 @@ interface RegenerateOptions {
   forceRefreshBenchmarks?: boolean; // Default: true - always get fresh data
   preserveExistingReport?: boolean; // Default: false - overwrite existing
   reason?: string; // Audit trail for why regeneration was requested
+  passToRun?: 'all' | 'pass3_only'; // Default: 'all' - run full pipeline or opportunities only
 }
 
 serve(async (req) => {
@@ -35,7 +36,8 @@ serve(async (req) => {
       engagementId: body.engagementId,
       forceRefreshBenchmarks: body.forceRefreshBenchmarks ?? true,
       preserveExistingReport: body.preserveExistingReport ?? false,
-      reason: body.reason || 'Manual regeneration request'
+      reason: body.reason || 'Manual regeneration request',
+      passToRun: body.passToRun || 'all'
     };
 
     if (!options.engagementId) {
@@ -51,7 +53,8 @@ serve(async (req) => {
     console.log('[BM Regenerate] Options:', {
       forceRefreshBenchmarks: options.forceRefreshBenchmarks,
       preserveExistingReport: options.preserveExistingReport,
-      reason: options.reason
+      reason: options.reason,
+      passToRun: options.passToRun
     });
 
     // =========================================================================
@@ -167,6 +170,68 @@ serve(async (req) => {
     if (options.preserveExistingReport && currentReport) {
       // Could implement archiving here - save to bm_report_history table
       console.log('[BM Regenerate] Preserving existing report (archiving not yet implemented)');
+    }
+
+    // =========================================================================
+    // PASS 3 ONLY: Skip Pass 1/2, regenerate opportunities & services only
+    // =========================================================================
+    
+    if (options.passToRun === 'pass3_only') {
+      console.log('[BM Regenerate] Pass 3 only mode — skipping Pass 1/2');
+
+      // Clear existing Pass 3 data
+      await supabase
+        .from('bm_reports')
+        .update({
+          opportunity_assessment: null,
+          scenario_suggestions: null,
+          opportunities_generated_at: null,
+          not_recommended_services: null,
+          recommended_services: '[]',
+          active_service_codes: null,
+          pinned_services: null,
+          blocked_services_manual: null,
+        })
+        .eq('engagement_id', options.engagementId);
+
+      // Delete existing opportunities
+      await supabase
+        .from('client_opportunities')
+        .delete()
+        .eq('engagement_id', options.engagementId);
+
+      // Fire-and-forget — don't await. Pass 3 takes 2-3 minutes (LLM call)
+      // and will exceed the edge function timeout if we wait (matches Pass 2 → Pass 3).
+      console.log('[BM Regenerate] Triggering Pass 3 (fire-and-forget)...');
+      fetch(`${supabaseUrl}/functions/v1/generate-bm-opportunities`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceRoleKey}`
+        },
+        body: JSON.stringify({ engagementId: options.engagementId })
+      }).then((res) => {
+        if (res.ok) {
+          console.log('[BM Regenerate] Pass 3 triggered successfully');
+        } else {
+          console.error('[BM Regenerate] Pass 3 trigger returned:', res.status);
+        }
+      }).catch((err) => {
+        console.error('[BM Regenerate] Pass 3 trigger failed:', err);
+      });
+
+      console.log('[BM Regenerate] Pass 3 triggered (fire-and-forget) — frontend will poll for completion');
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          engagementId: options.engagementId,
+          status: 'pass3_triggered',
+          passRun: 'pass3_only',
+          message: 'Pass 3 (opportunities & services) triggered. It will complete in 1-2 minutes. Refresh the page to see results.'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // =========================================================================
