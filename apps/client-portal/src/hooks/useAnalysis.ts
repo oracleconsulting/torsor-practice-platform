@@ -791,11 +791,12 @@ export function useRoadmap() {
       }
 
       // Fetch from new staged architecture (roadmap_stages)
+      // Only show published/approved stages to client — 'generated' is practice-only
       const { data: stagesData, error: stagesError } = await supabase
         .from('roadmap_stages')
         .select('*')
         .eq('client_id', clientSession.clientId)
-        .in('status', ['published', 'approved', 'generated'])
+        .in('status', ['published', 'approved'])
         .order('created_at', { ascending: true });
 
       console.log('[useRoadmap] roadmap_stages query result:', { 

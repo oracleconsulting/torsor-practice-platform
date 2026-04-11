@@ -9715,52 +9715,45 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             {client.roadmap.status || 'pending_review'}
                           </p>
                         </div>
-                        {client.roadmap.status !== 'published' && (
-                          <button
-                            onClick={async () => {
-                              if (!confirm('Mark this roadmap as ready and send email notification to client?')) return;
-                              
-                              try {
-                                // Update roadmap status to published
-                                const { error: updateError } = await supabase
-                                  .from('client_roadmaps')
-                                  .update({ status: 'published' })
-                                  .eq('id', client.roadmap.id);
-                                
-                                if (updateError) throw updateError;
-                                
-                                // Send email notification
-                                const { error: emailError } = await supabase.functions.invoke('notify-roadmap-ready', {
-                                  body: {
-                                    roadmapId: client.roadmap.id,
-                                    clientId: clientId
-                                  }
-                                });
-                                
-                                if (emailError) {
-                                  console.error('Email error:', emailError);
-                                  alert('Roadmap marked as ready, but email failed to send. Please check logs.');
-                                } else {
-                                  alert('Roadmap marked as ready and email sent to client!');
-                                }
-                                
-                                // Refresh client data
-                                await fetchClientDetail();
-                              } catch (error) {
-                                console.error('Error marking roadmap as ready:', error);
-                                alert('Failed to mark roadmap as ready. Please try again.');
-                              }
-                            }}
-                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
-                          >
-                            Mark as Ready & Send Email
-                          </button>
-                        )}
-                        {client.roadmap.status === 'published' && (
-                          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
-                            ✓ Published
-                          </span>
-                        )}
+                        {(() => {
+                          const allStagesPublished = (client.roadmapStages || []).filter((s: any) => ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type)).every((s: any) => s.status === 'published');
+                          const hasGeneratedStages = (client.roadmapStages || []).some((s: any) => s.status === 'generated' && ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type));
+
+                          return (
+                            <>
+                              {hasGeneratedStages && (
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm('Publish all roadmap stages to the client portal? The client will be able to see their roadmap, sprint, and value analysis.')) return;
+                                    try {
+                                      const stageIds = (client.roadmapStages || []).filter((s: any) => s.status === 'generated' && ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type)).map((s: any) => s.id);
+                                      if (stageIds.length > 0) {
+                                        await supabase.from('roadmap_stages').update({ status: 'published' }).in('id', stageIds);
+                                      }
+                                      if (client.roadmap?.id) {
+                                        await supabase.from('client_roadmaps').update({ status: 'published' }).eq('id', client.roadmap.id);
+                                      }
+                                      try { await supabase.functions.invoke('notify-roadmap-ready', { body: { clientId } }); } catch {}
+                                      alert(`Published ${stageIds.length} stages to client portal.`);
+                                      await fetchClientDetail();
+                                    } catch (error) {
+                                      console.error('Error publishing:', error);
+                                      alert('Failed to publish. Please try again.');
+                                    }
+                                  }}
+                                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+                                >
+                                  Publish to Client
+                                </button>
+                              )}
+                              {allStagesPublished && (
+                                <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
+                                  ✓ Published
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       
                       {/* Fit Profile (North Star) */}

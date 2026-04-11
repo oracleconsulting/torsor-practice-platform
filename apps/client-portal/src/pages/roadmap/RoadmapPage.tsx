@@ -97,12 +97,11 @@ export default function RoadmapPage() {
         }
         
         // Check roadmap status from staged architecture
-        // Include 'generated' status for testing/preview mode
         const { data: stagesStatus } = await supabase
           .from('roadmap_stages')
           .select('status')
           .eq('client_id', clientSession.clientId)
-          .in('status', ['published', 'approved', 'generated'])
+          .in('status', ['published', 'approved'])
           .limit(1)
           .maybeSingle();
         
