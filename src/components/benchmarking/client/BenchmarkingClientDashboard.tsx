@@ -1235,7 +1235,7 @@ export default function BenchmarkingClientDashboard({
               <DotGrid opacity={0.05} /><NoiseOverlay opacity={0.15} />
               <div style={{ position: 'relative', zIndex: 1 }}>
                 <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 6 }}>Business Valuation Analysis</h2>
-                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>What {clientName} could be worth, and what's holding back the value</p>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>What {clientName || 'your business'} could be worth, and what's holding back the value</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
                   {[
                     { lbl: 'Baseline Value', val: fmt(baseline.enterpriseValue.mid), sub: `${baseline.multipleRange.mid}x EBITDA`, color: '#60A5FA' },
@@ -2153,7 +2153,7 @@ export default function BenchmarkingClientDashboard({
 
             {/* Owner journey */}
             <RevealCard delay={150} style={{ ...glass({ padding: 24 }) }}>
-              <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{clientName}'s Path to Optionality</h3>
+              <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{clientName ? `${clientName}'s` : 'Your'} Path to Optionality</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
                   { year: 'Year 1', color: C.emerald, text: twoPathsNarrative.ownerJourney.year1 },
