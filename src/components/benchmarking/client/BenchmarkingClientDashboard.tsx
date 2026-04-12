@@ -635,6 +635,17 @@ export default function BenchmarkingClientDashboard({
   const surplusCash = data.surplus_cash?.surplusCash || data.pass1_data?.surplus_cash?.surplusCash || 0;
   const valueAnalysis = data.value_analysis;
   const enhancedSuppressors = data.pass1_data?.enhanced_suppressors || [];
+  /** Sum of marginal waterfall £ from enhanced suppressors; falls back to value gap when none. */
+  const totalWaterfallGapMarginal = enhancedSuppressors.reduce((sum, s) => {
+    const marginal = s.waterfallAmount ?? s.current?.waterfallAmount ?? s.current?.discountValue ?? 0;
+    return sum + marginal;
+  }, 0);
+  const totalWaterfallGap =
+    enhancedSuppressors.length > 0 ? totalWaterfallGapMarginal : valueAnalysis?.valueGap?.mid ?? 0;
+  const REALISTIC_RECOVERY_RATE = 0.7;
+  const realisticRecovery = Math.round(totalWaterfallGap * REALISTIC_RECOVERY_RATE);
+  /** Potential value after remediation, aligned with waterfall gap × 70% (not legacy pathToValue.mid). */
+  const alignedPotentialValue = (valueAnalysis?.currentMarketValue?.mid ?? 0) + realisticRecovery;
   const exitBreakdown = data.exit_readiness_breakdown ?? data.pass1_data?.exit_readiness_breakdown;
   const opportunitySynthesis = safeJsonParse<{ quickWins?: string[]; watchOuts?: string[]; topPriority?: string; clientHealth?: string } | null>(data.opportunity_synthesis as string, null);
   const twoPathsNarrative = data.pass1_data?.two_paths_narrative || 
@@ -1437,10 +1448,14 @@ export default function BenchmarkingClientDashboard({
             <RevealCard delay={350} style={{ borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}08, ${C.purple}06, rgba(255,255,255,0.97))`, border: `1px solid ${C.blue}15`, padding: 24, boxShadow: SHADOW.sm }}>
               <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Path to Full Value</h3>
               <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 16 }}>
-                Over the next {pathToValue.timeframeMonths} months, addressing structural issues could unlock <strong style={{ color: C.blue }}>{fmt(pathToValue.recoverableValue.mid)}</strong> in hidden value.
+                Over the next {pathToValue.timeframeMonths ?? 24} months, addressing the {enhancedSuppressors.length || 'identified'} structural{' '}
+                {enhancedSuppressors.length === 1 ? 'issue' : 'issues'} could unlock up to <strong style={{ color: C.blue }}>{fmt(realisticRecovery)}</strong> in hidden value.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {pathToValue.keyActions.map((action: string, i: number) => (
+                {(enhancedSuppressors.length > 0
+                  ? enhancedSuppressors.map((s) => s.pathToFix?.summary || s.name)
+                  : pathToValue.keyActions
+                ).map((action: string, i: number) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.7)', border: `1px solid ${C.blue}12` }}>
                     <div style={{ width: 24, height: 24, borderRadius: 12, background: C.blue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
                     <span style={{ fontSize: 13, color: C.text }}>{action}</span>
@@ -1449,8 +1464,11 @@ export default function BenchmarkingClientDashboard({
               </div>
               <div style={{ marginTop: 16, padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.8)', border: `1px solid ${C.blue}20`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div><p style={{ fontSize: 12, color: C.blue }}>Potential Future Value</p><p style={{ fontSize: 10, color: C.textMuted }}>After addressing key issues</p></div>
-                <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.blue, margin: 0, ...mono }}>{fmt(valueAnalysis.potentialValue.mid)}</p><p style={{ fontSize: 12, color: C.emerald, marginTop: 2 }}>+{fmt(valueAnalysis.potentialValue.mid - currentMarketValue.mid)} uplift</p></div>
+                <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.blue, margin: 0, ...mono }}>{fmt(alignedPotentialValue)}</p><p style={{ fontSize: 12, color: C.emerald, marginTop: 2 }}>+{fmt(realisticRecovery)} uplift</p></div>
               </div>
+              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.6 }}>
+                Based on {fmt(totalWaterfallGap)} total value gap with a {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery factor. Full recovery is unlikely in practice: buyers discount newly implemented changes until they are embedded.
+              </p>
             </RevealCard>
           </div>
         );
@@ -1532,7 +1550,7 @@ export default function BenchmarkingClientDashboard({
                   {[
                     { icon: Clock, val: exitBreakdown.pathTo70.timeframe, sub: 'Timeline' },
                     { icon: Wallet, val: fmt(exitBreakdown.pathTo70.investment), sub: 'Investment' },
-                    { icon: TrendingUp, val: fmt(exitBreakdown.pathTo70.valueUnlocked), sub: 'Value Unlocked' },
+                    { icon: TrendingUp, val: fmt(realisticRecovery), sub: 'Value Unlocked' },
                   ].map((s, i) => (
                     <div key={i} style={{ textAlign: 'center', padding: '12px', borderRadius: 10, background: `${C.emerald}06` }}>
                       <s.icon style={{ width: 18, height: 18, color: C.emerald, margin: '0 auto 6px' }} />
@@ -1541,6 +1559,30 @@ export default function BenchmarkingClientDashboard({
                     </div>
                   ))}
                 </div>
+                <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.5 }}>
+                  Value unlocked = total value gap ({fmt(totalWaterfallGap)}) × {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery factor, over {exitBreakdown.pathTo70.timeframe}.
+                </p>
+                {(() => {
+                  const invSucc = enhancedSuppressors.find((x) => x.code === 'SUCCESSION')?.pathToFix?.investment;
+                  const invIp = enhancedSuppressors.find((x) => x.code === 'UNDOCUMENTED_IP')?.pathToFix?.investment;
+                  const invRev = enhancedSuppressors.find((x) => x.code === 'REVENUE_PREDICTABILITY')?.pathToFix?.investment;
+                  const parts: string[] = [];
+                  if (invSucc != null && invSucc > 0) parts.push(`succession planning (${fmt(invSucc)})`);
+                  if (invIp != null && invIp > 0) parts.push(`process documentation (${fmt(invIp)})`);
+                  if (invRev != null && invRev > 0) parts.push(`revenue model work (${fmt(invRev)})`);
+                  if (parts.length === 0) {
+                    return (
+                      <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 1.5 }}>
+                        Investment ({fmt(exitBreakdown.pathTo70.investment)}) is a rounded aggregate of remediation costs on the path to exit-ready.
+                      </p>
+                    );
+                  }
+                  return (
+                    <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 1.5 }}>
+                      Investment covers {parts.join(', ')}.
+                    </p>
+                  );
+                })()}
               </RevealCard>
             )}
           </div>
@@ -2016,7 +2058,7 @@ export default function BenchmarkingClientDashboard({
           // Meaningful fallback: synthesize from available data
           const marginOpp = totalOpportunity;
           const valueGapMid = valueAnalysis?.valueGap?.mid || 0;
-          const potentialVal = valueAnalysis?.potentialValue?.mid || 0;
+          const potentialVal = alignedPotentialValue;
           const currentVal = valueAnalysis?.currentMarketValue?.mid || 0;
           const pathActions = valueAnalysis?.pathToValue?.keyActions || [];
 
@@ -2239,7 +2281,7 @@ export default function BenchmarkingClientDashboard({
                   {[
                     { val: fmt(totalOpportunity), sub: 'Opportunity/yr', bg: `${C.emerald}20` },
                     ...(valueAnalysis ? [{ val: fmt(valueAnalysis.valueGap.mid), sub: 'Trapped value', bg: `${C.amber}20` }] : []),
-                    ...(valueAnalysis ? [{ val: fmt(valueAnalysis.potentialValue.mid), sub: 'Potential value', bg: `${C.blue}20` }] : []),
+                    ...(valueAnalysis ? [{ val: fmt(alignedPotentialValue), sub: 'Potential value', bg: `${C.blue}20` }] : []),
                   ].map((s, i) => (
                     <div key={i} style={{ background: s.bg, borderRadius: 16, padding: '22px 36px', border: '1px solid rgba(255,255,255,0.15)', minWidth: 160, backdropFilter: 'blur(8px)' }}>
                       <p style={{ fontSize: 32, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{s.val}</p>
