@@ -646,20 +646,19 @@ export default function BenchmarkingClientDashboard({
     .filter((m: any) => { const code = (m.metricCode || m.metric_code || '').toLowerCase(); return !code.includes('concentration'); })
     .filter((m: any) => m.p50 != null && m.p50 !== 0);
 
-  const strengthMetrics = displayMetrics.filter((m: any) => {
-    const pct = m.percentile || 0;
-    const impact = m.annualImpact ?? m.annual_impact ?? m._originalAnnualImpact ?? 0;
-    if (pct >= 75) return true;
-    if (pct >= 50 && (!impact || impact === 0)) return true;
-    return false;
-  });
-  const gapMetrics = displayMetrics.filter((m: any) => {
-    const pct = m.percentile || 0;
-    const impact = m.annualImpact ?? m.annual_impact ?? m._originalAnnualImpact ?? 0;
-    if (pct < 50) return true;
-    if (pct >= 50 && pct < 75 && impact && impact > 0) return true;
-    return false;
-  });
+  // Classify metric as strength or gap using Pass 1 `assessment` (authoritative when present).
+  // Rule: top_quartile or top_10 = STRENGTH; else GAP. Fallback: P75+ = strength.
+  const classifyMetric = (metric: any): 'strength' | 'gap' => {
+    const assessment = String(metric.assessment || '').toLowerCase();
+    if (assessment) {
+      return assessment === 'top_quartile' || assessment === 'top_10' ? 'strength' : 'gap';
+    }
+    const pct = metric.percentile || 0;
+    return pct >= 75 ? 'strength' : 'gap';
+  };
+
+  const strengthMetrics = displayMetrics.filter((m: any) => classifyMetric(m) === 'strength');
+  const gapMetrics = displayMetrics.filter((m: any) => classifyMetric(m) === 'gap');
 
   // ─── Navigation Config ─────────────────────────────────────────────────
 
@@ -806,8 +805,8 @@ export default function BenchmarkingClientDashboard({
                 <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>{displayMetrics.length} metrics benchmarked against your sector peers</p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.emerald}12`, color: C.emerald, border: `1px solid ${C.emerald}25` }}>{strengthMetrics.length} strengths</span>
-                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.red}12`, color: C.red, border: `1px solid ${C.red}25` }}>{gapMetrics.length} gaps</span>
+                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.emerald}12`, color: C.emerald, border: `1px solid ${C.emerald}25`, whiteSpace: 'nowrap' }}>{strengthMetrics.length} strengths</span>
+                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.red}12`, color: C.red, border: `1px solid ${C.red}25`, whiteSpace: 'nowrap' }}>{gapMetrics.length} gaps</span>
               </div>
             </RevealCard>
 
@@ -821,14 +820,14 @@ export default function BenchmarkingClientDashboard({
                 const format = getMetricFormat(code);
                 const higherIsBetter = !(code.includes('days') || code.includes('debtor') || code.includes('creditor') || code.includes('turnover'));
                 const impact = metric.annualImpact ?? metric.annual_impact ?? metric._originalAnnualImpact ?? 0;
-                const isStrength = pct >= 75 || (pct >= 50 && (!impact || impact === 0));
+                const isStrength = classifyMetric(metric) === 'strength';
                 const barColor = pct >= 75 ? C.emerald : pct >= 50 ? C.blue : pct >= 25 ? C.amber : C.red;
 
                 return (
                   <RevealCard key={i} delay={i * 40} style={{ ...glass({ padding: 20 }), borderLeft: `4px solid ${barColor}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                       <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{name}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12, background: isStrength ? `${C.emerald}12` : `${C.red}12`, color: isStrength ? C.emerald : C.red, ...mono }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12, background: isStrength ? `${C.emerald}12` : `${C.red}12`, color: isStrength ? C.emerald : C.red, whiteSpace: 'nowrap', ...mono }}>
                         {isStrength ? 'STRENGTH' : 'GAP'}
                       </span>
                     </div>
@@ -1235,7 +1234,7 @@ export default function BenchmarkingClientDashboard({
               <DotGrid opacity={0.05} /><NoiseOverlay opacity={0.15} />
               <div style={{ position: 'relative', zIndex: 1 }}>
                 <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 6 }}>Business Valuation Analysis</h2>
-                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>What {clientName || 'your business'} could be worth, and what's holding back the value</p>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>What {clientName && clientName !== 'Your Business' ? clientName : 'your business'} could be worth, and what's holding back the value</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
                   {[
                     { lbl: 'Baseline Value', val: fmt(baseline.enterpriseValue.mid), sub: `${baseline.multipleRange.mid}x EBITDA`, color: '#60A5FA' },
@@ -1364,12 +1363,18 @@ export default function BenchmarkingClientDashboard({
                   {enhancedSuppressors.map((sup) => {
                     const sevColor = sup.severity === 'CRITICAL' ? C.red : sup.severity === 'HIGH' ? C.orange : sup.severity === 'MEDIUM' ? C.amber : C.textMuted;
                     const isExpanded = expandedSuppressor === sup.code;
+                    const recoveryRaw = sup.recovery?.valueRecoverable ?? 0;
+                    const waterfallPounds =
+                      sup.waterfallAmount ?? sup.current?.waterfallAmount ?? sup.current?.discountValue;
+                    const cappedRec = Math.min(recoveryRaw, waterfallPounds || recoveryRaw);
+                    const inv = sup.pathToFix.investment;
+                    const roiMult = inv > 0 ? Math.round(cappedRec / inv) : null;
                     return (
                       <div key={sup.code} style={{ ...glass({ padding: 0, overflow: 'hidden' }), borderTop: `3px solid ${sevColor}` }}>
                         <div style={{ padding: 18 }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                             <div><p style={{ fontWeight: 700, color: C.text, fontSize: 14, margin: '0 0 4px' }}>{sup.name}</p><span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: sevColor, color: '#fff', ...mono }}>{sup.severity}</span></div>
-                            <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.red, margin: 0, ...mono }}>-{sup.current.discountPercent}%</p><p style={{ fontSize: 12, color: C.textMuted, ...mono }}>-{fmt(sup.current.discountValue)}</p></div>
+                            <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.red, margin: 0, ...mono }}>-{sup.current.discountPercent}%</p><p style={{ fontSize: 12, color: C.textMuted, ...mono }}>-{fmt(waterfallPounds ?? sup.current.discountValue)}</p></div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                             <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.02)' }}><span style={{ fontSize: 10, color: C.textMuted, textTransform: 'uppercase', fontWeight: 600 }}>Current</span><p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: '4px 0 0' }}>{sup.current.value}</p><p style={{ fontSize: 11, color: C.textMuted }}>{sup.current.metric}</p></div>
@@ -1377,7 +1382,7 @@ export default function BenchmarkingClientDashboard({
                           </div>
                           <div style={{ padding: '10px 14px', borderRadius: 10, background: `${C.emerald}08`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><TrendingUp style={{ width: 16, height: 16, color: C.emerald }} /><span style={{ fontWeight: 600, color: C.emerald, fontSize: 13 }}>Value Recoverable</span></div>
-                            <div style={{ textAlign: 'right' }}><span style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(sup.recovery.valueRecoverable)}</span><p style={{ fontSize: 10, color: C.emerald, ...mono, marginTop: 2 }}>{sup.recovery.timeframe}</p></div>
+                            <div style={{ textAlign: 'right' }}><span style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(cappedRec)}</span><p style={{ fontSize: 10, color: C.emerald, ...mono, marginTop: 2 }}>{sup.recovery.timeframe}</p></div>
                           </div>
                         </div>
                         <button onClick={() => setExpandedSuppressor(isExpanded ? null : sup.code)} style={{ width: '100%', padding: '10px 18px', borderTop: '1px solid rgba(0,0,0,0.06)', background: 'none', border: 'none', borderTopStyle: 'solid', borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, color: C.textMuted }}>
@@ -1400,7 +1405,7 @@ export default function BenchmarkingClientDashboard({
                               </ol>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.emerald}20`, fontSize: 12, color: C.emerald }}>
                                 <span>Investment: {fmt(sup.pathToFix.investment)}</span>
-                                <span>ROI: {Math.round(sup.recovery.valueRecoverable / sup.pathToFix.investment)}x</span>
+                                <span>ROI: {roiMult != null ? `${roiMult}x` : '—'}</span>
                               </div>
                             </div>
                           </div>
@@ -2153,7 +2158,7 @@ export default function BenchmarkingClientDashboard({
 
             {/* Owner journey */}
             <RevealCard delay={150} style={{ ...glass({ padding: 24 }) }}>
-              <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{clientName ? `${clientName}'s` : 'Your'} Path to Optionality</h3>
+              <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{clientName && clientName !== 'Your Business' ? `${clientName}'s` : 'Your'} Path to Optionality</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
                   { year: 'Year 1', color: C.emerald, text: twoPathsNarrative.ownerJourney.year1 },
