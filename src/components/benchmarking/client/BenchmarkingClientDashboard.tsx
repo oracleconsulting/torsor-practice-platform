@@ -1467,7 +1467,15 @@ export default function BenchmarkingClientDashboard({
                 <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.blue, margin: 0, ...mono }}>{fmt(alignedPotentialValue)}</p><p style={{ fontSize: 12, color: C.emerald, marginTop: 2 }}>+{fmt(realisticRecovery)} uplift</p></div>
               </div>
               <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.6 }}>
-                Based on {fmt(totalWaterfallGap)} total value gap with a {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery factor. Full recovery is unlikely in practice: buyers discount newly implemented changes until they are embedded.
+                {enhancedSuppressors.length === 3
+                  ? 'The three structural discounts'
+                  : enhancedSuppressors.length > 0
+                    ? `The ${enhancedSuppressors.length} structural discounts`
+                    : 'The structural discount gap'} above total {fmt(totalWaterfallGap)} in trapped value (
+                {enhancedSuppressors.length > 0
+                  ? enhancedSuppressors.map((s) => fmt(s.waterfallAmount ?? s.current?.waterfallAmount ?? s.current?.discountValue ?? 0)).join(' + ')
+                  : fmt(totalWaterfallGap)}
+                ). Applying a {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery factor gives {fmt(realisticRecovery)} — full recovery is rarely achieved in practice, as buyers discount newly implemented changes until they see them embedded in the business.
               </p>
             </RevealCard>
           </div>
@@ -1560,7 +1568,7 @@ export default function BenchmarkingClientDashboard({
                   ))}
                 </div>
                 <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.5 }}>
-                  Value unlocked = total value gap ({fmt(totalWaterfallGap)}) × {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery factor, over {exitBreakdown.pathTo70.timeframe}.
+                  Value unlocked: {fmt(totalWaterfallGap)} trapped value × {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery = {fmt(realisticRecovery)}, over {exitBreakdown.pathTo70.timeframe}. The {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% factor reflects that buyers need to see structural changes embedded before giving full credit.
                 </p>
                 {(() => {
                   const invSucc = enhancedSuppressors.find((x) => x.code === 'SUCCESSION')?.pathToFix?.investment;
