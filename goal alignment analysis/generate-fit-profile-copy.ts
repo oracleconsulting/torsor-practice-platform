@@ -532,6 +532,16 @@ EXTRACTION RULES:
 
 6. From Emergency Log / Monday Frustration / Magic Away Task: What steals their time → protection commitment.
 
+FREQUENCY CALIBRATION (CRITICAL — read their commitment_hours):
+The client said they have "${commitmentHours}" per week for change activities. This caps how many recurring commitments are realistic:
+- "Less than 5 hours" → max 3 life tasks per week, each capped at 2 hours. Default frequency: "weekly" (1-3x).
+- "5-10 hours" → max 5 life tasks per week. "weekly" default.
+- "10-15 hours" → up to 7 tasks per week. "daily" acceptable for small tasks.
+- "15+" → daily commitments acceptable.
+
+If they describe an activity as part of ONE ideal day (e.g., Tuesday Test), do NOT make it "daily" unless they explicitly say "every day." The Tuesday Test describes one ideal day — default to "weekly" (e.g., 1-3 sessions per week).
+Example: "I take a break during the day for a couple of hours to focus on my personal writing" → frequency: "weekly", measurable: "2 hours of writing time per week" — NOT "daily" or "10 hours weekly."
+
 Extract 3-6 commitments. Be SPECIFIC, not aspirational. "Spend more time with family" is too vague. "Leave the office by 5pm on Wednesdays and Fridays" is a commitment.
 
 Also extract:

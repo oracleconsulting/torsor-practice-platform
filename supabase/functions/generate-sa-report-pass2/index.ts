@@ -66,7 +66,7 @@ If rounding for prose, use: "£Xk" matching the locked figure
 `;
 }
 
-function buildPass2Prompt(pass1Data: any, report: any): string {
+function buildPass2Prompt(pass1Data: any, report: any, platformDirection?: any): string {
   const f = pass1Data.facts;
   const numbersLock = buildMandatoryNumbersLockBlock(pass1Data, report);
 
@@ -300,6 +300,32 @@ BAD: "Not only does this address operational challenges, but it also positions y
 
 GOOD: "This fixes the chaos. Then you can grow."
 
+${platformDirection?.model === 'two_path' ? `
+═══════════════════════════════════════════════════════════════════════════════
+PLATFORM RECOMMENDATION — TWO-PATH FRAMING (MANDATORY)
+═══════════════════════════════════════════════════════════════════════════════
+
+The practice team has identified TWO viable technology paths for this client.
+
+Path A: ${platformDirection.financial_core?.path_a?.name || 'Option A'} — ${platformDirection.financial_core?.path_a?.strategy || 'Upgrade existing platform'}
+Path B: ${platformDirection.financial_core?.path_b?.name || 'Option B'} — ${platformDirection.financial_core?.path_b?.strategy || 'Migrate to new platform'}
+
+RULES:
+1. The headline MUST NOT commit to a single platform. Frame around the problem solved, not the solution.
+   Good: "£Xk annual chaos cost blocks departmental MI while Y hours vanish weekly into manual workarounds"
+   Bad: "Migrate to [platform] to save £Xk" — this commits to one path.
+
+2. The executiveSummary paragraph 3 MUST present both paths:
+   - Name both options and their key advantages
+   - Show that BOTH resolve the core problems
+   - Frame the choice around the client's decision timeline (e.g. contract renewal)
+   - Close with: the right choice depends on whether they want to optimise what exists or build for the next decade.
+
+3. NEVER reference ${platformDirection.xero_ruled_out ? 'Xero' : 'any platform not in the two paths'} as viable for this business.
+
+4. The timeFreedomNarrative should describe the COMMON OUTCOME both paths deliver, then:
+   "How you get there is a choice between two sound approaches."
+` : ''}
 Return ONLY the JSON object with these four fields. No markdown wrapping.
 `;
 }
@@ -358,11 +384,15 @@ serve(async (req) => {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
     
+    const { data: engRow } = await supabaseClient
+      .from('sa_engagements').select('platform_direction').eq('id', engagementId).single();
+    const platformDirection = engRow?.platform_direction ?? null;
+
     // Build and send prompt to Opus
     console.log('[SA Pass 2] Calling Opus for narratives...');
     const startTime = Date.now();
     
-    const prompt = buildPass2Prompt(pass1Data, report);
+    const prompt = buildPass2Prompt(pass1Data, report, platformDirection);
     
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',

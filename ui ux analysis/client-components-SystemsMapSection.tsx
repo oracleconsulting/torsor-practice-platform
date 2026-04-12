@@ -46,8 +46,8 @@ const STATUS_COLORS: Record<string, string> = {
   red: '#ef4444', amber: '#f59e0b', green: '#22c55e', blue: '#3b82f6', grey: '#475569',
 };
 
-const MAP_COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e'];
-const MAP_LABELS = ['Today', 'Native Fixes', 'Connected', 'Optimal'];
+const MAP_COLORS = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e', '#8b5cf6'];
+const MAP_LABELS = ['Today', 'Quick Fixes', 'Connected', 'Optimal', 'Alternative'];
 
 const getCategoryColor = (cat: string) => CATEGORY_COLORS[cat] || '#64748b';
 
@@ -915,7 +915,7 @@ export default function SystemsMapSection({ systemsMaps, facts, layout = 'stacke
         <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', marginBottom: '24px' }}>
           {maps.map((_: any, i: number) => {
             const mapColor = MAP_COLORS[i] || '#64748b';
-            const label = MAP_LABELS[i] || `Level ${i + 1}`;
+            const label = maps[i]?.tabLabel || maps[i]?.title || MAP_LABELS[i] || `Level ${i + 1}`;
             const isRecommended = maps[i]?.recommended || maps[i]?.recommendedLevel;
             return (
               <button key={i} onClick={() => switchMap(i)}
@@ -923,10 +923,10 @@ export default function SystemsMapSection({ systemsMaps, facts, layout = 'stacke
                   background: activeMap === i ? `${mapColor}20` : 'transparent',
                   border: `1px solid ${activeMap === i ? mapColor : '#1e293b'}`,
                   color: activeMap === i ? mapColor : '#64748b',
-                  padding: '8px 20px',
+                  padding: '8px 12px',
                   borderRadius: i === 0 ? '8px 0 0 8px' : i === maps.length - 1 ? '0 8px 8px 0' : '0',
                   cursor: 'pointer',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: 600,
                   fontFamily: "'DM Sans', sans-serif",
                   transition: 'all 0.3s ease',
@@ -934,7 +934,7 @@ export default function SystemsMapSection({ systemsMaps, facts, layout = 'stacke
                 }}>
                 <span style={{
                   fontFamily: "'JetBrains Mono', monospace",
-                  marginRight: '6px', opacity: 0.5, fontSize: '10px',
+                  marginRight: '5px', opacity: 0.5, fontSize: '9px',
                 }}>{i + 1}</span>
                 {label}
                 {isRecommended && (

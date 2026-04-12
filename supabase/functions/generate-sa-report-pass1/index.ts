@@ -252,8 +252,10 @@ interface MapEdge {
 }
 interface SystemsMap {
   title: string;
+  tabLabel?: string;
   subtitle: string;
   recommended: boolean;
+  recommendationReason?: string;
   nodes: Record<string, SystemNode>;
   edges: MapEdge[];
   middlewareHub: { name: string; x: number; y: number; cost: number } | null;
@@ -392,23 +394,30 @@ function buildEdgesMap2(map1Edges: MapEdge[], recommendations: any[]): MapEdge[]
   });
 }
 
-function buildEdgesMap3(map2Edges: MapEdge[], recommendations: any[]): {
+function buildEdgesMap3(map2Edges: MapEdge[], recommendations: any[], platformDirection?: any): {
   edges: MapEdge[];
   hub: { name: string; x: number; y: number; cost: number } | null;
 } {
   const hasMiddleware = recommendations.some((r: any) => {
     const title = (r.title || '').toLowerCase();
     const desc = (r.description || '').toLowerCase();
-    return title.includes('zapier') || title.includes('make') || desc.includes('zapier') || desc.includes('make') || desc.includes('middleware');
+    return title.includes('zapier') || title.includes('make') || title.includes('power automate') || desc.includes('zapier') || desc.includes('make') || desc.includes('power automate') || desc.includes('middleware');
   });
-  if (!hasMiddleware) return { edges: map2Edges, hub: null };
+  const hasRedEdges = map2Edges.some(e => e.status === 'red');
+  if (!hasMiddleware && !hasRedEdges) return { edges: map2Edges, hub: null };
+
+  const mw = platformDirection?.middleware;
+  const usePowerAutomate = mw?.platform === 'power_automate' || mw?.platform === 'Power Automate';
+  const hubName = usePowerAutomate ? 'Power Automate' : 'Zapier';
+  const hubCost = usePowerAutomate ? 0 : 50;
+
   const edges = map2Edges.map((edge) => {
     if (edge.status === 'red') {
-      return { ...edge, status: 'blue' as const, label: `Zapier: ${edge.label || 'connected'}`, changed: true, middleware: true, person: undefined };
+      return { ...edge, status: 'blue' as const, label: `${hubName}: ${edge.label || 'connected'}`, changed: true, middleware: true, person: undefined };
     }
     return { ...edge };
   });
-  return { edges, hub: { name: 'Zapier', x: 400, y: 340, cost: 50 } };
+  return { edges, hub: { name: hubName, x: 400, y: 340, cost: hubCost } };
 }
 
 function calculateMetrics(
@@ -537,6 +546,7 @@ function buildSystemsMaps(
   aiMap4?: any,
   blendedHourlyRate?: number,
   pass1DataFallback?: any,
+  platformDirection?: any,
 ): SystemsMap[] {
   const systems = facts?.systems || [];
   if (systems.length === 0) return [];
@@ -638,7 +648,7 @@ function buildSystemsMaps(
   }
   map2.changes = map2Changes;
 
-  const { edges: map3Edges, hub } = buildEdgesMap3(map2Edges, recommendations);
+  const { edges: map3Edges, hub } = buildEdgesMap3(map2Edges, recommendations, platformDirection);
   const map3: SystemsMap = {
     title: 'Fully Connected',
     subtitle: hub ? `+£${hub.cost}/mo middleware` : 'All systems linked',
@@ -721,9 +731,50 @@ function buildSystemsMaps(
         });
       }
     });
-    // Nodes are the authoritative source for changes; consolidations are redundant (same replacements).
     map4.changes = map4Changes;
+
+    if (platformDirection?.financial_core?.path_a?.name) {
+      map4.title = platformDirection.financial_core.path_a.name;
+      map4.tabLabel = platformDirection.financial_core.path_a.name;
+      map4.recommended = true;
+      map4.recommendationReason = platformDirection.financial_core.path_a.recommendation_reason || 'Lower risk, faster implementation';
+    }
     maps.push(map4);
+
+    const aiMap5 = (pass1DataFallback as any)?.phase6?.optimalStackPathB ?? null;
+    if (aiMap5?.nodes && aiMap5.edges) {
+      const map5Nodes = { ...aiMap5.nodes };
+      const map5Metrics = calculateMetrics(map5Nodes, aiMap5.edges, map1Metrics, recommendations, 4, rate);
+      const map5Software = Object.values(map5Nodes).reduce((s: number, n: any) => s + (n.cost || 0), 0);
+      const softwareDelta5 = map5Software - (map1Metrics.monthlySoftwareCost || 0);
+      const sub5 = softwareDelta5 > 0 ? `+£${softwareDelta5}/mo` : softwareDelta5 < 0 ? `saves £${Math.abs(softwareDelta5)}/mo` : 'same cost';
+
+      const map5: SystemsMap = {
+        title: platformDirection?.financial_core?.path_b?.name || 'Alternative Stack',
+        tabLabel: platformDirection?.financial_core?.path_b?.name || 'Alternative',
+        subtitle: `Alternative path · ${sub5}`,
+        recommended: false,
+        recommendationReason: platformDirection?.financial_core?.path_b?.recommendation_reason || 'Stronger long-term platform',
+        nodes: map5Nodes,
+        edges: aiMap5.edges,
+        middlewareHub: null,
+        metrics: map5Metrics,
+        goalsCoverage: aiMap5.goalsCoverage || undefined,
+        implementationStages: aiMap5.implementationStages || undefined,
+        consolidations: aiMap5.consolidations || undefined,
+      };
+      const map5Changes: { system: string; action: string; description: string; impact?: string; cost?: string; why?: string }[] = [];
+      Object.values(map5Nodes).forEach((node: any) => {
+        if (node.status === 'new' && node.replaces?.length > 0) {
+          map5Changes.push({ system: node.name, action: 'added', description: `Replaces ${node.replaces.join(' and ')}.`, impact: `Consolidates ${node.replaces.length} tools`, cost: node.cost ? `£${node.cost}/mo` : undefined });
+        } else if (node.status === 'reconfigure' || node.status === 'reconfigured') {
+          map5Changes.push({ system: node.name, action: 'reconfigured', description: `${node.name} reconfigured for the alternative stack.` });
+        }
+      });
+      map5.changes = map5Changes;
+      maps.push(map5);
+      console.log(`[SA Pass 1] Map 5 (Path B) built: ${Object.keys(map5Nodes).length} nodes`);
+    }
   } else if (pass1DataFallback?.systemsMaps) {
     const aiMaps = Array.isArray(pass1DataFallback.systemsMaps) ? pass1DataFallback.systemsMaps : [];
     const aiMap4Entry = aiMaps.find((m: any) => m.level === 4) || aiMaps[3];
@@ -1788,7 +1839,17 @@ DO NOT recommend staying on or upgrading the current accounting platform.
 
   if (variant === 'phase5') return base;
 
+  const mw = platformDirection.middleware || {};
+  const mwPlatform = typeof mw.platform === 'string' ? mw.platform : '';
+
   return `${base}
+
+MIDDLEWARE SELECTION RULES FOR MAP 3:
+${mwPlatform ? `- The practice team has specified middleware: ${mwPlatform}. Use this as the middleware for Map 3.` : ''}
+- If the client uses Microsoft 365/Azure (M365, Teams, SharePoint, Power BI, Power Automate), PREFER Power Automate over Zapier/Make.com.
+- Power Automate runs within the client's own Azure tenant — no third-party data exposure.
+- Only recommend Zapier/Make.com if the client does NOT have M365 AND Power Automate cannot achieve the required integration.
+- When using Power Automate: cost = £0 additional (included in M365 licence), middleware node name = "Power Automate".
 
 Build the Level 4 optimal stack around ${fcPlatform || 'the recommended financial platform'} 
 as the financial foundation and ${dlPlatform || 'current document platform'} 
@@ -1913,12 +1974,21 @@ Return JSON:
       "annualBenefit": number,
       "paybackMonths": number,
       "freedomUnlocked": "Echo their monday_morning_vision — use THEIR language. What does Monday morning look like after this is done?",
-      "goalsAdvanced": ["Which desired_outcomes this advances — use EXACT text from their desiredOutcomes"]
+      "goalsAdvanced": ["Which desired_outcomes this advances — use EXACT text from their desiredOutcomes"],
+      "pathGroup": "shared_quick_win|shared_foundation|path_a|path_b (only if two-path mode, otherwise omit)"
     }
   ]
 }
 
 ${buildPlatformDirectionPromptBlock(platformDirection, 'phase5')}
+${platformDirection?.model === 'two_path' ? `
+RECOMMENDATION GROUPING (TWO-PATH MODE):
+Since the platform direction specifies two paths, add a "pathGroup" field to each recommendation:
+- "shared_quick_win": Zero-cost items doable this week regardless of path choice
+- "shared_foundation": Required regardless of which path is chosen (e.g. HR, payroll, documentation, key person mitigation)
+- "path_a": Only applies if choosing ${platformDirection.financial_core?.path_a?.name || 'Path A'}
+- "path_b": Only applies if choosing ${platformDirection.financial_core?.path_b?.name || 'Path B'}
+` : ''}
 Generate AT LEAST 5 recommendations, prioritised. Mix of immediate wins and strategic changes.
 Sum of all recommendations.hoursSavedWeekly must not exceed ${phase2.hoursWastedWeekly} (can't save more hours than are wasted).
 Every recommendation must reference at least one finding and at least one desired_outcome.
@@ -2056,40 +2126,66 @@ async function runPhase6SystemsMaps(
   const phase1 = report.pass1_data.phase1;
   const phase5 = report.pass1_data.phase5;
 
-  // Generate optimal stack (Map 4 data) via Phase 4b — no AI maps call (fixes timeout)
+  // Generate optimal stack(s) via Phase 4b
   let optimalStack: any = null;
+  let optimalStackPathB: any = null;
+  const isTwoPath = platformDirection?.model === 'two_path';
+
   try {
-    console.log('[SA Pass 1] Phase 6: Generating optimal stack for Map 4...');
     const { data: discoveryRow } = await supabaseClient
       .from('sa_discovery_responses')
       .select('growth_vision, hiring_blockers, growth_type, capacity_ceiling, failed_tools, non_negotiables')
       .eq('engagement_id', engagementId)
       .single();
     const phase2 = report.pass1_data.phase2 || {};
-    const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow, platformDirection);
 
-    const { data: phase4bData, tokensUsed, generationTime } = await callSonnet(phase4bPrompt, 12000, 6, openRouterKey);
-    if (phase4bData?.nodes) {
-      optimalStack = phase4bData;
-      console.log(`[SA Pass 1] Phase 6: Optimal stack generated in ${Math.round(generationTime / 1000)}s:`,
-        Object.keys(optimalStack.nodes || {}).length, 'systems,',
-        (optimalStack.edges || []).length, 'edges,',
-        tokensUsed, 'tokens');
+    if (isTwoPath) {
+      const pathA = platformDirection.financial_core?.path_a || {};
+      const pathB = platformDirection.financial_core?.path_b || {};
+
+      console.log(`[SA Pass 1] Phase 6: Two-path mode — generating Map 4 (${pathA.name || 'Path A'}) and Map 5 (${pathB.name || 'Path B'})...`);
+
+      const pdPathA = { ...platformDirection, financial_core: { ...platformDirection.financial_core, platform: pathA.platform || pathA.name || platformDirection.financial_core?.platform }, notes: `PATH A: ${pathA.strategy || pathA.name || ''}. ${platformDirection.notes || ''}` };
+      const promptA = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow, pdPathA);
+      const { data: dataA, tokensUsed: tokA, generationTime: gtA } = await callSonnet(promptA, 12000, 6, openRouterKey);
+      if (dataA?.nodes) {
+        optimalStack = dataA;
+        console.log(`[SA Pass 1] Phase 6: Path A stack generated in ${Math.round(gtA / 1000)}s: ${Object.keys(dataA.nodes).length} systems, ${tokA} tokens`);
+      }
+
+      const pdPathB = { ...platformDirection, financial_core: { ...platformDirection.financial_core, platform: pathB.platform || pathB.name || 'alternative' }, notes: `PATH B: ${pathB.strategy || pathB.name || ''}. ${platformDirection.notes || ''}` };
+      const promptB = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow, pdPathB);
+      const { data: dataB, tokensUsed: tokB, generationTime: gtB } = await callSonnet(promptB, 12000, 6, openRouterKey);
+      if (dataB?.nodes) {
+        optimalStackPathB = dataB;
+        console.log(`[SA Pass 1] Phase 6: Path B stack generated in ${Math.round(gtB / 1000)}s: ${Object.keys(dataB.nodes).length} systems, ${tokB} tokens`);
+      }
     } else {
-      console.warn('[SA Pass 1] Phase 6: Optimal stack response parsed but missing nodes — Map 4 will be unavailable');
+      console.log('[SA Pass 1] Phase 6: Generating optimal stack for Map 4...');
+      const phase4bPrompt = buildPhase4bPrompt(phase1.facts, phase5.recommendations || [], phase2, discoveryRow, platformDirection);
+      const { data: phase4bData, tokensUsed, generationTime } = await callSonnet(phase4bPrompt, 12000, 6, openRouterKey);
+      if (phase4bData?.nodes) {
+        optimalStack = phase4bData;
+        console.log(`[SA Pass 1] Phase 6: Optimal stack generated in ${Math.round(generationTime / 1000)}s:`,
+          Object.keys(optimalStack.nodes || {}).length, 'systems,',
+          (optimalStack.edges || []).length, 'edges,',
+          tokensUsed, 'tokens');
+      } else {
+        console.warn('[SA Pass 1] Phase 6: Optimal stack response parsed but missing nodes — Map 4 will be unavailable');
+      }
     }
   } catch (e: any) {
     console.warn('[SA Pass 1] Phase 6: Optimal stack generation failed (non-blocking):', e?.message ?? e);
-    console.warn('[SA Pass 1] Phase 6: Map 4 (Optimal Stack) will not be available in this report');
   }
 
   // Store Phase 6 result — Maps 1-3 are built deterministically in Phase 8
   const existingPass1 = report.pass1_data as any;
-  const phase6Data = {
+  const phase6Data: any = {
     systemsMaps: null,
     techStackSummary: null,
     hoursBreakdown: null,
     optimalStack,
+    optimalStackPathB: isTwoPath ? optimalStackPathB : undefined,
   };
 
   console.log(`[SA Pass 1] Phase 6: Summary — optimalStack: ${optimalStack ? Object.keys(optimalStack.nodes || {}).length + ' nodes' : 'FAILED (Map 4 unavailable)'}`);
@@ -2316,11 +2412,12 @@ function buildPhase8ClientPresentationPrompt(
     lowCount: number;
   },
 ): string {
-  const topFindings = (phase3.findings || []).slice(0, 5).map((f: any) => ({ title: f.title, severity: f.severity, annualCostImpact: f.annualCostImpact }));
+  const topFindings = (phase3.findings || []).slice(0, 8).map((f: any) => ({ title: f.title, severity: f.severity, annualCostImpact: f.annualCostImpact, description: (f.description || '').slice(0, 200) }));
   const topRecs = (phase5.recommendations || []).slice(0, 5).map((r: any) => ({ title: r.title, estimatedCost: r.estimatedCost, annualBenefit: r.annualBenefit }));
+  const allQuotes = (phase1?.facts?.allClientQuotes || []).slice(0, 10);
   return `
 ${buildPhase8NumbersLockBlock(lock)}
-Given the full analysis for ${clientName}, generate the client-facing presentation summary only. Jargon-free for an MD.
+Given the full analysis for ${clientName}, generate the client-facing presentation summary AND governance assessment. Jargon-free for an MD.
 
 CONTEXT:
 uniquenessBrief: ${phase2.uniquenessBrief}
@@ -2329,6 +2426,36 @@ hoursWastedWeekly: ${phase2.hoursWastedWeekly}
 annualCostOfChaos: £${phase2.annualCostOfChaos}
 Top findings: ${JSON.stringify(topFindings)}
 Top recommendations: ${JSON.stringify(topRecs)}
+Client quotes: ${JSON.stringify(allQuotes)}
+
+═══ GOVERNANCE & CHANGE READINESS ═══
+
+Generate THREE DISTINCT governance assessments. Each MUST use DIFFERENT evidence from the findings
+and client quotes above. DO NOT reuse the same finding text across sections.
+
+1. LEADERSHIP BUY-IN
+   Look for evidence of: shareholder/director approval requirements, physical signing preferences,
+   resistance to digital workflows, concerns about oversight/control.
+   Recommendation: "Demonstrate that digital approval workflows provide a stronger audit trail than
+   physical signatures — with faster throughput."
+
+2. SHADOW IT & WORKAROUNDS
+   Look for evidence of: unauthorised/unofficial tools, bypass apps, spreadsheets used instead of
+   proper systems, Google Docs/Sheets workarounds, tools built internally because official systems
+   were too slow. Also: any BI/reporting tool used as a workaround for a system failure.
+   Recommendation: "New systems must be fast enough that workarounds don't emerge. Address the root
+   cause, not the symptom."
+
+3. KEY PERSON DEPENDENCIES
+   Look for evidence of: individuals who are the sole person able to do critical tasks, processes
+   that stop when someone is on holiday, undocumented manual processes, irreplaceable knowledge.
+   Recommendation: "Document all critical processes and cross-train before any system migration.
+   Remove single points of failure."
+
+Each governance card MUST cite different findings and different quotes. If you use a finding for
+Leadership Buy-In, you CANNOT use it for Shadow IT or Key Person Dependencies.
+
+═══ END GOVERNANCE ═══
 
 Return ONLY this JSON:
 {
@@ -2344,6 +2471,26 @@ Return ONLY this JSON:
     },
     "topThreeIssues": [
       { "issue": "string", "impact": "string", "solution": "string", "timeToFix": "string" }
+    ],
+    "governanceCards": [
+      {
+        "title": "Leadership Buy-In",
+        "observations": ["Observation using specific evidence from findings — NOT duplicated in other cards"],
+        "clientQuote": "A verbatim quote from the client quotes list, if relevant",
+        "recommendation": "The recommendation text"
+      },
+      {
+        "title": "Shadow IT & Workarounds",
+        "observations": ["Different evidence from a different finding"],
+        "clientQuote": "A different quote",
+        "recommendation": "The recommendation text"
+      },
+      {
+        "title": "Key Person Dependencies",
+        "observations": ["Yet another distinct finding/evidence"],
+        "clientQuote": "A different quote again",
+        "recommendation": "The recommendation text"
+      }
     ]
   }
 }
@@ -2456,6 +2603,10 @@ async function runPhase8Presentation(
   const phase6 = reportRow.pass1_data.phase6;
   const phase7 = reportRow.pass1_data.phase7;
   const clientName = phase1.facts.companyName || 'the business';
+
+  const { data: engRow } = await supabaseClient
+    .from('sa_engagements').select('platform_direction').eq('id', engagementId).single();
+  const platformDirection = engRow?.platform_direction ?? null;
 
   const recsForLock = phase5Recs.recommendations || [];
   const findingsForLock = phase3.findings || [];
@@ -2643,6 +2794,7 @@ async function runPhase8Presentation(
     phase4b,
     hourlyRate,
     { ...pass1Data, systemsMaps: phase6?.systemsMaps },
+    platformDirection,
   );
   if (systemsMaps.length > 0) {
     finalPass1Data.systemsMaps = systemsMaps;

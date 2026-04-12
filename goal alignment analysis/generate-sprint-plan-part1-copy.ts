@@ -19,16 +19,24 @@ async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string):
   log(`Enriching context for client ${clientId}`);
   interface Fin { source: string; summary: string }
   interface Sys { source: string; stage: string; systemsCount: number; integrationScore: number | null; automationScore: number | null; painPoints: string[]; findings: Array<{ title: string; severity: string; category: string }>; manualHoursMonthly: number | null; summary: string }
-  interface Mkt { source: string; industry: string | null; subSector: string | null; belowMedian: string[]; aboveMedian: string[]; opportunities: Array<{ area: string; potential: string }>; summary: string }
+  interface Mkt { source: string; summary: string }
   interface VA { source: string; summary: string }
   interface Disc { responses: Record<string, unknown>; serviceScores: Record<string, number>; summary: string }
+
+  let bmEngId: string | null = null;
+  try { const { data: eng } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle(); bmEngId = eng?.id || null; } catch (_) {}
+
   const [financial, systems, market, valueAnalysis, discovery] = await Promise.all([
     (async (): Promise<Fin | null> => {
       try {
         const { data: d } = await supabase.from('client_financial_data').select('*').eq('client_id', clientId).order('period_end', { ascending: false }).limit(1).maybeSingle();
         if (d) { const rev = d.revenue ?? d.turnover; const s = rev ? `Revenue: £${(Number(rev) / 1000).toFixed(0)}k` : ''; const g = d.gross_margin != null ? `; Gross margin: ${(Number(d.gross_margin) * 100).toFixed(1)}%` : ''; return { source: 'uploaded_accounts', summary: (s + g || 'Uploaded accounts data.') + '.' }; }
-        const { data: bm } = await supabase.from('bm_assessment_responses').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        if (bm) return { source: 'bm_assessment', summary: bm.revenue_numeric ? `Revenue: £${(bm.revenue_numeric / 1000).toFixed(0)}k` : 'BM assessment data.' };
+        if (bmEngId) {
+          const { data: bmRpt } = await supabase.from('bm_reports').select('pass1_data, total_annual_opportunity, overall_percentile, historical_financials').eq('engagement_id', bmEngId).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+          if (bmRpt?.pass1_data) { const p1 = bmRpt.pass1_data as Record<string, any>; const rev = p1._enriched_revenue; const gm = p1.gross_margin; const nm = p1.net_margin; const pts: string[] = []; if (rev) pts.push(`Revenue: £${(rev / 1000).toFixed(0)}k`); if (gm) pts.push(`Gross margin: ${typeof gm === 'number' && gm < 1 ? (gm * 100).toFixed(1) : gm}%`); if (nm) pts.push(`Net margin: ${typeof nm === 'number' && nm < 1 ? (nm * 100).toFixed(1) : nm}%`); if (bmRpt.total_annual_opportunity) pts.push(`Opportunity: £${bmRpt.total_annual_opportunity.toLocaleString()}`); if (pts.length) return { source: 'bm_report', summary: pts.join('; ') + '.' }; }
+          const { data: bmResp } = await supabase.from('bm_assessment_responses').select('responses').eq('engagement_id', bmEngId).limit(1).maybeSingle();
+          if (bmResp?.responses) { const r = bmResp.responses as Record<string, any>; if (r.bm_revenue) return { source: 'bm_assessment', summary: `Revenue: £${(Number(r.bm_revenue) / 1000).toFixed(0)}k.` }; return { source: 'bm_assessment', summary: 'BM assessment data available.' }; }
+        }
         const { data: bi } = await supabase.from('service_line_assessments').select('responses').eq('client_id', clientId).in('service_line_code', ['business_intelligence', 'management_accounts']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
         if (bi?.responses) return { source: 'bi_assessment', summary: 'Financial data from BI assessment.' };
         return null;
@@ -49,23 +57,26 @@ async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string):
     })(),
     (async (): Promise<Mkt | null> => {
       try {
-        const { data: r } = await supabase.from('bm_reports').select('report_data').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
-        if (!r?.report_data) return null;
-        const d = r.report_data as Record<string, unknown>;
-        const percentiles = (d.percentiles || d.rankings || {}) as Record<string, number>;
+        if (!bmEngId) return null;
+        const { data: r } = await supabase.from('bm_reports').select('pass1_data, overall_percentile, total_annual_opportunity, top_strengths, top_gaps').eq('engagement_id', bmEngId).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!r?.pass1_data) return null;
+        const d = r.pass1_data as Record<string, any>;
+        const metricsArr = (d.metricsComparison || []) as any[];
         const below: string[] = []; const above: string[] = [];
-        for (const [k, v] of Object.entries(percentiles)) { if (typeof v === 'number') { if (v < 50) below.push(k); else above.push(k); } }
-        const opps = ((d.opportunities as any[]) || []).slice(0, 5).map((o: any) => ({ area: o.area || o.title || '', potential: o.potential || o.value || '' }));
-        return { source: 'bm_report', industry: (d.industry as string) ?? null, subSector: (d.classification as any)?.sub_sector ?? null, belowMedian: below, aboveMedian: above, opportunities: opps, summary: `Industry: ${(d.industry as string) || 'N/A'}; below median: ${below.join(', ') || 'none'}.` };
+        for (const m of metricsArr) { if (typeof m.percentile === 'number') { if (m.percentile < 50) below.push(m.metricName || m.metricCode); else above.push(m.metricName || m.metricCode); } }
+        const opps = ((d.opportunitySizing as any)?.breakdown || []).slice(0, 5).map((o: any) => `${o.metric || o.title || ''}: £${o.annualImpact?.toLocaleString() || 'N/A'}`);
+        return { source: 'bm_report', summary: `Overall ${r.overall_percentile || 'N/A'}th pctile; below median: ${below.join(', ') || 'none'}; opportunity: £${(r.total_annual_opportunity || 0).toLocaleString()}. ${opps.length ? 'Gaps: ' + opps.join('; ') : ''}` };
       } catch (e) { console.warn('[ContextEnrichment] Market failed', e); return null; }
     })(),
     (async (): Promise<VA | null> => {
       try {
-        const { data: bm } = await supabase.from('bm_reports').select('value_analysis').eq('client_id', clientId).not('value_analysis', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!bmEngId) return null;
+        const { data: bm } = await supabase.from('bm_reports').select('value_analysis, exit_readiness_breakdown, enhanced_suppressors').eq('engagement_id', bmEngId).not('value_analysis', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
         if (!bm?.value_analysis) return null;
         const va = bm.value_analysis as any;
-        const s = `Exit readiness: ${va.exitReadinessScore?.overall ?? va.exitReadiness?.score ?? 'N/A'}; hidden assets: ${(va.hiddenAssets || []).length}.`;
-        return { source: 'bm_report', summary: s };
+        const exitScore = bm.exit_readiness_breakdown?.totalScore || va.exitReadinessScore?.overall || va.exitReadiness?.score || 'N/A';
+        const suppressorCount = (bm.enhanced_suppressors || []).length;
+        return { source: 'bm_report', summary: `Exit readiness: ${exitScore}/100; value suppressors: ${suppressorCount}.` };
       } catch (e) { console.warn('[ContextEnrichment] Value analysis failed', e); return null; }
     })(),
     (async (): Promise<Disc | null> => {
@@ -281,9 +292,87 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
       }
     }
 
+    // Sprint carry-forward (Sprint 2+)
+    let sprintCarryForward = '';
+    if (sprintNumber > 1) {
+      const prevSprintNum = sprintNumber - 1;
+      const refreshStage = await fetchStage('life_design_refresh', sprintNumber);
+      const sprintCtx = refreshStage?._sprintContext;
+      const lc = sprintCtx?.lifeCheck;
+      const ts = sprintCtx?.taskSummary;
+      const prevSprintContent = await fetchStage('sprint_plan_part2', prevSprintNum);
+      const prevThemes = (prevSprintContent?.weeks || []).map((w: any) => `Week ${w.weekNumber}: ${w.theme}`).join(', ');
+      if (ts || lc) {
+        sprintCarryForward = `\n\n## SPRINT ${prevSprintNum} OUTCOMES (Build on these — don't repeat them)\n\n### Task Completion\n- ${ts?.completed || 0}/${ts?.total || 0} tasks completed (${ts?.completionRate || 0}%)\n- Life tasks: ${ts?.lifeTasksCompleted || 0}/${ts?.lifeTasksTotal || 0}\n${ts?.skippedTitles?.length ? `- Skipped: ${ts.skippedTitles.join(', ')}` : ''}\n\n### Client's Own Words (quarterly life check)\n${lc ? `- Tuesday now: "${lc.tuesday_test_update || 'N/A'}"\n- Time reclaimed: "${lc.time_reclaim_progress || 'N/A'}"\n- Biggest win: "${lc.biggest_win || 'N/A'}"\n- Still frustrating: "${lc.biggest_frustration || 'N/A'}"\n- Goal shift: "${lc.priority_shift || 'N/A'}"\n- Wish: "${lc.next_sprint_wish || 'N/A'}"` : 'No life check.'}\n\n### Previous Sprint Themes (don't repeat — evolve)\n${prevThemes || 'N/A'}\n\n### SPRINT ${sprintNumber} RULES\n1. DO NOT repeat Sprint ${prevSprintNum} tasks.\n2. Skipped tasks may return in different form or be dropped.\n3. Client's frustration → priority. Client's wish → theme in weeks 1-3.\n4. Life tasks evolve (if writing was established, deepen it).\n5. Reference Sprint ${prevSprintNum} achievements: "Last sprint you proved X. This sprint we make it permanent."`;
+        console.log(`[Sprint1] Carry-forward context: ${sprintCarryForward.length} chars`);
+      }
+    }
+
+    // Fetch BM report summary for cross-service context
+    let bmSummaryBlock = '';
+    try {
+      const { data: bmEng2 } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      let bmRpt: any = null;
+      if (bmEng2?.id) { const { data: rpt } = await supabase.from('bm_reports').select('pass1_data, value_analysis, total_annual_opportunity, overall_percentile, enhanced_suppressors, exit_readiness_breakdown, top_strengths, top_gaps').eq('engagement_id', bmEng2.id).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle(); bmRpt = rpt; }
+      if (bmRpt?.pass1_data) { bmSummaryBlock = buildBmSummaryBlock(bmRpt); console.log(`[Sprint1] BM summary block: ${bmSummaryBlock.length} chars`); }
+    } catch (e) { console.warn('[Sprint1] BM fetch failed:', e); }
+
     console.log(`Generating weeks 1-6 for ${context.userName}...`);
 
-    const sprintPart1 = await generateSprintPart1(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock);
+    const sprintPart1 = await generateSprintPart1(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + sprintCarryForward + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
+
+    // Guarantee all 6 weeks exist — fill any gaps the LLM missed
+    if (Array.isArray(sprintPart1?.weeks)) {
+      const existingNums = new Set(sprintPart1.weeks.map((w: any) => w.weekNumber));
+      for (let wn = 1; wn <= 6; wn++) {
+        if (!existingNums.has(wn)) {
+          console.warn(`[SprintPart1] Week ${wn} missing — generating fallback`);
+          const phase = wn <= 2 ? 'Immediate Relief' : wn <= 4 ? 'Foundation' : 'Implementation';
+          const adj = sprintPart1.weeks.find((w: any) => w.weekNumber === wn - 1 || w.weekNumber === wn + 1);
+          sprintPart1.weeks.push({
+            weekNumber: wn, phase,
+            theme: wn <= 2 ? 'Quick Wins' : wn <= 4 ? 'Building Systems' : wn === 5 ? 'Go Live with Changes' : 'Prove the New Rhythm Works',
+            narrative: `Week ${wn} builds on what you've established. ${wn === 6 ? 'This is the week where you prove the new rhythm can hold without you watching it constantly.' : 'The foundations are taking shape — this week tests whether they hold.'}`,
+            tasks: [
+              { id: `w${wn}_t1`, title: adj ? `Refine the systems from Week ${wn > 1 ? wn - 1 : wn + 1}` : 'Review and refine what you\'ve built', description: 'Look at what\'s working and what needs adjusting.', whyThisMatters: 'Systems need iteration.', category: 'systems', timeEstimate: '1 hour', deliverable: 'Updated system with one improvement', celebrationMoment: 'You improved without starting over.' },
+              { id: `w${wn}_t2`, title: 'Document what you\'ve learned', description: 'Write down three things that surprised you. What worked? What failed?', whyThisMatters: 'Progress is invisible without reflection.', category: 'strategy', timeEstimate: '30 mins', deliverable: 'Reflection notes', celebrationMoment: 'You can see your own progress.' }
+            ],
+            weekMilestone: `By end of Week ${wn}: ${wn === 6 ? 'The new rhythm holds on its own' : 'Systems running with less attention'}`,
+            tuesdayCheckIn: wn === 6 ? 'Do I feel like I\'m holding things together, or are they holding themselves?' : 'Is this getting easier?'
+          });
+        }
+      }
+      sprintPart1.weeks.sort((a: any, b: any) => a.weekNumber - b.weekNumber);
+    }
+
+    // Enforce Life Design Thread — every week must have at least one life task
+    if (Array.isArray(sprintPart1?.weeks)) {
+      const lifeCtx: LifeTaskSource = {
+        tuesdayTest: context.tuesdayTest || context.relationshipMirror || '',
+        sacrifices: context.sacrifices || [],
+        northStar: context.northStar || '',
+        quarterlyLifePriority: context.quarterlyLifePriority || context.lbQuarterPriority || '',
+        magicAwayTask: context.magicAwayTask || '',
+        targetWorkingHours: String(context.targetWorkingHours || context.commitmentHours || ''),
+        lifeCommitments: context.lifeCommitments || []
+      };
+      sprintPart1.weeks = enforceLifeDesignThread(sprintPart1.weeks, lifeCtx, { min: 1, max: 6 });
+    }
+
+    // Enforce task field completeness
+    if (Array.isArray(sprintPart1?.weeks)) {
+      const taskCtx: TaskEnforcementContext = {
+        northStar: context.northStar || '', shiftMilestones: context.shiftMilestones || [],
+        tuesdayTest: context.tuesdayTest || '', magicAwayTask: context.magicAwayTask || '',
+        dangerZone: context.dangerZone || '', commitmentHours: context.commitmentHours || ''
+      };
+      sprintPart1.weeks = enforceTaskFields(sprintPart1.weeks, taskCtx);
+    }
+
+    // Normalise field names so both admin and client portal find them
+    if (Array.isArray(sprintPart1?.weeks)) {
+      sprintPart1.weeks = normaliseFieldNames(sprintPart1.weeks);
+    }
 
     const duration = Date.now() - startTime;
 
@@ -661,36 +750,124 @@ function extractPhasesObject(input: string): any {
 }
 
 function extractWeeksArray(input: string): any[] {
+  // PASS 1: Try full JSON parse (handles 90%+ of cases)
+  try {
+    const jsonStart = input.indexOf('{');
+    const jsonEnd = input.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
+      const jsonStr = input.substring(jsonStart, jsonEnd + 1);
+      const parsed = JSON.parse(jsonStr);
+
+      const weeks = parsed.weeks || parsed.sprint?.weeks || [];
+      if (Array.isArray(weeks) && weeks.length > 0) {
+        const validated = weeks
+          .filter((w: any) => w.weekNumber && w.weekNumber >= 1 && w.weekNumber <= 6)
+          .map((w: any) => ({
+            weekNumber: w.weekNumber,
+            theme: w.theme || `Week ${w.weekNumber}`,
+            narrative: w.narrative || '',
+            phase: w.phase || (w.weekNumber <= 2 ? 'Immediate Relief' : w.weekNumber <= 4 ? 'Foundation' : 'Implementation'),
+            tasks: normaliseTasks(w.tasks || [], w.weekNumber),
+            weekMilestone: w.weekMilestone || `Week ${w.weekNumber} milestone achieved`,
+            tuesdayCheckIn: w.tuesdayCheckIn || 'How do I feel about progress?'
+          }));
+
+        if (validated.length > 0) {
+          console.log(`[extractWeeksArray] JSON parse succeeded: ${validated.length} weeks extracted`);
+          return validated;
+        }
+      }
+    }
+  } catch (e) {
+    console.log(`[extractWeeksArray] Full JSON parse failed, trying regex extraction: ${(e as Error).message}`);
+  }
+
+  // PASS 2: Regex-based extraction (handles malformed JSON / field reordering)
+  return extractWeeksWithRegex(input, 1, 6);
+}
+
+function extractWeeksWithRegex(input: string, minWeek: number, maxWeek: number): any[] {
   const weeks: any[] = [];
-  
-  // Find each week object by looking for weekNumber patterns
-  const weekPattern = /\{\s*"weekNumber"\s*:\s*(\d+)[^}]*?"theme"\s*:\s*"([^"]+)"[^}]*?"narrative"\s*:\s*"([^"]*(?:\\"[^"]*)*)"/g;
-  
+
+  const weekNumPattern = /"weekNumber"\s*:\s*(\d+)/g;
   let match;
-  while ((match = weekPattern.exec(input)) !== null) {
+  const positions: { weekNum: number; pos: number }[] = [];
+
+  while ((match = weekNumPattern.exec(input)) !== null) {
     const weekNum = parseInt(match[1]);
-    if (weekNum >= 1 && weekNum <= 6) {
-      weeks.push({
-        weekNumber: weekNum,
-        theme: match[2],
-        narrative: match[3].replace(/\\"/g, '"').replace(/\\n/g, ' '),
-        phase: weekNum <= 2 ? 'Immediate Relief' : weekNum <= 4 ? 'Foundation' : 'Implementation',
-        tasks: extractTasksForWeek(input, weekNum),
-        weekMilestone: extractStringAfterPattern(input, `week ${weekNum}`, 'weekMilestone') || `Week ${weekNum} milestone achieved`,
-        tuesdayCheckIn: extractStringAfterPattern(input, `week ${weekNum}`, 'tuesdayCheckIn') || `How do I feel about progress?`
-      });
+    if (weekNum >= minWeek && weekNum <= maxWeek) {
+      positions.push({ weekNum, pos: match.index });
     }
   }
-  
-  // Sort by week number and deduplicate
-  const seen = new Set();
+
+  for (let i = 0; i < positions.length; i++) {
+    const start = findObjectStart(input, positions[i].pos);
+    const end = i < positions.length - 1
+      ? findObjectStart(input, positions[i + 1].pos) - 1
+      : findObjectEnd(input, positions[i].pos);
+
+    if (start === -1 || end <= start) continue;
+    const chunk = input.substring(start, end + 1);
+    const weekNum = positions[i].weekNum;
+
+    const theme = extractFieldValue(chunk, 'theme') || `Week ${weekNum}`;
+    const narrative = extractFieldValue(chunk, 'narrative') || '';
+    const phase = extractFieldValue(chunk, 'phase') || (weekNum <= 2 ? 'Immediate Relief' : weekNum <= 4 ? 'Foundation' : 'Implementation');
+    const weekMilestone = extractFieldValue(chunk, 'weekMilestone') || `Week ${weekNum} milestone achieved`;
+    const tuesdayCheckIn = extractFieldValue(chunk, 'tuesdayCheckIn') || 'How do I feel about progress?';
+    const tasks = extractTasksForWeek(input, weekNum);
+
+    weeks.push({ weekNumber: weekNum, theme, narrative, phase, tasks, weekMilestone, tuesdayCheckIn });
+  }
+
+  console.log(`[extractWeeksArray] Regex extraction: ${weeks.length} weeks found`);
+
+  const seen = new Set<number>();
   return weeks
-    .filter(w => {
-      if (seen.has(w.weekNumber)) return false;
-      seen.add(w.weekNumber);
-      return true;
-    })
+    .filter(w => { if (seen.has(w.weekNumber)) return false; seen.add(w.weekNumber); return true; })
     .sort((a, b) => a.weekNumber - b.weekNumber);
+}
+
+function extractFieldValue(chunk: string, fieldName: string): string | null {
+  const pattern = new RegExp(`"${fieldName}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 's');
+  const match = chunk.match(pattern);
+  if (match) return match[1].replace(/\\"/g, '"').replace(/\\n/g, ' ').replace(/\\\\/g, '\\').trim();
+  return null;
+}
+
+function findObjectStart(input: string, fromPos: number): number {
+  let depth = 0;
+  for (let i = fromPos; i >= 0; i--) {
+    if (input[i] === '}') depth++;
+    if (input[i] === '{') { if (depth === 0) return i; depth--; }
+  }
+  return -1;
+}
+
+function findObjectEnd(input: string, fromPos: number): number {
+  let depth = 0;
+  for (let i = fromPos; i < input.length; i++) {
+    if (input[i] === '{') depth++;
+    if (input[i] === '}') { depth--; if (depth <= 0) return i; }
+  }
+  return input.length - 1;
+}
+
+function normaliseTasks(tasks: any[], weekNum: number): any[] {
+  if (!Array.isArray(tasks) || tasks.length === 0) return generateMinimalTasks(weekNum);
+  return tasks.map((t: any, i: number) => ({
+    id: t.id || `w${weekNum}_t${i + 1}`,
+    title: t.title || `Task ${i + 1}`,
+    description: t.description || '',
+    whyThisMatters: t.whyThisMatters || '',
+    category: t.category || 'operations',
+    milestone: t.milestone || '',
+    tools: t.tools || '',
+    timeEstimate: t.timeEstimate || '1-2 hours',
+    deliverable: t.deliverable || '',
+    celebrationMoment: t.celebrationMoment || '',
+    priority: t.priority || 'medium'
+  }));
 }
 
 function extractTasksForWeek(input: string, weekNum: number): any[] {
@@ -902,4 +1079,232 @@ Return this JSON:
 6. Tuesday check-ins measure EMOTIONAL state, not task completion
 7. Week themes should be memorable (not "Week 1: Process Review")
 8. Celebration moments help them recognise progress they might miss`;
+}
+
+// ============================================================================
+// LIFE DESIGN THREAD ENFORCEMENT
+// ============================================================================
+
+interface LifeTaskSource {
+  tuesdayTest: string;
+  sacrifices: string[];
+  northStar: string;
+  quarterlyLifePriority: string;
+  magicAwayTask: string;
+  targetWorkingHours: string;
+  lifeCommitments: any[];
+}
+
+function getMaxLifeTasksPerWeek(hours: string): number {
+  const h = (hours || '').toLowerCase();
+  if (h.includes('less than 5') || h.includes('< 5') || h.includes('under 5')) return 1;
+  if (h.includes('5-10') || h.includes('5 to 10')) return 1;
+  if (h.includes('10-15')) return 2;
+  return 1;
+}
+
+function enforceLifeDesignThread(weeks: any[], ctx: LifeTaskSource, weekRange: { min: number; max: number }): any[] {
+  if (!weeks || weeks.length === 0) return weeks;
+  const pool = buildLifeTaskPool(ctx);
+  let poolIdx = 0;
+  const maxPerWeek = getMaxLifeTasksPerWeek(ctx.targetWorkingHours || '');
+  for (const week of weeks) {
+    if (week.weekNumber < weekRange.min || week.weekNumber > weekRange.max) continue;
+    const tasks = week.tasks || [];
+    const existingLife = tasks.filter((t: any) => { const c = (t.category || '').toLowerCase(); return c.startsWith('life_') || c === 'personal' || c === 'wellbeing'; });
+    if (existingLife.length >= maxPerWeek) continue;
+    if (existingLife.length === 0) {
+      const base = pool[poolIdx % pool.length]; poolIdx++;
+      const evolved = evolveLifeTaskLanguage(base, week.weekNumber, weekRange);
+      const insertPos = tasks.length > 0 && tasks[tasks.length - 1]?.title?.toLowerCase().includes('review') ? tasks.length - 1 : tasks.length;
+      tasks.splice(insertPos, 0, evolved);
+      week.tasks = tasks;
+      console.log(`[LifeDesignThread] Inserted life task in Week ${week.weekNumber}: "${evolved.title}"`);
+    }
+  }
+  return weeks;
+}
+
+function buildLifeTaskPool(ctx: LifeTaskSource): any[] {
+  const pool: any[] = [];
+  if (ctx.lifeCommitments?.length > 0) {
+    for (const c of ctx.lifeCommitments) {
+      pool.push({ id: `life_${c.id || pool.length + 1}`, title: c.commitment || 'Honour your life commitment', description: `This comes from what you told us matters most. ${c.source || ''}`.trim(), whyThisMatters: 'Your North Star includes this. Without protecting it, the business changes mean nothing.', category: c.category || 'life_time', milestone: 'Life Design Thread', timeEstimate: c.frequency === 'daily' ? '30 mins' : '1-2 hours', deliverable: 'Protected time, honoured', celebrationMoment: 'Notice how it feels when you keep this promise to yourself', source: 'life_commitment' });
+    }
+  }
+  if (ctx.tuesdayTest) {
+    const t = ctx.tuesdayTest.toLowerCase();
+    if (t.includes('writ') || t.includes('personal writing')) pool.push({ id: `life_writing_${pool.length+1}`, title: 'Protect your writing time — one session this week', description: 'Block one 2-hour writing session this week. Close the laptop. Silence the phone. This is non-negotiable — you said so yourself.', whyThisMatters: 'You described writing as part of your ideal Tuesday. One session per week is the starting point.', category: 'life_identity', milestone: 'Life Design Thread', timeEstimate: '2 hours', deliverable: 'One writing session completed, undisturbed', celebrationMoment: 'You wrote. That\'s enough.', source: 'tuesday_test' });
+    if (t.includes('children') || t.includes('kids') || t.includes('family') || t.includes('wife') || t.includes('partner') || t.includes('husband')) pool.push({ id: `life_family_${pool.length+1}`, title: 'Be fully present with your family this evening', description: 'Leave work at the time you said you want to. No checking emails. Be there — properly.', whyThisMatters: 'You said you want evenings free from urgent fires.', category: 'life_relationship', milestone: 'Life Design Thread', timeEstimate: 'An evening', deliverable: 'One evening fully present, phone away', celebrationMoment: 'Ask yourself: did anyone at work even notice I wasn\'t available?', source: 'tuesday_test' });
+    if (t.includes('exercise') || t.includes('run') || t.includes('gym') || t.includes('bike') || t.includes('walk') || t.includes('swim')) pool.push({ id: `life_exercise_${pool.length+1}`, title: 'Move your body — on your terms', description: 'You mentioned exercise as part of your ideal day. Schedule it. Protect it.', whyThisMatters: 'You listed this in your ideal Tuesday.', category: 'life_health', milestone: 'Life Design Thread', timeEstimate: '30-60 mins', deliverable: 'Exercise session completed', celebrationMoment: 'Notice your energy for the rest of the day', source: 'tuesday_test' });
+    const timeMatch = t.match(/finish.*?(\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm|o'clock))/i) || t.match(/wrap.*?(\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm|o'clock))/i) || t.match(/leave.*?(\d{1,2}[:.]\d{2}|\d{1,2}\s*(?:am|pm|o'clock))/i);
+    if (timeMatch) pool.push({ id: `life_boundary_${pool.length+1}`, title: `Close the laptop by ${timeMatch[1]}`, description: `You said you want to finish work at ${timeMatch[1]}. This week, do it at least twice.`, whyThisMatters: 'Every week you don\'t honour this boundary, you prove the business owns your time.', category: 'life_time', milestone: 'Life Design Thread', timeEstimate: 'N/A', deliverable: `Two days where you stopped at ${timeMatch[1]}`, celebrationMoment: 'The world didn\'t end.', source: 'tuesday_test' });
+  }
+  if (ctx.sacrifices?.length > 0) {
+    for (const sac of ctx.sacrifices.slice(0, 2)) {
+      const sl = sac.toLowerCase();
+      if (sl.includes('hobby') || sl.includes('hobbies')) pool.push({ id: `life_hobby_${pool.length+1}`, title: 'Reclaim one hour for something you used to love', description: 'You said you\'ve sacrificed hobbies. Take one hour back.', whyThisMatters: 'The business took your hobbies. You\'re taking them back.', category: 'life_experience', milestone: 'Life Design Thread', timeEstimate: '1 hour', deliverable: 'One hour for you', celebrationMoment: 'Did it feel indulgent? Good.', source: 'sacrifices' });
+      if (sl.includes('sleep') || sl.includes('rest')) pool.push({ id: `life_rest_${pool.length+1}`, title: 'Get to bed on time — three nights this week', description: 'You said you\'ve sacrificed sleep. Be in bed by your target time at least three nights.', whyThisMatters: 'You can\'t build freedom if you\'re running on empty.', category: 'life_health', milestone: 'Life Design Thread', timeEstimate: 'N/A', deliverable: 'Three nights of proper rest', celebrationMoment: 'How did Thursday morning feel?', source: 'sacrifices' });
+      if (sl.includes('fitness') || sl.includes('health')) pool.push({ id: `life_fitness_${pool.length+1}`, title: 'Move your body this week', description: 'You said you\'ve sacrificed fitness. One session this week — anything counts.', whyThisMatters: 'Your body is keeping score.', category: 'life_health', milestone: 'Life Design Thread', timeEstimate: '30-60 mins', deliverable: 'One exercise session', celebrationMoment: 'You showed up for yourself.', source: 'sacrifices' });
+    }
+  }
+  if (ctx.quarterlyLifePriority) pool.push({ id: `life_quarterly_${pool.length+1}`, title: 'Check in on your quarterly life priority', description: `You said your priority this quarter is: "${ctx.quarterlyLifePriority}". What's one small step this week?`, whyThisMatters: 'This is what you said matters most right now — outside the business.', category: 'life_experience', milestone: 'Life Design Thread', timeEstimate: '15 mins + action', deliverable: 'One step taken', celebrationMoment: 'Progress, not perfection', source: 'quarterly_priority' });
+  if (pool.length === 0) pool.push({ id: 'life_generic_1', title: 'Protect one hour for yourself this week', description: 'Block one hour for something that has nothing to do with the business. Walk. Read. Sit quietly.', whyThisMatters: `Your North Star: "${ctx.northStar?.substring(0, 80) || 'A life worth building'}..." — this only happens if you practise it.`, category: 'life_time', milestone: 'Life Design Thread', timeEstimate: '1 hour', deliverable: 'One protected hour, used', celebrationMoment: 'You chose yourself.', source: 'fallback' });
+  return pool;
+}
+
+function evolveLifeTaskLanguage(task: any, weekNumber: number, weekRange: { min: number; max: number }): any {
+  const evolved = { ...task };
+  const rel = weekNumber - weekRange.min + 1;
+  if (rel <= 2) { evolved.description = `This is new. It might feel indulgent or uncomfortable. Do it anyway. ${task.description}`; evolved.celebrationMoment = task.celebrationMoment || 'You started. That\'s the hardest part.'; }
+  else if (rel <= 4) { evolved.description = `You've done this before. Notice: is it getting easier? ${task.description}`; evolved.celebrationMoment = task.celebrationMoment || 'Third time. Did the world end? Keep going.'; }
+  else { evolved.description = `This should feel normal now. If it still feels like a fight, that's a signal about your systems. ${task.description}`; evolved.celebrationMoment = task.celebrationMoment || 'This is becoming who you are.'; }
+  evolved.id = `${task.id}_w${weekNumber}`;
+  return evolved;
+}
+
+// ============================================================================
+// SPRINT TASK QUALITY ENFORCEMENT
+// ============================================================================
+
+interface TaskEnforcementContext {
+  northStar: string;
+  shiftMilestones: Array<{ milestone: string; targetMonth: number; measurable?: string }>;
+  tuesdayTest: string;
+  magicAwayTask: string;
+  dangerZone: string;
+  commitmentHours: string;
+}
+
+function enforceTaskFields(weeks: any[], ctx: TaskEnforcementContext): any[] {
+  for (const week of weeks) {
+    if (!week.tasks || !Array.isArray(week.tasks)) continue;
+    for (let i = 0; i < week.tasks.length; i++) {
+      const t = week.tasks[i];
+      if (!t.id) t.id = `w${week.weekNumber}_t${i + 1}`;
+      if (!t.category || t.category === 'undefined' || t.category === '') t.category = detectCategory(t.title || '', t.description || '');
+      if (!t.whyThisMatters || t.whyThisMatters.length < 10) t.whyThisMatters = genWhyMatters(t, week, ctx);
+      if (!t.timeEstimate || t.timeEstimate === '') t.timeEstimate = estTime(t.title || '', t.description || '');
+      if (!t.deliverable || t.deliverable === '') t.deliverable = genDeliverable(t.title || '', t.description || '');
+      if (!t.celebrationMoment || t.celebrationMoment === '') t.celebrationMoment = genCelebration(t, week.weekNumber);
+      if (!t.milestone || t.milestone === '') t.milestone = nearestMilestone(week.weekNumber, ctx.shiftMilestones);
+      if (!t.priority) t.priority = i === 0 ? 'high' : i === 1 ? 'medium' : 'low';
+    }
+  }
+  return weeks;
+}
+
+function detectCategory(title: string, desc: string): string {
+  const t = (title + ' ' + desc).toLowerCase();
+  if (t.includes('writ') && (t.includes('personal') || t.includes('undisturb'))) return 'life_identity';
+  if (t.includes('family') || t.includes('children') || t.includes('kids') || t.includes('wife') || t.includes('partner') || t.includes('husband') || t.includes('evening')) return 'life_relationship';
+  if (t.includes('exercise') || t.includes('run ') || t.includes('gym') || t.includes('bike') || t.includes('sleep') || t.includes('rest') || t.includes('health')) return 'life_health';
+  if (t.includes('hobby') || t.includes('holiday') || t.includes('travel')) return 'life_experience';
+  if (t.includes('protect') && t.includes('time')) return 'life_time';
+  if (t.includes('boundary') || (t.includes('laptop') && t.includes('close'))) return 'life_time';
+  if (t.includes('price') || t.includes('pricing') || t.includes('margin') || t.includes('invoice') || t.includes('payment') || t.includes('cash') || t.includes('revenue') || t.includes('profit') || t.includes('financial') || t.includes('cost')) return 'financial';
+  if (t.includes('hire') || t.includes('recruit') || t.includes('team') || t.includes('delegate') || t.includes('staff') || t.includes('train')) return 'team';
+  if (t.includes('process') || t.includes('workflow') || t.includes('system') || t.includes('automat') || t.includes('sop')) return 'systems';
+  if (t.includes('customer') || t.includes('client') || t.includes('sales') || t.includes('lead') || t.includes('market')) return 'marketing';
+  if (t.includes('strateg') || t.includes('vision') || t.includes('review') || t.includes('kpi')) return 'strategy';
+  return 'operations';
+}
+
+function genWhyMatters(task: any, week: any, ctx: TaskEnforcementContext): string {
+  const wn = week.weekNumber || 0;
+  if (wn <= 3) {
+    if (ctx.magicAwayTask) return `You said you'd magic away "${ctx.magicAwayTask.substring(0, 40)}" — this is the first step.`;
+    if (ctx.dangerZone) return `Your danger zone is "${ctx.dangerZone.substring(0, 40)}" — this reduces that risk.`;
+    return 'This addresses the immediate friction you described. Small step, real relief.';
+  }
+  if (wn <= 8) { const m = nearestMilestone(wn, ctx.shiftMilestones); return m ? `Moves you toward: "${m.substring(0, 50)}". Each step compounds.` : 'Building on the foundation. This is where momentum starts.'; }
+  return `Connects to your North Star: "${ctx.northStar?.substring(0, 60) || 'the life you described'}..."`;
+}
+
+function estTime(title: string, desc: string): string {
+  const t = (title + ' ' + desc).toLowerCase();
+  if (t.includes('quick') || t.includes('list') || t.includes('check')) return '30 mins';
+  if (t.includes('conversation') || t.includes('call') || t.includes('meeting')) return '30-60 mins';
+  if (t.includes('document') || t.includes('write') || t.includes('draft') || t.includes('create')) return '1-2 hours';
+  if (t.includes('spreadsheet') || t.includes('analysis') || t.includes('research') || t.includes('audit')) return '2-3 hours';
+  if (t.includes('implement') || t.includes('restructure')) return '3-4 hours';
+  return '1-2 hours';
+}
+
+function genDeliverable(title: string, desc: string): string {
+  const t = (title + ' ' + desc).toLowerCase();
+  if (t.includes('list') || t.includes('document')) return 'A written document you can reference';
+  if (t.includes('conversation') || t.includes('call')) return 'Notes and agreed next steps';
+  if (t.includes('spreadsheet') || t.includes('data')) return 'A spreadsheet with the data captured';
+  if (t.includes('schedule') || t.includes('plan')) return 'A schedule someone else can follow';
+  if (t.includes('framework') || t.includes('process')) return 'A documented framework ready to share';
+  return 'A tangible output you can point to';
+}
+
+function genCelebration(task: any, weekNum: number): string {
+  const c = (task.category || '').toLowerCase();
+  if (c.startsWith('life_')) return 'You chose yourself. That\'s the shift.';
+  if (c === 'financial') return 'You looked at the numbers honestly. Most people don\'t.';
+  if (c === 'team') return 'You trusted someone else with this. That\'s leadership.';
+  if (c === 'systems') return 'This process now exists outside your head. That\'s freedom.';
+  if (weekNum <= 3) return 'You started. That\'s the hardest part.';
+  if (weekNum <= 8) return 'Notice how this is getting easier. That\'s the compound effect.';
+  return 'Look how far you\'ve come from Week 1.';
+}
+
+function nearestMilestone(weekNum: number, milestones: any[]): string {
+  if (!milestones?.length) return '';
+  const approxMonth = Math.ceil(weekNum / 2);
+  let best = milestones[0], minDist = Math.abs((best.targetMonth || 2) - approxMonth);
+  for (const m of milestones) { const d = Math.abs((m.targetMonth || 2) - approxMonth); if (d < minDist) { best = m; minDist = d; } }
+  return best.milestone || best.title || '';
+}
+
+// ============================================================================
+// BM SUMMARY BLOCK BUILDER
+// ============================================================================
+
+function buildBmSummaryBlock(bmReport: any): string {
+  if (!bmReport?.pass1_data) return '';
+  const d = bmReport.pass1_data as Record<string, any>;
+  const p: string[] = ['## BENCHMARKING REPORT FINDINGS (use to make tasks more specific)', ''];
+  const rev = d._enriched_revenue; const gm = d.gross_margin; const nm = d.net_margin;
+  const finPts: string[] = [];
+  if (rev) finPts.push(`Revenue: £${(rev / 1000).toFixed(0)}k`);
+  if (gm) finPts.push(`Gross margin: ${typeof gm === 'number' && gm < 1 ? (gm * 100).toFixed(1) : gm}%`);
+  if (nm) finPts.push(`Net margin: ${typeof nm === 'number' && nm < 1 ? (nm * 100).toFixed(1) : nm}%`);
+  if (finPts.length) { p.push(`Financials: ${finPts.join('; ')}`); p.push(''); }
+  const strengths = d.topStrengths || bmReport.top_strengths || [];
+  if (strengths.length) { p.push('Strengths (protect):'); for (const s of strengths.slice(0, 3)) p.push(`- ${s.metric || s.metricName || s.name}: ${s.position || s.assessment || ''}`); p.push(''); }
+  const gaps = d.topGaps || bmReport.top_gaps || [];
+  if (gaps.length) { p.push('Gaps (address in tasks):'); for (const g of gaps.slice(0, 3)) { const imp = g.annualImpact || g.annual_impact; p.push(`- ${g.metric || g.metricName || g.name}: ${g.position || ''} ${imp ? `(£${typeof imp === 'number' ? imp.toLocaleString() : imp} annual)` : ''}`); if (g.rootCauseHypothesis || g.root_cause) p.push(`  Root cause: ${g.rootCauseHypothesis || g.root_cause}`); } p.push(''); }
+  const opp = d.opportunitySizing || {};
+  const total = opp.totalAnnualOpportunity || bmReport.total_annual_opportunity;
+  if (total) p.push(`Total annual opportunity: £${typeof total === 'number' ? total.toLocaleString() : total}`);
+  if (bmReport.overall_percentile) p.push(`Overall percentile: ${bmReport.overall_percentile}th`);
+  const va = bmReport.value_analysis;
+  if (va) { const es = bmReport.exit_readiness_breakdown?.totalScore || va.exitReadinessScore?.overall || va.exitReadiness?.score; if (es) { p.push(`\nExit readiness: ${es}/100`); const sup = bmReport.enhanced_suppressors || va.valueSuppressors || va.value_suppressors || []; if (sup.length) { p.push('Value suppressors:'); for (const s of sup.slice(0, 3)) p.push(`- ${s.name || s.title || s.suppressor}: ${s.description || ''}`); } } }
+  p.push(''); p.push('Reference specific BM findings in tasks. Translate numbers into actions, don\'t just repeat them.');
+  return p.join('\n');
+}
+
+// ============================================================================
+// FIELD NAME NORMALISATION
+// ============================================================================
+
+function normaliseFieldNames(weeks: any[]): any[] {
+  for (const week of weeks) {
+    if (week.weekMilestone && !week.milestone) week.milestone = week.weekMilestone;
+    if (week.milestone && !week.weekMilestone) week.weekMilestone = week.milestone;
+    if (week.tuesdayCheckIn && !week.tuesdayTransformation) week.tuesdayTransformation = week.tuesdayCheckIn;
+    if (week.tuesdayTransformation && !week.tuesdayCheckIn) week.tuesdayCheckIn = week.tuesdayTransformation;
+    if (week.narrative && !week.focus) week.focus = week.narrative;
+    for (const task of week.tasks || []) {
+      if (task.whyThisMatters && !task.why) task.why = task.whyThisMatters;
+      if (task.why && !task.whyThisMatters) task.whyThisMatters = task.why;
+      if (task.timeEstimate && !task.estimatedHours) { const m = task.timeEstimate.match(/([\d.]+)/); if (m) task.estimatedHours = parseFloat(m[1]); }
+      if (task.estimatedHours && !task.timeEstimate) task.timeEstimate = `${task.estimatedHours} hours`;
+    }
+  }
+  return weeks;
 }

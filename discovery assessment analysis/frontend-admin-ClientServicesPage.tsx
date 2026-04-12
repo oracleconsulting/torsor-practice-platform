@@ -51,7 +51,9 @@ import {
   Brain,
   Quote,
   Phone,
-  XCircle
+  XCircle,
+  Play,
+  Map as MapIcon
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
@@ -6955,6 +6957,22 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         lifeCheckData = lc;
       }
 
+      // Detect sibling directors (same company, enrolled in GA)
+      let siblingDirectors: any[] = [];
+      if (clientData.client_company && serviceLineCode === '365_method') {
+        try {
+          const { data: siblings } = await supabase.from('practice_members').select('id, name, email').eq('practice_id', clientData.practice_id).eq('client_company', clientData.client_company).eq('member_type', 'client').neq('id', clientId);
+          if (siblings?.length) {
+            const slRow = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+            if (slRow.data?.id) {
+              const { data: sibEnrollments } = await supabase.from('client_service_lines').select('client_id').in('client_id', siblings.map(s => s.id)).eq('service_line_id', slRow.data.id);
+              const enrolledIds = new Set((sibEnrollments || []).map(e => e.client_id));
+              siblingDirectors = siblings.filter(s => enrolledIds.has(s.id));
+            }
+          }
+        } catch (e) { console.warn('Sibling director detection failed:', e); }
+      }
+
       setClient({
         ...clientData,
         roadmap: roadmap ? {
@@ -6971,7 +6989,8 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         assessments: allAssessments,
         context: context || [],
         documents: documents,
-        tasks: clientTasks || []
+        tasks: clientTasks || [],
+        siblingDirectors,
       });
     } catch (error) {
       console.error('Error fetching client:', error);
@@ -7472,12 +7491,39 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
       console.log('clientId:', clientId);
       console.log('practiceId:', client.practice_id);
 
-      // Clear any existing pending items for this client
+      // Clear ALL existing queue items for this client
       await supabase
         .from('generation_queue')
         .delete()
+        .eq('client_id', clientId);
+      
+      console.log('✓ Cleared generation queue');
+
+      // Reset existing roadmap stages so the orchestrator doesn't skip them as "already done"
+      const { error: resetError } = await supabase
+        .from('roadmap_stages')
+        .update({ 
+          status: 'not_started',
+          generation_started_at: null,
+          generation_completed_at: null,
+          generation_duration_ms: null
+        })
         .eq('client_id', clientId)
-        .eq('status', 'pending');
+        .in('stage_type', [
+          'fit_assessment', 
+          'five_year_vision', 
+          'six_month_shift', 
+          'sprint_plan_part1', 
+          'sprint_plan_part2', 
+          'value_analysis'
+        ])
+        .in('status', ['generated', 'approved', 'generating', 'failed']);
+
+      if (resetError) {
+        console.warn('Warning: Could not reset existing stages:', resetError.message);
+      } else {
+        console.log('✓ Reset existing roadmap stages to not_started');
+      }
 
       // Queue only the first stage - the rest will be auto-queued by database triggers
       const { error: queueError } = await supabase
@@ -7582,6 +7628,32 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                 </>
               )}
             </button>
+
+            {/* Generate Roadmap Button — first-time generation only */}
+            {!client?.roadmap && (
+              <button
+                onClick={async () => {
+                  if (confirm('Generate roadmap for this client? This will run the full pipeline and may take 2–3 minutes.')) {
+                    await handleRegenerate();
+                  }
+                }}
+                disabled={regenerating}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-indigo-400 text-sm font-medium"
+                title="Generate roadmap for this client"
+              >
+                {regenerating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Generate Roadmap
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Pipeline Control Buttons */}
             {client?.roadmap && (
@@ -9643,52 +9715,45 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             {client.roadmap.status || 'pending_review'}
                           </p>
                         </div>
-                        {client.roadmap.status !== 'published' && (
-                          <button
-                            onClick={async () => {
-                              if (!confirm('Mark this roadmap as ready and send email notification to client?')) return;
-                              
-                              try {
-                                // Update roadmap status to published
-                                const { error: updateError } = await supabase
-                                  .from('client_roadmaps')
-                                  .update({ status: 'published' })
-                                  .eq('id', client.roadmap.id);
-                                
-                                if (updateError) throw updateError;
-                                
-                                // Send email notification
-                                const { error: emailError } = await supabase.functions.invoke('notify-roadmap-ready', {
-                                  body: {
-                                    roadmapId: client.roadmap.id,
-                                    clientId: clientId
-                                  }
-                                });
-                                
-                                if (emailError) {
-                                  console.error('Email error:', emailError);
-                                  alert('Roadmap marked as ready, but email failed to send. Please check logs.');
-                                } else {
-                                  alert('Roadmap marked as ready and email sent to client!');
-                                }
-                                
-                                // Refresh client data
-                                await fetchClientDetail();
-                              } catch (error) {
-                                console.error('Error marking roadmap as ready:', error);
-                                alert('Failed to mark roadmap as ready. Please try again.');
-                              }
-                            }}
-                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
-                          >
-                            Mark as Ready & Send Email
-                          </button>
-                        )}
-                        {client.roadmap.status === 'published' && (
-                          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
-                            ✓ Published
-                          </span>
-                        )}
+                        {(() => {
+                          const allStagesPublished = (client.roadmapStages || []).filter((s: any) => ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type)).every((s: any) => s.status === 'published');
+                          const hasGeneratedStages = (client.roadmapStages || []).some((s: any) => s.status === 'generated' && ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type));
+
+                          return (
+                            <>
+                              {hasGeneratedStages && (
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm('Publish all roadmap stages to the client portal? The client will be able to see their roadmap, sprint, and value analysis.')) return;
+                                    try {
+                                      const stageIds = (client.roadmapStages || []).filter((s: any) => s.status === 'generated' && ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type)).map((s: any) => s.id);
+                                      if (stageIds.length > 0) {
+                                        await supabase.from('roadmap_stages').update({ status: 'published' }).in('id', stageIds);
+                                      }
+                                      if (client.roadmap?.id) {
+                                        await supabase.from('client_roadmaps').update({ status: 'published' }).eq('id', client.roadmap.id);
+                                      }
+                                      try { await supabase.functions.invoke('notify-roadmap-ready', { body: { clientId } }); } catch {}
+                                      alert(`Published ${stageIds.length} stages to client portal.`);
+                                      await fetchClientDetail();
+                                    } catch (error) {
+                                      console.error('Error publishing:', error);
+                                      alert('Failed to publish. Please try again.');
+                                    }
+                                  }}
+                                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+                                >
+                                  Publish to Client
+                                </button>
+                              )}
+                              {allStagesPublished && (
+                                <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
+                                  ✓ Published
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       
                       {/* Fit Profile (North Star) */}
@@ -10089,6 +10154,266 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           })()
                         : null}
 
+                      {/* Advisory Brief (Practice-Only) */}
+                      {(() => {
+                        const advisoryStage = (client.roadmapStages || []).find((s: any) => s.stage_type === 'advisory_brief' && ['generated', 'approved'].includes(s.status));
+                        if (!advisoryStage) return null;
+                        const brief = advisoryStage.generated_content || advisoryStage.approved_content;
+                        if (!brief || brief._parseError) return null;
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                  <FileText className="w-5 h-5 text-amber-600" />
+                                  Advisory Brief
+                                </h3>
+                                <p className="text-xs text-gray-500">Practice only — not visible to client</p>
+                              </div>
+                              {brief.generatedAt && <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">Generated {new Date(brief.generatedAt).toLocaleDateString()}</span>}
+                            </div>
+                            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-5 max-h-[600px] overflow-y-auto">
+                              {brief.executiveSummary && (
+                                <div>
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Executive Summary</h4>
+                                  <p className="text-sm text-gray-800 leading-relaxed">{brief.executiveSummary}</p>
+                                </div>
+                              )}
+                              {brief.catchUpTalkingPoints?.length > 0 && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Catch-Up Talking Points</h4>
+                                  <div className="space-y-3">
+                                    {brief.catchUpTalkingPoints.map((p: any, i: number) => (
+                                      <div key={i} className="bg-white rounded-lg p-3 border border-amber-100">
+                                        <p className="text-sm font-medium text-gray-900">{p.topic}</p>
+                                        <p className="text-xs text-gray-600 mt-1">Data: {p.dataPoint}</p>
+                                        <p className="text-xs text-amber-700 mt-1 font-medium">→ {p.suggestedAction}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {brief.sprintAdvisoryTasks?.length > 0 && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Suggested Sprint Additions</h4>
+                                  <div className="space-y-2">
+                                    {brief.sprintAdvisoryTasks.map((t: any, i: number) => (
+                                      <div key={i} className="bg-white rounded-lg p-3 border border-amber-100">
+                                        <p className="text-sm font-medium text-gray-900">{t.title}</p>
+                                        <p className="text-xs text-gray-600 mt-1">{t.description}</p>
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <span className="text-xs bg-gray-100 px-2 py-0.5 rounded">{t.category}</span>
+                                          {t.suggestedWeek > 0 && <span className="text-xs text-amber-600">Week {t.suggestedWeek}</span>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {brief.crossServiceOpportunities?.length > 0 && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Cross-Service Opportunities</h4>
+                                  <div className="space-y-2">
+                                    {brief.crossServiceOpportunities.map((o: any, i: number) => (
+                                      <div key={i} className="bg-white rounded-lg p-3 border border-amber-100 flex items-start gap-3">
+                                        <div className="flex-1"><p className="text-sm font-medium text-gray-900">{o.service}</p><p className="text-xs text-gray-600 mt-1">Trigger: {o.trigger}</p><p className="text-xs text-gray-500">Timing: {o.timing}</p></div>
+                                        {o.valueAtStake && <span className="text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-1 rounded whitespace-nowrap">{o.valueAtStake}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {brief.riskRegister?.length > 0 && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <h4 className="text-sm font-bold text-amber-900 uppercase tracking-wide mb-2">Risk Register</h4>
+                                  <div className="space-y-2">
+                                    {brief.riskRegister.map((r: any, i: number) => (
+                                      <div key={i} className={`rounded-lg p-3 border ${r.severity === 'Critical' ? 'bg-red-50 border-red-200' : r.severity === 'High' ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+                                        <div className="flex items-center gap-2"><span className={`text-xs font-bold px-2 py-0.5 rounded ${r.severity === 'Critical' ? 'bg-red-100 text-red-700' : r.severity === 'High' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{r.severity}</span><p className="text-sm font-medium text-gray-900">{r.risk}</p></div>
+                                        {r.trigger && <p className="text-xs text-gray-600 mt-1">Trigger: {r.trigger}</p>}
+                                        {r.mitigation && <p className="text-xs text-gray-500 mt-1">Mitigation: {r.mitigation}</p>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {brief._dataSources && (
+                                <div className="pt-4 border-t border-amber-200">
+                                  <p className="text-xs text-amber-600">Sources: {[brief._dataSources.gaAssessment && 'GA Assessment', brief._dataSources.bmReport && 'BM Report', brief._dataSources.exitReadiness && 'Exit Readiness', brief._dataSources.suppressors && 'Value Suppressors'].filter(Boolean).join(' · ')}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Quarterly Insight Report */}
+                      {serviceLineCode === '365_method' && (() => {
+                        const currentSprint = client.gaEnrollment?.current_sprint_number ?? 1;
+                        const insightStage = (client.roadmapStages || []).find((s: any) => s.stage_type === 'insight_report' && (s.sprint_number ?? 1) === currentSprint);
+                        const content = insightStage?.approved_content || insightStage?.generated_content;
+                        const sprintTasks = (client.tasks || []).filter((t: any) => (t.sprint_number ?? 1) === currentSprint);
+                        const completionRate = sprintTasks.length > 0 ? Math.round(sprintTasks.filter((t: any) => t.status === 'completed' || t.status === 'skipped').length / sprintTasks.length * 100) : 0;
+
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                  <BarChart3 className="w-5 h-5 text-cyan-600" />
+                                  Quarterly Insight Report
+                                </h3>
+                                <p className="text-xs text-gray-500">Sprint {currentSprint} — for the quarterly catch-up</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {!insightStage && completionRate >= 50 && (
+                                  <button onClick={async () => { try { await supabase.functions.invoke('generate-insight-report', { body: { clientId, practiceId: client.practice_id, sprintNumber: currentSprint } }); await fetchClientDetail(); } catch (e) { console.error(e); alert('Failed to generate insight report.'); } }} className="px-3 py-1.5 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-sm font-medium">Generate Insight Report</button>
+                                )}
+                                {!insightStage && completionRate < 50 && (
+                                  <span className="text-xs text-gray-400">Available when sprint is 50%+ complete ({completionRate}% now)</span>
+                                )}
+                                {insightStage && (
+                                  <button onClick={async () => { try { await supabase.functions.invoke('generate-insight-report', { body: { clientId, practiceId: client.practice_id, sprintNumber: currentSprint } }); await fetchClientDetail(); } catch (e) { console.error(e); alert('Failed to regenerate.'); } }} className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-xs">Regenerate</button>
+                                )}
+                              </div>
+                            </div>
+                            {content && (
+                              <div className="bg-cyan-50 border border-cyan-200 rounded-xl p-5 space-y-4">
+                                {content.lifeMetrics && (
+                                  <div>
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-2">Life Progress</h4>
+                                    <p className="text-sm text-gray-800">{content.lifeMetrics.summary}</p>
+                                    {content.lifeMetrics.highlight && <p className="text-sm text-emerald-700 mt-1">✨ {content.lifeMetrics.highlight}</p>}
+                                    {content.lifeMetrics.gap && <p className="text-sm text-amber-700 mt-1">⚠️ {content.lifeMetrics.gap}</p>}
+                                  </div>
+                                )}
+                                {content.businessMetrics && (
+                                  <div className="pt-3 border-t border-cyan-200">
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-2">Business Progress</h4>
+                                    <p className="text-sm text-gray-800">{content.businessMetrics.summary}</p>
+                                  </div>
+                                )}
+                                {content.insight && (
+                                  <div className="pt-3 border-t border-cyan-200 bg-white rounded-lg p-4 border border-cyan-100">
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-2">Key Insight</h4>
+                                    <p className="text-sm font-medium text-gray-900">{content.insight.headline}</p>
+                                    <p className="text-sm text-gray-700 mt-1">{content.insight.detail}</p>
+                                    <p className="text-sm text-cyan-700 mt-2 font-medium">→ {content.insight.action}</p>
+                                  </div>
+                                )}
+                                {content.question && (
+                                  <div className="pt-3 border-t border-cyan-200">
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-1">Question for Catch-Up</h4>
+                                    <p className="text-sm text-gray-800 italic">&ldquo;{content.question.forCatchUp}&rdquo;</p>
+                                  </div>
+                                )}
+                                {content.nextSprint && (
+                                  <div className="pt-3 border-t border-cyan-200">
+                                    <h4 className="text-xs font-bold text-cyan-900 uppercase tracking-wide mb-1">Next Sprint Preview</h4>
+                                    <p className="text-sm text-gray-800">{content.nextSprint.preview}</p>
+                                  </div>
+                                )}
+                                <div className="pt-3 border-t border-cyan-200 flex items-center gap-2">
+                                  {insightStage?.status === 'generated' && (
+                                    <button onClick={async () => { await supabase.from('roadmap_stages').update({ status: 'approved', approved_content: content }).eq('id', insightStage.id); await fetchClientDetail(); }} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm">Approve &amp; Share with Client</button>
+                                  )}
+                                  {insightStage?.status === 'approved' && <span className="text-xs text-emerald-600 font-medium">✓ Shared with client</span>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Director Alignment Map (Partner tier, multi-director) */}
+                      {serviceLineCode === '365_method' && (client.siblingDirectors?.length > 0) && (() => {
+                        const alignStage = (client.roadmapStages || []).find((s: any) => s.stage_type === 'director_alignment' && ['generated', 'approved'].includes(s.status));
+                        const alignMap = alignStage?.generated_content;
+                        const allDirIds = [clientId, ...(client.siblingDirectors || []).map((s: any) => s.id)];
+
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <div>
+                                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                                  <Users className="w-5 h-5 text-purple-600" />
+                                  Director Alignment Map
+                                </h3>
+                                <p className="text-xs text-gray-500">
+                                  {client.client_company} — {allDirIds.length} directors: {client.name}{client.siblingDirectors.map((s: any) => ', ' + s.name).join('')}
+                                </p>
+                              </div>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await supabase.functions.invoke('generate-director-alignment', { body: { directorIds: allDirIds, practiceId: client.practice_id, primaryDirectorId: clientId } });
+                                    await fetchClientDetail();
+                                  } catch (e) { console.error(e); alert('Failed to generate alignment map.'); }
+                                }}
+                                className="px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium"
+                              >
+                                {alignStage ? 'Regenerate' : 'Generate'} Alignment Map
+                              </button>
+                            </div>
+                            {alignMap && !alignMap._parseError && (
+                              <div className="bg-purple-50 border border-purple-200 rounded-xl p-5 space-y-4 max-h-[600px] overflow-y-auto">
+                                {alignMap.snapshots?.length > 0 && (
+                                  <div>
+                                    <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wide mb-2">Director Snapshots</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      {alignMap.snapshots.map((s: any, i: number) => (
+                                        <div key={i} className="bg-white rounded-lg p-3 border border-purple-100">
+                                          <p className="text-sm font-semibold text-gray-900">{s.name}</p>
+                                          <p className="text-sm text-gray-700 mt-1">{s.summary}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                {alignMap.alignmentZone && (
+                                  <div className="pt-3 border-t border-purple-200">
+                                    <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wide mb-2">Alignment Zone</h4>
+                                    <p className="text-sm text-gray-800">{alignMap.alignmentZone.commonGround}</p>
+                                    {alignMap.alignmentZone.sharedGoals?.length > 0 && <ul className="mt-2 space-y-1">{alignMap.alignmentZone.sharedGoals.map((g: string, i: number) => <li key={i} className="text-sm text-emerald-700">✓ {g}</li>)}</ul>}
+                                  </div>
+                                )}
+                                {alignMap.tensionMap?.length > 0 && (
+                                  <div className="pt-3 border-t border-purple-200">
+                                    <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">Tensions</h4>
+                                    <div className="space-y-2">{alignMap.tensionMap.map((t: any, i: number) => (
+                                      <div key={i} className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                                        <p className="text-sm font-medium text-gray-900">{t.tension}</p>
+                                        <p className="text-xs text-amber-700 mt-1">Impact: {t.impact}</p>
+                                        <p className="text-xs text-gray-600 mt-1">Resolution: {t.resolution}</p>
+                                      </div>
+                                    ))}</div>
+                                  </div>
+                                )}
+                                {alignMap.blindSpots?.length > 0 && (
+                                  <div className="pt-3 border-t border-purple-200">
+                                    <h4 className="text-xs font-bold text-red-800 uppercase tracking-wide mb-2">Blind Spots</h4>
+                                    {alignMap.blindSpots.map((b: string, i: number) => <p key={i} className="text-sm text-red-700 mt-1">⚠️ {b}</p>)}
+                                  </div>
+                                )}
+                                {alignMap.shared12MonthGoal && (
+                                  <div className="pt-3 border-t border-purple-200 bg-white rounded-lg p-4 border border-purple-100">
+                                    <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wide mb-2">Shared 12-Month Goal</h4>
+                                    <p className="text-sm font-medium text-gray-900">{alignMap.shared12MonthGoal.goal}</p>
+                                    <p className="text-xs text-gray-600 mt-1">Measurable: {alignMap.shared12MonthGoal.measurable}</p>
+                                  </div>
+                                )}
+                                {alignMap.facilitationQuestions?.length > 0 && (
+                                  <div className="pt-3 border-t border-purple-200">
+                                    <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wide mb-2">Facilitation Questions</h4>
+                                    <ol className="space-y-1 list-decimal list-inside">{alignMap.facilitationQuestions.map((q: string, i: number) => <li key={i} className="text-sm text-gray-700">{q}</li>)}</ol>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+
                       {/* Sprint Renewal (Phase 4) — only for 365_method — Renewal Progress Tracker */}
                       {serviceLineCode === '365_method' && client.gaEnrollment
                         ? (() => {
@@ -10293,6 +10618,27 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               })}
                             </div>
 
+                            {lifeCheckComplete && client.lifeCheckData && (
+                              <div className="mt-4 bg-indigo-50 rounded-lg p-4 border border-indigo-100">
+                                <h4 className="text-sm font-semibold text-indigo-900 mb-3">Life Check Responses</h4>
+                                <div className="space-y-3 text-sm">
+                                  {[
+                                    { label: 'Tuesday now', value: client.lifeCheckData.tuesday_test_update },
+                                    { label: 'Time reclaimed', value: client.lifeCheckData.time_reclaim_progress },
+                                    { label: 'Biggest win', value: client.lifeCheckData.biggest_win },
+                                    { label: 'Still frustrating', value: client.lifeCheckData.biggest_frustration },
+                                    { label: 'Goal shift', value: client.lifeCheckData.priority_shift },
+                                    { label: 'Next sprint wish', value: client.lifeCheckData.next_sprint_wish },
+                                  ].filter(q => q.value).map(q => (
+                                    <div key={q.label}>
+                                      <p className="text-indigo-600 font-medium text-xs uppercase">{q.label}</p>
+                                      <p className="text-gray-800 mt-0.5">{q.value}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             {nextSprintPublished && (
                               <div className="mt-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-emerald-700">
                                 Sprint {nextSprint} is live. Client can now start their next 12 weeks.
@@ -10341,9 +10687,65 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         : null}
                     </>
                   ) : (
-                    <div className="text-center py-12">
-                      <Target className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500">No roadmap generated yet</p>
+                    <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+                      <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-5">
+                        <MapIcon className="w-8 h-8 text-indigo-400" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No roadmap generated yet</h3>
+                      <p className="text-sm text-gray-500 mb-6 max-w-sm">
+                        The pipeline will generate a Fit Profile, 5-Year Vision, 6-Month Shift, 12-Week Sprint Plan, and Value Analysis.
+                      </p>
+
+                      <div className="w-full max-w-sm bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6 text-left space-y-2">
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Assessment Readiness</p>
+                        {[
+                          { label: 'Part 1 — Life Design', key: 'part1' },
+                          { label: 'Part 2 — Business Deep Dive', key: 'part2' },
+                          { label: 'Part 3 — Hidden Value Audit', key: 'part3' },
+                        ].map(({ label, key }) => {
+                          const isComplete = client?.assessments?.some(
+                            (a: any) => a.assessment_type === key && a.status === 'completed'
+                          );
+                          return (
+                            <div key={key} className="flex items-center gap-2">
+                              {isComplete ? (
+                                <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                              ) : (
+                                <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                              )}
+                              <span className={`text-sm ${isComplete ? 'text-gray-700' : 'text-gray-400'}`}>
+                                {label}
+                              </span>
+                              {isComplete && (
+                                <span className="ml-auto text-xs text-emerald-600 font-medium">Complete</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        onClick={async () => {
+                          if (confirm('Generate roadmap for this client? This will run the full pipeline and may take 2–3 minutes.')) {
+                            await handleRegenerate();
+                          }
+                        }}
+                        disabled={regenerating}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:bg-indigo-400 font-medium"
+                      >
+                        {regenerating ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4" />
+                            Generate Roadmap
+                          </>
+                        )}
+                      </button>
+                      <p className="text-xs text-gray-400 mt-3">Takes 2–3 minutes to complete</p>
                     </div>
                   )}
 
@@ -10751,16 +11153,24 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     <div className="space-y-4">
                       {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
                         <div key={week.weekNumber} className="border border-gray-200 rounded-xl overflow-hidden">
-                          <div className="bg-gray-50 p-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
-                                {week.weekNumber}
-                              </span>
-                              <div>
-                                <p className="font-medium text-gray-900">{week.theme}</p>
-                                <p className="text-sm text-gray-500">{week.phase} • {week.tasks?.length || 0} tasks</p>
+                          <div className="bg-gray-50 p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <span className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                                  {week.weekNumber}
+                                </span>
+                                <div>
+                                  <p className="font-medium text-gray-900">{week.theme}</p>
+                                  <p className="text-sm text-gray-500">{week.phase} • {week.tasks?.length || 0} tasks</p>
+                                </div>
                               </div>
                             </div>
+                            {week.narrative && (
+                              <p className="mt-2 pl-[52px] text-sm text-gray-600 italic leading-relaxed">{week.narrative}</p>
+                            )}
+                            {(week.weekMilestone || week.milestone) && (
+                              <p className="mt-1 pl-[52px] text-xs text-indigo-600 font-medium">🎯 {week.weekMilestone || week.milestone}</p>
+                            )}
                           </div>
                           <div className="p-4 space-y-3">
                             {week.tasks?.map((task: any) => (
@@ -10848,6 +11258,43 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                                 )}
                                               </div>
                                             )}
+                                            {(task.whyThisMatters || task.why) && (
+                                              <p className="text-sm text-indigo-600 mt-2 italic">Why: {task.whyThisMatters || task.why}</p>
+                                            )}
+                                            <div className="flex items-center gap-2 mt-2 text-xs flex-wrap">
+                                              {task.category && (
+                                                <span className={`px-2 py-0.5 rounded font-medium ${
+                                                  (task.category || '').startsWith('life_') ? 'bg-purple-100 text-purple-700' :
+                                                  task.category === 'financial' ? 'bg-emerald-100 text-emerald-700' :
+                                                  task.category === 'team' ? 'bg-blue-100 text-blue-700' :
+                                                  task.category === 'systems' ? 'bg-amber-100 text-amber-700' :
+                                                  task.category === 'strategy' ? 'bg-cyan-100 text-cyan-700' :
+                                                  task.category === 'marketing' ? 'bg-pink-100 text-pink-700' :
+                                                  'bg-gray-100 text-gray-600'
+                                                }`}>
+                                                  {(task.category || '').replace('life_', '✨ ').replace('_', ' ')}
+                                                </span>
+                                              )}
+                                              {(task.timeEstimate || task.estimatedHours) && (
+                                                <span className="text-gray-500 flex items-center gap-1">
+                                                  <Clock className="w-3 h-3" />
+                                                  {task.timeEstimate || `${task.estimatedHours}h`}
+                                                </span>
+                                              )}
+                                              {task.priority && task.priority !== 'medium' && (
+                                                <span className={`px-2 py-0.5 rounded ${
+                                                  task.priority === 'critical' ? 'bg-red-100 text-red-700' :
+                                                  task.priority === 'high' ? 'bg-amber-100 text-amber-700' :
+                                                  'bg-gray-100 text-gray-600'
+                                                }`}>{task.priority}</span>
+                                              )}
+                                            </div>
+                                            {task.deliverable && (
+                                              <p className="text-xs text-gray-400 mt-1">📋 Deliverable: {task.deliverable}</p>
+                                            )}
+                                            {task.celebrationMoment && (
+                                              <p className="text-xs text-gray-400 mt-1 italic">🎉 {task.celebrationMoment}</p>
+                                            )}
                                           </div>
                                         </div>
                                         
@@ -10891,6 +11338,12 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 )}
                               </div>
                             ))}
+                            {(week.tuesdayCheckIn || week.tuesdayTransformation) && (
+                              <div className="mt-3 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                <p className="text-xs font-medium text-indigo-600 uppercase tracking-wide mb-1">Tuesday Check-In</p>
+                                <p className="text-sm text-indigo-800 italic">{week.tuesdayCheckIn || week.tuesdayTransformation}</p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -11150,19 +11603,27 @@ function BenchmarkingClientModal({
     try {
       const timestamp = newSharedStatus ? new Date().toISOString() : null;
       
-      // Update bm_reports
-      const { error: reportError } = await supabase
+      // Update bm_reports (must affect a row or client RLS / portal will not see the report)
+      const { data: updatedReportRows, error: reportError } = await supabase
         .from('bm_reports')
         .update({
           is_shared_with_client: newSharedStatus,
           shared_at: timestamp,
           shared_by: newSharedStatus ? currentMember?.id : null
         })
-        .eq('engagement_id', engagement.id);
+        .eq('engagement_id', engagement.id)
+        .select('id');
       
       if (reportError) {
         console.error('[Benchmarking] Error toggling share on bm_reports:', reportError);
         alert(`Failed to ${newSharedStatus ? 'share' : 'unshare'} report: ${reportError.message}`);
+        return;
+      }
+      if (!updatedReportRows?.length) {
+        console.error('[Benchmarking] No bm_reports row for engagement; cannot sync share flags', engagement.id);
+        alert(
+          'No benchmarking report row found for this engagement. Generate or save the report first, then share again.'
+        );
         return;
       }
       

@@ -16,21 +16,29 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
-async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string): Promise<{ promptContext: string }> {
+async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string): Promise<{ promptContext: string; hasEnrichment?: boolean }> {
   const log = (msg: string) => console.log(`[ContextEnrichment] ${msg}`);
   log(`Enriching context for client ${clientId}`);
   interface Fin { source: string; summary: string }
   interface Sys { source: string; stage: string; systemsCount: number; integrationScore: number | null; automationScore: number | null; painPoints: string[]; findings: Array<{ title: string; severity: string; category: string }>; manualHoursMonthly: number | null; summary: string }
-  interface Mkt { source: string; industry: string | null; subSector: string | null; belowMedian: string[]; aboveMedian: string[]; opportunities: Array<{ area: string; potential: string }>; summary: string }
+  interface Mkt { source: string; summary: string }
   interface VA { source: string; summary: string }
   interface Disc { responses: Record<string, unknown>; serviceScores: Record<string, number>; summary: string }
+
+  let bmEngId: string | null = null;
+  try { const { data: eng } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle(); bmEngId = eng?.id || null; } catch (_) {}
+
   const [financial, systems, market, valueAnalysis, discovery] = await Promise.all([
     (async (): Promise<Fin | null> => {
       try {
         const { data: d } = await supabase.from('client_financial_data').select('*').eq('client_id', clientId).order('period_end', { ascending: false }).limit(1).maybeSingle();
         if (d) { const rev = d.revenue ?? d.turnover; const s = rev ? `Revenue: £${(Number(rev) / 1000).toFixed(0)}k` : ''; const g = d.gross_margin != null ? `; Gross margin: ${(Number(d.gross_margin) * 100).toFixed(1)}%` : ''; return { source: 'uploaded_accounts', summary: (s + g || 'Uploaded accounts data.') + '.' }; }
-        const { data: bm } = await supabase.from('bm_assessment_responses').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
-        if (bm) return { source: 'bm_assessment', summary: bm.revenue_numeric ? `Revenue: £${(bm.revenue_numeric / 1000).toFixed(0)}k` : 'BM assessment data.' };
+        if (bmEngId) {
+          const { data: bmRpt } = await supabase.from('bm_reports').select('pass1_data, total_annual_opportunity, overall_percentile, historical_financials').eq('engagement_id', bmEngId).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+          if (bmRpt?.pass1_data) { const p1 = bmRpt.pass1_data as Record<string, any>; const rev = p1._enriched_revenue; const gm = p1.gross_margin; const nm = p1.net_margin; const pts: string[] = []; if (rev) pts.push(`Revenue: £${(rev / 1000).toFixed(0)}k`); if (gm) pts.push(`Gross margin: ${typeof gm === 'number' && gm < 1 ? (gm * 100).toFixed(1) : gm}%`); if (nm) pts.push(`Net margin: ${typeof nm === 'number' && nm < 1 ? (nm * 100).toFixed(1) : nm}%`); if (bmRpt.total_annual_opportunity) pts.push(`Opportunity: £${bmRpt.total_annual_opportunity.toLocaleString()}`); if (pts.length) return { source: 'bm_report', summary: pts.join('; ') + '.' }; }
+          const { data: bmResp } = await supabase.from('bm_assessment_responses').select('responses').eq('engagement_id', bmEngId).limit(1).maybeSingle();
+          if (bmResp?.responses) { const r = bmResp.responses as Record<string, any>; if (r.bm_revenue) return { source: 'bm_assessment', summary: `Revenue: £${(Number(r.bm_revenue) / 1000).toFixed(0)}k.` }; return { source: 'bm_assessment', summary: 'BM assessment data available.' }; }
+        }
         const { data: bi } = await supabase.from('service_line_assessments').select('responses').eq('client_id', clientId).in('service_line_code', ['business_intelligence', 'management_accounts']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
         if (bi?.responses) return { source: 'bi_assessment', summary: 'Financial data from BI assessment.' };
         return null;
@@ -51,23 +59,26 @@ async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string):
     })(),
     (async (): Promise<Mkt | null> => {
       try {
-        const { data: r } = await supabase.from('bm_reports').select('report_data').eq('client_id', clientId).in('status', ['generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
-        if (!r?.report_data) return null;
-        const d = r.report_data as Record<string, unknown>;
-        const percentiles = (d.percentiles || d.rankings || {}) as Record<string, number>;
+        if (!bmEngId) return null;
+        const { data: r } = await supabase.from('bm_reports').select('pass1_data, overall_percentile, total_annual_opportunity, top_strengths, top_gaps').eq('engagement_id', bmEngId).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!r?.pass1_data) return null;
+        const d = r.pass1_data as Record<string, any>;
+        const metricsArr = (d.metricsComparison || []) as any[];
         const below: string[] = []; const above: string[] = [];
-        for (const [k, v] of Object.entries(percentiles)) { if (typeof v === 'number') { if (v < 50) below.push(k); else above.push(k); } }
-        const opps = ((d.opportunities as any[]) || []).slice(0, 5).map((o: any) => ({ area: o.area || o.title || '', potential: o.potential || o.value || '' }));
-        return { source: 'bm_report', industry: (d.industry as string) ?? null, subSector: (d.classification as any)?.sub_sector ?? null, belowMedian: below, aboveMedian: above, opportunities: opps, summary: `Industry: ${(d.industry as string) || 'N/A'}; below median: ${below.join(', ') || 'none'}.` };
+        for (const m of metricsArr) { if (typeof m.percentile === 'number') { if (m.percentile < 50) below.push(m.metricName || m.metricCode); else above.push(m.metricName || m.metricCode); } }
+        const opps = ((d.opportunitySizing as any)?.breakdown || []).slice(0, 5).map((o: any) => `${o.metric || o.title || ''}: £${o.annualImpact?.toLocaleString() || 'N/A'}`);
+        return { source: 'bm_report', summary: `Overall ${r.overall_percentile || 'N/A'}th pctile; below median: ${below.join(', ') || 'none'}; opportunity: £${(r.total_annual_opportunity || 0).toLocaleString()}. ${opps.length ? 'Gaps: ' + opps.join('; ') : ''}` };
       } catch (e) { console.warn('[ContextEnrichment] Market failed', e); return null; }
     })(),
     (async (): Promise<VA | null> => {
       try {
-        const { data: bm } = await supabase.from('bm_reports').select('value_analysis').eq('client_id', clientId).not('value_analysis', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+        if (!bmEngId) return null;
+        const { data: bm } = await supabase.from('bm_reports').select('value_analysis, exit_readiness_breakdown, enhanced_suppressors').eq('engagement_id', bmEngId).not('value_analysis', 'is', null).order('updated_at', { ascending: false }).limit(1).maybeSingle();
         if (!bm?.value_analysis) return null;
         const va = bm.value_analysis as any;
-        const s = `Exit readiness: ${va.exitReadinessScore?.overall ?? va.exitReadiness?.score ?? 'N/A'}; hidden assets: ${(va.hiddenAssets || []).length}.`;
-        return { source: 'bm_report', summary: s };
+        const exitScore = bm.exit_readiness_breakdown?.totalScore || va.exitReadinessScore?.overall || va.exitReadiness?.score || 'N/A';
+        const suppressorCount = (bm.enhanced_suppressors || []).length;
+        return { source: 'bm_report', summary: `Exit readiness: ${exitScore}/100; value suppressors: ${suppressorCount}.` };
       } catch (e) { console.warn('[ContextEnrichment] Value analysis failed', e); return null; }
     })(),
     (async (): Promise<Disc | null> => {
@@ -86,7 +97,7 @@ async function enrichRoadmapContext(supabase: SupabaseClient, clientId: string):
   if (discovery) parts.push(`## Discovery\n${discovery.summary}`);
   const promptContext = parts.length > 0 ? `\n\n# ENRICHMENT DATA FROM OTHER SERVICE LINES\nUse as authoritative context.\n\n${parts.join('\n\n')}` : '';
   log(`Complete. financial=${!!financial}, systems=${!!systems}, market=${!!market}, valueAnalysis=${!!valueAnalysis}, discovery=${!!discovery}`);
-  return { promptContext };
+  return { promptContext, hasEnrichment: parts.length > 0 };
 }
 
 const corsHeaders = {
@@ -404,7 +415,8 @@ function buildIntegratedFinancialData(
   contextDocs: any[],
   stageContext: any,
   part2Responses: Record<string, any>,
-  part3Responses: Record<string, any>
+  part3Responses: Record<string, any>,
+  bmReportData?: any
 ): IntegratedFinancialData {
   
   console.log('[FinancialIntegration] Building integrated financial data...');
@@ -520,6 +532,92 @@ function buildIntegratedFinancialData(
     }
   }
   
+  // Source: BM report data (cross-service financial bridge)
+  if (!currentYear && bmReportData) {
+    console.log('[FinancialIntegration] Using BM report as financial data source');
+    let revenue = 0, grossProfit = 0, grossMargin = 0, operatingProfit = 0, netProfit = 0, netMargin = 0;
+
+    // Priority 1: Direct enriched fields from pass1_data (most reliable)
+    if (bmReportData._enriched_revenue && bmReportData._enriched_revenue > 0) {
+      revenue = bmReportData._enriched_revenue;
+      const gm = bmReportData.gross_margin;
+      const nm = bmReportData.net_margin;
+      grossMargin = gm ? (typeof gm === 'number' && gm > 1 ? gm / 100 : gm) : 0;
+      netMargin = nm ? (typeof nm === 'number' && nm > 1 ? nm / 100 : nm) : 0;
+      grossProfit = revenue * grossMargin;
+      netProfit = revenue * netMargin;
+      operatingProfit = netProfit > 0 ? netProfit * 1.3 : grossProfit * 0.5;
+      console.log(`[FinancialIntegration] BM pass1_data: Revenue £${revenue.toLocaleString()}, GM ${(grossMargin*100).toFixed(1)}%, NM ${(netMargin*100).toFixed(1)}%`);
+    }
+
+    // Priority 2: historical_financials array (multi-year P&L)
+    const hist = Array.isArray(bmReportData.historical_financials) ? [...bmReportData.historical_financials].sort((a: any, b: any) => (b.fiscal_year || b.year || 0) - (a.fiscal_year || a.year || 0)) : [];
+    if (revenue === 0 && hist.length > 0) {
+      const latest = hist[0];
+      if (latest) {
+        revenue = latest.revenue || latest.turnover || 0;
+        grossProfit = latest.gross_profit || 0;
+        grossMargin = latest.gross_margin ? (latest.gross_margin > 1 ? latest.gross_margin / 100 : latest.gross_margin) : (grossProfit > 0 && revenue > 0 ? grossProfit / revenue : 0);
+        operatingProfit = latest.operating_profit || 0;
+        netProfit = latest.net_profit || latest.profit_after_tax || 0;
+        netMargin = revenue > 0 ? netProfit / revenue : 0;
+      }
+    }
+
+    // Priority 3: metricsComparison array
+    if (revenue === 0) {
+      const metrics = bmReportData.metricsComparison || bmReportData.metrics || [];
+      if (Array.isArray(metrics)) {
+        for (const m of metrics) {
+          const code = m.metricCode || m.metric_code || '';
+          const val = m.clientValue || m.client_value || 0;
+          if ((code === 'gross_margin' || code === 'gross_profit_margin') && typeof val === 'number') grossMargin = val > 1 ? val / 100 : val;
+          if ((code === 'net_margin' || code === 'net_profit_margin') && typeof val === 'number') netMargin = val > 1 ? val / 100 : val;
+        }
+      }
+    }
+
+    if (revenue > 0) {
+      if (grossProfit === 0 && grossMargin > 0) grossProfit = revenue * grossMargin;
+      if (operatingProfit === 0 && grossProfit > 0) operatingProfit = grossProfit * 0.5;
+
+      currentYear = {
+        periodEnd: 'From BM Report',
+        revenue,
+        costOfSales: revenue - grossProfit,
+        grossProfit,
+        grossMargin: grossMargin > 0 ? grossMargin : (grossProfit > 0 ? grossProfit / revenue : 0.3),
+        operatingProfit,
+        operatingMargin: revenue > 0 ? operatingProfit / revenue : 0,
+        netProfit: netProfit || operatingProfit * 0.8,
+        netMargin: netMargin > 0 ? netMargin : (revenue > 0 ? (netProfit || operatingProfit * 0.8) / revenue : 0)
+      };
+      dataSource = 'extracted_metrics';
+      confidence = 'high';
+      console.log(`[FinancialIntegration] BM bridge: Revenue £${revenue.toLocaleString()}, GP £${grossProfit.toLocaleString()}, GM ${(currentYear.grossMargin * 100).toFixed(1)}%`);
+
+      const prior = hist.length >= 2 ? hist[1] : null;
+      if (prior) {
+        const pRev = prior.revenue || prior.turnover || 0;
+        const pGP = prior.gross_profit || 0;
+        const pGM = prior.gross_margin ? (prior.gross_margin > 1 ? prior.gross_margin / 100 : prior.gross_margin) : (pGP > 0 && pRev > 0 ? pGP / pRev : 0);
+        if (pRev > 0) {
+          priorYear = {
+            periodEnd: 'Prior Year (from BM)',
+            revenue: pRev,
+            costOfSales: pRev - pGP,
+            grossProfit: pGP,
+            grossMargin: pGM > 0 ? pGM : 0.3,
+            operatingProfit: pGP * 0.5,
+            operatingMargin: pRev > 0 ? (pGP * 0.5) / pRev : 0,
+            netProfit: pGP * 0.4,
+            netMargin: pRev > 0 ? (pGP * 0.4) / pRev : 0
+          };
+        }
+      }
+    }
+  }
+
   // Fall back to stageContext if no better data
   if (!currentYear) {
     currentYear = {
@@ -880,7 +978,8 @@ async function generateNarrativeSummary(
   riskRegister: any[],
   valueGaps: any[],
   fitProfile: any,
-  vision: any
+  vision: any,
+  bmCrossRef?: any
 ): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) {
@@ -911,6 +1010,17 @@ ${criticalRisks.map(r => `- ${r.risk}: ${r.description}`).join('\n') || 'No crit
 ## QUICK WINS
 ${quickWins.map(qw => `- ${qw.gap}: £${qw.opportunity?.toLocaleString()} opportunity`).join('\n') || 'No quick wins identified'}
 
+${bmCrossRef ? `## BENCHMARKING REPORT FINDINGS (from completed BM analysis)
+This client has a completed Benchmarking Clarity Report. Use these findings to make your narrative more specific and grounded.
+
+- Exit Readiness Score: ${bmCrossRef.exitReadiness || 'Not assessed'}/100
+- Annual Opportunity Identified: £${(bmCrossRef.annualOpportunity || 0).toLocaleString()}
+- Hidden Assets Found: ${bmCrossRef.hiddenAssets || 0}
+- Value Suppressors: ${bmCrossRef.valueSuppressors?.join(', ') || 'None identified'}
+
+When writing the "uncomfortable truth", reference specific BM findings if relevant.
+Do NOT just repeat BM numbers — translate them into what they mean for this person's life and North Star.
+` : ''}
 ## YOUR TASK
 
 Create a narrative summary with:
@@ -1023,12 +1133,41 @@ function parseActualCurrency(value: string | number | undefined): number | null 
 // Helper to parse revenue from band (fallback only)
 function parseRevenueBand(band: string): number {
   if (!band || band === '£0' || band === '') return 0;
-  if (band.includes('Under £100k')) return 50000;
-  if (band.includes('£100k-£250k')) return 175000;
-  if (band.includes('£250k-£500k')) return 375000;
-  if (band.includes('£500k-£1m')) return 750000;
-  if (band.includes('£1m-£2.5m')) return 1750000;
-  if (band.includes('£2.5m')) return 3500000;
+
+  const b = band.toLowerCase().replace(/\s+/g, '');
+
+  // Try to extract a raw numeric value first (handles "£3,700,000" or "3700000")
+  const numericMatch = band.replace(/[£,\s]/g, '').match(/^(\d+)$/);
+  if (numericMatch) {
+    const val = parseInt(numericMatch[1]);
+    if (val > 1000) return val;
+  }
+
+  // Band matching — ordered largest-to-smallest to avoid partial matches
+  if (b.includes('£10m+') || b.includes('10m+') || b.includes('over£10m') || b.includes('£10m-')) return 15000000;
+  if (b.includes('£5m') && (b.includes('£10m') || b.includes('10m'))) return 7500000;
+  if (b.includes('£5m')) return 7500000;
+  if (b.includes('£2.5m') || (b.includes('£2m') && b.includes('£5m'))) return 3500000;
+  if (b.includes('£1m') && (b.includes('£5m') || b.includes('5m'))) return 3000000;
+  if (b.includes('£1m') && (b.includes('£2.5m') || b.includes('£2m'))) return 1750000;
+  if (b.includes('£1m')) return 1500000;
+  if (b.includes('£500k') && b.includes('£1m')) return 750000;
+  if (b.includes('£500k')) return 750000;
+  if (b.includes('£250k') && b.includes('£500k')) return 375000;
+  if (b.includes('£250k')) return 375000;
+  if (b.includes('£100k') && b.includes('£250k')) return 175000;
+  if (b.includes('£100k')) return 125000;
+  if (b.includes('under') || b.includes('lessthan') || b.includes('pre-revenue') || b.includes('prerevenue')) return 50000;
+
+  // Fallback: parse any number with k/m suffix
+  const suffixMatch = band.match(/£?([\d.]+)\s*(k|m)/i);
+  if (suffixMatch) {
+    const num = parseFloat(suffixMatch[1]);
+    const multiplier = suffixMatch[2].toLowerCase() === 'm' ? 1000000 : 1000;
+    return num * multiplier;
+  }
+
+  console.warn(`[parseRevenueBand] Could not parse revenue band: "${band}" — returning 0`);
   return 0;
 }
 
@@ -1626,7 +1765,8 @@ function extractFinancialsFromContext(
   contextDocuments: any[],
   stageContext: StageContext,
   part2Responses: Record<string, any>,
-  part3Responses?: Record<string, any>
+  part3Responses?: Record<string, any>,
+  bmReportData?: any
 ): FinancialData {
   // Start with what we know from assessments (may already have actual figures from determineBusinessStage)
   let revenue = stageContext.revenue;
@@ -1822,6 +1962,27 @@ function extractFinancialsFromContext(
     }
   }
   
+  // BM report bridge — if we still only have assessment band revenue, try BM report
+  if (bmReportData && revenue === stageContext.revenue) {
+    const hist = Array.isArray(bmReportData.historical_financials) ? [...bmReportData.historical_financials].sort((a: any, b: any) => (b.fiscal_year || 0) - (a.fiscal_year || 0)) : [];
+    const latest = hist[0];
+    if (latest?.revenue && latest.revenue > 0) {
+      revenue = latest.revenue;
+      if (latest.gross_profit) grossProfit = latest.gross_profit;
+      else grossProfit = revenue * (latest.gross_margin ? latest.gross_margin / 100 : 0.35);
+      if (latest.operating_profit) operatingProfit = latest.operating_profit;
+      else operatingProfit = grossProfit * 0.6;
+      if (latest.net_profit) netProfit = latest.net_profit;
+      else netProfit = operatingProfit * 0.8;
+      console.log(`[extractFinancials] BM bridge override: Revenue £${revenue.toLocaleString()}, GP £${grossProfit.toLocaleString()}`);
+      const prior = hist[1];
+      if (prior?.revenue && prior.revenue > 0) yearOnYearGrowth = (revenue - prior.revenue) / prior.revenue;
+    } else {
+      const assess = bmReportData.assessment || bmReportData.client_data || {};
+      if (assess.revenue_numeric && assess.revenue_numeric > revenue) { revenue = assess.revenue_numeric; grossProfit = revenue * 0.35; operatingProfit = grossProfit * 0.6; }
+    }
+  }
+
   console.log(`[extractFinancials] Final values - Revenue: £${revenue.toLocaleString()}, Gross Profit: £${grossProfit.toLocaleString()}`);
 
   // Estimate net profit if not found
@@ -4158,15 +4319,20 @@ serve(async (req) => {
         : 1;
 
       // ----- BM/HVA CROSS-READ: If client has BM value_analysis, use it and skip Part 3 generation -----
-      const { data: bmReport } = await supabase
-        .from('bm_reports')
-        .select('value_analysis, report_data, status, updated_at')
-        .eq('client_id', clientId)
-        .not('value_analysis', 'is', null)
-        .in('status', ['generated', 'approved', 'published', 'delivered'])
-        .order('updated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: bmEngHva } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      let bmReport: any = null;
+      if (bmEngHva?.id) {
+        const { data: rpt } = await supabase
+          .from('bm_reports')
+          .select('value_analysis, pass1_data, status, updated_at')
+          .eq('engagement_id', bmEngHva.id)
+          .not('value_analysis', 'is', null)
+          .in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered'])
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        bmReport = rpt;
+      }
 
       const hasBmValueAnalysis = bmReport?.value_analysis && Object.keys(bmReport.value_analysis).length > 0;
 
@@ -4374,13 +4540,39 @@ serve(async (req) => {
       const fitProfile = fitStage?.approved_content || fitStage?.generated_content || {};
       const vision = visionStage?.approved_content || visionStage?.generated_content || {};
 
+      // ============ BM REPORT BRIDGE ============
+      let bmReportData: any = null;
+      let bmValueAnalysis: any = null;
+      try {
+        const { data: bmEng2 } = await supabase.from('bm_engagements').select('id').eq('client_id', clientId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (bmEng2?.id) {
+          const { data: bmRpt } = await supabase.from('bm_reports').select('pass1_data, value_analysis, historical_financials, total_annual_opportunity, overall_percentile, enhanced_suppressors, exit_readiness_breakdown, top_strengths, top_gaps').eq('engagement_id', bmEng2.id).in('status', ['pass1_complete', 'generated', 'approved', 'published', 'delivered']).order('updated_at', { ascending: false }).limit(1).maybeSingle();
+          if (bmRpt?.pass1_data) {
+            // Merge top-level columns into pass1_data so downstream functions find everything in one place
+            bmReportData = {
+              ...(bmRpt.pass1_data as Record<string, any>),
+              historical_financials: bmRpt.historical_financials || (bmRpt.pass1_data as any).multi_year_profile || null,
+              total_annual_opportunity: bmRpt.total_annual_opportunity,
+              overall_percentile: bmRpt.overall_percentile,
+              enhanced_suppressors: bmRpt.enhanced_suppressors,
+              exit_readiness_breakdown: bmRpt.exit_readiness_breakdown,
+              top_strengths: bmRpt.top_strengths || (bmRpt.pass1_data as any).topStrengths,
+              top_gaps: bmRpt.top_gaps || (bmRpt.pass1_data as any).topGaps,
+            };
+            bmValueAnalysis = bmRpt.value_analysis;
+            console.log(`[ValueAnalysis] BM bridge: revenue=${bmReportData._enriched_revenue}, gm=${bmReportData.gross_margin}, hist=${Array.isArray(bmReportData.historical_financials) ? bmReportData.historical_financials.length + ' years' : 'none'}`);
+          }
+        }
+      } catch (e) { console.warn('[ValueAnalysis] BM report fetch failed:', e); }
+
       // ============ INTEGRATED FINANCIAL DATA ============
       // Build comprehensive financial picture BEFORE risk assessment
       const integratedFinancials = buildIntegratedFinancialData(
         contextDocs || [],
         stageContext,
         part2,
-        part3Responses
+        part3Responses,
+        bmReportData
       );
       
       console.log(`[ValueAnalysis] Financial data source: ${integratedFinancials.dataSource}, confidence: ${integratedFinancials.confidence}`);
@@ -4401,7 +4593,8 @@ serve(async (req) => {
         contextDocs || [],
         stageContext,
         part2,
-        part3Responses
+        part3Responses,
+        bmReportData
       );
 
       // Analyze value drivers
@@ -4446,6 +4639,81 @@ serve(async (req) => {
         valueGaps
       );
       
+      // Build BM cross-reference for narrative and output
+      let bmCrossReference: any = null;
+      if (bmValueAnalysis) {
+        console.log('[ValueAnalysis] Building BM cross-reference');
+        const bmExit = bmValueAnalysis.exitReadinessScore || bmValueAnalysis.exitReadiness || {};
+        bmCrossReference = {
+          exitReadiness: bmExit.overall || bmExit.score || null,
+          hiddenAssets: (bmValueAnalysis.hiddenAssets || []).length,
+          valueSuppressors: (bmValueAnalysis.valueSuppressors || bmValueAnalysis.value_suppressors || []).map((s: any) => s.name || s.title || s.suppressor || '').filter(Boolean),
+          annualOpportunity: bmValueAnalysis.totalOpportunity || bmValueAnalysis.annual_opportunity || 0,
+          source: 'benchmarking_report'
+        };
+      }
+
+      // BM exit readiness enrichment — use BM's score if more comprehensive
+      if (bmValueAnalysis && businessValuation.exitReadiness) {
+        const bmExit = bmValueAnalysis.exitReadinessScore || bmValueAnalysis.exitReadiness || {};
+        const bmScore = bmExit.overall || bmExit.score;
+        if (typeof bmScore === 'number' && bmScore > 0) {
+          businessValuation.exitReadiness = {
+            ...businessValuation.exitReadiness,
+            score: bmScore,
+            blockers: bmExit.blockers || businessValuation.exitReadiness.blockers,
+            recommendations: bmExit.recommendations || businessValuation.exitReadiness.recommendations,
+            timeToExit: bmExit.timeToExit || businessValuation.exitReadiness.timeToExit,
+            source: 'benchmarking_report',
+            breakdown: bmExit.breakdown || bmExit.scoreBreakdown || null
+          };
+          console.log(`[ValueAnalysis] Using BM exit readiness: ${bmScore}/100`);
+        }
+
+        const bmSuppressors = bmValueAnalysis.valueSuppressors || bmValueAnalysis.value_suppressors || [];
+        for (const suppressor of bmSuppressors) {
+          const name = suppressor.name || suppressor.title || suppressor.suppressor || '';
+          if (!name) continue;
+          const existing = riskRegister.find((r: any) => r.risk?.toLowerCase().includes(name.toLowerCase()) || r.description?.toLowerCase().includes(name.toLowerCase()));
+          if (!existing) {
+            riskRegister.push({
+              risk: name,
+              description: suppressor.description || suppressor.detail || 'Identified in Benchmarking assessment',
+              severity: suppressor.severity || 'High',
+              likelihood: 'Medium',
+              financialExposure: suppressor.valueImpact || suppressor.value_impact || 0,
+              mitigation: suppressor.fixVia || suppressor.fix_via || suppressor.recommendation || 'Address via targeted improvement programme',
+              mitigationCost: suppressor.fixCost || suppressor.investment || 0,
+              mitigationTimeframe: suppressor.fixTimeframe || suppressor.timeframe || '6-12 months',
+              monitoringMetric: 'Track via BM re-assessment',
+              source: 'benchmarking_report'
+            });
+          }
+        }
+      }
+
+      // Merge BM opportunities into value gaps
+      if (bmReportData) {
+        const bmOpps = bmReportData.opportunities || bmReportData.topGaps || [];
+        for (const opp of bmOpps) {
+          const oppName = opp.area || opp.metric || opp.title || '';
+          const oppValue = opp.annualImpact || opp.potential || opp.value || 0;
+          if (oppName && oppValue > 0) {
+            const existing = valueGaps.find((g: any) => g.gap?.toLowerCase().includes(oppName.toLowerCase()) || g.area?.toLowerCase().includes(oppName.toLowerCase()));
+            if (!existing) {
+              valueGaps.push({
+                gap: oppName, area: opp.category || 'Financial',
+                currentState: opp.currentPosition || opp.clientValue || 'Below benchmark',
+                targetState: opp.targetPosition || opp.benchmark || 'Industry median',
+                opportunity: typeof oppValue === 'number' ? oppValue : parseFloat(String(oppValue).replace(/[£,]/g, '')) || 0,
+                effort: opp.effort || opp.difficulty || 'Medium', timeframe: opp.timeframe || '3-6 months',
+                source: 'benchmarking_report'
+              });
+            }
+          }
+        }
+      }
+
       // Try LLM-generated narrative, fall back to financial-aware version
       const narrativeSummary = await generateNarrativeSummary(
         stageContext,
@@ -4455,7 +4723,8 @@ serve(async (req) => {
         riskRegister,
         valueGaps,
         fitProfile,
-        vision
+        vision,
+        bmCrossReference
       );
 
       const valueAnalysis = {
@@ -4529,6 +4798,15 @@ serve(async (req) => {
         totalOpportunity,
         valuationImpact,
         thirtyDayPlan,
+        bmCrossReference: bmCrossReference || null,
+        dataSourceSummary: {
+          financial: integratedFinancials.dataSource,
+          financialConfidence: integratedFinancials.confidence,
+          bmReportAvailable: !!bmReportData,
+          bmValueAnalysisAvailable: !!bmValueAnalysis,
+          contextDocsCount: (contextDocs || []).length,
+          part3Completed: Object.keys(part3Responses || {}).length > 0
+        },
         generatedAt: new Date().toISOString(),
         generationDurationMs: Date.now() - startTime
       };

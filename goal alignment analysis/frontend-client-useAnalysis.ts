@@ -233,6 +233,9 @@ export interface RoadmapData {
   isActive: boolean;
   /** True when client is Partner tier and a sprint exists but is not yet published (advisor must publish from Sprint Editor). */
   hasUnpublishedSprint?: boolean;
+  renewalStatus?: string | null;
+  currentSprintNumber?: number;
+  insightReport?: any;
 }
 
 export interface Part3Question {
@@ -772,23 +775,28 @@ export function useRoadmap() {
     try {
       // Fetch client's GA tier for visibility gating (Partner = only show published sprint)
       let clientTier: string | null = null;
+      let renewalStatus: string | null = null;
+      let currentSprintNumber: number = 1;
       const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
       if (sl?.id) {
         const { data: enrollment } = await supabase
           .from('client_service_lines')
-          .select('tier_name')
+          .select('tier_name, renewal_status, current_sprint_number')
           .eq('client_id', clientSession.clientId)
           .eq('service_line_id', sl.id)
           .maybeSingle();
         clientTier = enrollment?.tier_name ?? null;
+        renewalStatus = enrollment?.renewal_status ?? null;
+        currentSprintNumber = enrollment?.current_sprint_number ?? 1;
       }
 
       // Fetch from new staged architecture (roadmap_stages)
+      // Only show published/approved stages to client — 'generated' is practice-only
       const { data: stagesData, error: stagesError } = await supabase
         .from('roadmap_stages')
         .select('*')
         .eq('client_id', clientSession.clientId)
-        .in('status', ['published', 'approved', 'generated'])
+        .in('status', ['published', 'approved'])
         .order('created_at', { ascending: true });
 
       console.log('[useRoadmap] roadmap_stages query result:', { 
@@ -862,6 +870,10 @@ export function useRoadmap() {
           roadmapData.sprintSummary = stagesMap['sprint_summary'];
         }
 
+        // Insight report (approved = visible to client)
+        const insightReportStage = stagesData.find(s => s.stage_type === 'insight_report' && ['approved', 'published'].includes(s.status));
+        const insightReport = insightReportStage ? (insightReportStage.approved_content || insightReportStage.generated_content) : null;
+
         const hasUnpublishedSprint = isPartner && stagesData.some(
           (s: any) => ['sprint_plan_part2', 'sprint_plan', 'sprint_plan_part1'].includes(s.stage_type) && s.status !== 'published'
         );
@@ -873,6 +885,9 @@ export function useRoadmap() {
           createdAt: stagesData[0].created_at,
           isActive: true,
           hasUnpublishedSprint: hasUnpublishedSprint || undefined,
+          renewalStatus,
+          currentSprintNumber,
+          insightReport,
         });
         return { roadmapData, valueAnalysis };
       }
@@ -900,7 +915,9 @@ export function useRoadmap() {
           roadmapData: data.roadmap_data,
           valueAnalysis: data.value_analysis,
           createdAt: data.created_at,
-          isActive: data.is_active
+          isActive: data.is_active,
+          renewalStatus,
+          currentSprintNumber,
         });
         return data;
       }

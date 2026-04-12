@@ -12,6 +12,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Layout } from '@/components/Layout';
 import { useRoadmap, useGenerateAnalysis, useTasks, useGenerateValueAnalysis } from '@/hooks/useAnalysis';
+import { QuarterlyLifeCheckBanner } from '@/components/sprint/QuarterlyLifeCheck';
+import { FinancialPulse } from '@/components/roadmap/FinancialPulse';
 import { useAssessmentProgress } from '@/hooks/useAssessmentProgress';
 import { TaskCompletionModal } from '@/components/tasks/TaskCompletionModal';
 import { Link } from 'react-router-dom';
@@ -95,12 +97,11 @@ export default function RoadmapPage() {
         }
         
         // Check roadmap status from staged architecture
-        // Include 'generated' status for testing/preview mode
         const { data: stagesStatus } = await supabase
           .from('roadmap_stages')
           .select('status')
           .eq('client_id', clientSession.clientId)
-          .in('status', ['published', 'approved', 'generated'])
+          .in('status', ['published', 'approved'])
           .limit(1)
           .maybeSingle();
         
@@ -251,7 +252,37 @@ export default function RoadmapPage() {
       subtitle="Your comprehensive 365 transformation plan"
     >
       <div className="space-y-6">
+
+        {/* Quarterly Life Check banner — shown when renewal is pending */}
+        {roadmap?.renewalStatus === 'life_check_pending' && clientSession?.clientId && clientSession?.practiceId && (
+          <QuarterlyLifeCheckBanner
+            clientId={clientSession.clientId}
+            practiceId={clientSession.practiceId}
+            sprintNumber={roadmap.currentSprintNumber ?? 1}
+            onComplete={() => fetchRoadmap()}
+          />
+        )}
         
+        {/* Quarterly Insight Report — if shared by practice */}
+        {roadmap?.insightReport && (
+          <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-5 mb-6">
+            <h3 className="font-semibold text-cyan-900 text-lg mb-3">Your Sprint {roadmap.insightReport.sprintNumber} Review</h3>
+            {roadmap.insightReport.lifeMetrics?.summary && <p className="text-sm text-gray-800 mb-2">{roadmap.insightReport.lifeMetrics.summary}</p>}
+            {roadmap.insightReport.lifeMetrics?.highlight && <p className="text-sm text-emerald-700 mb-2">✨ {roadmap.insightReport.lifeMetrics.highlight}</p>}
+            {roadmap.insightReport.insight && (
+              <div className="bg-white rounded-lg p-4 border border-cyan-100 mt-3">
+                <p className="text-sm font-medium text-gray-900">{roadmap.insightReport.insight.headline}</p>
+                <p className="text-sm text-gray-600 mt-1">{roadmap.insightReport.insight.detail}</p>
+                {roadmap.insightReport.insight.action && <p className="text-sm text-cyan-700 mt-2 font-medium">→ {roadmap.insightReport.insight.action}</p>}
+              </div>
+            )}
+            {roadmap.insightReport.nextSprint?.preview && <p className="text-sm text-cyan-700 mt-3">{roadmap.insightReport.nextSprint.preview}</p>}
+          </div>
+        )}
+
+        {/* Financial Pulse — BM data cards */}
+        <FinancialPulse valueAnalysis={valueAnalysis} />
+
         {/* ================================================================
             NAVIGATION TABS
         ================================================================ */}
@@ -1120,7 +1151,7 @@ function WeekCard({
               </span>
             )}
           </div>
-          <p className="text-sm text-slate-500">{week.focus}</p>
+          <p className="text-sm text-slate-500">{week.focus || week.narrative}</p>
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -1232,12 +1263,12 @@ function WeekCard({
                         {task.title}
                       </h5>
                       <p className="text-sm text-slate-500 mt-1">{task.description}</p>
-                      {task.why && (
-                        <p className="text-sm text-indigo-600 mt-2 italic">Why: {task.why}</p>
+                      {(task.why || task.whyThisMatters) && (
+                        <p className="text-sm text-indigo-600 mt-2 italic">Why: {task.why || task.whyThisMatters}</p>
                       )}
                       <div className="flex items-center gap-3 mt-2 text-xs text-slate-400">
                         <span className="bg-slate-100 px-2 py-0.5 rounded">{task.category}</span>
-                        {task.estimatedHours && <span><Clock className="w-3 h-3 inline mr-1" />{task.estimatedHours}h</span>}
+                        {(task.estimatedHours || task.timeEstimate) && <span><Clock className="w-3 h-3 inline mr-1" />{task.estimatedHours ? `${task.estimatedHours}h` : task.timeEstimate}</span>}
                         <span className={`px-2 py-0.5 rounded ${
                           task.priority === 'critical' ? 'bg-red-100 text-red-700' :
                           task.priority === 'high' ? 'bg-amber-100 text-amber-700' :
@@ -1246,6 +1277,12 @@ function WeekCard({
                           {task.priority}
                         </span>
                       </div>
+                      {task.deliverable && (
+                        <p className="text-xs text-slate-400 mt-1">📋 {task.deliverable}</p>
+                      )}
+                      {task.celebrationMoment && (
+                        <p className="text-xs text-slate-400 mt-1 italic">🎉 {task.celebrationMoment}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1253,18 +1290,18 @@ function WeekCard({
             })}
           </div>
           
-          {week.milestone && (
+          {(week.milestone || week.weekMilestone) && (
             <div className="ml-16 mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <p className="text-sm font-medium text-amber-800">
-                <span className="uppercase text-xs tracking-wide">Milestone:</span> {week.milestone}
+                <span className="uppercase text-xs tracking-wide">Milestone:</span> {week.milestone || week.weekMilestone}
               </p>
             </div>
           )}
 
-          {week.tuesdayTransformation && (
+          {(week.tuesdayTransformation || week.tuesdayCheckIn) && (
             <div className="ml-16 mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
               <p className="text-sm text-indigo-800">
-                <span className="font-medium">Tuesday Evolution:</span> {week.tuesdayTransformation}
+                <span className="font-medium">Tuesday Evolution:</span> {week.tuesdayTransformation || week.tuesdayCheckIn}
               </p>
             </div>
           )}

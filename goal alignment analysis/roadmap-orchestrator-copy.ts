@@ -27,6 +27,9 @@ const STAGE_FUNCTIONS: Record<string, string> = {
   'sprint_plan_part1': 'generate-sprint-plan-part1',
   'sprint_plan_part2': 'generate-sprint-plan-part2',
   'value_analysis': 'generate-value-analysis',
+  'advisory_brief': 'generate-advisory-brief',
+  'insight_report': 'generate-insight-report',
+  'director_alignment': 'generate-director-alignment',
   'sprint_summary': 'generate-sprint-summary',
   'life_design_refresh': 'generate-life-design-refresh',
   'vision_update': 'generate-vision-update',
@@ -40,7 +43,8 @@ const STAGE_ORDER = [
   'six_month_shift',
   'sprint_plan_part1',
   'sprint_plan_part2',
-  'value_analysis'
+  'value_analysis',
+  'advisory_brief'
 ];
 
 serve(async (req) => {
