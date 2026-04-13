@@ -2087,15 +2087,15 @@ export default function BenchmarkingClientDashboard({
                 <NoiseOverlay opacity={0.12} /><DotGrid opacity={0.04} />
                 <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
                   <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Two Connected Opportunities</h2>
-                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, marginBottom: 24, maxWidth: '48ch', margin: '0 auto 24px' }}>Improving margins funds the journey to unlocking trapped business value</p>
+                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, marginBottom: 24, maxWidth: '48ch', margin: '0 auto 24px' }}>Two different kinds of value — one adds to your annual profit, the other increases what the business is worth</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                     <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
                       <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual margin opportunity</p>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
                       <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped value</p>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
@@ -2106,6 +2106,9 @@ export default function BenchmarkingClientDashboard({
                       </Fragment>
                     ))}
                   </div>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 20, maxWidth: '60ch', margin: '20px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
+                    The {fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The {fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.
+                  </p>
                 </div>
               </RevealCard>
 
@@ -2129,14 +2132,17 @@ export default function BenchmarkingClientDashboard({
                 <RevealCard delay={200} style={{ ...glass({ padding: '20px 24px' }), borderTop: `3px solid ${C.emerald}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <p style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 2 }}>If you address these structural issues:</p>
-                      <p style={{ fontSize: 12, color: C.textMuted }}>Current: {fmt(currentVal)} → Potential: {fmt(potentialVal)}</p>
+                      <p style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 2 }}>If you address the structural issues:</p>
+                      <p style={{ fontSize: 12, color: C.textMuted }}>Enterprise value: {fmt(currentVal)} → {fmt(potentialVal)}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ fontSize: 24, fontWeight: 800, color: C.emerald, margin: 0, ...mono }}>+{fmt(potentialVal - currentVal)}</p>
-                      <p style={{ fontSize: 11, color: C.emerald }}>uplift potential</p>
+                      <p style={{ fontSize: 11, color: C.emerald }}>enterprise value uplift</p>
                     </div>
                   </div>
+                  <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.5 }}>
+                    This is separate from the {fmt(marginOpp)}/yr margin opportunity — that adds to profit annually, this increases what the business is worth at point of sale.
+                  </p>
                 </RevealCard>
               )}
 
@@ -2197,11 +2203,11 @@ export default function BenchmarkingClientDashboard({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                   <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
                     <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual margin opportunity</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
                   </div>
                   <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
                     <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped value</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
                   </div>
                 </div>
                 {/* Connection flow */}
@@ -2214,6 +2220,9 @@ export default function BenchmarkingClientDashboard({
                   ))}
                 </div>
                 <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 1.7 }}>{twoPathsNarrative.explanation}</p>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 16, maxWidth: '60ch', margin: '16px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
+                  The {fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The {fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.
+                </p>
               </div>
             </RevealCard>
 
@@ -2298,9 +2307,9 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 0 }}>
                   {[
-                    { val: fmt(totalOpportunity), sub: 'Opportunity/yr', bg: `${C.emerald}20` },
-                    ...(valueAnalysis ? [{ val: fmt(valueAnalysis.valueGap.mid), sub: 'Trapped value', bg: `${C.amber}20` }] : []),
-                    ...(valueAnalysis ? [{ val: fmt(alignedPotentialValue), sub: 'Potential value', bg: `${C.blue}20` }] : []),
+                    { val: fmt(totalOpportunity), sub: 'Annual profit improvement', bg: `${C.emerald}20` },
+                    ...(valueAnalysis ? [{ val: fmt(valueAnalysis.valueGap.mid), sub: 'Trapped enterprise value', bg: `${C.amber}20` }] : []),
+                    ...(valueAnalysis ? [{ val: fmt(alignedPotentialValue), sub: 'Potential enterprise value', bg: `${C.blue}20` }] : []),
                   ].map((s, i) => (
                     <div key={i} style={{ background: s.bg, borderRadius: 16, padding: '22px 36px', border: '1px solid rgba(255,255,255,0.15)', minWidth: 160, backdropFilter: 'blur(8px)' }}>
                       <p style={{ fontSize: 32, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{s.val}</p>
@@ -2308,6 +2317,9 @@ export default function BenchmarkingClientDashboard({
                     </div>
                   ))}
                 </div>
+                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 16, maxWidth: '60ch', margin: '16px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
+                  The annual profit improvement recurs every year. The trapped and potential enterprise values are one-time — they reflect what the business would be worth to a buyer.
+                </p>
               </div>
             </RevealCard>
 
