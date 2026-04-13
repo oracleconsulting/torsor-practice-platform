@@ -960,6 +960,16 @@ export default function BenchmarkingClientDashboard({
                                 <ChevronDown style={{ width: 16, height: 16, color: C.textMuted, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                               )}
                             </div>
+                            {annualVal > 0 && (
+                              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', margin: '6px 0 0', lineHeight: 1.5 }}>
+                                Proportional share of the £{heroTotal.toLocaleString()} annual margin opportunity, allocated by estimated contribution to the net margin gap.
+                              </p>
+                            )}
+                            {annualVal === 0 && totalWaterfallGap > 0 && (
+                              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', margin: '6px 0 0', lineHeight: 1.5 }}>
+                                This recommendation addresses trapped enterprise value (part of the {fmt(totalWaterfallGap)} structural gap) rather than annual profit — it improves what a buyer would pay for the business.
+                              </p>
+                            )}
                           </div>
                         </div>
                         {isExpanded && (steps.length > 0 || quickWins.length > 0 || whatWeCanHelp) && (
@@ -1606,7 +1616,8 @@ export default function BenchmarkingClientDashboard({
           const m = metrics.find((x: any) => (x.metricCode || x.metric_code || '').toLowerCase().includes('gross_margin'));
           return m?.p50 ?? 18;
         })();
-        const targetGM = Math.max(currentGM, Math.min(35, targetGrossMargin));
+        const sliderMax = Math.max(35, Math.ceil(currentGM / 5) * 5 + 10);
+        const targetGM = Math.max(currentGM, targetGrossMargin);
         const marginResult = calcMarginScenario(revenue, currentGM, targetGM);
         const currentValue = valueAnalysis?.currentMarketValue?.mid || 0;
         const baselineValue = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
@@ -1699,7 +1710,7 @@ export default function BenchmarkingClientDashboard({
                         <span style={{ fontSize: 12, color: C.textMuted }}>Target Gross Margin</span>
                         <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetGM.toFixed(1)}%</span>
                       </div>
-                      <input type="range" min={Math.round(currentGM * 2) / 2} max={35} step={0.5} value={targetGM}
+                      <input type="range" min={Math.round(currentGM * 2) / 2} max={sliderMax} step={0.5} value={targetGM}
                         onChange={e => setTargetGrossMargin(parseFloat(e.target.value))}
                         style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
