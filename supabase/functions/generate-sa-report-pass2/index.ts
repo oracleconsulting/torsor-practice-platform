@@ -66,6 +66,58 @@ If rounding for prose, use: "£Xk" matching the locked figure
 `;
 }
 
+/**
+ * Repair JSON that has unescaped double quotes inside string values.
+ * The AI often writes: "he said "whatever" and left" — the inner quotes break JSON.
+ * Strategy: walk char-by-char tracking JSON structure; when a `"` appears inside a
+ * string but is followed by a lowercase letter (not `, : } ]), it's an internal quote.
+ */
+function repairJsonQuotes(raw: string): string {
+  let out = '';
+  let inStr = false;
+  let esc = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    const code = ch.charCodeAt(0);
+
+    if (esc) { out += ch; esc = false; continue; }
+    if (ch === '\\') { out += ch; esc = true; continue; }
+
+    if (ch === '"') {
+      if (!inStr) {
+        inStr = true;
+        out += ch;
+        continue;
+      }
+      // We're inside a string and hit a quote. Is this the real closing quote?
+      // Look ahead: if next non-whitespace is , : } ] or end-of-string, it's a real close.
+      let j = i + 1;
+      while (j < raw.length && (raw[j] === ' ' || raw[j] === '\t')) j++;
+      const next = j < raw.length ? raw[j] : '';
+      if (next === '' || next === ',' || next === ':' || next === '}' || next === ']' || next === '\n' || next === '\r') {
+        inStr = false;
+        out += ch;
+      } else {
+        // Internal quote — escape it
+        out += '\\"';
+      }
+      continue;
+    }
+
+    if (inStr) {
+      if (code === 0x0A) { out += '\\n'; }
+      else if (code === 0x0D) { out += '\\r'; }
+      else if (code === 0x09) { out += '\\t'; }
+      else if (code < 0x20) { out += `\\u${code.toString(16).padStart(4, '0')}`; }
+      else { out += ch; }
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
 function buildPass2Prompt(pass1Data: any, report: any, platformDirection?: any): string {
   const f = pass1Data.facts;
   const numbersLock = buildMandatoryNumbersLockBlock(pass1Data, report);
@@ -430,76 +482,20 @@ serve(async (req) => {
     try {
       let content = result.choices[0].message.content.trim();
       
-      // Remove markdown code fences
       content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
       
-      // Find the first brace (start of JSON)
       const firstBrace = content.indexOf('{');
       if (firstBrace > 0) content = content.substring(firstBrace);
       
-      // Find the last matching brace (end of JSON) - handle nested braces
       let braceCount = 0;
       let lastBrace = -1;
       for (let i = 0; i < content.length; i++) {
         if (content[i] === '{') braceCount++;
-        if (content[i] === '}') {
-          braceCount--;
-          if (braceCount === 0) {
-            lastBrace = i;
-            break;
-          }
-        }
+        if (content[i] === '}') { braceCount--; if (braceCount === 0) { lastBrace = i; break; } }
       }
       if (lastBrace > 0) content = content.substring(0, lastBrace + 1);
       
-      // Fix control characters BEFORE attempting to parse
-      let inString = false;
-      let escaped = false;
-      let fixed = '';
-      
-      for (let i = 0; i < content.length; i++) {
-        const char = content[i];
-        const code = char.charCodeAt(0);
-        
-        if (escaped) {
-          fixed += char;
-          escaped = false;
-          continue;
-        }
-        
-        if (char === '\\') {
-          fixed += char;
-          escaped = true;
-          continue;
-        }
-        
-        if (char === '"') {
-          inString = !inString;
-          fixed += char;
-          continue;
-        }
-        
-        if (inString) {
-          // Escape control characters in strings
-          if (code === 0x09) {
-            fixed += '\\t';
-          } else if (code === 0x0A) {
-            fixed += '\\n';
-          } else if (code === 0x0D) {
-            fixed += '\\r';
-          } else if (code < 0x20) {
-            fixed += `\\u${code.toString(16).padStart(4, '0')}`;
-          } else if (code === 0x2028 || code === 0x2029) {
-            fixed += `\\u${code.toString(16).padStart(4, '0')}`;
-          } else {
-            fixed += char;
-          }
-        } else {
-          fixed += char;
-        }
-      }
-      
-      narratives = JSON.parse(fixed);
+      narratives = JSON.parse(repairJsonQuotes(content));
     } catch (e: any) {
       console.error('[SA Pass 2] Parse error:', e.message);
       console.error('[SA Pass 2] Content length:', result.choices[0].message.content.length);
@@ -510,102 +506,35 @@ serve(async (req) => {
           result.choices[0].message.content.substring(Math.max(0, pos - 100), pos + 100));
       }
       
-      // Try to fix control characters in string values
+      // Fallback: try regex extraction of each field
       try {
-        let content = result.choices[0].message.content.trim();
-        content = content.replace(/^```[a-z]*\s*\n?/gi, '').replace(/\n?```\s*$/g, '').trim();
-        const firstBrace = content.indexOf('{');
-        if (firstBrace > 0) content = content.substring(firstBrace);
-        
-        // Find last complete JSON object
-        let braceCount = 0;
-        let lastBrace = -1;
-        for (let i = 0; i < content.length; i++) {
-          if (content[i] === '{') braceCount++;
-          if (content[i] === '}') {
-            braceCount--;
-            if (braceCount === 0) {
-              lastBrace = i;
-              break;
+        const raw = result.choices[0].message.content;
+        const extract = (key: string): string => {
+          const re = new RegExp(`"${key}"\\s*:\\s*"`, 'i');
+          const match = re.exec(raw);
+          if (!match) return '';
+          const start = match.index + match[0].length;
+          let depth = 0;
+          let end = start;
+          for (let i = start; i < raw.length; i++) {
+            if (raw[i] === '\\') { i++; continue; }
+            if (raw[i] === '"') {
+              const after = raw.substring(i + 1).trimStart();
+              if (after[0] === ',' || after[0] === '}' || after[0] === ']') { end = i; break; }
             }
           }
+          return raw.substring(start, end).replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
+        };
+        narratives = {
+          headline: extract('headline'),
+          executiveSummary: extract('executiveSummary'),
+          costOfChaosNarrative: extract('costOfChaosNarrative'),
+          timeFreedomNarrative: extract('timeFreedomNarrative'),
+        };
+        if (!narratives.headline && !narratives.executiveSummary) {
+          throw new Error('Could not extract any fields from response');
         }
-        if (lastBrace > 0) content = content.substring(0, lastBrace + 1);
-        
-        // Fix control characters: escape them properly in string values
-        // Use a more robust approach that handles all edge cases
-        let inString = false;
-        let escaped = false;
-        let fixed = '';
-        let stringStart = -1;
-        
-        for (let i = 0; i < content.length; i++) {
-          const char = content[i];
-          const code = char.charCodeAt(0);
-          
-          // Handle escape sequences
-          if (escaped) {
-            // If we're in a string and this is a control character after backslash, keep it as-is
-            // Otherwise, just add the character
-            fixed += char;
-            escaped = false;
-            continue;
-          }
-          
-          // Check for backslash (escape character)
-          if (char === '\\') {
-            fixed += char;
-            escaped = true;
-            continue;
-          }
-          
-          // Check for string delimiter
-          if (char === '"') {
-            // Check if this is an escaped quote (but we already handled backslash above)
-            inString = !inString;
-            if (inString) {
-              stringStart = fixed.length;
-            }
-            fixed += char;
-            continue;
-          }
-          
-          // If we're inside a string, escape control characters
-          if (inString) {
-            // Control characters that need escaping in JSON strings
-            if (code === 0x09) {  // Tab
-              fixed += '\\t';
-            } else if (code === 0x0A) {  // Newline
-              fixed += '\\n';
-            } else if (code === 0x0D) {  // Carriage return
-              fixed += '\\r';
-            } else if (code < 0x20) {  // Other control characters
-              fixed += `\\u${code.toString(16).padStart(4, '0')}`;
-            } else if (code === 0x2028 || code === 0x2029) {  // Line/paragraph separators
-              fixed += `\\u${code.toString(16).padStart(4, '0')}`;
-            } else {
-              fixed += char;
-            }
-          } else {
-            // Outside string - just copy the character
-            fixed += char;
-          }
-        }
-        
-        // Verify the fix worked by checking if we have balanced braces and quotes
-        const openBraces = (fixed.match(/{/g) || []).length;
-        const closeBraces = (fixed.match(/}/g) || []).length;
-        const openQuotes = (fixed.match(/"/g) || []).length;
-        
-        if (openBraces !== closeBraces) {
-          console.warn(`[SA Pass 2] Unbalanced braces after fix: ${openBraces} open, ${closeBraces} close`);
-        }
-        if (openQuotes % 2 !== 0) {
-          console.warn(`[SA Pass 2] Unbalanced quotes after fix: ${openQuotes} quotes`);
-        }
-        
-        narratives = JSON.parse(fixed);
-        console.log('[SA Pass 2] Successfully parsed after fixing control characters');
+        console.log('[SA Pass 2] Parsed via field-by-field extraction (unescaped quotes workaround)');
       } catch (e2: any) {
         console.error('[SA Pass 2] Fallback parse also failed:', e2.message);
         throw new Error(`Pass 2 parse failed: ${e.message}. Fallback also failed: ${e2.message}`);
