@@ -1429,7 +1429,7 @@ export default function SAReportPage() {
 
       // ─── GOVERNANCE & CHANGE READINESS ──────────────────────────────────
       case 'governance': {
-        const governanceCards = useMemo(() => {
+        const governanceCards = (() => {
           const allQuotes = (p1.clientPresentation?.clientQuotes || []) as string[];
           const allFindings = displayFindings as any[];
           const allFlags = riskFlags as any[];
@@ -1497,7 +1497,7 @@ export default function SAReportPage() {
           });
 
           return cards;
-        }, [displayFindings, riskFlags, p1]);
+        })();
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
