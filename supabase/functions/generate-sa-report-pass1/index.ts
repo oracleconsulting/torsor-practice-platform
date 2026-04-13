@@ -2605,7 +2605,7 @@ async function runPhase8Presentation(
   const clientName = phase1.facts.companyName || 'the business';
 
   const { data: engRow } = await supabaseClient
-    .from('sa_engagements').select('platform_direction, hourly_rate').eq('id', engagementId).single();
+    .from('sa_engagements').select('*').eq('id', engagementId).single();
   const platformDirection = engRow?.platform_direction ?? null;
 
   const recsForLock = phase5Recs.recommendations || [];
