@@ -646,15 +646,183 @@ export default function SAReportPage() {
     };
   }, []);
 
-  const handleDownloadPDF = useCallback(() => {
-    setPrintMode(true);
-    // Wait for React to render all sections before opening print dialog
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.print();
-      });
+  // handleDownloadPDF is defined after data resolution (needs facts, m, displayFindings, etc.)
+
+  // eslint-disable-next-line prefer-const
+  let handleDownloadPDF = () => {
+    // Build a clean, print-optimized HTML document and open in new window
+    const compName = facts?.companyName || 'Client';
+    const dateStr = report?.generated_at ? new Date(report.generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+    const e = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const fmtP = (n: number) => `£${Math.round(n).toLocaleString()}`;
+    const sections: string[] = [];
+    const h = (title: string) => `<h2 style="font-size:20px;font-weight:800;color:#0F172A;margin:32px 0 12px;padding-top:16px;border-top:2px solid #e2e8f0;">${e(title)}</h2>`;
+    const card = (html: string) => `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:12px;">${html}</div>`;
+    const badge = (text: string, bg: string, color: string) => `<span style="display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:${bg};color:${color};margin-right:8px;">${e(text)}</span>`;
+
+    // Overview
+    sections.push(`<div style="background:#0F172A;color:#fff;border-radius:16px;padding:32px;margin-bottom:20px;">
+      <p style="color:#10B981;font-size:10px;letter-spacing:2px;text-transform:uppercase;font-weight:600;">Systems Audit Report</p>
+      <h1 style="font-size:22px;font-weight:800;margin:8px 0;">${e(report?.headline || '')}</h1>
+      <p style="color:#94a3b8;font-size:13px;">${e(compName)} · ${e(dateStr)}</p>
+    </div>`);
+    sections.push(`<div style="display:flex;gap:12px;margin-bottom:20px;">
+      <div style="flex:1;background:#fff;border:1px solid #e2e8f0;border-left:4px solid #DC2626;border-radius:10px;padding:16px;">
+        <p style="font-size:10px;color:#64748b;text-transform:uppercase;font-weight:600;">Annual Cost of Chaos</p>
+        <p style="font-size:24px;font-weight:800;color:#DC2626;margin:4px 0 0;font-family:monospace;">${fmtP(m.annualCostOfChaos)}</p>
+      </div>
+      <div style="flex:1;background:#fff;border:1px solid #e2e8f0;border-left:4px solid #EA580C;border-radius:10px;padding:16px;">
+        <p style="font-size:10px;color:#64748b;text-transform:uppercase;font-weight:600;">At ${m.growthMultiplier}× Scale</p>
+        <p style="font-size:24px;font-weight:800;color:#EA580C;margin:4px 0 0;font-family:monospace;">${fmtP(m.projectedCostAtScale)}</p>
+      </div>
+      <div style="flex:1;background:#fff;border:1px solid #e2e8f0;border-left:4px solid #2563EB;border-radius:10px;padding:16px;">
+        <p style="font-size:10px;color:#64748b;text-transform:uppercase;font-weight:600;">Hours Lost Weekly</p>
+        <p style="font-size:24px;font-weight:800;color:#2563EB;margin:4px 0 0;font-family:monospace;">${m.hoursWastedWeekly}</p>
+      </div>
+    </div>`);
+    if (report?.executive_summary) sections.push(card(`<h3 style="font-size:16px;font-weight:700;margin:0 0 10px;">Executive Summary</h3>${splitNarrative(report.executive_summary, 5).map(p => `<p style="font-size:14px;color:#334155;line-height:1.7;margin-bottom:10px;">${e(p)}</p>`).join('')}`));
+
+    // Cost of Chaos
+    sections.push(h('Cost of Chaos'));
+    if (report?.cost_of_chaos_narrative) sections.push(card(splitNarrative(report.cost_of_chaos_narrative, 4).map(p => `<p style="font-size:14px;color:#334155;line-height:1.7;margin-bottom:10px;">${e(p)}</p>`).join('')));
+    if (sortedProcesses.length > 0) {
+      sections.push(card(`<h3 style="font-size:15px;font-weight:700;margin:0 0 12px;">Where the Hours Go</h3>` +
+        sortedProcesses.map((proc: any) => {
+          const hrs = proc.hoursWasted ?? proc.hours_wasted ?? 0;
+          return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;"><span style="font-size:13px;font-weight:600;width:180px;flex-shrink:0;">${e(proc.chainName || proc.name || 'Process')}</span><span style="font-size:13px;font-weight:700;color:#DC2626;font-family:monospace;">${hrs}h/month</span></div>`;
+        }).join('')));
+    }
+
+    // Systems
+    sections.push(h('System-by-System Assessment'));
+    (facts?.systems || []).forEach((sys: any) => {
+      const gaps = (sys.gaps || []).map((g: string) => `<li style="color:#DC2626;font-size:13px;margin-bottom:4px;">${e(g)}</li>`).join('');
+      const strengths = (sys.strengths || []).map((s: string) => `<li style="color:#059669;font-size:13px;margin-bottom:4px;">${e(s)}</li>`).join('');
+      const pp = (sys.painPoints || sys.pain_points || []).map((p: string) => `<li style="font-size:13px;margin-bottom:4px;">${e(p)}</li>`).join('');
+      sections.push(card(`<h3 style="font-size:15px;font-weight:700;margin:0 0 8px;">${e(sys.name || sys.system_name)}</h3>
+        <p style="font-size:12px;color:#64748b;font-family:monospace;">Category: ${e(String(sys.category || '—').replace(/_/g, ' '))} · Criticality: ${e(String(sys.criticality || sys.criticality_level || '—'))}</p>
+        <div style="display:flex;gap:24px;margin-top:10px;">
+          <div style="flex:1;">${gaps ? `<p style="font-size:11px;font-weight:700;color:#DC2626;text-transform:uppercase;margin-bottom:6px;">Gaps</p><ul style="margin:0;padding-left:16px;">${gaps}</ul>` : ''}</div>
+          <div style="flex:1;">${strengths ? `<p style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;margin-bottom:6px;">Strengths</p><ul style="margin:0;padding-left:16px;">${strengths}</ul>` : ''}</div>
+        </div>
+        ${pp ? `<div style="margin-top:10px;padding:10px;background:#fef3c7;border-radius:8px;"><p style="font-size:11px;font-weight:700;color:#D97706;text-transform:uppercase;margin:0 0 4px;">Pain points</p><ul style="margin:0;padding-left:16px;">${pp}</ul></div>` : ''}`));
     });
-  }, []);
+
+    // Processes
+    sections.push(h('Process Analysis'));
+    sortedProcesses.forEach((proc: any) => {
+      const hrs = proc.hoursWasted ?? proc.hours_wasted ?? 0;
+      const kp = (proc.keyPainPoints || proc.key_pain_points || []).map((p: string) => `<li style="font-size:13px;margin-bottom:4px;">${e(p)}</li>`).join('');
+      const cg = (proc.criticalGaps || proc.critical_gaps || []).map((g: string) => `<li style="font-size:13px;color:#DC2626;margin-bottom:4px;">${e(g)}</li>`).join('');
+      const qs = (proc.clientQuotes || proc.client_quotes || []).map((q: string) => `<blockquote style="border-left:3px solid #f59e0b;padding:8px 12px;margin:8px 0;font-style:italic;color:#475569;font-size:13px;">"${e(q)}"</blockquote>`).join('');
+      sections.push(card(`<div style="display:flex;justify-content:space-between;align-items:center;"><h3 style="font-size:15px;font-weight:700;margin:0;">${e(proc.chainName || proc.name || 'Process')}</h3><span style="font-size:12px;font-weight:700;color:#DC2626;font-family:monospace;">${hrs} hrs/month wasted</span></div>
+        ${kp ? `<ul style="margin:10px 0 0;padding-left:16px;">${kp}</ul>` : ''}
+        ${cg ? `<p style="font-size:11px;font-weight:700;color:#DC2626;text-transform:uppercase;margin:10px 0 4px;">Critical Gaps</p><ul style="margin:0;padding-left:16px;">${cg}</ul>` : ''}${qs}`));
+    });
+
+    // Findings
+    sections.push(h(`Findings (${displayFindings.length})`));
+    sections.push(`<p style="font-size:13px;color:#64748b;margin-bottom:12px;">${criticalCount} critical · ${highCount} high · ${displayFindings.filter((f: any) => f.severity === 'medium').length} medium · ${displayFindings.filter((f: any) => f.severity === 'low').length} low</p>`);
+    displayFindings.forEach((f: any) => {
+      const sev = f.severity || 'medium';
+      const sevColors: Record<string, [string, string]> = { critical: ['#fef2f2','#DC2626'], high: ['#fff7ed','#EA580C'], medium: ['#fffbeb','#D97706'], low: ['#eff6ff','#2563EB'] };
+      const [bg, col] = sevColors[sev] || ['#f8fafc','#64748b'];
+      const hoursVal = f.hours_wasted_weekly ?? f.hoursWastedWeekly ?? 0;
+      const costVal = f.annual_cost_impact ?? f.annualCostImpact ?? 0;
+      sections.push(card(`${badge(sev, bg, col)}<strong style="font-size:14px;">${e(f.title || 'Finding')}</strong>
+        <p style="font-size:13px;color:#334155;line-height:1.65;margin:8px 0;">${e(f.description || '')}</p>
+        ${f.evidence?.length > 0 ? f.evidence.map((ev: string) => `<p style="font-size:12px;color:#475569;padding-left:12px;border-left:2px solid #f59e0b;margin:4px 0;">${e(ev)}</p>`).join('') : ''}
+        ${(f.client_quote || f.clientQuote) ? `<blockquote style="border-left:3px solid #7C3AED;padding:8px 12px;margin:8px 0;font-style:italic;color:#334155;font-size:13px;background:#f5f3ff;border-radius:0 8px 8px 0;">"${e(f.client_quote || f.clientQuote)}"</blockquote>` : ''}
+        <div style="display:flex;gap:20px;margin-top:8px;">${hoursVal > 0 ? `<span style="font-size:12px;"><strong>Hours/week:</strong> ${hoursVal}</span>` : ''}${costVal > 0 ? `<span style="font-size:12px;"><strong>Annual cost:</strong> £${Number(costVal).toLocaleString()}</span>` : ''}</div>
+        ${f.recommendation ? `<div style="margin-top:8px;padding:10px;background:#ecfdf5;border-left:3px solid #059669;border-radius:0 8px 8px 0;"><p style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;margin:0 0 4px;">Recommendation</p><p style="font-size:13px;color:#334155;margin:0;">${e(f.recommendation)}</p></div>` : ''}`));
+    });
+
+    // Risks
+    sections.push(h(`Risks & Concerns (${riskFlags.length})`));
+    riskFlags.forEach((rf: any) => {
+      const sev = (rf.severity || 'medium').toLowerCase();
+      const sevBg: Record<string, [string, string]> = { high: ['#fef2f2','#DC2626'], medium: ['#fffbeb','#D97706'], low: ['#fefce8','#ca8a04'] };
+      const [bg, col] = sevBg[sev] || ['#f8fafc','#64748b'];
+      sections.push(card(`${badge(rf.severity || 'risk', bg, col)}<p style="font-size:14px;font-weight:600;margin:8px 0;">${e(rf.flag || '')}</p>
+        <div style="padding-left:12px;border-left:2px solid #e2e8f0;margin-top:8px;"><p style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin:0 0 4px;">Mitigation</p><p style="font-size:13px;color:#475569;margin:0;">${e(rf.mitigation || '—')}</p></div>`));
+    });
+
+    // Recommendations
+    sections.push(h(`Recommendations (${displayRecs.length})`));
+    displayRecs.forEach((rec: any, i: number) => {
+      const cost = rec.estimatedCost || rec.estimated_cost || 0;
+      const benefit = rec.annualBenefit || rec.annual_cost_savings || 0;
+      const hrs = parseFloat(rec.hoursSavedWeekly || rec.hours_saved_weekly) || 0;
+      sections.push(card(`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><span style="width:24px;height:24px;border-radius:12px;background:#eff6ff;color:#2563EB;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;">${i + 1}</span><strong style="font-size:14px;">${e(rec.title)}</strong></div>
+        <p style="font-size:13px;color:#334155;line-height:1.65;margin:0 0 10px;">${e(rec.description || '')}</p>
+        <div style="display:flex;gap:16px;padding:10px;background:#f8fafc;border-radius:8px;font-family:monospace;font-size:12px;">
+          <div><span style="color:#64748b;">Investment:</span> <strong>${fmt(cost)}</strong></div>
+          <div><span style="color:#64748b;">Benefit:</span> <strong style="color:#059669;">${fmt(benefit)}/yr</strong></div>
+          <div><span style="color:#64748b;">Hours:</span> <strong style="color:#2563EB;">${hrs}h/wk</strong></div>
+        </div>`));
+    });
+
+    // Investment
+    sections.push(h('Investment Summary'));
+    sections.push(`<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+      <thead><tr style="background:#f8fafc;"><th style="text-align:left;padding:10px;border-bottom:2px solid #e2e8f0;font-size:11px;text-transform:uppercase;color:#64748b;">Recommendation</th><th style="text-align:left;padding:10px;border-bottom:2px solid #e2e8f0;font-size:11px;text-transform:uppercase;color:#64748b;">Investment</th><th style="text-align:left;padding:10px;border-bottom:2px solid #e2e8f0;font-size:11px;text-transform:uppercase;color:#64748b;">Annual Saving</th><th style="text-align:left;padding:10px;border-bottom:2px solid #e2e8f0;font-size:11px;text-transform:uppercase;color:#64748b;">Hours/wk</th></tr></thead>
+      <tbody>${displayRecs.map((rec: any) => `<tr><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;">${e(rec.title)}</td><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-family:monospace;">${fmt(rec.estimatedCost || rec.estimated_cost || 0)}</td><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-family:monospace;color:#059669;">£${(rec.annualBenefit || rec.annual_cost_savings || 0).toLocaleString()}</td><td style="padding:8px 10px;border-bottom:1px solid #f1f5f9;font-family:monospace;">${parseFloat(rec.hoursSavedWeekly || rec.hours_saved_weekly) || 0}h</td></tr>`).join('')}
+      <tr style="font-weight:700;"><td style="padding:8px 10px;border-top:2px solid #e2e8f0;">TOTAL</td><td style="padding:8px 10px;border-top:2px solid #e2e8f0;font-family:monospace;">${fmt(totalInvestment)}</td><td style="padding:8px 10px;border-top:2px solid #e2e8f0;font-family:monospace;color:#059669;">£${Math.round(totalBenefit).toLocaleString()}</td><td style="padding:8px 10px;border-top:2px solid #e2e8f0;font-family:monospace;">${Math.round(totalHoursSaved)}h</td></tr></tbody></table>`);
+    sections.push(card(`<strong>Payback:</strong> ${m.paybackMonths} months · <strong>ROI:</strong> ${m.roiRatio} · <strong>Hours reclaimable:</strong> ${Math.round(totalHoursSaved)}h/week`));
+
+    // Quick Wins
+    const qwList = quickWins || [];
+    if (qwList.length > 0) {
+      sections.push(h(`Quick Wins (${qwList.length})`));
+      qwList.forEach((qw: any, i: number) => {
+        const hrs = parseFloat(qw.hoursSaved || qw.hours_saved || qw.hoursSavedWeekly || 0) || 0;
+        const owner = qw.owner || qw.assignee || '';
+        sections.push(card(`<div style="display:flex;align-items:center;gap:8px;"><span style="width:24px;height:24px;border-radius:12px;background:#ecfdf5;color:#059669;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">${i + 1}</span><strong style="font-size:14px;">${owner ? `<span style="color:#2563EB;">${e(owner)}:</span> ` : ''}${e(qw.title || qw.action)}</strong><span style="margin-left:auto;font-size:16px;font-weight:800;color:#059669;font-family:monospace;">+${hrs}h</span></div>
+          ${(qw.steps || qw.implementation) ? `<p style="font-size:13px;color:#475569;margin:8px 0 0;">${e(qw.steps || qw.implementation)}</p>` : ''}`));
+      });
+    }
+
+    // Actions
+    if (adminNextStepsList.length > 0 || adminTasksList.length > 0) {
+      sections.push(h('What To Do Next'));
+      if (adminNextStepsList.length > 0) {
+        sections.push(`<h3 style="font-size:15px;font-weight:700;margin:0 0 8px;">Recommended Next Steps</h3>`);
+        adminNextStepsList.forEach((step: any, i: number) => {
+          sections.push(card(`<strong style="color:#2563EB;font-family:monospace;">#${i + 1}</strong> <strong style="font-size:14px;">${e(step.action || '')}</strong>
+            <div style="margin-top:6px;font-size:12px;color:#64748b;">${[step.owner && `Owner: ${step.owner}`, step.timing].filter(Boolean).map(e).join(' · ')}</div>
+            ${step.outcome ? `<p style="font-size:13px;color:#475569;margin:6px 0 0;">${e(step.outcome)}</p>` : ''}`));
+        });
+      }
+      if (adminTasksList.length > 0) {
+        sections.push(`<h3 style="font-size:15px;font-weight:700;margin:16px 0 8px;">Tasks to Assign</h3>`);
+        adminTasksList.forEach((t: any) => {
+          sections.push(card(`<strong style="font-size:14px;">${e(t.task || '')}</strong>
+            <div style="margin-top:6px;font-size:12px;color:#64748b;">${[t.assignTo && `Assign: ${t.assignTo}`, t.dueDate && `Due: ${t.dueDate}`].filter(Boolean).map(e).join(' · ')}</div>
+            ${t.deliverable ? `<p style="font-size:13px;color:#475569;margin:6px 0 0;">Deliverable: ${e(t.deliverable)}</p>` : ''}`));
+        });
+      }
+    }
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Systems Audit — ${e(compName)}</title>
+      <style>
+        @page { size: A4; margin: 1.5cm 2cm; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #0F172A; font-size: 14px; line-height: 1.5; max-width: 720px; margin: 0 auto; padding: 20px; }
+        * { box-sizing: border-box; }
+        h2 { page-break-after: avoid; }
+        blockquote { margin: 8px 0; }
+        table { page-break-inside: avoid; }
+      </style>
+    </head><body>${sections.join('\n')}
+      <div style="text-align:center;margin-top:32px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;">Systems Audit Report — Prepared by Torsor · ${e(compName)} · Confidential</div>
+    </body></html>`;
+
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => w.print(), 500);
+    }
+  };
 
   // ─── Persistent visited sections (localStorage) ─────────────────────────
   const storageKey = report?.id ? `sa-visited-${report.id}` : null;
