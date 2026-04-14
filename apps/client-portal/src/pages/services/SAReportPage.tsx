@@ -639,14 +639,21 @@ export default function SAReportPage() {
   const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onBefore = () => setPrintMode(true);
     const onAfter = () => setPrintMode(false);
-    window.addEventListener('beforeprint', onBefore);
     window.addEventListener('afterprint', onAfter);
     return () => {
-      window.removeEventListener('beforeprint', onBefore);
       window.removeEventListener('afterprint', onAfter);
     };
+  }, []);
+
+  const handleDownloadPDF = useCallback(() => {
+    setPrintMode(true);
+    // Wait for React to render all sections before opening print dialog
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.print();
+      });
+    });
   }, []);
 
   // ─── Persistent visited sections (localStorage) ─────────────────────────
@@ -2032,17 +2039,21 @@ export default function SAReportPage() {
           .sa-header-actions { display: none !important; }
           .sa-content-area {
             margin-left: 0 !important;
-            padding: 0 !important;
+            padding: 12px !important;
             height: auto !important;
             overflow: visible !important;
           }
-          .sa-content-area > div { max-width: 100% !important; }
+          .sa-content-area > div { max-width: 100% !important; overflow: visible !important; }
           body, html { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .print-section { break-inside: avoid; page-break-inside: avoid; margin-bottom: 24px; }
+          .print-section { margin-bottom: 20px; }
           .print-page-break { page-break-before: always; }
+          .print-section-header { font-size: 20px; font-weight: 800; color: #0F172A; margin: 0 0 12px; padding-top: 8px; border-top: 2px solid #e2e8f0; }
+          * { animation: none !important; transition: none !important; }
+          div[style*="max-height: 0"] { max-height: none !important; overflow: visible !important; }
+          div[style*="maxHeight"] { max-height: none !important; overflow: visible !important; }
           @page {
+            size: A4;
             margin: 1.5cm 2cm;
-            @bottom-center { content: "Systems Audit Report — Prepared by Torsor"; }
           }
         }
       `}</style>
@@ -2073,7 +2084,7 @@ export default function SAReportPage() {
             </div>
             <div className="sa-header-actions" style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
               <button
-                onClick={() => window.print()}
+                onClick={handleDownloadPDF}
                 style={{
                   padding: '7px 14px', borderRadius: 8, border: `1px solid ${C.blue}`,
                   background: 'transparent', color: C.blue, fontSize: 13, fontWeight: 600,
@@ -2092,11 +2103,20 @@ export default function SAReportPage() {
           </div>
           {printMode ? (
             <div>
+              <div style={{ textAlign: 'center', marginBottom: 24, paddingBottom: 16, borderBottom: `2px solid ${C.navy}` }}>
+                <h1 style={{ fontSize: 22, fontWeight: 800, color: C.navy, margin: 0 }}>Systems & Process Audit</h1>
+                <p style={{ fontSize: 13, color: C.textMuted, margin: '4px 0 0' }}>
+                  {facts?.companyName || ''} · {report.generated_at ? new Date(report.generated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+                </p>
+              </div>
               {NAV_ITEMS.map((item, idx) => (
                 <div key={item.id} className={idx > 0 ? 'print-page-break print-section' : 'print-section'}>
                   {renderSection(item.id)}
                 </div>
               ))}
+              <div style={{ textAlign: 'center', marginTop: 32, paddingTop: 16, borderTop: `1px solid ${C.cardBorder}`, fontSize: 11, color: C.textMuted }}>
+                Systems Audit Report — Prepared by Torsor · {facts?.companyName || ''} · Confidential
+              </div>
             </div>
           ) : (
             <div key={activeSection} style={{ animation: 'fadeIn 0.4s ease' }}>
