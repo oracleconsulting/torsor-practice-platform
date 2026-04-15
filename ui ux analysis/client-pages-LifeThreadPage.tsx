@@ -88,9 +88,10 @@ export default function LifeThreadPage() {
       try {
         const { data } = await supabase
           .from('roadmap_stages')
-          .select('generated_content, approved_content')
+          .select('generated_content, approved_content, status')
           .eq('client_id', clientId)
           .eq('stage_type', 'life_design_profile')
+          .in('status', ['published', 'approved'])
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();

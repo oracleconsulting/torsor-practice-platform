@@ -770,6 +770,75 @@ export default function SAReportPage() {
       <tr style="font-weight:700;"><td style="padding:8px 10px;border-top:2px solid #e2e8f0;">TOTAL</td><td style="padding:8px 10px;border-top:2px solid #e2e8f0;font-family:monospace;">${fmt(totalInvestment)}</td><td style="padding:8px 10px;border-top:2px solid #e2e8f0;font-family:monospace;color:#059669;">£${Math.round(totalBenefit).toLocaleString()}</td><td style="padding:8px 10px;border-top:2px solid #e2e8f0;font-family:monospace;">${Math.round(totalHoursSaved)}h</td></tr></tbody></table>`);
     sections.push(card(`<strong>Payback:</strong> ${m.paybackMonths} months · <strong>ROI:</strong> ${m.roiRatio} · <strong>Hours reclaimable:</strong> ${Math.round(totalHoursSaved)}h/week`));
 
+    // Technology Roadmap
+    const maps = systemsMaps && Array.isArray(systemsMaps) ? systemsMaps : [];
+    if (maps.length > 0) {
+      sections.push(h('Technology Roadmap'));
+      sections.push(`<p style="font-size:13px;color:#64748b;margin-bottom:16px;">${maps.length} maturity levels — from current state to optimal stack</p>`);
+      maps.forEach((map: any, mi: number) => {
+        const met = map.metrics || {};
+        const mapColors = ['#ef4444', '#f59e0b', '#3b82f6', '#22c55e', '#8b5cf6'];
+        const mapColor = mapColors[mi] || '#64748b';
+        const tabLabel = map.tabLabel || map.title || `Level ${mi + 1}`;
+
+        sections.push(`<div style="border:2px solid ${mapColor};border-radius:12px;padding:20px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            <span style="width:28px;height:28px;border-radius:14px;background:${mapColor};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;">${mi + 1}</span>
+            <h3 style="font-size:17px;font-weight:700;color:${mapColor};margin:0;">${e(tabLabel)}</h3>
+            ${map.recommended || map.recommendedLevel ? '<span style="font-size:10px;font-weight:700;background:#2563EB;color:#fff;padding:2px 6px;border-radius:4px;">RECOMMENDED</span>' : ''}
+          </div>
+          ${map.subtitle ? `<p style="font-size:13px;color:#64748b;margin:0 0 12px;">${e(map.subtitle)}</p>` : ''}
+          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px;">
+            <tr style="background:#f8fafc;">
+              <th style="text-align:left;padding:8px;border:1px solid #e2e8f0;font-size:10px;text-transform:uppercase;color:#64748b;">Software/mo</th>
+              <th style="text-align:left;padding:8px;border:1px solid #e2e8f0;font-size:10px;text-transform:uppercase;color:#64748b;">Manual hrs/wk</th>
+              <th style="text-align:left;padding:8px;border:1px solid #e2e8f0;font-size:10px;text-transform:uppercase;color:#64748b;">Annual waste</th>
+              <th style="text-align:left;padding:8px;border:1px solid #e2e8f0;font-size:10px;text-transform:uppercase;color:#64748b;">Annual savings</th>
+              <th style="text-align:left;padding:8px;border:1px solid #e2e8f0;font-size:10px;text-transform:uppercase;color:#64748b;">Investment</th>
+              <th style="text-align:left;padding:8px;border:1px solid #e2e8f0;font-size:10px;text-transform:uppercase;color:#64748b;">Payback</th>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #e2e8f0;font-family:monospace;">£${(met.monthlySoftware || 0).toLocaleString()}</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;font-family:monospace;">${met.manualHours || 0}</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;font-family:monospace;">£${(met.annualWaste || 0).toLocaleString()}</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;font-family:monospace;color:#059669;">£${(met.annualSavingsVsMap1 ?? met.annualSavings ?? 0).toLocaleString()}</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;font-family:monospace;">${(met.investment || 0) === 0 ? '£0' : `£${(met.investment || 0).toLocaleString()}`}</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;font-family:monospace;">${met.payback || '—'}</td>
+            </tr>
+          </table>
+          ${map.nodes ? (() => {
+            const nodeList = Array.isArray(map.nodes) ? map.nodes : Object.values(map.nodes);
+            const newNodes = nodeList.filter((n: any) => n.status === 'new');
+            const reconfNodes = nodeList.filter((n: any) => n.status === 'reconfigure' || n.status === 'reconfigured');
+            const keptNodes = nodeList.filter((n: any) => !n.status || n.status === 'keep');
+            let nodesHtml = '';
+            if (newNodes.length > 0) nodesHtml += `<p style="font-size:11px;font-weight:700;color:#059669;text-transform:uppercase;margin:8px 0 4px;">New Systems (${newNodes.length})</p>${newNodes.map((n: any) => `<span style="display:inline-block;font-size:12px;padding:3px 8px;margin:2px 4px 2px 0;border-radius:6px;background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;">${e(n.name)}${n.replaces?.length ? ` (replaces ${n.replaces.join(', ')})` : ''}${n.cost ? ` · £${n.cost}/mo` : ''}</span>`).join('')}`;
+            if (reconfNodes.length > 0) nodesHtml += `<p style="font-size:11px;font-weight:700;color:#D97706;text-transform:uppercase;margin:8px 0 4px;">Reconfigured (${reconfNodes.length})</p>${reconfNodes.map((n: any) => `<span style="display:inline-block;font-size:12px;padding:3px 8px;margin:2px 4px 2px 0;border-radius:6px;background:#fffbeb;color:#D97706;border:1px solid #fde68a;">${e(n.name)}</span>`).join('')}`;
+            if (keptNodes.length > 0) nodesHtml += `<p style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin:8px 0 4px;">Kept (${keptNodes.length})</p>${keptNodes.map((n: any) => `<span style="display:inline-block;font-size:12px;padding:3px 8px;margin:2px 4px 2px 0;border-radius:6px;background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;">${e(n.name)}</span>`).join('')}`;
+            return nodesHtml;
+          })() : ''}
+          ${(map.changes || []).length > 0 ? `<div style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:8px;">
+            <p style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;margin:0 0 8px;">${map.changes.length} Changes</p>
+            ${map.changes.map((ch: any) => {
+              const actionColor: Record<string, string> = { broken: '#ef4444', fixed: '#22c55e', connected: '#3b82f6', added: '#22c55e', reconfigured: '#f59e0b', kept: '#64748b' };
+              const col = actionColor[ch.action] || '#64748b';
+              return `<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #e2e8f0;">
+                ${badge(ch.action || '—', `${col}15`, col)}<strong style="font-size:13px;">${e(ch.system || '—')}</strong>
+                <p style="font-size:12px;color:#475569;margin:4px 0 0;">${e(ch.description || '')}</p>
+                ${ch.impact ? `<p style="font-size:11px;color:#64748b;margin:2px 0 0;">Impact: ${e(ch.impact)}</p>` : ''}
+                ${ch.why ? `<p style="font-size:11px;color:#059669;font-style:italic;margin:2px 0 0;">${e(ch.why)}</p>` : ''}
+              </div>`;
+            }).join('')}
+          </div>` : ''}
+          ${map.implementationStages?.length > 0 ? `<div style="margin-top:12px;">
+            <p style="font-size:11px;font-weight:700;text-transform:uppercase;color:#334155;margin:0 0 8px;">Implementation Stages</p>
+            ${map.implementationStages.map((st: any) => `<div style="display:flex;gap:10px;margin-bottom:6px;"><span style="width:22px;height:22px;border-radius:11px;background:#eff6ff;color:#2563EB;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${st.stage}</span><div><strong style="font-size:13px;">${e(st.title)}</strong><p style="font-size:12px;color:#475569;margin:2px 0 0;">${e(st.description || '')}</p></div></div>`).join('')}
+          </div>` : ''}
+          ${map.recommendationReason ? `<p style="font-size:12px;color:${mapColor};font-style:italic;margin:8px 0 0;">${e(map.recommendationReason)}</p>` : ''}
+        </div>`);
+      });
+    }
+
     // Quick Wins
     const qwList = quickWins || [];
     if (qwList.length > 0) {

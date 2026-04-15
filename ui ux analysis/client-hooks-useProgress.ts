@@ -106,7 +106,7 @@ export function useProgress() {
           .select('stage_type, generated_content, approved_content')
           .eq('client_id', clientId)
           .in('stage_type', ['fit_assessment', 'value_analysis', 'five_year_vision'])
-          .in('status', ['generated', 'approved', 'published']),
+          .in('status', ['published', 'approved']),
         supabase
           .from('service_lines')
           .select('id')
