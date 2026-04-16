@@ -6689,27 +6689,10 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         }
       }
       
-      // Check if roadmap contains data that doesn't match client (e.g., fitness data for non-fitness client)
-      if (roadmap && roadmap.roadmap_data && clientData) {
-        const roadmapText = JSON.stringify(roadmap.roadmap_data).toLowerCase();
-        const clientEmail = (clientData.email || '').toLowerCase();
-        const clientName = (clientData.name || '').toLowerCase();
-        
-        // Check for fitness/rowing keywords
-        const hasFitnessData = roadmapText.includes('fitness equipment') || 
-                               roadmapText.includes('rowing') || 
-                               roadmapText.includes('rowgear');
-        
-        // Check if client is NOT in fitness industry
-        const isFitnessClient = clientEmail.includes('rowgear') || 
-                                clientEmail.includes('fitness') || 
-                                clientName.includes('tom');
-        
-        if (hasFitnessData && !isFitnessClient) {
-          roadmapNeedsRegeneration = true;
-          console.warn(`⚠️ Roadmap for ${clientData.email} contains fitness/rowing data but client is not in fitness industry. Roadmap needs regeneration.`);
-        }
-      }
+      // Data integrity check removed — the hardcoded fitness/rowing keyword
+      // matching produced false positives ("rowing" matched inside "growing").
+      // Cross-client data contamination is now prevented at generation time
+      // via client validation in the sprint/roadmap functions.
 
       // Fetch assessments based on service line context
       // For service-specific views (like management_accounts), only show relevant assessments
