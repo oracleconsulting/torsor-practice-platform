@@ -16,6 +16,7 @@ import {
   BarChart3, Shield, Mail, Send
 } from 'lucide-react';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 import { processChainConfigs } from '@torsor/shared';
 
 // Systems Audit Stage 1 Discovery questions (32 questions, 8 sections) — aligned with client-portal SYSTEMS_AUDIT_ASSESSMENT
@@ -120,8 +121,10 @@ const SERVICE_LINE_INFO = ASSESSMENT_GROUPS.flatMap(g => g.assessments);
 export function AssessmentPreviewPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canEditSection } = useStaffPermissions();
+  const canEdit = canEditSection('assessments');
   const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>('edit');
+  const [previewMode, setPreviewMode] = useState<'edit' | 'preview'>(canEdit ? 'edit' : 'preview');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [editingQuestion, setEditingQuestion] = useState<string | null>(null);
   const [systemsAuditStage, setSystemsAuditStage] = useState<'stage1' | 'stage2' | 'stage3'>('stage1');
@@ -262,6 +265,7 @@ export function AssessmentPreviewPage() {
   };
 
   const startEditing = (question: DbQuestion) => {
+    if (!canEdit) return;
     setEditingQuestion(question.id);
     setEditForm({
       question_text: question.question_text,
@@ -271,6 +275,7 @@ export function AssessmentPreviewPage() {
   };
 
   const handleSave = async (questionId: string) => {
+    if (!canEdit) return;
     setSaving(true);
     setError(null);
     try {
@@ -311,6 +316,7 @@ export function AssessmentPreviewPage() {
   };
 
   const handleSendReview = async () => {
+    if (!canEdit) return;
     if (!shareForm.recipientEmail || !currentMember?.practice_id) {
       setError('Please enter a valid email address');
       return;
@@ -354,8 +360,10 @@ export function AssessmentPreviewPage() {
     return (
       <AdminLayout
         title="Assessment Preview & Editor"
-        subtitle="Edit assessment questions - changes are saved to the database and used for AI value propositions"
-        headerActions={
+        subtitle={canEdit
+          ? 'Edit assessment questions - changes are saved to the database and used for AI value propositions'
+          : 'Browse assessment questions (read-only)'}
+        headerActions={canEdit ? (
           <button
             onClick={() => setShowShareModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
@@ -363,7 +371,7 @@ export function AssessmentPreviewPage() {
             <Mail className="w-4 h-4" />
             Share for Review
           </button>
-        }
+        ) : null}
       >
         <div className="max-w-5xl">
 
@@ -590,15 +598,17 @@ export function AssessmentPreviewPage() {
             >
               <RefreshCw className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => setPreviewMode('edit')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                previewMode === 'edit' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <Edit2 className="w-4 h-4 inline mr-2" />
-              Edit
-            </button>
+            {canEdit && (
+              <button
+                onClick={() => setPreviewMode('edit')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  previewMode === 'edit' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Edit2 className="w-4 h-4 inline mr-2" />
+                Edit
+              </button>
+            )}
             <button
               onClick={() => setPreviewMode('preview')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -608,6 +618,9 @@ export function AssessmentPreviewPage() {
               <Eye className="w-4 h-4 inline mr-2" />
               Preview
             </button>
+            {!canEdit && (
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">Read-only</span>
+            )}
           </div>
         </>
       }
@@ -945,12 +958,14 @@ export function AssessmentPreviewPage() {
                                         {question.question_text}
                                         {question.is_required && <span className="text-red-500 ml-1">*</span>}
                                       </p>
-                                      <button
-                                        onClick={() => startEditing(question)}
-                                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                                      >
-                                        <Edit2 className="w-4 h-4" />
-                                      </button>
+                                      {canEdit && (
+                                        <button
+                                          onClick={() => startEditing(question)}
+                                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                                        >
+                                          <Edit2 className="w-4 h-4" />
+                                        </button>
+                                      )}
                                     </div>
                                     
                                     <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">

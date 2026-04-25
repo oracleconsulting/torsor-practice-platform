@@ -716,7 +716,7 @@ export function GADashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
-  const { data: scopedClients } = useScopedClients();
+  const { data: scopedClients } = useScopedClients('goal_alignment');
   const [clients, setClients] = useState<GAClientSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(() => new Date());

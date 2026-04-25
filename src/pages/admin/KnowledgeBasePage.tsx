@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 import { 
   Plus, Search, FileText, Lightbulb, 
   AlertTriangle, CheckCircle, Edit2, Trash2, Eye,
@@ -39,6 +40,8 @@ const CATEGORIES = [
 export function KnowledgeBasePage() {
   const { user } = useAuth();
   const { data: _currentMember } = useCurrentMember(user?.id);
+  const { canEditSection } = useStaffPermissions();
+  const canEdit = canEditSection('knowledge-base');
   
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [_loading, setLoading] = useState(true);
@@ -202,8 +205,8 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
   return (
     <AdminLayout
       title="Knowledge Base"
-      subtitle="AI guidance, methodology, and best practices"
-      headerActions={
+      subtitle={canEdit ? 'AI guidance, methodology, and best practices' : 'AI guidance, methodology, and best practices (read-only)'}
+      headerActions={canEdit ? (
         <button
           onClick={() => setShowAddModal(true)}
           className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
@@ -211,7 +214,9 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
           <Plus className="w-4 h-4" />
           Add Entry
         </button>
-      }
+      ) : (
+        <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">Read-only</span>
+      )}
     >
       <div className="max-w-7xl mx-auto">
 
@@ -322,14 +327,16 @@ When generating growth projections, the AI sometimes assumes linear 20% year-on-
                       {selectedEntry.category}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button className="p-2 hover:bg-gray-100 rounded-lg">
-                      <Edit2 className="w-4 h-4 text-gray-600" />
-                    </button>
-                    <button className="p-2 hover:bg-gray-100 rounded-lg">
-                      <Trash2 className="w-4 h-4 text-red-600" />
-                    </button>
-                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-2">
+                      <button className="p-2 hover:bg-gray-100 rounded-lg">
+                        <Edit2 className="w-4 h-4 text-gray-600" />
+                      </button>
+                      <button className="p-2 hover:bg-gray-100 rounded-lg">
+                        <Trash2 className="w-4 h-4 text-red-600" />
+                      </button>
+                    </div>
+                  )}
                 </div>
                 
                 <h2 className="text-xl font-bold text-gray-900 mb-4">{selectedEntry.title}</h2>

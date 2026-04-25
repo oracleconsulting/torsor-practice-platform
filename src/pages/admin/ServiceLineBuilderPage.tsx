@@ -7,6 +7,7 @@ import { Wrench, Plus, Loader2, FileText, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 import { ServiceLineBuilderModal } from '../../components/admin/ServiceLineBuilderModal';
 import { AdminLayout } from '../../components/AdminLayout';
 
@@ -22,6 +23,8 @@ const STATUS_COLOURS: Record<string, string> = {
 export function ServiceLineBuilderPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canEditSection } = useStaffPermissions();
+  const canEdit = canEditSection('service-line-builder');
   const practiceId = currentMember?.practice_id;
 
   const [blueprints, setBlueprints] = useState<any[]>([]);
@@ -50,6 +53,7 @@ export function ServiceLineBuilderPage() {
   };
 
   const openNewManual = () => {
+    if (!canEdit) return;
     setModalMode('new');
     setSelectedBlueprintId(null);
     setPendingManualInput(null);
@@ -77,8 +81,10 @@ export function ServiceLineBuilderPage() {
   return (
     <AdminLayout
       title="Service Line Builder"
-      subtitle="Generate full service line blueprints from concepts, opportunities, or scratch. Review and promote to live."
-      headerActions={
+      subtitle={canEdit
+        ? 'Generate full service line blueprints from concepts, opportunities, or scratch. Review and promote to live.'
+        : 'Browse service line blueprints (read-only).'}
+      headerActions={canEdit ? (
         <button
             onClick={openNewManual}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium flex items-center gap-2"
@@ -86,7 +92,9 @@ export function ServiceLineBuilderPage() {
             <Plus className="w-4 h-4" />
             New blueprint (manual)
           </button>
-      }
+      ) : (
+        <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">Read-only</span>
+      )}
     >
       <div className="max-w-4xl mx-auto">
         {loading ? (
@@ -98,13 +106,15 @@ export function ServiceLineBuilderPage() {
             <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-600">No blueprints yet</p>
             <p className="text-sm text-gray-500 mt-1">Create one from the Discovery Opportunity Panel (Build Full Service Line) or start here with manual input.</p>
-            <button
-              onClick={openNewManual}
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm inline-flex items-center gap-2"
-            >
-              <Wrench className="w-4 h-4" />
-              New blueprint
-            </button>
+            {canEdit && (
+              <button
+                onClick={openNewManual}
+                className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm inline-flex items-center gap-2"
+              >
+                <Wrench className="w-4 h-4" />
+                New blueprint
+              </button>
+            )}
           </div>
         ) : (
           <ul className="space-y-2">

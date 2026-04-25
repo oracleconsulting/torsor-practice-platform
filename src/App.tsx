@@ -82,8 +82,22 @@ function AppRoutes() {
           <Route path="/bi-portal" element={<BIPortalPage />} />
           <Route path="/delivery" element={<DeliveryManagementPage />} />
           <Route path="/skills/heatmap" element={<SkillsHeatmapPage />} />
-          <Route path="/skills/management" element={<SkillsManagementPage />} />
-          <Route path="/team/analytics" element={<TeamAnalyticsPage />} />
+          <Route
+            path="/skills/management"
+            element={
+              <RequireStaff requireOwner>
+                <SkillsManagementPage />
+              </RequireStaff>
+            }
+          />
+          <Route
+            path="/team/analytics"
+            element={
+              <RequireStaff requireOwner>
+                <TeamAnalyticsPage />
+              </RequireStaff>
+            }
+          />
           <Route path="/team/cpd" element={<CPDTrackerPage />} />
           <Route path="/team/training" element={<TrainingPlansPage />} />
           <Route

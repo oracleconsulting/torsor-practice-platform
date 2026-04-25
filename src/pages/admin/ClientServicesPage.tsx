@@ -236,11 +236,20 @@ interface StaffMember {
 
 const GA_DASHBOARD_STORAGE_KEY = 'gaDashboardSelected';
 
+// Map ClientServicesPage's internal service-line ids to canonical staff_permissions codes
+const SERVICE_LINE_TO_PERMISSION_CODE: Record<string, string> = {
+  '365_method': 'goal_alignment',
+};
+function permissionCodeFor(serviceLineId: string | null): string | undefined {
+  if (!serviceLineId) return undefined;
+  return SERVICE_LINE_TO_PERMISSION_CODE[serviceLineId] ?? serviceLineId;
+}
+
 export function ClientServicesPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
-  const { data: scopedClients } = useScopedClients();
   const [selectedServiceLine, setSelectedServiceLine] = useState<string | null>(null);
+  const { data: scopedClients } = useScopedClients(permissionCodeFor(selectedServiceLine));
   const [clients, setClients] = useState<Client[]>([]);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [_loading, setLoading] = useState(false);

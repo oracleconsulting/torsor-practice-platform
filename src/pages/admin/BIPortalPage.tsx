@@ -144,7 +144,7 @@ export function BIPortalPage() {
   const isBIAdmin = canRun('business_intelligence');
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
-  const { data: scopedClients } = useScopedClients();
+  const { data: scopedClients } = useScopedClients('business_intelligence');
   const [view, setView] = useState<PortalView>('list');
   const [selectedEngagementId, setSelectedEngagementId] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);

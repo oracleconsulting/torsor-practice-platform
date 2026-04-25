@@ -10,6 +10,25 @@ export interface StaffPermission {
   can_run: boolean;
 }
 
+export type NavKey =
+  | 'client-services'
+  | 'goal-alignment'
+  | 'bi-portal'
+  | 'delivery-teams'
+  | 'skills-heatmap'
+  | 'skills-management'
+  | 'team-analytics'
+  | 'cpd-tracker'
+  | 'training'
+  | 'service-readiness'
+  | 'assessments'
+  | 'service-config'
+  | 'service-line-builder'
+  | 'tech-database'
+  | 'knowledge-base';
+
+export type SectionKey = NavKey;
+
 export interface UseStaffPermissionsResult {
   permissions: StaffPermission[];
   isOwner: boolean;
@@ -17,8 +36,24 @@ export interface UseStaffPermissionsResult {
   clientScope: 'all' | 'assigned_only' | null;
   canView: (serviceLineCode: string) => boolean;
   canRun: (serviceLineCode: string) => boolean;
+  canSeeNav: (key: NavKey) => boolean;
+  canEditSection: (key: SectionKey) => boolean;
   isLoading: boolean;
 }
+
+const OWNER_ONLY_NAV: ReadonlySet<NavKey> = new Set([
+  'skills-management',
+  'team-analytics',
+]);
+
+const VIEW_ONLY_FOR_NON_OWNERS: ReadonlySet<SectionKey> = new Set([
+  'service-readiness',
+  'assessments',
+  'service-config',
+  'service-line-builder',
+  'tech-database',
+  'knowledge-base',
+]);
 
 export function useStaffPermissions(): UseStaffPermissionsResult {
   const { user } = useAuth();
@@ -56,6 +91,17 @@ export function useStaffPermissions(): UseStaffPermissionsResult {
       return permissions.some((p) => p.service_line_code === code && p.can_run);
     };
 
+    const canSeeNav = (key: NavKey): boolean => {
+      if (isOwner) return true;
+      if (OWNER_ONLY_NAV.has(key)) return false;
+      return true;
+    };
+
+    const canEditSection = (key: SectionKey): boolean => {
+      if (isOwner) return true;
+      return !VIEW_ONLY_FOR_NON_OWNERS.has(key);
+    };
+
     return {
       permissions,
       isOwner,
@@ -63,6 +109,8 @@ export function useStaffPermissions(): UseStaffPermissionsResult {
       clientScope,
       canView,
       canRun,
+      canSeeNav,
+      canEditSection,
       isLoading: memberLoading || permsLoading,
     };
   }, [member, permissions, memberLoading, permsLoading]);

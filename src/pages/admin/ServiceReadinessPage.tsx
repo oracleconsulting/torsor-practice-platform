@@ -5,6 +5,7 @@ import { useServiceReadiness } from '../../hooks/useServiceReadiness';
 import { useTrainingPlanMutations } from '../../hooks/useTrainingPlans';
 import { useSkills } from '../../hooks/useSkills';
 import { useTeamMembers } from '../../hooks/useTeamMembers';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 import { AdminLayout } from '../../components/AdminLayout';
 import { PageSkeleton, StatCard } from '../../components/ui';
 import { CheckCircle, BarChart3, Users, AlertTriangle } from 'lucide-react';
@@ -14,6 +15,8 @@ import type { ServiceLine } from '../../lib/advisory-services';
 export function ServiceReadinessPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canEditSection } = useStaffPermissions();
+  const canEdit = canEditSection('service-readiness');
   const { data: readiness, isLoading } = useServiceReadiness(currentMember?.practice_id ?? null);
   const { createPlan } = useTrainingPlanMutations();
   const { data: allSkills = [] } = useSkills();
@@ -37,7 +40,7 @@ export function ServiceReadinessPage() {
   return (
     <AdminLayout
       title={`Service Launch Readiness: ${Math.round(averageReadiness)}% Average`}
-      subtitle="Capability matrix for advisory services go-to-market decisions"
+      subtitle={canEdit ? 'Capability matrix for advisory services go-to-market decisions' : 'Capability matrix for advisory services (read-only)'}
     >
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard label="Ready to Deliver" value={`${servicesReady} / ${servicesTotal}`} accent="teal" icon={<CheckCircle className="w-5 h-5" />} />
@@ -225,16 +228,18 @@ export function ServiceReadinessPage() {
                               <span className="text-xs font-medium text-gray-500 whitespace-nowrap">
                                 Need Lvl {gap.required}+
                               </span>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setCreatingPlan({ gap, service: r.service });
-                                }}
-                                className="ml-2 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors whitespace-nowrap shrink-0"
-                              >
-                                📋 Create Plan
-                              </button>
+                              {canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCreatingPlan({ gap, service: r.service });
+                                  }}
+                                  className="ml-2 px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors whitespace-nowrap shrink-0"
+                                >
+                                  📋 Create Plan
+                                </button>
+                              )}
                             </div>
                           </div>
                         ))}

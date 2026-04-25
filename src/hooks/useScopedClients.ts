@@ -3,12 +3,12 @@ import { supabase } from '../lib/supabase';
 import { useCurrentMember } from './useCurrentMember';
 import { useAuth } from './useAuth';
 
-export function useScopedClients() {
+export function useScopedClients(serviceCode?: string) {
   const { user } = useAuth();
   const { data: member, isLoading: memberLoading } = useCurrentMember(user?.id);
 
   return useQuery({
-    queryKey: ['scoped-clients', member?.id, member?.client_scope, member?.role],
+    queryKey: ['scoped-clients', member?.id, member?.client_scope, member?.role, serviceCode],
     queryFn: async () => {
       if (!member?.practice_id || member.member_type !== 'team') {
         return [];
@@ -21,7 +21,23 @@ export function useScopedClients() {
       `;
 
       const isOwner = member.role === 'owner' || member.role === 'admin';
-      const seesAll = isOwner || member.client_scope === 'all';
+
+      // Resolve effective scope: per-service override > member default
+      let effectiveScope: 'all' | 'assigned_only' =
+        (member.client_scope as 'all' | 'assigned_only' | undefined) ?? 'assigned_only';
+      if (serviceCode && !isOwner) {
+        const { data: perm } = await supabase
+          .from('staff_permissions')
+          .select('client_scope')
+          .eq('practice_member_id', member.id)
+          .eq('service_line_code', serviceCode)
+          .maybeSingle();
+        if (perm?.client_scope) {
+          effectiveScope = perm.client_scope as 'all' | 'assigned_only';
+        }
+      }
+
+      const seesAll = isOwner || effectiveScope === 'all';
 
       if (seesAll) {
         const { data, error } = await supabase

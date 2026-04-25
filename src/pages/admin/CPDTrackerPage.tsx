@@ -16,6 +16,7 @@ import {
 import { SKILL_CATEGORIES, type CPDRecord } from '../../lib/types';
 import { useCPDRecords, useCPDTargets, useCPDMutations } from '../../hooks/useCPDRecords';
 import { useTeamMembers } from '../../hooks/useTeamMembers';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string }> = {
   'Advisory & Consulting': { bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-600' },
@@ -44,16 +45,24 @@ const ACTIVITY_TYPES = [
 export function CPDTrackerPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { isOwner } = useStaffPermissions();
 
   const practiceId = currentMember?.practice_id ?? null;
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [filterCategory, setFilterCategory] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const { data: records = [], isLoading: recordsLoading } = useCPDRecords(practiceId, selectedYear);
+  const { data: rawRecords = [], isLoading: recordsLoading } = useCPDRecords(practiceId, selectedYear);
   const { data: targets = [], isLoading: targetsLoading } = useCPDTargets(practiceId, selectedYear);
-  const { data: teamMembers = [] } = useTeamMembers(practiceId);
+  const { data: rawTeamMembers = [] } = useTeamMembers(practiceId);
   const { addRecord, verifyRecord } = useCPDMutations();
+
+  const teamMembers = isOwner
+    ? rawTeamMembers
+    : rawTeamMembers.filter((m) => m.id === currentMember?.id);
+  const records = isOwner
+    ? rawRecords
+    : rawRecords.filter((r) => r.member_id === currentMember?.id);
 
   const isLoading = recordsLoading || targetsLoading;
 
@@ -95,7 +104,7 @@ export function CPDTrackerPage() {
 
   return (
     <AdminLayout
-      title="CPD Tracker"
+      title={isOwner ? 'CPD Tracker' : 'My CPD'}
       subtitle="Track continuing professional development"
     >
       <div className="max-w-7xl mx-auto">

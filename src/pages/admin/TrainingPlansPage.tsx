@@ -14,6 +14,7 @@ import { type TrainingPlan, type TrainingModule, SKILL_CATEGORIES } from '../../
 import { useTrainingPlans, useTrainingPlanMutations } from '../../hooks/useTrainingPlans';
 import { useTeamMembers } from '../../hooks/useTeamMembers';
 import { useSkills } from '../../hooks/useSkills';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 import { ADVISORY_SERVICES } from '../../lib/advisory-services';
 
 const MODULE_TYPES: { id: TrainingModule['module_type']; name: string }[] = [
@@ -31,12 +32,20 @@ const MODULE_TYPES: { id: TrainingModule['module_type']; name: string }[] = [
 export function TrainingPlansPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { isOwner } = useStaffPermissions();
 
   const practiceId = currentMember?.practice_id ?? null;
-  const { data: plans = [], isLoading } = useTrainingPlans(practiceId, undefined);
-  const { data: teamMembers = [] } = useTeamMembers(practiceId);
+  const { data: rawPlans = [], isLoading } = useTrainingPlans(practiceId, undefined);
+  const { data: rawTeamMembers = [] } = useTeamMembers(practiceId);
   const { data: skills = [] } = useSkills();
   const { createPlan, addModule, completeModule } = useTrainingPlanMutations();
+
+  const teamMembers = isOwner
+    ? rawTeamMembers
+    : rawTeamMembers.filter((m) => m.id === currentMember?.id);
+  const plans = isOwner
+    ? rawPlans
+    : rawPlans.filter((p) => p.member_id === currentMember?.id);
 
   const [selectedPlan, setSelectedPlan] = useState<TrainingPlan | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -56,7 +65,7 @@ export function TrainingPlansPage() {
 
   return (
     <AdminLayout
-      title="Training Plans"
+      title={isOwner ? 'Training Plans' : 'My Training'}
       subtitle="Develop team skills with structured learning"
       headerActions={
         <button
