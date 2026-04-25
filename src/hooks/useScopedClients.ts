@@ -23,20 +23,64 @@ export function useScopedClients() {
       const isOwner = member.role === 'owner' || member.role === 'admin';
       const seesAll = isOwner || member.client_scope === 'all';
 
-      let query = supabase
-        .from('practice_members')
-        .select(baseSelect)
-        .eq('practice_id', member.practice_id)
-        .eq('member_type', 'client')
-        .order('name', { ascending: true });
-
-      if (!seesAll) {
-        query = query.eq('client_owner_id', member.id);
+      if (seesAll) {
+        const { data, error } = await supabase
+          .from('practice_members')
+          .select(baseSelect)
+          .eq('practice_id', member.practice_id)
+          .eq('member_type', 'client')
+          .order('name', { ascending: true });
+        if (error) throw error;
+        return data ?? [];
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data ?? [];
+      const [ownedRes, assignedRes] = await Promise.all([
+        supabase
+          .from('practice_members')
+          .select(baseSelect)
+          .eq('practice_id', member.practice_id)
+          .eq('member_type', 'client')
+          .eq('client_owner_id', member.id),
+        supabase
+          .from('client_assignments')
+          .select(`
+            client_id,
+            role_label,
+            is_primary,
+            client:practice_members!client_id(${baseSelect})
+          `)
+          .eq('staff_member_id', member.id)
+          .eq('practice_id', member.practice_id),
+      ]);
+
+      if (ownedRes.error) throw ownedRes.error;
+      if (assignedRes.error) throw assignedRes.error;
+
+      const byId = new Map<string, any>();
+
+      (ownedRes.data ?? []).forEach((c: any) => {
+        byId.set(c.id, { ...c, _role_label: 'Partner', _is_primary: true });
+      });
+
+      (assignedRes.data ?? []).forEach((a: any) => {
+        const c = a.client;
+        if (!c) return;
+        const existing = byId.get(c.id);
+        if (existing) {
+          existing._role_label = a.role_label ?? existing._role_label;
+          existing._is_primary = existing._is_primary || a.is_primary;
+        } else {
+          byId.set(c.id, {
+            ...c,
+            _role_label: a.role_label,
+            _is_primary: a.is_primary,
+          });
+        }
+      });
+
+      return Array.from(byId.values()).sort((a, b) =>
+        (a.name ?? '').localeCompare(b.name ?? '')
+      );
     },
     enabled: !!member?.id && !memberLoading,
     staleTime: 30_000,

@@ -57,6 +57,8 @@ export interface ClientRow {
   hide_discovery_in_portal?: boolean;
   lastActivity?: string;
   is_test_client?: boolean;
+  _role_label?: string;
+  _is_primary?: boolean;
 }
 
 export interface ClientServicesClientListProps {

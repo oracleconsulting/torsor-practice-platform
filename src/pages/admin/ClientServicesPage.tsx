@@ -13,6 +13,7 @@ import {
   useAnalysisComments
 } from '../../components/discovery';
 import { ServiceRecommendationPopup } from '../../components/shared/ServiceRecommendationPopup';
+import { ClientTeamPanel } from '../../components/admin/ClientTeamPanel';
 import { 
   Users, 
   CheckCircle,
@@ -997,6 +998,15 @@ export function ClientServicesPage() {
     () => new Set((scopedClients ?? []).map((c: { id: string }) => c.id)),
     [scopedClients]
   );
+  const scopedRoleByClientId = React.useMemo(() => {
+    const map = new Map<string, { _role_label?: string; _is_primary?: boolean }>();
+    (scopedClients ?? []).forEach((c: { id: string; _role_label?: string; _is_primary?: boolean }) => {
+      if (c._role_label || c._is_primary) {
+        map.set(c.id, { _role_label: c._role_label, _is_primary: c._is_primary });
+      }
+    });
+    return map;
+  }, [scopedClients]);
   const isOwnerOrAdmin = currentMember?.role === 'owner' || currentMember?.role === 'admin';
   const scopeAll = isOwnerOrAdmin || currentMember?.client_scope === 'all' || currentMember?.client_scope == null;
 
@@ -1006,7 +1016,11 @@ export function ClientServicesPage() {
       client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.company?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    )
+    .map(client => {
+      const role = scopedRoleByClientId.get(client.id);
+      return role ? { ...client, ...role } : client;
+    });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -7787,6 +7801,9 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* OVERVIEW TAB */}
               {activeTab === 'overview' && (
                 <div className="space-y-6">
+                  {client?.id && client?.practice_id && (
+                    <ClientTeamPanel clientId={client.id} practiceId={client.practice_id} />
+                  )}
                   {serviceLineCode === '365_method' && (
                     <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
                       <p className="text-sm font-medium text-slate-700 mb-3">Goal Alignment Tier</p>
