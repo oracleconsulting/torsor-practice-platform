@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { AssessmentReviewPage } from './pages/public/AssessmentReviewPage';
 import { PageSkeleton } from './components/ui';
 import { AdminLayout } from './components/AdminLayout';
+import { RequireStaff } from './components/RequireStaff';
 import { ToastProvider } from './components/ui/Toast';
 import './lib/export-benchmarking-data';
 import './index.css';
@@ -35,6 +36,7 @@ const ServiceConfigPage = lazy(() => import('./pages/admin/ServiceConfigPage').t
 const ServiceLineBuilderPage = lazy(() => import('./pages/admin/ServiceLineBuilderPage').then(m => ({ default: m.ServiceLineBuilderPage })));
 const TechDatabasePage = lazy(() => import('./pages/admin/TechDatabasePage').then(m => ({ default: m.TechDatabasePage })));
 const KnowledgeBasePage = lazy(() => import('./pages/admin/KnowledgeBasePage').then(m => ({ default: m.KnowledgeBasePage })));
+const StaffPermissionsPage = lazy(() => import('./pages/admin/StaffPermissionsPage').then(m => ({ default: m.StaffPermissionsPage })));
 
 function PageLoadingFallback() {
   return (
@@ -71,27 +73,37 @@ function AppRoutes() {
   }
 
   return (
-    <Suspense fallback={<PageLoadingFallback />}>
-      <Routes>
-        <Route path="/" element={<Navigate to="/clients" replace />} />
-        <Route path="/clients" element={<ClientServicesPage />} />
-        <Route path="/goal-alignment" element={<GADashboardPage />} />
-        <Route path="/bi-portal" element={<BIPortalPage />} />
-        <Route path="/delivery" element={<DeliveryManagementPage />} />
-        <Route path="/skills/heatmap" element={<SkillsHeatmapPage />} />
-        <Route path="/skills/management" element={<SkillsManagementPage />} />
-        <Route path="/team/analytics" element={<TeamAnalyticsPage />} />
-        <Route path="/team/cpd" element={<CPDTrackerPage />} />
-        <Route path="/team/training" element={<TrainingPlansPage />} />
-        <Route path="/practice/readiness" element={<ServiceReadinessPage />} />
-        <Route path="/practice/assessments" element={<AssessmentPreviewPage />} />
-        <Route path="/config/services" element={<ServiceConfigPage />} />
-        <Route path="/config/service-builder" element={<ServiceLineBuilderPage />} />
-        <Route path="/config/tech-database" element={<TechDatabasePage />} />
-        <Route path="/config/knowledge-base" element={<KnowledgeBasePage />} />
-        <Route path="*" element={<Navigate to="/clients" replace />} />
-      </Routes>
-    </Suspense>
+    <RequireStaff>
+      <Suspense fallback={<PageLoadingFallback />}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/clients" replace />} />
+          <Route path="/clients" element={<ClientServicesPage />} />
+          <Route path="/goal-alignment" element={<GADashboardPage />} />
+          <Route path="/bi-portal" element={<BIPortalPage />} />
+          <Route path="/delivery" element={<DeliveryManagementPage />} />
+          <Route path="/skills/heatmap" element={<SkillsHeatmapPage />} />
+          <Route path="/skills/management" element={<SkillsManagementPage />} />
+          <Route path="/team/analytics" element={<TeamAnalyticsPage />} />
+          <Route path="/team/cpd" element={<CPDTrackerPage />} />
+          <Route path="/team/training" element={<TrainingPlansPage />} />
+          <Route
+            path="/team/permissions"
+            element={
+              <RequireStaff requireOwner>
+                <StaffPermissionsPage />
+              </RequireStaff>
+            }
+          />
+          <Route path="/practice/readiness" element={<ServiceReadinessPage />} />
+          <Route path="/practice/assessments" element={<AssessmentPreviewPage />} />
+          <Route path="/config/services" element={<ServiceConfigPage />} />
+          <Route path="/config/service-builder" element={<ServiceLineBuilderPage />} />
+          <Route path="/config/tech-database" element={<TechDatabasePage />} />
+          <Route path="/config/knowledge-base" element={<KnowledgeBasePage />} />
+          <Route path="*" element={<Navigate to="/clients" replace />} />
+        </Routes>
+      </Suspense>
+    </RequireStaff>
   );
 }
 

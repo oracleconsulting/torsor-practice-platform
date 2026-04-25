@@ -48,6 +48,10 @@ import type {
 } from '../../types/business-intelligence';
 import { useNavigate } from 'react-router-dom';
 import { ADMIN_ROUTES } from '../../config/routes';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
+import { useScopedClients } from '../../hooks/useScopedClients';
+import { useAuth } from '../../hooks/useAuth';
+import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { AdminLayout } from '../../components/AdminLayout';
 import { PageSkeleton, StatCard, EmptyState, StatusBadge } from '../../components/ui';
 
@@ -136,7 +140,11 @@ const WORKFLOW_STEPS: { tab: WorkflowTab; label: string; icon: React.ReactNode }
 
 export function BIPortalPage() {
   const navigate = useNavigate();
-  // Navigation state
+  const { canRun } = useStaffPermissions();
+  const isBIAdmin = canRun('business_intelligence');
+  const { user } = useAuth();
+  const { data: currentMember } = useCurrentMember(user?.id);
+  const { data: scopedClients } = useScopedClients();
   const [view, setView] = useState<PortalView>('list');
   const [selectedEngagementId, setSelectedEngagementId] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
@@ -538,7 +546,12 @@ export function BIPortalPage() {
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
+  const isOwnerOrAdmin = currentMember?.role === 'owner' || currentMember?.role === 'admin';
+  const scopeAll = isOwnerOrAdmin || currentMember?.client_scope === 'all' || currentMember?.client_scope == null;
+  const scopedClientIds = new Set((scopedClients ?? []).map((c: { id: string }) => c.id));
+
   const filteredEngagements = engagements.filter(eng => {
+    if (!scopeAll && !scopedClientIds.has(eng.client_id)) return false;
     const matchesSearch = !searchQuery || 
       (eng.client?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
        eng.client?.client_company?.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -1265,7 +1278,7 @@ export function BIPortalPage() {
                   <MADashboard
                     engagementId={engagement.id}
                     periodId={period.id}
-                    isAdmin={true}
+                    isAdmin={isBIAdmin}
                   />
                 </div>
               )}

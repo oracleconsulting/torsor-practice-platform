@@ -3,6 +3,8 @@ import type { PageId } from '../../types/navigation';
 import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
+import { useScopedClients } from '../../hooks/useScopedClients';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 import { supabase } from '../../lib/supabase';
 import { RPGCC_LOGO_LIGHT, RPGCC_LOGO_DARK, RPGCC_COLORS } from '../../constants/brandAssets';
 import { 
@@ -236,6 +238,7 @@ const GA_DASHBOARD_STORAGE_KEY = 'gaDashboardSelected';
 export function ClientServicesPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { data: scopedClients } = useScopedClients();
   const [selectedServiceLine, setSelectedServiceLine] = useState<string | null>(null);
   const [clients, setClients] = useState<Client[]>([]);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
@@ -990,11 +993,20 @@ export function ClientServicesPage() {
     }
   };
 
-  const filteredClients = clients.filter(client => 
-    client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.company?.toLowerCase().includes(searchQuery.toLowerCase())
+  const scopedClientIds = React.useMemo(
+    () => new Set((scopedClients ?? []).map((c: { id: string }) => c.id)),
+    [scopedClients]
   );
+  const isOwnerOrAdmin = currentMember?.role === 'owner' || currentMember?.role === 'admin';
+  const scopeAll = isOwnerOrAdmin || currentMember?.client_scope === 'all' || currentMember?.client_scope == null;
+
+  const filteredClients = clients
+    .filter(client => scopeAll || scopedClientIds.has(client.id))
+    .filter(client =>
+      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      client.company?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1406,6 +1418,7 @@ function DiscoveryClientModal({
 }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canRun } = useStaffPermissions();
   const [client, setClient] = useState<any>(null);
   const [discovery, setDiscovery] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1993,6 +2006,10 @@ function DiscoveryClientModal({
   const PHASE1_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
 
   const handlePhase1DeepAnalysis = async () => {
+    if (!canRun('discovery')) {
+      alert('You do not have permission to run Discovery actions.');
+      return;
+    }
     const engagementId = await ensureDiscoveryEngagement();
     if (!engagementId) {
       alert('Could not create or find discovery engagement.');
@@ -2073,6 +2090,10 @@ function DiscoveryClientModal({
   const PHASE2_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
 
   const handlePhase2AnalyseAndScore = async () => {
+    if (!canRun('discovery')) {
+      alert('You do not have permission to run Discovery actions.');
+      return;
+    }
     const engagementId = discoveryEngagement?.id ?? (await ensureDiscoveryEngagement());
     if (!engagementId) {
       alert('No discovery engagement. Run Phase 1 first.');
@@ -2144,6 +2165,10 @@ function DiscoveryClientModal({
   // PHASE 2B: Regenerate Opportunities only
   // ================================================================
   const handleRegenerateOpportunities = async () => {
+    if (!canRun('discovery')) {
+      alert('You do not have permission to run Discovery actions.');
+      return;
+    }
     if (!discoveryEngagement?.id) return;
     setCurrentPhase(2);
     setPhaseProgress('Regenerating opportunities...');
@@ -2222,6 +2247,10 @@ function DiscoveryClientModal({
   const PHASE3_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
 
   const handlePhase3GenerateReport = async () => {
+    if (!canRun('discovery')) {
+      alert('You do not have permission to run Discovery actions.');
+      return;
+    }
     const engagementId = discoveryEngagement?.id;
     if (!engagementId) {
       alert('No discovery engagement. Run Phase 2 first.');
@@ -6499,6 +6528,7 @@ function DiscoveryClientModal({
 function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: { clientId: string; serviceLineCode: string; onClose: () => void; onNavigate: (page: PageId) => void }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canRun } = useStaffPermissions();
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
@@ -7188,6 +7218,10 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   // GENERATE VALUE ANALYSIS (SEPARATE FROM ROADMAP)
   // ================================================================
   const handleGenerateValueAnalysis = async () => {
+    if (!canRun('goal_alignment')) {
+      alert('You do not have permission to run Goal Alignment actions.');
+      return;
+    }
     if (!client?.practice_id) return;
     
     setGeneratingValueAnalysis(true);
@@ -7415,6 +7449,10 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
 
   // Resume from last successful stage
   const handleResumePipeline = async () => {
+    if (!canRun('goal_alignment')) {
+      alert('You do not have permission to run Goal Alignment actions.');
+      return;
+    }
     if (!clientId || !client?.practice_id) return;
     
     if (!confirm('This will resume the roadmap generation from the last successful stage. Continue?')) return;
@@ -7458,6 +7496,10 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
 
   // Full regenerate from scratch
   const handleRegenerate = async () => {
+    if (!canRun('goal_alignment')) {
+      alert('You do not have permission to run Goal Alignment actions.');
+      return;
+    }
     if (!client?.practice_id || !clientId) return;
     
     const unprocessedContext = client.context?.filter((c: any) => !c.processed) || [];
@@ -11547,6 +11589,7 @@ function BenchmarkingClientModal({
 }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canRun } = useStaffPermissions();
   const [activeTab, setActiveTab] = useState<'assessment' | 'hva' | 'context' | 'analysis'>('assessment');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
@@ -12151,6 +12194,10 @@ function BenchmarkingClientModal({
   };
 
   const handleGenerateReport = async () => {
+    if (!canRun('benchmarking')) {
+      alert('You do not have permission to run Benchmarking actions.');
+      return;
+    }
     if (!engagement) return;
     
     setGenerating(true);
@@ -12230,6 +12277,10 @@ function BenchmarkingClientModal({
 
   // Handle Pass 3 only (opportunities & services) — preserves Pass 1/2 financial data
   const handleRegeneratePass3Only = async () => {
+    if (!canRun('benchmarking')) {
+      alert('You do not have permission to run Benchmarking actions.');
+      return;
+    }
     if (!engagement) return;
     if (!confirm('Re-run opportunities and service recommendations only? Pass 1/2 financial data will be preserved.')) return;
 
@@ -12266,11 +12317,14 @@ function BenchmarkingClientModal({
 
   // Handle regenerating the report with updated data (full pipeline)
   const handleRegenerateWithNewData = async () => {
+    if (!canRun('benchmarking')) {
+      alert('You do not have permission to run Benchmarking actions.');
+      return;
+    }
     if (!engagement) return;
     
     setGenerating(true);
     try {
-      // Use the regenerate function which forces benchmark refresh
       const { data: result, error } = await supabase.functions.invoke('regenerate-bm-report', {
         body: {
           engagementId: engagement.id,
@@ -13217,6 +13271,7 @@ function SystemsAuditClientModal({
 }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canRun } = useStaffPermissions();
   const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'review' | 'analysis'>('assessments');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
@@ -13605,6 +13660,10 @@ function SystemsAuditClientModal({
   };
 
   const handleGenerateReport = async (startFromPhase = 1) => {
+    if (!canRun('systems_audit')) {
+      alert('You do not have permission to run Systems Audit actions.');
+      return;
+    }
     if (!engagement) return;
 
     if (engagement.platform_direction == null) {
@@ -14251,6 +14310,10 @@ function SystemsAuditClientModal({
   const SA_EDGE_FN_TIMEOUT_MS = 300000; // 5 minutes
 
   const handleRunPreliminary = async () => {
+    if (!canRun('systems_audit')) {
+      alert('You do not have permission to run Systems Audit actions.');
+      return;
+    }
     if (!engagement) return;
     setRunningPreliminary(true);
     const controller = new AbortController();
@@ -14305,6 +14368,10 @@ function SystemsAuditClientModal({
   };
 
   const handleGenerateScript = async () => {
+    if (!canRun('systems_audit')) {
+      alert('You do not have permission to run Systems Audit actions.');
+      return;
+    }
     if (!engagement?.id) return;
     setGeneratingScript(true);
     const controller = new AbortController();
@@ -14335,6 +14402,10 @@ function SystemsAuditClientModal({
   };
 
   const handleProcessTranscript = async () => {
+    if (!canRun('systems_audit')) {
+      alert('You do not have permission to run Systems Audit actions.');
+      return;
+    }
     if (!engagement?.id || !transcriptText.trim()) return;
     if (!window.confirm(`Process this transcript (${transcriptText.length} characters)? The AI will extract answers and auto-resolve matching gaps.`)) return;
     setProcessingTranscript(true);

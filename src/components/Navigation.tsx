@@ -13,17 +13,21 @@ import {
   Wrench,
   Box,
   Database,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ADMIN_ROUTES, type PageId } from '../config/routes';
+import { useAuth } from '../hooks/useAuth';
+import { useCurrentMember } from '../hooks/useCurrentMember';
 
 interface NavItem {
   id: PageId;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  ownerOnly?: boolean;
 }
 
 interface NavSection {
@@ -49,6 +53,7 @@ const sections: NavSection[] = [
       { id: 'analytics', label: 'Team Analytics', icon: Brain },
       { id: 'cpd', label: 'CPD Tracker', icon: Award },
       { id: 'training', label: 'Training', icon: BookOpen },
+      { id: 'staff-permissions', label: 'Staff Permissions', icon: ShieldCheck, ownerOnly: true },
     ],
   },
   {
@@ -78,6 +83,9 @@ export function Navigation({ mobile, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const { data: currentMember } = useCurrentMember(user?.id);
+  const isOwner = currentMember?.role === 'owner' || currentMember?.role === 'admin';
 
   const handleNav = (id: PageId) => {
     navigate(ADMIN_ROUTES[id]);
@@ -130,7 +138,7 @@ export function Navigation({ mobile, onMobileClose }: SidebarProps) {
               </p>
             )}
             <div className="space-y-0.5">
-              {section.items.map((item) => {
+              {section.items.filter((item) => !item.ownerOnly || isOwner).map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.id);
                 return (

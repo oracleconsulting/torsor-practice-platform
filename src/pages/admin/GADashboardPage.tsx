@@ -11,6 +11,7 @@ import { AdminLayout } from '../../components/AdminLayout';
 import { PageSkeleton, EmptyState } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
+import { useScopedClients } from '../../hooks/useScopedClients';
 import { supabase } from '../../lib/supabase';
 import {
   Target,
@@ -715,6 +716,7 @@ export function GADashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { data: scopedClients } = useScopedClients();
   const [clients, setClients] = useState<GAClientSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(() => new Date());
@@ -791,10 +793,17 @@ export function GADashboardPage() {
     );
   }
 
+  const isOwnerOrAdmin = currentMember?.role === 'owner' || currentMember?.role === 'admin';
+  const scopeAll = isOwnerOrAdmin || currentMember?.client_scope === 'all' || currentMember?.client_scope == null;
+  const scopedClientIds = new Set((scopedClients ?? []).map((c: { id: string }) => c.id));
+  const visibleClients = scopeAll
+    ? clients
+    : clients.filter((c) => scopedClientIds.has(c.clientId));
+
   return (
     <AdminLayout
       title="Goal Alignment Dashboard"
-      subtitle={`${clients.length} client${clients.length !== 1 ? 's' : ''} enrolled`}
+      subtitle={`${visibleClients.length} client${visibleClients.length !== 1 ? 's' : ''} enrolled`}
       headerActions={
         <>
           <span className="text-xs text-slate-400">
@@ -812,8 +821,8 @@ export function GADashboardPage() {
       }
     >
       <div className="max-w-6xl mx-auto space-y-6">
-        <SummaryCards clients={clients} />
-        <ClientList clients={clients} onViewDetail={handleViewDetail} />
+        <SummaryCards clients={visibleClients} />
+        <ClientList clients={visibleClients} onViewDetail={handleViewDetail} />
       </div>
     </AdminLayout>
   );

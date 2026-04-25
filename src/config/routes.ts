@@ -15,6 +15,7 @@ export const ADMIN_ROUTES = {
   analytics: '/team/analytics',
   cpd: '/team/cpd',
   training: '/team/training',
+  'staff-permissions': '/team/permissions',
   readiness: '/practice/readiness',
   assessments: '/practice/assessments',
   config: '/config/services',
