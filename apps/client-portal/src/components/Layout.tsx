@@ -16,30 +16,33 @@ import {
   X,
   ChevronRight,
   FileText,
+  ArrowLeft,
 } from 'lucide-react';
 
 interface LayoutProps {
   children: ReactNode;
   title?: string;
   subtitle?: string;
+  /** 'global' = Dashboard/Assessments/Reports only; 'ga' = GA-specific sidebar with back link */
+  mode?: 'global' | 'ga';
 }
 
-// Navigation items with service requirements
-// Items with requiredServices will only show if client is enrolled in one of those services
-// Note: hidden_value_audit and benchmarking assessments are accessed via dashboard cards, not sidebar
-const allNavigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home, requiredServices: null }, // Always show
-  { name: 'Assessments', href: '/assessments', icon: ClipboardList, requiredServices: null }, // Completed assessments across all service lines
-  { name: 'Reports', href: '/reports', icon: FileText, requiredServices: null }, // Only analysis shared with client
-  { name: 'Roadmap', href: '/roadmap', icon: Map, requiredServices: ['365_method', '365_alignment'] },
-  { name: 'Sprint', href: '/tasks', icon: Flag, requiredServices: ['365_method', '365_alignment'] },
-  { name: 'Life', href: '/life', icon: Heart, requiredServices: ['365_method', '365_alignment'] },
-  { name: 'Progress', href: '/progress', icon: TrendingUp, requiredServices: ['365_method', '365_alignment'] },
-  { name: 'Chat', href: '/chat', icon: MessageCircle, requiredServices: ['365_method', '365_alignment'] },
-  { name: 'Appointments', href: '/appointments', icon: Calendar, requiredServices: ['365_method', '365_alignment'] },
+const globalNavigation = [
+  { name: 'Dashboard', href: '/dashboard', icon: Home },
+  { name: 'Assessments', href: '/assessments', icon: ClipboardList },
+  { name: 'Reports', href: '/reports', icon: FileText },
 ];
 
-export function Layout({ children, title, subtitle }: LayoutProps) {
+const gaNavigation = [
+  { name: 'Roadmap', href: '/roadmap', icon: Map },
+  { name: 'Sprint', href: '/tasks', icon: Flag },
+  { name: 'Life', href: '/life', icon: Heart },
+  { name: 'Progress', href: '/progress', icon: TrendingUp },
+  { name: 'Chat', href: '/chat', icon: MessageCircle },
+  { name: 'Appointments', href: '/appointments', icon: Calendar },
+];
+
+export function Layout({ children, title, subtitle, mode }: LayoutProps) {
   const { clientSession, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -50,14 +53,18 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
     navigate('/login');
   };
 
-  // Filter navigation based on enrolled services
+  // Auto-detect mode from path if not explicitly set
+  const gaRoutes = ['/roadmap', '/tasks', '/life', '/progress', '/chat', '/appointments'];
+  const effectiveMode = mode || (gaRoutes.some(r => location.pathname.startsWith(r)) ? 'ga' : 'global');
+  const isGA = effectiveMode === 'ga';
+
   const enrolledServices = clientSession?.enrolledServices || [];
-  const navigation = allNavigation.filter(item => {
-    // Items with no required services always show
-    if (!item.requiredServices) return true;
-    // Check if client has any of the required services
-    return item.requiredServices.some(service => enrolledServices.includes(service));
-  });
+  const hasGA = enrolledServices.some(s => s === '365_method' || s === '365_alignment');
+
+  // Build nav items based on mode
+  const navigation = isGA && hasGA
+    ? gaNavigation
+    : globalNavigation;
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -81,6 +88,15 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
 
           {/* Navigation */}
           <nav className="flex-1 px-3 py-4 space-y-1">
+            {isGA && (
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center gap-2 px-3 py-2 mb-3 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back to Dashboard
+              </button>
+            )}
             {navigation.map((item) => {
               const isActive = item.href === '/assessments'
                 ? location.pathname.startsWith('/assessment')
@@ -130,6 +146,11 @@ export function Layout({ children, title, subtitle }: LayoutProps) {
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="bg-white border-t border-slate-200 py-2">
+            {isGA && (
+              <Link to="/dashboard" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-4 py-2 text-xs text-slate-400">
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
+              </Link>
+            )}
             {navigation.map((item) => {
               const isActive = item.href === '/assessments' 
                 ? location.pathname.startsWith('/assessment')
