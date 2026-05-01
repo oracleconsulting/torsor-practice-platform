@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import {
@@ -502,6 +502,9 @@ export default function BIDashboardPage() {
                   </span>
                 </div>
                 <p className="text-sm text-slate-500">{period.period_label}</p>
+                <Link to="/service/business_intelligence/reports" className="text-xs text-indigo-600 hover:underline mt-1 inline-block">
+                  Past period reports
+                </Link>
               </div>
             </div>
             <Logo />

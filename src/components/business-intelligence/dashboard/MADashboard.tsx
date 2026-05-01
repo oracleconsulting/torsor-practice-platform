@@ -35,6 +35,7 @@ import { PDFExportButton } from '../PDFExportButton';
 import { KPITrendChart } from '../KPITrendChart';
 import { CashFlowWaterfall } from '../CashFlowWaterfall';
 import { AlertsPanel } from '../AlertsPanel';
+import { BICatalogSections } from '../BICatalogSections';
 import type { TierType } from '../../../types/business-intelligence';
 
 // Dashboard tabs
@@ -411,6 +412,19 @@ export function MADashboard({ engagementId, periodId, isAdmin = false }: MADashb
               {/* KPIs Section */}
               {sectionsVisible.kpis && kpis.length > 0 && (
                 <KPIGrid kpis={kpis} editMode={editMode} />
+              )}
+
+              {sectionsVisible.catalog_metrics && (
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+                  <h3 className="text-lg font-semibold text-slate-800 mb-1">Ratios & variances</h3>
+                  <p className="text-sm text-slate-500 mb-4">Catalogue metrics (Sumary import populates values).</p>
+                  <BICatalogSections
+                    maEngagementId={engagementId}
+                    maPeriodId={periodId}
+                    practiceTier={engagement?.tier}
+                    isAdmin={isAdmin}
+                  />
+                </div>
               )}
             </div>
           </>

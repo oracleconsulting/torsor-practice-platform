@@ -69,6 +69,7 @@ import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-ma
 // Management Accounts Report Components (Two-Pass Architecture)
 import { MAAdminReportView } from '../../components/business-intelligence/MAAdminReportView';
 import { MAClientReportView } from '../../components/business-intelligence/MAClientReportView';
+import { SumaryImportPanel } from '../../components/business-intelligence/SumaryImportPanel';
 
 // MA report context shape (matches AdditionalContext from MAAdminReportView)
 interface MAReportContext {
@@ -6561,7 +6562,8 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis' | 'progress'>(
     isManagementAccounts ? 'assessments' : 'overview'
   );
-  
+  const [maDocsSubTab, setMaDocsSubTab] = useState<'upload' | 'sumary'>('upload');
+
   // MA-specific state
   const [generatingMAInsights, setGeneratingMAInsights] = useState(false);
   const [maInsights, setMAInsights] = useState<any>(null);
@@ -8011,6 +8013,34 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* DOCUMENTS TAB (Management Accounts) */}
               {activeTab === 'documents' && isManagementAccounts && (
                 <div className="space-y-6">
+                  <div className="flex gap-2 border-b border-gray-200 pb-3">
+                    <button
+                      type="button"
+                      onClick={() => setMaDocsSubTab('upload')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        maDocsSubTab === 'upload'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Document Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMaDocsSubTab('sumary')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        maDocsSubTab === 'sumary'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Sumary Import
+                    </button>
+                  </div>
+                  {maDocsSubTab === 'sumary' ? (
+                    <SumaryImportPanel clientId={clientId} practiceId={client?.practice_id} memberId={currentMember?.id} />
+                  ) : (
+                  <>
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <p className="text-sm text-blue-800">
                       <strong>Document Upload:</strong> Upload management accounts, financial statements, or other documents. 
@@ -8585,6 +8615,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       })()}
                     </div>
                   </div>
+                  </>
+                  )}
                 </div>
               )}
 

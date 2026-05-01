@@ -45,5 +45,17 @@ Both families remain relevant in migrations and functions (`generate-ma-*`, `gen
 ## Sync / analysis folder
 
 - **Folder:** `business intelligence analysis/` (flat copies, read-only for live work).
-- **Command:** `./torsor-practice-platform/scripts/sync-business-intelligence-assessment-copies.sh` from monorepo root.
+- **Command:** `./torsor-practice-platform/scripts/sync-business-intelligence-assessment-copies.sh` from monorepo root (create or run from repo where that script exists).
 - **Master doc:** `docs/TORSOR_PRACTICE_PLATFORM_MASTER.md` is copied into that folder by the sync script and by `scripts/sync-master-doc-to-all-analysis-folders.sh`.
+
+---
+
+## Sumary integration & ratio / variance layer
+
+- **Positioning:** External MI (Sumary) supplies structured P&L / balance-sheet data; the BI service line remains the **visual wrapper and insight layer** (KPIs, ratios, variances, curated narrative, portal layout).
+- **Import path:** Edge function `import-sumary-period` maps Sumary payloads into `bi_financial_data` via editable `bi_sumary_field_mappings`, logs `bi_sumary_imports`, mirrors MA rows where applicable, runs KPI persistence (`save-kpi-values`), and computes `bi_ratio_values` / `bi_variance_values`. No AI extraction on this path. Admin UI: **Sumary Import** tab on `ClientServicesPage` (`SumaryImportPanel.tsx`).
+- **Catalogues:** `bi_ratio_definitions` and `bi_variance_definitions` (seeded via `seed-bi-ratio-catalogue`). Client-facing selections: `bi_ratio_selections`, `bi_variance_selections`; computed values per period: `bi_ratio_values`, `bi_variance_values`. Tier-aware caps enforced in `manage-bi-catalog-selections` and `lib/bi/tierCaps.ts` (Clarity: fewer ratios/variances, no AI period summary, no perpetual view; Foresight+: AI summary + perpetual; Strategic: drift alerts panel).
+- **Dashboard sections:** Ratios and variances render through shared components under `src/components/business-intelligence/ratios/` and `variances/`, wired via `BICatalogSections` and section id `catalog_metrics` on `MADashboard`.
+- **Per-report viewer:** Admin routes `/clients/:clientId/bi/reports`, `/clients/:clientId/bi/reports/:periodId`; client portal `/service/business_intelligence/reports` (+ redirects from `management_accounts` and `/services/business-intelligence/...`). Each report embeds `MADashboard` for the period, optional **bespoke period summary** (`bi_period_summaries`, editor `PeriodSummaryEditor`, AI draft via `generate-bi-period-summary` where tier allows). Clients only see summaries in **approved** or **published** status.
+- **Perpetual tracker:** Admin `/clients/:clientId/bi/perpetual`; client `/service/business_intelligence/perpetual`. Consumes `bi_perpetual_metrics_view` and (Strategic) `bi_perpetual_drift_alerts`.
+- **Legacy upload path:** Document upload + AI extraction (`extract-ma-financials`, etc.) remains available for clients not yet on Sumary; additive only.

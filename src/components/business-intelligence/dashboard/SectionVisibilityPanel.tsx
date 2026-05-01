@@ -39,6 +39,11 @@ const SECTION_CONFIG: Record<SectionId, { label: string; description: string; mi
     label: 'Key Performance Indicators',
     description: 'Selected KPIs with RAG status',
   },
+  catalog_metrics: {
+    label: 'Ratios & variances',
+    description: 'Sumary ratio packs and variance visuals',
+    minTier: 'clarity',
+  },
   revenue_trend: {
     label: 'Revenue Trend',
     description: 'Monthly revenue chart',

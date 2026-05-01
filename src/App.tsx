@@ -37,6 +37,9 @@ const ServiceLineBuilderPage = lazy(() => import('./pages/admin/ServiceLineBuild
 const TechDatabasePage = lazy(() => import('./pages/admin/TechDatabasePage').then(m => ({ default: m.TechDatabasePage })));
 const KnowledgeBasePage = lazy(() => import('./pages/admin/KnowledgeBasePage').then(m => ({ default: m.KnowledgeBasePage })));
 const StaffPermissionsPage = lazy(() => import('./pages/admin/StaffPermissionsPage').then(m => ({ default: m.StaffPermissionsPage })));
+const BIReportsListPage = lazy(() => import('./pages/admin/BIReportsListPage'));
+const BIPeriodReportPage = lazy(() => import('./pages/admin/BIPeriodReportPage'));
+const BIPerpetualViewPage = lazy(() => import('./pages/admin/BIPerpetualViewPage'));
 
 function PageLoadingFallback() {
   return (
@@ -78,6 +81,9 @@ function AppRoutes() {
         <Routes>
           <Route path="/" element={<Navigate to="/clients" replace />} />
           <Route path="/clients" element={<ClientServicesPage />} />
+          <Route path="/clients/:clientId/bi/reports" element={<BIReportsListPage />} />
+          <Route path="/clients/:clientId/bi/reports/:periodId" element={<BIPeriodReportPage />} />
+          <Route path="/clients/:clientId/bi/perpetual" element={<BIPerpetualViewPage />} />
           <Route path="/goal-alignment" element={<GADashboardPage />} />
           <Route path="/bi-portal" element={<BIPortalPage />} />
           <Route path="/delivery" element={<DeliveryManagementPage />} />

@@ -135,4 +135,37 @@ Synced filenames include:
 
 ---
 
+## 9. Sumary integration & ratio / variance layer (2026)
+
+### 9.1 Data objects (assumed deployed via manual SQL)
+
+| Area | Tables / views |
+|------|------------------|
+| Sumary ingest | `bi_sumary_imports`, `bi_sumary_field_mappings` |
+| Ratios | `bi_ratio_definitions`, `bi_ratio_selections`, `bi_ratio_values` |
+| Variances | `bi_variance_definitions`, `bi_variance_selections`, `bi_variance_values` |
+| Period narrative | `bi_period_summaries` |
+| Perpetual analytics | `bi_perpetual_metrics_view`, `bi_perpetual_drift_alerts` |
+
+### 9.2 Edge functions
+
+| Function | Role |
+|----------|------|
+| **import-sumary-period** | Map structured Sumary payload → `bi_financial_data` (+ MA mirror), KPI save, ratio/variance value rows; no LLM extraction. |
+| **seed-bi-ratio-catalogue** | Idempotent upsert of ratio + variance definitions by `code`. |
+| **manage-bi-catalog-selections** | Add/remove ratio and variance selections with tier caps server-side. |
+| **generate-bi-period-summary** | LLM draft → `bi_period_summaries` (`draft`), blocked for Clarity tier. |
+
+### 9.3 Frontend surfaces
+
+- **Admin:** `SumaryImportPanel`, ratio/variance catalogue selectors, `BICatalogSections`, `PeriodSummaryEditor`, report list `BIReportsListPage`, period report `BIPeriodReportPage`, perpetual `BIPerpetualViewPage`; routes under `/clients/:clientId/bi/...` in `src/App.tsx`.
+- **Client portal:** `BIReportsListPage`, `BIPeriodReportPage`, `BIPerpetualViewPage`; routes `/service/business_intelligence/reports`, `/reports/:periodId`, `/perpetual`; redirects from `management_accounts` and hyphenated `/services/business-intelligence/*`.
+- **Tier gating:** `lib/bi/tierCaps.ts` — aligns caps with Clarity / Foresight / Strategic (ratio count, variance count, AI summary, perpetual, drift alerts).
+
+### 9.4 Relationship to legacy MA path
+
+Document upload, `extract-ma-financials`, and existing KPI/insight flows remain unchanged. Sumary import is an additional on-ramp into the same `bi_*` / `ma_*` mirrored period model.
+
+---
+
 *Do not edit `-copy` artifacts during live development; change live paths and re-run the sync script.*
