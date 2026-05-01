@@ -421,13 +421,16 @@ export default function UnifiedDashboardPage() {
               if (week.weekNumber === totalWeeks && allResolved) activeWeek = totalWeeks;
             }
 
-            const sprintStartDate = enrollment?.sprint_start_date || sprintContent.startDate || sprintStageCorrect.data?.created_at;
+            const sprintStartDate = enrollment?.sprint_start_date || null;
             let calendarWeek = activeWeek;
             if (sprintStartDate) {
               const start = new Date(sprintStartDate);
               const now = new Date();
               const diffWeeks = Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
               calendarWeek = diffWeeks < 1 ? 0 : Math.min(diffWeeks, 12);
+            } else {
+              // No start date set — don't calculate weeks behind from stage created_at
+              calendarWeek = activeWeek;
             }
 
             const isSprintComplete = resolvedWeeks === totalWeeks;
