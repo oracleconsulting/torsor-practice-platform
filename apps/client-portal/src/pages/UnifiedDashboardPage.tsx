@@ -622,7 +622,7 @@ export default function UnifiedDashboardPage() {
       if (gaSprintData?.hasRoadmap) return '/roadmap';
       if (!assessmentProgress?.part1 || assessmentProgress.part1.status !== 'completed') return '/assessment/part1';
       if (!assessmentProgress?.part2 || assessmentProgress.part2.status !== 'completed') return '/assessment/part2';
-      return '/assessments';
+      return '/roadmap';
     }
     if (code === 'hidden_value_audit') {
       return '/assessment/part3';
@@ -1213,27 +1213,7 @@ export default function UnifiedDashboardPage() {
           )}
         </div>
 
-        {/* Quick Links */}
-        {(services.some(s => s.serviceCode === '365_method' || s.serviceCode === '365_alignment')) && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {gaSprintData?.hasSprint ? (
-              <>
-                <QuickLink to="/tasks" icon={Target} label="Sprint" />
-                <QuickLink to="/progress" icon={BarChart3} label="Progress" />
-                <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
-                <QuickLink to="/chat" icon="💬" label="Chat" />
-                <QuickLink to="/appointments" icon="📅" label="Book Call" />
-              </>
-            ) : (
-              <>
-                <QuickLink to="/assessments" icon={Target} label="Assessments" />
-                <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
-                <QuickLink to="/chat" icon="💬" label="Chat" />
-                <QuickLink to="/appointments" icon="📅" label="Book Call" />
-              </>
-            )}
-          </div>
-        )}
+        {/* Quick Links removed — GA navigation is in the GA sidebar, accessed by clicking the GA card */}
 
         {/* Help Section */}
         <div className="bg-slate-50 rounded-xl border border-slate-200 p-6">
