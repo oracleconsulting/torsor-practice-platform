@@ -202,6 +202,18 @@ export function ClientRoadmapPreview({ client, roadmapData, valueAnalysis, insig
                     </div>
                   </details>
                 ))}
+                {sprint?.futureSprints && (
+                  <div className="mt-8 pt-6 border-t border-slate-200">
+                    <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2">{sprint.futureSprints.title || 'Coming in Future Sprints'}</h4>
+                    {sprint.futureSprints.intro && <p className="text-sm text-slate-500 mb-4">{sprint.futureSprints.intro}</p>}
+                    <div className="space-y-3">
+                      {sprint.futureSprints.sprints?.map((s: any) => (
+                        <div key={s.sprint} className="flex items-start gap-3"><span className="bg-slate-200 text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0">{s.sprint}</span><p className="text-sm text-slate-600 pt-1">{s.focus}</p></div>
+                      ))}
+                    </div>
+                    {sprint.futureSprints.note && <p className="text-xs text-slate-400 mt-4 italic">{sprint.futureSprints.note}</p>}
+                  </div>
+                )}
               </div>
             )}
 
@@ -217,10 +229,22 @@ export function ClientRoadmapPreview({ client, roadmapData, valueAnalysis, insig
                     )}
                   </div>
                 )}
+                {valueAnalysis.pressurePoints && (
+                  <div>
+                    <h4 className="text-sm font-bold text-amber-800 mb-3">{valueAnalysis.pressurePoints.title || 'Where the Pressure Points Are'}</h4>
+                    <div className="space-y-3">{valueAnalysis.pressurePoints.items?.map((item: string, i: number) => (
+                      <div key={i} className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3"><span className="text-amber-500 mt-0.5 shrink-0">⚠️</span><p className="text-sm text-amber-900">{item}</p></div>
+                    ))}</div>
+                  </div>
+                )}
                 <div className="grid grid-cols-3 gap-4">
                   {valueAnalysis.overallScore != null && <div className="bg-emerald-50 rounded-lg p-4 text-center"><p className="text-3xl font-bold text-emerald-600">{valueAnalysis.overallScore}/100</p><p className="text-xs text-emerald-700 mt-1">Business Score</p></div>}
                   {valueAnalysis.totalOpportunity != null && valueAnalysis.totalOpportunity > 0 && <div className="bg-blue-50 rounded-lg p-4 text-center"><p className="text-3xl font-bold text-blue-600">£{Number(valueAnalysis.totalOpportunity).toLocaleString()}</p><p className="text-xs text-blue-700 mt-1">Opportunity</p></div>}
-                  {valueAnalysis.riskRegister?.length > 0 && <div className="bg-red-50 rounded-lg p-4 text-center"><p className="text-3xl font-bold text-red-600">{valueAnalysis.riskRegister.filter((r: any) => r.severity === 'Critical').length}</p><p className="text-xs text-red-700 mt-1">Critical Risks</p></div>}
+                  {valueAnalysis?.clientMetrics?.showExitReadiness ? (
+                    <div className="bg-amber-50 rounded-lg p-4 text-center"><p className="text-3xl font-bold text-amber-600">{valueAnalysis.clientMetrics.exitReadinessScore}/100</p><p className="text-xs text-amber-700 mt-1">{valueAnalysis.clientMetrics.exitReadinessLabel || 'Exit Readiness'}</p>{valueAnalysis.clientMetrics.exitReadinessContext && <p className="text-xs text-amber-500 mt-0.5">{valueAnalysis.clientMetrics.exitReadinessContext}</p>}</div>
+                  ) : valueAnalysis.riskRegister?.length > 0 ? (
+                    <div className="bg-red-50 rounded-lg p-4 text-center"><p className="text-3xl font-bold text-red-600">{valueAnalysis.riskRegister.filter((r: any) => r.severity === 'Critical').length}</p><p className="text-xs text-red-700 mt-1">Critical Risks</p></div>
+                  ) : null}
                 </div>
                 {valueAnalysis.businessValuation && (
                   <div className="grid grid-cols-2 gap-4">

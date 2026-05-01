@@ -22,6 +22,7 @@ const SECTION_LABELS: Record<SectionId, string> = {
   kpis: 'KPIs',
   revenue_trend: 'Revenue Trend',
   documents: 'Documents',
+  catalog_metrics: 'Catalog Metrics',
 };
 
 export function SectionWrapper({
