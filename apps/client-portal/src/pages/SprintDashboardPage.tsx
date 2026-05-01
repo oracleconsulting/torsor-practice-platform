@@ -136,15 +136,19 @@ function getCurrentWeekFromTasks(tasks: any[]): number {
 
 function computeWeekGating(
   weeks: any[],
-  dbTasks: any[]
+  dbTasks: any[],
+  pulseWeeks?: Set<number>
 ): {
   activeWeek: number;
   resolvedWeeks: number[];
   lockedWeeks: number[];
   isWeekResolved: (weekNum: number) => boolean;
   isWeekLocked: (weekNum: number) => boolean;
+  /** Weeks where tasks are done but pulse is missing */
+  needsPulse: (weekNum: number) => boolean;
 } {
   const resolvedWeeks: number[] = [];
+  const tasksDoneWeeks: number[] = [];
 
   for (let i = 0; i < (weeks?.length || 0); i++) {
     const week = weeks[i];
@@ -152,15 +156,21 @@ function computeWeekGating(
     const generatedTasks = week?.tasks || [];
     const weekDbTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
 
-    const allResolved =
+    const allTasksDone =
       generatedTasks.length > 0 &&
       generatedTasks.every((gt: any) => {
         const dbTask = weekDbTasks.find((t: any) => t.title === gt.title);
         return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
       });
 
-    if (allResolved) {
-      resolvedWeeks.push(weekNum);
+    if (allTasksDone) {
+      tasksDoneWeeks.push(weekNum);
+      const hasPulse = !pulseWeeks || pulseWeeks.has(weekNum);
+      if (hasPulse) {
+        resolvedWeeks.push(weekNum);
+      } else {
+        break;
+      }
     } else {
       break;
     }
@@ -181,6 +191,7 @@ function computeWeekGating(
     lockedWeeks,
     isWeekResolved: (w) => resolvedWeeks.includes(w),
     isWeekLocked: (w) => lockedWeeks.includes(w),
+    needsPulse: (w) => tasksDoneWeeks.includes(w) && !resolvedWeeks.includes(w),
   };
 }
 
@@ -1106,7 +1117,8 @@ export default function SprintDashboardPage() {
   const allWeeksResolved = completionState.isSprintComplete;
   const showSprintSummary = !!sprintSummaryFromRoadmap && allWeeksResolved;
 
-  const gating = computeWeekGating(weeks, tasks);
+  // Compute initial gating (without pulse) to get activeWeek for the hook
+  const gatingNoGate = computeWeekGating(weeks, tasks);
   const {
     scores: lifeScores,
     currentScore: lifeScore,
@@ -1114,9 +1126,14 @@ export default function SprintDashboardPage() {
     categoryScores,
     submitPulse,
     hasPulseThisWeek,
+    hasPulseForWeek,
+    pulseWeeks,
     recalculateScore,
     loading: lifeLoading,
-  } = useLifeAlignment(currentSprintNumber, gating.activeWeek);
+  } = useLifeAlignment(currentSprintNumber, gatingNoGate.activeWeek);
+
+  // Recompute gating WITH pulse data as a week-completion gate
+  const gating = computeWeekGating(weeks, tasks, pulseWeeks);
 
   const calendarWeek = getCalendarWeek(sprintStartDate);
   const catchUpState = useCatchUpDetection(
@@ -1610,27 +1627,29 @@ export default function SprintDashboardPage() {
               </span>
             </div>
           )}
-          {/* Life Alignment — before Tuesday Check-In */}
+          {/* Life Alignment overview */}
           {!isBehind && !completionState.isSprintComplete && (
-            <>
-              <LifeAlignmentCard
-                scores={lifeScores}
+            <LifeAlignmentCard
+              scores={lifeScores}
+              currentScore={lifeScore}
+              trend={lifeTrend}
+              categoryScores={categoryScores}
+            />
+          )}
+          {/* Life Pulse — shown when active week tasks are done but pulse not submitted */}
+          {gating.needsPulse(gating.activeWeek) && (
+            <div className="bg-rose-50 border border-rose-200 rounded-xl p-5">
+              <p className="text-sm text-rose-700 mb-2 font-medium">Complete your life pulse to unlock Week {Math.min(gating.activeWeek + 1, 12)}</p>
+              <LifePulseCard
+                sprintNumber={currentSprintNumber}
+                weekNumber={gating.activeWeek}
+                isCatchUp={isBehind}
+                isSprintComplete={completionState.isSprintComplete}
+                onSubmit={submitPulse}
                 currentScore={lifeScore}
-                trend={lifeTrend}
-                categoryScores={categoryScores}
+                loading={lifeLoading}
               />
-              {!hasPulseThisWeek && (
-                <LifePulseCard
-                  sprintNumber={currentSprintNumber}
-                  weekNumber={gating.activeWeek}
-                  isCatchUp={isBehind}
-                  isSprintComplete={completionState.isSprintComplete}
-                  onSubmit={submitPulse}
-                  currentScore={lifeScore}
-                  loading={lifeLoading}
-                />
-              )}
-            </>
+            </div>
           )}
           {displayWeekData?.tuesdayCheckIn && !showSprintSummary && (
             <TuesdayCheckInCard

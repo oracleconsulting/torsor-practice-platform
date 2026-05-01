@@ -92,6 +92,8 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
   }, [fetchPulseAndScores]);
 
   const hasPulseThisWeek = pulse.some((p) => p.week_number === currentWeek);
+  const hasPulseForWeek = (weekNum: number) => pulse.some((p) => p.week_number === weekNum);
+  const pulseWeeks = new Set(pulse.map(p => p.week_number));
 
   const latestScore = scores.length > 0 ? scores[scores.length - 1] : null;
   const currentScore = latestScore != null ? Number(latestScore.overall_score) : null;
@@ -240,6 +242,8 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
     submitPulse,
     recalculateScore,
     hasPulseThisWeek,
+    hasPulseForWeek,
+    pulseWeeks,
     loading,
     refetch: fetchPulseAndScores,
   };
