@@ -44,3 +44,5 @@ vite.config.ts.timestamp-*
 *.log
 # Trigger rebuild
 supabase/.temp/
+tsconfig.tsbuildinfo
+*.tsbuildinfo
