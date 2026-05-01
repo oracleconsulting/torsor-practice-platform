@@ -1,0 +1,174 @@
+-- ============================================================================
+-- RENAME MANAGEMENT ACCOUNTS TO BUSINESS INTELLIGENCE
+-- Strategy: INSERT new → UPDATE children → DELETE old
+-- ============================================================================
+
+-- ============================================================================
+-- STEP 1: INSERT NEW business_intelligence ROW
+-- Copy all columns dynamically from the existing management_accounts row
+-- ============================================================================
+
+-- First, let's just insert with the core required fields
+INSERT INTO service_line_metadata (code, name, core_function, problems_addressed, pricing, status)
+SELECT 
+  'business_intelligence',
+  'Business Intelligence',
+  'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling',
+  problems_addressed,
+  pricing,
+  status
+FROM service_line_metadata 
+WHERE code = 'management_accounts'
+ON CONFLICT (code) DO NOTHING;
+
+-- If management_accounts doesn't exist, insert a fresh row
+INSERT INTO service_line_metadata (code, name, core_function, problems_addressed, pricing, status)
+SELECT 
+  'business_intelligence',
+  'Business Intelligence',
+  'Financial clarity with True Cash position, KPIs, AI insights, forecasts and scenario modelling',
+  ARRAY['Lack of financial visibility', 'Cash flow uncertainty', 'Decision-making without data'],
+  '{"base": 650, "currency": "GBP", "frequency": "monthly"}'::jsonb,
+  'active'
+WHERE NOT EXISTS (SELECT 1 FROM service_line_metadata WHERE code = 'business_intelligence');
+
+-- ============================================================================
+-- STEP 2: UPDATE ALL CHILD TABLES TO POINT TO NEW CODE
+-- ============================================================================
+
+-- 2a. UPDATE SERVICE_TIMING_RULES
+UPDATE service_timing_rules 
+SET service_code = 'business_intelligence' 
+WHERE service_code = 'management_accounts';
+
+-- 2b. UPDATE SERVICE_ADVISORY_TRIGGERS
+UPDATE service_advisory_triggers 
+SET service_code = 'business_intelligence' 
+WHERE service_code = 'management_accounts';
+
+-- 2c. UPDATE SERVICE_CONTRAINDICATIONS
+UPDATE service_contraindications 
+SET service_code = 'business_intelligence' 
+WHERE service_code = 'management_accounts';
+
+-- 2d. UPDATE SERVICE_VALUE_CALCULATIONS
+UPDATE service_value_calculations 
+SET service_code = 'business_intelligence' 
+WHERE service_code = 'management_accounts';
+
+-- 2e. UPDATE SERVICE_NARRATIVE_TEMPLATES
+UPDATE service_narrative_templates 
+SET service_code = 'business_intelligence' 
+WHERE service_code = 'management_accounts';
+
+-- 2f. UPDATE ADVISORY_OVERSELLING_RULES (array columns)
+UPDATE advisory_overselling_rules 
+SET priority_services = array_replace(priority_services, 'management_accounts', 'business_intelligence')
+WHERE 'management_accounts' = ANY(priority_services);
+
+UPDATE advisory_overselling_rules 
+SET excluded_services = array_replace(excluded_services, 'management_accounts', 'business_intelligence')
+WHERE 'management_accounts' = ANY(excluded_services);
+
+-- ============================================================================
+-- STEP 3: DELETE OLD management_accounts ROW (children now point to new code)
+-- ============================================================================
+
+DELETE FROM service_line_metadata WHERE code = 'management_accounts';
+
+-- ============================================================================
+-- STEP 4: UPDATE OTHER TABLES (no FK to service_line_metadata)
+-- ============================================================================
+
+-- 4a. UPDATE SERVICE_LINE_ASSESSMENTS
+UPDATE service_line_assessments 
+SET service_line_code = 'business_intelligence' 
+WHERE service_line_code = 'management_accounts';
+
+-- 4b. UPDATE CLIENT_SERVICE_LINES (if exists) - uses service_line_id which is a UUID FK
+-- This table links to service_lines by ID, so we need to update via the service_lines table instead
+-- (handled in step 4g below)
+
+-- 4c. BI_ENGAGEMENTS - no service_code column, skip
+-- 4d. MA_ENGAGEMENTS - no service_code column, skip
+
+-- 4e. UPDATE CLIENT_CONTEXT JSONB DATA
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_context') THEN
+    EXECUTE '
+      UPDATE client_context 
+      SET content = REPLACE(content::text, ''management_accounts'', ''business_intelligence'')::jsonb
+      WHERE content::text LIKE ''%management_accounts%''
+    ';
+  END IF;
+END $$;
+
+-- 4f. ASSESSMENT_QUESTIONS - no assessment_type column, skip
+
+-- 4g. UPDATE SERVICE_LINES TABLE (with FK-safe pattern: insert → update children → delete)
+DO $$
+DECLARE
+  old_id UUID;
+  new_id UUID;
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'service_lines') THEN
+    -- Get the old management_accounts ID
+    SELECT id INTO old_id FROM service_lines WHERE code = 'management_accounts';
+    
+    IF old_id IS NOT NULL THEN
+      -- Insert new business_intelligence row (only code and name columns)
+      INSERT INTO service_lines (code, name)
+      VALUES ('business_intelligence', 'Business Intelligence')
+      ON CONFLICT (code) DO NOTHING
+      RETURNING id INTO new_id;
+      
+      -- Get the new ID if insert was skipped due to conflict
+      IF new_id IS NULL THEN
+        SELECT id INTO new_id FROM service_lines WHERE code = 'business_intelligence';
+      END IF;
+      
+      -- Update service_scoring_weights to point to new code
+      IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'service_scoring_weights') THEN
+        UPDATE service_scoring_weights SET service_code = 'business_intelligence' WHERE service_code = 'management_accounts';
+      END IF;
+      
+      -- Update client_service_lines FK to point to new ID
+      IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_service_lines') AND new_id IS NOT NULL THEN
+        UPDATE client_service_lines SET service_line_id = new_id WHERE service_line_id = old_id;
+      END IF;
+      
+      -- Delete old management_accounts row
+      DELETE FROM service_lines WHERE code = 'management_accounts';
+    ELSE
+      -- No management_accounts exists, just ensure business_intelligence exists
+      INSERT INTO service_lines (code, name)
+      SELECT 'business_intelligence', 'Business Intelligence'
+      WHERE NOT EXISTS (SELECT 1 FROM service_lines WHERE code = 'business_intelligence');
+    END IF;
+  END IF;
+END $$;
+
+-- 4h. UPDATE CLIENT_SERVICE_LINE_ASSIGNMENTS (if exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_service_line_assignments') THEN
+    EXECUTE 'UPDATE client_service_line_assignments SET service_line_code = ''business_intelligence'' WHERE service_line_code = ''management_accounts''';
+  END IF;
+END $$;
+
+-- 4i. UPDATE PRACTICE_SERVICE_LINES (if exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'practice_service_lines') THEN
+    EXECUTE 'UPDATE practice_service_lines SET service_line_code = ''business_intelligence'' WHERE service_line_code = ''management_accounts''';
+  END IF;
+END $$;
+
+-- ============================================================================
+-- VERIFICATION
+-- ============================================================================
+
+SELECT 'Migration Complete' as status,
+       (SELECT COUNT(*) FROM service_line_metadata WHERE code = 'business_intelligence') as bi_exists,
+       (SELECT COUNT(*) FROM service_line_metadata WHERE code = 'management_accounts') as ma_removed;
