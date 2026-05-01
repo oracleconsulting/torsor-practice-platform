@@ -1084,6 +1084,7 @@ export default function SprintDashboardPage() {
   } | null>(null);
   const [catchUpMode, setCatchUpMode] = useState(false);
   const [sprintStartDate, setSprintStartDate] = useState<string | null>(null);
+  const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
   const [sprintSummary, setSprintSummary] = useState<{ summary: any; analytics: any } | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [renewalState, setRenewalState] = useState<RenewalEligibility | null>(null);
@@ -1173,18 +1174,15 @@ export default function SprintDashboardPage() {
   useEffect(() => {
     async function fetchSprintStart() {
       if (!clientSession?.clientId) return;
-      const { data } = await supabase
-        .from('roadmap_stages')
-        .select('created_at, approved_at, published_at')
-        .eq('client_id', clientSession.clientId)
-        .in('stage_type', ['sprint_plan_part2', 'sprint_plan'])
-        .in('status', ['generated', 'approved', 'published'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data) {
-        setSprintStartDate(data.published_at || data.approved_at || data.created_at);
+      // Priority 1: client-chosen sprint_start_date from enrollment
+      const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+      if (sl?.id) {
+        const { data: enrollment } = await supabase.from('client_service_lines').select('sprint_start_date').eq('client_id', clientSession.clientId).eq('service_line_id', sl.id).maybeSingle();
+        if (enrollment?.sprint_start_date) { setSprintStartDate(enrollment.sprint_start_date); return; }
       }
+      // Fallback: stage published/created date
+      const { data } = await supabase.from('roadmap_stages').select('created_at, approved_at, published_at').eq('client_id', clientSession.clientId).in('stage_type', ['sprint_plan_part2', 'sprint_plan']).in('status', ['published', 'approved']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (data) { setSprintStartDate(data.published_at || data.approved_at || data.created_at); }
     }
     fetchSprintStart();
   }, [clientSession?.clientId]);
@@ -1548,6 +1546,24 @@ export default function SprintDashboardPage() {
         />
       ) : (
         <div className="space-y-6">
+          {/* Sprint Start Date Selector — shown when sprint is published but no start date set */}
+          {!sprintStartDate && weeks.length > 0 && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
+              <h3 className="font-semibold text-indigo-900 text-lg mb-2">When do you want to start?</h3>
+              <p className="text-sm text-indigo-700 mb-4">Your 12-week sprint is ready. Pick the Monday you want to begin — Week 1 tasks will unlock on that date.</p>
+              <div className="flex items-center gap-4">
+                <input type="date" value={selectedStartDate || (() => { const d = new Date(); const day = d.getDay(); d.setDate(d.getDate() + (day <= 1 ? (1 - day) : (8 - day))); return d.toISOString().split('T')[0]; })()} onChange={(e) => setSelectedStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="border border-indigo-300 rounded-lg px-3 py-2 text-sm" />
+                <button onClick={async () => {
+                  const date = selectedStartDate || (() => { const d = new Date(); const day = d.getDay(); d.setDate(d.getDate() + (day <= 1 ? (1 - day) : (8 - day))); return d.toISOString().split('T')[0]; })();
+                  const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+                  if (sl?.id && clientSession?.clientId) {
+                    await supabase.from('client_service_lines').update({ sprint_start_date: date }).eq('client_id', clientSession.clientId).eq('service_line_id', sl.id);
+                    setSprintStartDate(date);
+                  }
+                }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Start Sprint</button>
+              </div>
+            </div>
+          )}
           {showSprintSummary && (
             <SprintSummaryClientView
               summary={sprintSummaryFromRoadmap}

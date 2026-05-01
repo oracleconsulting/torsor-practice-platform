@@ -6978,7 +6978,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         if (sl?.id) {
           const { data: enrollmentRow } = await supabase
             .from('client_service_lines')
-            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status, advisor_notes')
+            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status, advisor_notes, sprint_start_date')
             .eq('client_id', clientId)
             .eq('service_line_id', sl.id)
             .maybeSingle();
@@ -7874,9 +7874,16 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         ))}
                       </div>
                       {client?.gaEnrollment && (
-                        <p className="text-xs text-slate-400 mt-2">
-                          Current: Sprint {client.gaEnrollment.current_sprint_number ?? 1} of {client.gaEnrollment.max_sprints ?? 1}
-                        </p>
+                        <div className="mt-2 space-y-1">
+                          <p className="text-xs text-slate-400">
+                            Current: Sprint {client.gaEnrollment.current_sprint_number ?? 1} of {client.gaEnrollment.max_sprints ?? 1}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-slate-400">Start date:</label>
+                            <input type="date" value={client.gaEnrollment.sprint_start_date || ''} onChange={async (e) => { await supabase.from('client_service_lines').update({ sprint_start_date: e.target.value || null }).eq('client_id', clientId).eq('service_line_id', client.gaEnrollment.service_line_id); fetchClientDetail(); }} className="border border-slate-200 rounded px-2 py-0.5 text-xs" />
+                            {!client.gaEnrollment.sprint_start_date && <span className="text-xs text-amber-500">Not set</span>}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}

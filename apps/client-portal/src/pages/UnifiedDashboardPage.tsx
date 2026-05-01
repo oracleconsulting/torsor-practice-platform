@@ -368,7 +368,7 @@ export default function UnifiedDashboardPage() {
             setGASprintData({ hasRoadmap: false, hasSprint: false, sprintNumber: 0, activeWeek: 0, totalWeeks: 12, completionRate: 0, completedTasks: 0, totalTasks: 0, isSprintComplete: false, hasLifeCheckPending: false, hasCatchUpNeeded: false, weeksBehind: 0, nextTaskTitle: null, sprintTheme: null });
           } else {
           const [enrollRow, sprintStage] = await Promise.all([
-            supabase.from('client_service_lines').select('current_sprint_number, tier_name, renewal_status').eq('client_id', clientId).eq('service_line_id', slId).maybeSingle(),
+            supabase.from('client_service_lines').select('current_sprint_number, tier_name, renewal_status, sprint_start_date').eq('client_id', clientId).eq('service_line_id', slId).maybeSingle(),
             supabase.from('roadmap_stages').select('generated_content, approved_content, created_at').eq('client_id', clientId).eq('stage_type', 'sprint_plan_part2').eq('sprint_number', 1).order('version', { ascending: false }).limit(1).maybeSingle(),
           ]);
           let enrollment = enrollRow.data;
@@ -421,12 +421,13 @@ export default function UnifiedDashboardPage() {
               if (week.weekNumber === totalWeeks && allResolved) activeWeek = totalWeeks;
             }
 
-            const sprintStartDate = sprintContent.startDate || sprintStageCorrect.data?.created_at;
+            const sprintStartDate = enrollment?.sprint_start_date || sprintContent.startDate || sprintStageCorrect.data?.created_at;
             let calendarWeek = activeWeek;
             if (sprintStartDate) {
               const start = new Date(sprintStartDate);
               const now = new Date();
-              calendarWeek = Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+              const diffWeeks = Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+              calendarWeek = diffWeeks < 1 ? 0 : Math.min(diffWeeks, 12);
             }
 
             const isSprintComplete = resolvedWeeks === totalWeeks;
