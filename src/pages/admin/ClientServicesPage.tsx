@@ -59,6 +59,7 @@ import {
   Map as MapIcon
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
+import { ClientRoadmapPreview } from '../../components/admin/ClientRoadmapPreview';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
 import BenchmarkingClientDashboard from '../../components/benchmarking/client/BenchmarkingClientDashboard';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
@@ -6597,6 +6598,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [generatingValueAnalysis, setGeneratingValueAnalysis] = useState(false);
   // Regenerate state (no longer using selective options - regenerates all stages)
   const [regenerating, setRegenerating] = useState(false);
+  const [showClientPreview, setShowClientPreview] = useState(false);
   
   // Sprint editing state
   const [editingTask, setEditingTask] = useState<{weekNumber: number, taskId: string, original: any} | null>(null);
@@ -7642,7 +7644,30 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
     }
   };
 
+  const handlePublishAll = async () => {
+    if (!confirm('Publish all roadmap stages to the client portal?')) return;
+    try {
+      const stageIds = (client?.roadmapStages || []).filter((s: any) => s.status === 'generated' && ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type)).map((s: any) => s.id);
+      if (stageIds.length > 0) await supabase.from('roadmap_stages').update({ status: 'published' }).in('id', stageIds);
+      if (client?.roadmap?.id) await supabase.from('client_roadmaps').update({ status: 'published' }).eq('id', client.roadmap.id);
+      try { await supabase.functions.invoke('notify-roadmap-ready', { body: { clientId } }); } catch {}
+      alert(`Published ${stageIds.length} stages.`);
+      await fetchClientDetail();
+    } catch (e) { console.error(e); alert('Failed to publish.'); }
+  };
+
   return (
+    <>
+    {showClientPreview && client?.roadmap?.roadmap_data && (
+      <ClientRoadmapPreview
+        client={{ name: client.name || 'Client', company: client.client_company || '' }}
+        roadmapData={client.roadmap.roadmap_data}
+        valueAnalysis={(() => { const s = (client.roadmapStages || []).find((s: any) => s.stage_type === 'value_analysis' && ['generated', 'approved', 'published'].includes(s.status)); return s?.approved_content || s?.generated_content; })()}
+        insightReport={(() => { const s = (client.roadmapStages || []).find((s: any) => s.stage_type === 'insight_report' && ['approved', 'published'].includes(s.status)); return s?.approved_content || s?.generated_content; })()}
+        onClose={() => setShowClientPreview(false)}
+        onPublish={() => { setShowClientPreview(false); handlePublishAll(); }}
+      />
+    )}
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Modal Header */}
@@ -9772,6 +9797,16 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
 
                           return (
                             <>
+                              {(hasGeneratedStages || allStagesPublished) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowClientPreview(true)}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 text-sm font-medium"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  Preview as Client
+                                </button>
+                              )}
                               {hasGeneratedStages && (
                                 <button
                                   onClick={async () => {
@@ -11597,6 +11632,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
         </div>
       </div>
     </div>
+    </>
   );
 }
 
