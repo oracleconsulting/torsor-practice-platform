@@ -9,6 +9,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
+import { validateGAContent } from '../_shared/ga-content-validator.ts';
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
@@ -342,19 +344,9 @@ async function generateShift(ctx: any, enrichmentBlock = ''): Promise<any> {
       max_tokens: 4000,
       temperature: 0.6,
       messages: [
-        { 
-          role: 'system', 
-          content: `You create the bridge between where someone is now and their Year 1 milestone.
-This is not a project plan—it's the first chapter of their transformation.
-Parse THEIR "six_month_shifts" answer into concrete milestones. Don't invent things they didn't ask for.
-Use their exact words. Be specific to their situation.
-
-ANTI-AI-SLOP RULES:
-BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
-BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
-THE TEST: If it sounds corporate, rewrite it. Sound like a human advisor.
-
-British English only (organise, colour, £). Return ONLY valid JSON.`
+        {
+          role: 'system',
+          content: GA_SYSTEM_PROMPT,
         },
         { role: 'user', content: fullPrompt }
       ]
@@ -381,14 +373,32 @@ British English only (organise, colour, £). Return ONLY valid JSON.`
     throw new Error('Failed to parse shift JSON - no JSON object found');
   }
   
+  let parsed: any;
   try {
-  return JSON.parse(cleaned.substring(start, end + 1));
+    parsed = JSON.parse(cleaned.substring(start, end + 1));
   } catch (parseError) {
     console.error('JSON parse error, attempting repair...');
     let fixedJson = cleaned.substring(start, end + 1);
     fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
-    return JSON.parse(fixedJson);
+    parsed = JSON.parse(fixedJson);
   }
+
+  // Tone validation: log violations and auto-fix em dashes before persisting
+  const validation = validateGAContent(JSON.stringify(parsed));
+  if (!validation.passed) {
+    console.warn('[GA Validator] generate-six-month-shift content violations:', validation.violations);
+    try {
+      const refixed = JSON.parse(validation.autoFixed);
+      if (JSON.stringify(refixed) !== JSON.stringify(parsed)) {
+        parsed = refixed;
+        console.log('[GA Validator] Auto-fixed em dashes in six-month shift');
+      }
+    } catch (fixErr) {
+      console.warn('[GA Validator] auto-fix re-parse failed, keeping original:', fixErr);
+    }
+  }
+
+  return parsed;
 }
 
 function buildShiftPrompt(ctx: any): string {

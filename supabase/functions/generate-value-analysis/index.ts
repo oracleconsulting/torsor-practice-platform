@@ -13,6 +13,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
+import { validateGAContent } from '../_shared/ga-content-validator.ts';
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
@@ -1073,9 +1075,9 @@ RULES:
         max_tokens: 1500,
         temperature: 0.6,
         messages: [
-          { 
-            role: 'system', 
-            content: 'You surface financial truths that clients need to hear. Be direct but human. Return only valid JSON.'
+          {
+            role: 'system',
+            content: GA_SYSTEM_PROMPT,
           },
           { role: 'user', content: prompt }
         ]
@@ -1092,10 +1094,27 @@ RULES:
     const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');
-    
+
     if (start === -1 || end === -1) return null;
-    
-    return JSON.parse(cleaned.substring(start, end + 1));
+
+    let parsed = JSON.parse(cleaned.substring(start, end + 1));
+
+    // Tone validation: log violations and auto-fix em dashes before returning
+    const validation = validateGAContent(JSON.stringify(parsed));
+    if (!validation.passed) {
+      console.warn('[GA Validator] generate-value-analysis content violations:', validation.violations);
+      try {
+        const refixed = JSON.parse(validation.autoFixed);
+        if (JSON.stringify(refixed) !== JSON.stringify(parsed)) {
+          parsed = refixed;
+          console.log('[GA Validator] Auto-fixed em dashes in value analysis narrative');
+        }
+      } catch (fixErr) {
+        console.warn('[GA Validator] auto-fix re-parse failed, keeping original:', fixErr);
+      }
+    }
+
+    return parsed;
   } catch (error) {
     console.error('Narrative generation error:', error);
     return null;

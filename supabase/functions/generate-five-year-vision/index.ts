@@ -9,6 +9,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
+import { validateGAContent } from '../_shared/ga-content-validator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -309,19 +311,9 @@ async function generateTransformationNarrative(ctx: VisionContext): Promise<any>
       max_tokens: 4000,
       temperature: 0.7,
       messages: [
-        { 
-          role: 'system', 
-          content: `You are writing the opening chapter of someone's transformation story. 
-This is not a business plan—it's the future they can taste, told so vividly they can feel the coffee cup in their hands on that Tuesday morning five years from now.
-
-Use THEIR exact words. Be specific to THEIR situation. Make them feel SEEN.
-
-ANTI-AI-SLOP RULES:
-BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem, vibrant, intricate
-BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
-THE TEST: If it sounds corporate, rewrite it. Sound like a story, not a strategy doc.
-
-Return ONLY valid JSON - no markdown, no explanation. British English only (organise, colour, £).`
+        {
+          role: 'system',
+          content: GA_SYSTEM_PROMPT,
         },
         { role: 'user', content: prompt }
       ]
@@ -347,17 +339,33 @@ Return ONLY valid JSON - no markdown, no explanation. British English only (orga
     throw new Error('Failed to parse vision JSON');
   }
   
+  let parsed: any;
   try {
-    const parsed = JSON.parse(cleaned.substring(start, end + 1));
+    parsed = JSON.parse(cleaned.substring(start, end + 1));
     console.log('Transformation narrative parsed successfully');
-    return parsed;
   } catch (parseError) {
     console.error('JSON parse error:', parseError);
-    // Try to repair JSON
     let fixedJson = cleaned.substring(start, end + 1);
     fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
-    return JSON.parse(fixedJson);
+    parsed = JSON.parse(fixedJson);
   }
+
+  // Tone validation: log violations and auto-fix em dashes before persisting
+  const validation = validateGAContent(JSON.stringify(parsed));
+  if (!validation.passed) {
+    console.warn('[GA Validator] generate-five-year-vision content violations:', validation.violations);
+    try {
+      const refixed = JSON.parse(validation.autoFixed);
+      if (JSON.stringify(refixed) !== JSON.stringify(parsed)) {
+        parsed = refixed;
+        console.log('[GA Validator] Auto-fixed em dashes in five-year vision');
+      }
+    } catch (fixErr) {
+      console.warn('[GA Validator] auto-fix re-parse failed, keeping original:', fixErr);
+    }
+  }
+
+  return parsed;
 }
 
 function buildNarrativePrompt(ctx: VisionContext): string {

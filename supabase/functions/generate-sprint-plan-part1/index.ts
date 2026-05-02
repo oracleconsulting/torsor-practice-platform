@@ -11,6 +11,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
+import { validateGAContent } from '../_shared/ga-content-validator.ts';
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
@@ -482,19 +484,9 @@ async function generateSprintPart1(ctx: any, enrichmentBlock = ''): Promise<any>
         temperature: 0.5,
         response_format: { type: "json_object" },
         messages: [
-          { 
-            role: 'system', 
-            content: `You create transformation journeys, not task lists.
-Every week has a narrative—WHY it matters to their LIFE, not just business.
-Every task connects to their North Star.
-Use their exact words. Be specific to their situation.
-
-ANTI-AI-SLOP RULES:
-BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
-BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
-THE TEST: If it sounds corporate, rewrite it. Sound like a transformation story.
-
-British English only (organise, colour, £). Return ONLY valid JSON. Ensure all strings are properly escaped.`
+          {
+            role: 'system',
+            content: GA_SYSTEM_PROMPT,
           },
           { role: 'user', content: prompt }
         ]
@@ -538,6 +530,22 @@ British English only (organise, colour, £). Return ONLY valid JSON. Ensure all 
     parsed = repairComplexJson(jsonString);
   }
   injectLifeTasksIfMissing(parsed, ctx?.lifeDesignProfile);
+
+  // Tone validation: log violations and auto-fix em dashes before persisting
+  const validation = validateGAContent(JSON.stringify(parsed));
+  if (!validation.passed) {
+    console.warn('[GA Validator] generate-sprint-plan-part1 content violations:', validation.violations);
+    try {
+      const refixed = JSON.parse(validation.autoFixed);
+      if (JSON.stringify(refixed) !== JSON.stringify(parsed)) {
+        parsed = refixed;
+        console.log('[GA Validator] Auto-fixed em dashes in sprint plan part 1');
+      }
+    } catch (fixErr) {
+      console.warn('[GA Validator] auto-fix re-parse failed, keeping original:', fixErr);
+    }
+  }
+
   return parsed;
 }
 
@@ -556,10 +564,10 @@ function injectLifeTasksIfMissing(generated: any, lifeDesignProfile: any) {
       title: recurring.commitment,
       description: `This is your life commitment, not a business task. ${recurring.measurable || ''}`,
       category: `life_${recurring.category}`,
-      whyThisMatters: "You identified this as essential to the life you're building. The business exists to make this possible.",
+      whyThisMatters: "You said this matters. The business should make space for it, not the other way round.",
       timeEstimate: '1 hour',
-      deliverable: recurring.measurable || 'Honour this commitment.',
-      celebrationMoment: 'Notice how it feels to honour this commitment to yourself.'
+      deliverable: recurring.measurable || 'Block the time and protect it.',
+      celebrationMoment: 'Done. Keep going next week.'
     });
     console.warn(`[Sprint] Week ${wNum} missing life task — injected from commitments`);
   }

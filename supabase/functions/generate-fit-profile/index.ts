@@ -10,6 +10,8 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
+import { validateGAContent } from '../_shared/ga-content-validator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -427,17 +429,9 @@ CRITICAL RULES:
         max_tokens: 2500,
         temperature: 0.7,
         messages: [
-          { 
-            role: 'system', 
-            content: `You craft transformational narratives that make business owners feel truly understood. 
-You use their exact words—not business jargon. You mirror their emotions. You see what they don't see about themselves.
-McKinsey rigour. Tolkien wonder. Human truth.
-
-ANTI-AI-SLOP RULES:
-BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem, vibrant, intricate, enduring
-BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
-THE TEST: If it sounds corporate, rewrite it. Sound like poetry, not prose.
-Return only valid JSON.`
+          {
+            role: 'system',
+            content: GA_SYSTEM_PROMPT,
           },
           { role: 'user', content: prompt }
         ]
@@ -463,10 +457,26 @@ Return only valid JSON.`
       return generateTemplateNarrativeProfile(part1, signals);
     }
     
-    const parsed = JSON.parse(cleaned.substring(start, end + 1));
+    let parsed = JSON.parse(cleaned.substring(start, end + 1));
     console.log('Narrative profile parsed successfully');
+
+    // Tone validation: log violations and auto-fix em dashes before persisting
+    const validation = validateGAContent(JSON.stringify(parsed));
+    if (!validation.passed) {
+      console.warn('[GA Validator] generate-fit-profile content violations:', validation.violations);
+      try {
+        const refixed = JSON.parse(validation.autoFixed);
+        if (JSON.stringify(refixed) !== JSON.stringify(parsed)) {
+          parsed = refixed;
+          console.log('[GA Validator] Auto-fixed em dashes in fit profile');
+        }
+      } catch (fixErr) {
+        console.warn('[GA Validator] auto-fix re-parse failed, keeping original:', fixErr);
+      }
+    }
+
     return parsed;
-    
+
   } catch (e) {
     console.error('LLM error:', e);
     return generateTemplateNarrativeProfile(part1, signals);
