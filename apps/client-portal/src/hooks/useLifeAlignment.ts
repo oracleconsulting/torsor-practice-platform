@@ -140,7 +140,26 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
         : 0;
       const pulseAlignmentScore = Math.round((avgPulseRating / 5) * 10000) / 100;
 
-      const hoursAdherenceScore = 80;
+      // Derive hours adherence from real weekly check-in data ("yes" / "mostly" / "no")
+      // rather than a hard-coded floor.
+      const { data: checkinRows } = await supabase
+        .from('weekly_checkins')
+        .select('time_protected')
+        .eq('client_id', clientId)
+        .eq('sprint_number', sprintNumber);
+      const checkins = checkinRows ?? [];
+      const hoursAdherenceScore = checkins.length > 0
+        ? Math.round(
+            (checkins.reduce((sum: number, c: { time_protected: string }) => {
+              const v = String(c.time_protected || '').toLowerCase();
+              if (v === 'yes') return sum + 100;
+              if (v === 'mostly') return sum + 60;
+              if (v === 'no') return sum + 20;
+              return sum;
+            }, 0) /
+              checkins.length) * 100
+          ) / 100
+        : 0;
 
       const categoriesWithCompletion = new Set(
         completedLifeTasks.map((t: any) => t.category).filter(Boolean)

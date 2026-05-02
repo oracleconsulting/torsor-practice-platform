@@ -1636,20 +1636,76 @@ export default function SprintDashboardPage() {
               categoryScores={categoryScores}
             />
           )}
-          {/* Life Pulse — shown when active week tasks are done but pulse not submitted */}
-          {gating.needsPulse(gating.activeWeek) && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-5">
-              <p className="text-sm text-rose-700 mb-2 font-medium">Complete your life pulse to unlock Week {Math.min(gating.activeWeek + 1, 12)}</p>
-              <LifePulseCard
-                sprintNumber={currentSprintNumber}
-                weekNumber={gating.activeWeek}
-                isCatchUp={isBehind}
-                isSprintComplete={completionState.isSprintComplete}
-                onSubmit={submitPulse}
-                currentScore={lifeScore}
-                loading={lifeLoading}
-              />
-            </div>
+          {/* Week Unlock Status — always visible: shows what's needed to unlock next week */}
+          {!completionState.isSprintComplete && gating.activeWeek <= 12 && (() => {
+            const activeWeek = gating.activeWeek;
+            const generatedTasksThisWeek = (weeks[activeWeek - 1]?.tasks ?? []) as Array<{ title: string }>;
+            const dbTasksThisWeek = tasks.filter((t: any) => t.week_number === activeWeek);
+            const totalTasksThisWeek = generatedTasksThisWeek.length;
+            const tasksDoneCount = generatedTasksThisWeek.filter((gt) => {
+              const dbTask = dbTasksThisWeek.find((t: any) => t.title === gt.title);
+              return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
+            }).length;
+            const allTasksDoneNow = totalTasksThisWeek > 0 && tasksDoneCount === totalTasksThisWeek;
+            const pulseSubmittedNow = pulseWeeks.has(activeWeek);
+            const nextWeek = Math.min(activeWeek + 1, 12);
+            const isLastWeek = activeWeek === 12;
+            const allComplete = allTasksDoneNow && pulseSubmittedNow;
+
+            return (
+              <div className={`rounded-xl border p-5 ${allComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-indigo-50 border-indigo-200'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className={`text-sm font-semibold ${allComplete ? 'text-emerald-800' : 'text-indigo-800'}`}>
+                    {allComplete
+                      ? (isLastWeek ? 'Week 12 complete — sprint finished' : `Week ${nextWeek} unlocked`)
+                      : (isLastWeek ? `Finish Week ${activeWeek} to complete the sprint` : `Unlock Week ${nextWeek}`)}
+                  </h3>
+                  <span className="text-xs text-slate-500">Week {activeWeek} of 12</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${allTasksDoneNow ? 'bg-emerald-500 text-white' : 'bg-white border-2 border-indigo-300 text-indigo-600'}`}>
+                      {allTasksDoneNow ? '✓' : '1'}
+                    </span>
+                    <span className={allTasksDoneNow ? 'text-emerald-800 line-through decoration-emerald-400' : 'text-slate-700'}>
+                      Complete all {totalTasksThisWeek} task{totalTasksThisWeek === 1 ? '' : 's'} for Week {activeWeek}
+                      {totalTasksThisWeek > 0 && (
+                        <span className="text-slate-500"> ({tasksDoneCount}/{totalTasksThisWeek})</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${pulseSubmittedNow ? 'bg-emerald-500 text-white' : 'bg-white border-2 border-indigo-300 text-indigo-600'}`}>
+                      {pulseSubmittedNow ? '✓' : '2'}
+                    </span>
+                    <span className={pulseSubmittedNow ? 'text-emerald-800 line-through decoration-emerald-400' : 'text-slate-700'}>
+                      Submit your Life Pulse for Week {activeWeek}
+                    </span>
+                  </div>
+                </div>
+                {!allComplete && (
+                  <p className="text-xs text-slate-500 mt-3">
+                    {allTasksDoneNow && !pulseSubmittedNow
+                      ? 'All tasks done — submit your Life Pulse below to unlock the next week.'
+                      : !allTasksDoneNow && pulseSubmittedNow
+                      ? `Life Pulse submitted. Finish your ${totalTasksThisWeek - tasksDoneCount} remaining task${totalTasksThisWeek - tasksDoneCount === 1 ? '' : 's'} to unlock Week ${nextWeek}.`
+                      : `Tick off your tasks below and submit your Life Pulse to unlock Week ${nextWeek}.`}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+          {/* Life Pulse — always visible during active week so client can submit any time */}
+          {!completionState.isSprintComplete && !isBehind && gating.activeWeek <= 12 && !pulseWeeks.has(gating.activeWeek) && (
+            <LifePulseCard
+              sprintNumber={currentSprintNumber}
+              weekNumber={gating.activeWeek}
+              isCatchUp={false}
+              isSprintComplete={false}
+              onSubmit={submitPulse}
+              currentScore={lifeScore}
+              loading={lifeLoading}
+            />
           )}
           {displayWeekData?.tuesdayCheckIn && !showSprintSummary && (
             <TuesdayCheckInCard

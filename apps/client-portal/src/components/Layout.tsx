@@ -1,7 +1,12 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Logo } from '@/components/Logo';
+import {
+  GATutorialModal,
+  hasSeenGATutorial,
+  markGATutorialSeen,
+} from '@/components/GATutorialModal';
 import {
   Home,
   ClipboardList,
@@ -17,6 +22,7 @@ import {
   ChevronRight,
   FileText,
   ArrowLeft,
+  HelpCircle,
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -65,6 +71,20 @@ export function Layout({ children, title, subtitle, mode }: LayoutProps) {
   const navigation = isGA && hasGA
     ? gaNavigation
     : globalNavigation;
+
+  // GA tutorial — auto-opens on first GA page visit, re-openable via "?" button
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const clientId = clientSession?.clientId ?? null;
+  useEffect(() => {
+    if (isGA && hasGA && clientId && !hasSeenGATutorial(clientId)) {
+      setTutorialOpen(true);
+    }
+  }, [isGA, hasGA, clientId]);
+  const handleCloseTutorial = () => {
+    setTutorialOpen(false);
+    markGATutorialSeen(clientId);
+  };
+  const handleOpenTutorial = () => setTutorialOpen(true);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -118,8 +138,17 @@ export function Layout({ children, title, subtitle, mode }: LayoutProps) {
             })}
           </nav>
 
-          {/* Sign Out */}
-          <div className="p-4 border-t border-[#243044]">
+          {/* Help + Sign Out */}
+          <div className="p-4 border-t border-[#243044] space-y-1">
+            {isGA && hasGA && (
+              <button
+                onClick={handleOpenTutorial}
+                className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-slate-400 hover:bg-[#243044] hover:text-slate-200 rounded-lg transition-colors"
+              >
+                <HelpCircle className="w-5 h-5" />
+                How this works
+              </button>
+            )}
             <button
               onClick={handleSignOut}
               className="flex items-center gap-3 w-full px-3 py-2 text-sm font-medium text-slate-400 hover:bg-[#243044] hover:text-slate-200 rounded-lg transition-colors"
@@ -172,6 +201,18 @@ export function Layout({ children, title, subtitle, mode }: LayoutProps) {
                 </Link>
               );
             })}
+            {isGA && hasGA && (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleOpenTutorial();
+                }}
+                className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-slate-600"
+              >
+                <HelpCircle className="w-5 h-5" />
+                How this works
+              </button>
+            )}
             <button
               onClick={handleSignOut}
               className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-slate-600"
@@ -202,6 +243,9 @@ export function Layout({ children, title, subtitle, mode }: LayoutProps) {
           {children}
         </div>
       </main>
+
+      {/* GA First-time tutorial */}
+      <GATutorialModal open={tutorialOpen} onClose={handleCloseTutorial} />
     </div>
   );
 }
