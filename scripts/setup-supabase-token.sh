@@ -56,13 +56,19 @@ IFS= read -rs TOKEN
 echo
 echo
 
+# Sanitise: remove ALL whitespace, control chars, newlines, carriage returns
+# anywhere in the pasted value. This is the single most common reason for
+# "Invalid access token format" errors from the Supabase CLI.
+TOKEN=$(printf '%s' "$TOKEN" | tr -d '[:space:][:cntrl:]')
+
 if [[ -z "${TOKEN:-}" ]]; then
-  echo "${red}ERROR: empty token. Aborting.${reset}"
+  echo "${red}ERROR: empty token (or only whitespace). Aborting.${reset}"
   exit 1
 fi
 
 if [[ ! "$TOKEN" =~ ^sbp_ ]]; then
   echo "${red}ERROR: token does not start with 'sbp_'. Looks wrong; aborting.${reset}"
+  echo "First 6 chars received: '$(printf '%s' "$TOKEN" | head -c 6)'"
   exit 1
 fi
 
@@ -70,6 +76,15 @@ if [[ "${#TOKEN}" -lt 30 ]]; then
   echo "${red}ERROR: token is suspiciously short (${#TOKEN} chars). Aborting.${reset}"
   exit 1
 fi
+
+# Final sanity: must be only printable ASCII (sbp_ + hex)
+if ! [[ "$TOKEN" =~ ^[a-zA-Z0-9_]+$ ]]; then
+  echo "${red}ERROR: token contains unexpected characters. Aborting.${reset}"
+  exit 1
+fi
+
+echo "${green}Token format OK${reset} (${#TOKEN} chars)"
+echo
 
 # ---------------------------------------------------------------------------
 # 1. Push to GitHub Actions secret
