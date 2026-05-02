@@ -240,29 +240,29 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
 
   const submitPulse = useCallback(
     async (rating: number, categories: string[], protectText?: string) => {
-      if (!clientId || !practiceId || sprintNumber < 1 || currentWeek < 1) return;
-      try {
-        const { error } = await supabase.from('life_pulse_entries').upsert(
-          {
-            client_id: clientId,
-            practice_id: practiceId,
-            sprint_number: sprintNumber,
-            week_number: currentWeek,
-            alignment_rating: rating,
-            active_categories: categories,
-            protect_next_week: protectText?.trim() || null,
-          },
-          { onConflict: 'client_id,sprint_number,week_number' }
-        );
-        if (error) {
-          console.warn('[useLifeAlignment] submit pulse error:', error);
-          return;
-        }
-        await fetchPulseAndScores();
-        await recalculateScore();
-      } catch (err) {
-        console.warn('[useLifeAlignment] submitPulse error:', err);
+      if (!clientId || !practiceId || sprintNumber < 1 || currentWeek < 1) {
+        throw new Error('Cannot submit pulse: missing client/sprint/week context.');
       }
+      const { error } = await supabase.from('life_pulse_entries').upsert(
+        {
+          client_id: clientId,
+          practice_id: practiceId,
+          sprint_number: sprintNumber,
+          week_number: currentWeek,
+          alignment_rating: rating,
+          active_categories: categories,
+          protect_next_week: protectText?.trim() || null,
+        },
+        { onConflict: 'client_id,sprint_number,week_number' }
+      );
+      if (error) {
+        // Surface the error so the UI doesn't optimistically show "saved" while
+        // the row was actually rejected (e.g. by RLS).
+        console.error('[useLifeAlignment] submit pulse error:', error);
+        throw new Error(error.message || 'Failed to save Life Pulse.');
+      }
+      await fetchPulseAndScores();
+      await recalculateScore();
     },
     [clientId, practiceId, sprintNumber, currentWeek, fetchPulseAndScores, recalculateScore]
   );
