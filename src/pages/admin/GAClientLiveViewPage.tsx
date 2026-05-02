@@ -785,7 +785,6 @@ export function GAClientLiveViewPage() {
           <UnlockStatusPanel
             activeWeek={d.activeWeek}
             totalWeeks={weeks.length || 12}
-            tasksDoneWeeks={d.tasksDoneWeeks}
             pulseWeeks={d.pulseWeeks}
             weeks={weeks}
             tasks={tasks}
@@ -1060,14 +1059,12 @@ function MetricCard({
 function UnlockStatusPanel({
   activeWeek,
   totalWeeks,
-  tasksDoneWeeks,
   pulseWeeks,
   weeks,
   tasks,
 }: {
   activeWeek: number;
   totalWeeks: number;
-  tasksDoneWeeks: number[];
   pulseWeeks: Set<number>;
   weeks: SprintWeek[];
   tasks: DbTask[];
