@@ -6,7 +6,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ADMIN_ROUTES } from '../../config/routes';
 import { AdminLayout } from '../../components/AdminLayout';
 import { PageSkeleton, EmptyState } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
@@ -761,14 +760,11 @@ export function GADashboardPage() {
   }, [fetchDashboard]);
 
   const handleViewDetail = (clientId: string) => {
-    // Navigate to Client Services; optionally preselect GA and client via sessionStorage
-    try {
-      sessionStorage.setItem(
-        'gaDashboardSelected',
-        JSON.stringify({ clientId, serviceLineCode: '365_method' }),
-      );
-    } catch (_) {}
-    navigate(ADMIN_ROUTES.clients);
+    // Native admin live view of the client's sprint — same data they see in
+    // their portal, but in the admin layout. Replaces the previous
+    // sessionStorage hop into ClientServicesPage which sometimes failed to
+    // load when scoped permissions returned no clients.
+    navigate(`/goal-alignment/clients/${clientId}`);
   };
 
   if (loading) {

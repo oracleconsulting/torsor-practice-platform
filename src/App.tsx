@@ -23,6 +23,7 @@ const queryClient = new QueryClient({
 // Lazy-loaded pages (named exports use .then(m => ({ default: m.Name })))
 const ClientServicesPage = lazy(() => import('./pages/admin/clients').then(m => ({ default: m.ClientServicesPage })));
 const GADashboardPage = lazy(() => import('./pages/admin/GADashboardPage').then(m => ({ default: m.GADashboardPage })));
+const GAClientLiveViewPage = lazy(() => import('./pages/admin/GAClientLiveViewPage').then(m => ({ default: m.GAClientLiveViewPage })));
 const BIPortalPage = lazy(() => import('./pages/admin/BIPortalPage').then(m => ({ default: m.BIPortalPage })));
 const DeliveryManagementPage = lazy(() => import('./pages/admin/DeliveryManagementPage').then(m => ({ default: m.DeliveryManagementPage })));
 const SkillsHeatmapPage = lazy(() => import('./pages/admin/SkillsHeatmapPage').then(m => ({ default: m.SkillsHeatmapPage })));
@@ -85,6 +86,7 @@ function AppRoutes() {
           <Route path="/clients/:clientId/bi/reports/:periodId" element={<BIPeriodReportPage />} />
           <Route path="/clients/:clientId/bi/perpetual" element={<BIPerpetualViewPage />} />
           <Route path="/goal-alignment" element={<GADashboardPage />} />
+          <Route path="/goal-alignment/clients/:clientId" element={<GAClientLiveViewPage />} />
           <Route path="/bi-portal" element={<BIPortalPage />} />
           <Route path="/delivery" element={<DeliveryManagementPage />} />
           <Route path="/skills/heatmap" element={<SkillsHeatmapPage />} />
