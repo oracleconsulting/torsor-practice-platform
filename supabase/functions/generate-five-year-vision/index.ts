@@ -11,6 +11,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
 import { validateGAContent } from '../_shared/ga-content-validator.ts';
+import { buildResearchContext } from '../_shared/ga-research-base.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -315,7 +316,10 @@ async function generateTransformationNarrative(ctx: VisionContext): Promise<any>
           role: 'system',
           content: GA_SYSTEM_PROMPT,
         },
-        { role: 'user', content: prompt }
+        {
+          role: 'user',
+          content: prompt + buildResearchContext(['working_hours', 'productivity', 'recovery', 'enough_number']),
+        },
       ]
     })
   });
