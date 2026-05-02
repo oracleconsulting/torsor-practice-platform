@@ -1695,18 +1695,6 @@ export default function SprintDashboardPage() {
               </div>
             );
           })()}
-          {/* Life Pulse — always visible during active week so client can submit any time */}
-          {!completionState.isSprintComplete && !isBehind && gating.activeWeek <= 12 && !pulseWeeks.has(gating.activeWeek) && (
-            <LifePulseCard
-              sprintNumber={currentSprintNumber}
-              weekNumber={gating.activeWeek}
-              isCatchUp={false}
-              isSprintComplete={false}
-              onSubmit={submitPulse}
-              currentScore={lifeScore}
-              loading={lifeLoading}
-            />
-          )}
           {displayWeekData?.tuesdayCheckIn && !showSprintSummary && (
             <TuesdayCheckInCard
               checkInPrompt={displayWeekData.tuesdayCheckIn}
@@ -1744,6 +1732,32 @@ export default function SprintDashboardPage() {
             }}
             loading={checkInLoading}
           />
+          {/* End-of-week Life Pulse — appears after the week's tasks are all
+              completed or skipped, as the final gate to unlock the next week. */}
+          {gating.needsPulse(gating.activeWeek) && !completionState.isSprintComplete && !isBehind && (
+            <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-5 ring-2 ring-rose-300/40">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-bold">
+                  ✓
+                </span>
+                <p className="text-sm font-semibold text-rose-900">
+                  All tasks done — submit your Life Pulse to unlock Week {Math.min(gating.activeWeek + 1, 12)}
+                </p>
+              </div>
+              <p className="text-xs text-rose-700/80 mb-3">
+                30-second weekly check-in: rate how aligned the week felt, tap the life areas you tended to, and submit.
+              </p>
+              <LifePulseCard
+                sprintNumber={currentSprintNumber}
+                weekNumber={gating.activeWeek}
+                isCatchUp={false}
+                isSprintComplete={false}
+                onSubmit={submitPulse}
+                currentScore={lifeScore}
+                loading={lifeLoading}
+              />
+            </div>
+          )}
           {/* Sticky progress strip — stays visible when scrolling */}
           <div className="sticky top-0 z-20 -mx-4 lg:-mx-8 px-4 lg:px-8 py-3 bg-white/95 backdrop-blur-sm border-b border-slate-100">
             <ProgressStrip
