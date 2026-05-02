@@ -156,6 +156,34 @@ jobs:
             exit 1
           fi
 
+          # Diagnostics — non-sensitive info to help debug "Invalid access token
+          # format" errors without revealing the secret. Length and prefix are
+          # both safe to log; the body is masked elsewhere.
+          token_len=${#SUPABASE_ACCESS_TOKEN}
+          token_prefix="${SUPABASE_ACCESS_TOKEN:0:4}"
+          # Strip any whitespace / control characters we somehow inherited so
+          # the deploy itself can succeed even when the stored secret was
+          # contaminated. Non-destructive: only sanitises the env var for this
+          # step, doesn't change the GitHub secret.
+          clean_token=$(printf '%s' "$SUPABASE_ACCESS_TOKEN" | tr -d '[:space:][:cntrl:]')
+          clean_len=${#clean_token}
+
+          echo "Token length: $token_len"
+          echo "Cleaned length: $clean_len"
+          echo "Prefix: $token_prefix"
+
+          if [[ "$token_len" -ne "$clean_len" ]]; then
+            echo "::warning::Stored token contained $((token_len - clean_len)) whitespace/control chars. Auto-stripped for this run; please re-run the local setup script to fix the stored secret."
+          fi
+
+          if [[ ! "$clean_token" =~ ^sbp_[a-zA-Z0-9]+$ ]]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN does not match the expected sbp_<hex> format. Length after cleaning: $clean_len."
+            exit 1
+          fi
+
+          # Use the cleaned token for the rest of this step
+          export SUPABASE_ACCESS_TOKEN="$clean_token"
+
           failed=()
           while IFS= read -r fn; do
             [[ -z "$fn" ]] && continue
