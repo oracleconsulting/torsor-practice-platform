@@ -1,15 +1,16 @@
 // ============================================================================
 // GATutorialModal — First-time onboarding for the Goal Alignment programme
 // ============================================================================
-// Explains the sprint mechanics (12-week sprints, weekly tasks, life pulse,
-// week unlocks, etc.) before a client first uses the GA pages.
-//
-// Storage: localStorage key `ga_tutorial_seen_<clientId>` is set on completion
-// or skip so the modal does not auto-open again. A "?" trigger inside
-// `Layout` lets the client re-open it from any GA page.
+// Auto-opens the first time a client visits any GA page. State persisted
+// server-side via `client_service_lines.ga_tutorial_seen_at` so admin can
+// reset it with SQL and the tutorial follows the client across browsers.
+// A "How this works" entry in the GA sidebar/mobile menu re-opens it any
+// time, and includes interactive walkthroughs showing exactly how to
+// complete a task and submit the weekly Life Pulse.
 // ============================================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
   Map as MapIcon,
   Flag,
@@ -18,10 +19,317 @@ import {
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
+  CheckCircle,
+  Play,
   X,
   Sparkles,
   Target,
+  Clock,
+  MousePointer2,
 } from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// Interactive Task walkthrough — mirrors the real `TaskCard` in
+// SprintDashboardPage so the client sees the exact UI they're about to use.
+// Auto-animates through the three task states: pending → in_progress →
+// completed, with an annotation arrow that follows the action.
+// ---------------------------------------------------------------------------
+
+type TaskDemoState = 'pending' | 'in_progress' | 'completed';
+
+const TASK_DEMO_TIMINGS: Record<TaskDemoState, number> = {
+  pending: 2200,
+  in_progress: 2200,
+  completed: 2400,
+};
+
+function TaskWalkthroughDemo() {
+  const [state, setState] = useState<TaskDemoState>('pending');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const next: Record<TaskDemoState, TaskDemoState> = {
+      pending: 'in_progress',
+      in_progress: 'completed',
+      completed: 'pending',
+    };
+    timerRef.current = setTimeout(() => {
+      setState((s) => next[s]);
+    }, TASK_DEMO_TIMINGS[state]);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [state]);
+
+  const cardClass =
+    state === 'completed'
+      ? 'bg-emerald-50 border-emerald-200'
+      : state === 'in_progress'
+      ? 'bg-blue-50 border-blue-200'
+      : 'bg-white border-slate-200';
+  const buttonClass =
+    state === 'completed'
+      ? 'bg-emerald-500 border-emerald-500 text-white'
+      : state === 'in_progress'
+      ? 'border-blue-500 bg-blue-100'
+      : 'border-slate-300';
+  const titleClass =
+    state === 'completed'
+      ? 'text-emerald-700 line-through'
+      : 'text-slate-900';
+
+  const annotation =
+    state === 'pending'
+      ? 'Tap the circle to start the task'
+      : state === 'in_progress'
+      ? 'In progress — tap again when done'
+      : 'Completed — moves you towards unlocking the next week';
+
+  return (
+    <div className="space-y-3">
+      <div className="relative">
+        <div className={`p-4 rounded-lg border transition-colors ${cardClass}`}>
+          <div className="flex items-start gap-3">
+            <div className="relative">
+              <button
+                type="button"
+                aria-hidden
+                tabIndex={-1}
+                className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-all ${buttonClass} ${state === 'pending' ? 'animate-pulse ring-4 ring-indigo-300/50' : ''}`}
+              >
+                {state === 'completed' && <CheckCircle className="w-4 h-4" />}
+                {state === 'in_progress' && <Play className="w-3 h-3 text-blue-500" />}
+              </button>
+              {/* Hand pointer overlay */}
+              {state === 'pending' && (
+                <MousePointer2 className="w-4 h-4 text-indigo-600 absolute -bottom-3 -right-3 drop-shadow" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h5 className={`font-medium text-sm ${titleClass}`}>
+                Reclaim Your First Hour
+              </h5>
+              <p className="text-xs text-slate-500 mt-1">
+                Block 7–8am for one priority. No email, no Slack.
+              </p>
+              <div className="flex items-center gap-2 mt-2 text-[10px] text-slate-400">
+                <span className="bg-slate-100 px-1.5 py-0.5 rounded">routine</span>
+                <span><Clock className="w-2.5 h-2.5 inline mr-0.5" />20 min/day</span>
+                <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">high</span>
+              </div>
+            </div>
+            <span className="text-[10px] text-slate-400 italic whitespace-nowrap">Didn't do this</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 text-xs">
+        <span className={`flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full font-bold text-white ${state === 'completed' ? 'bg-emerald-500' : state === 'in_progress' ? 'bg-blue-500' : 'bg-indigo-500'}`}>
+          {state === 'pending' ? '1' : state === 'in_progress' ? '2' : '✓'}
+        </span>
+        <span className="text-slate-700 font-medium">{annotation}</span>
+      </div>
+      {/* state pips */}
+      <div className="flex items-center justify-center gap-1.5 pt-1">
+        {(['pending', 'in_progress', 'completed'] as const).map((s) => (
+          <span
+            key={s}
+            className={`h-1 rounded-full transition-all ${
+              s === state ? 'w-8 bg-indigo-500' : 'w-1.5 bg-slate-300'
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Interactive Life Pulse walkthrough — mirrors LifePulseCard. Cycles through
+// rating select → category select → submit → "saved" state.
+// ---------------------------------------------------------------------------
+
+type PulseDemoState = 'rate' | 'categories' | 'submit' | 'saved';
+const PULSE_DEMO_TIMINGS: Record<PulseDemoState, number> = {
+  rate: 2200,
+  categories: 2200,
+  submit: 1800,
+  saved: 2400,
+};
+
+const PULSE_CATEGORIES: { value: string; label: string; emoji: string }[] = [
+  { value: 'life_time', label: 'Time', emoji: '⏰' },
+  { value: 'life_relationship', label: 'Relationships', emoji: '💛' },
+  { value: 'life_health', label: 'Health', emoji: '🏃' },
+  { value: 'life_experience', label: 'Experiences', emoji: '✨' },
+  { value: 'life_identity', label: 'Identity', emoji: '🎯' },
+];
+
+function PulseWalkthroughDemo() {
+  const [state, setState] = useState<PulseDemoState>('rate');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const next: Record<PulseDemoState, PulseDemoState> = {
+      rate: 'categories',
+      categories: 'submit',
+      submit: 'saved',
+      saved: 'rate',
+    };
+    timerRef.current = setTimeout(() => {
+      setState((s) => next[s]);
+    }, PULSE_DEMO_TIMINGS[state]);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [state]);
+
+  const filledHearts = state === 'rate' ? 0 : 4;
+  let selectedCats: string[];
+  if (state === 'rate') {
+    selectedCats = [];
+  } else if (state === 'categories') {
+    selectedCats = ['life_time'];
+  } else {
+    selectedCats = ['life_time', 'life_relationship'];
+  }
+
+  const annotation =
+    state === 'rate'
+      ? 'Tap a heart to rate this week (1–5)'
+      : state === 'categories'
+      ? 'Choose the life areas you tended to'
+      : state === 'submit'
+      ? 'Tap Submit to close out the week'
+      : 'Saved — Week 2 is now unlocked';
+
+  if (state === 'saved') {
+    return (
+      <div className="space-y-3">
+        <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+              <span className="text-sm font-semibold text-rose-800">Life Pulse saved ✓</span>
+            </div>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-100 text-rose-800">
+              Score: 72
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full font-bold text-white bg-emerald-500">✓</span>
+          <span className="text-slate-700 font-medium">{annotation}</span>
+        </div>
+        <DemoPips active={3} total={4} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-100 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Heart className="w-4 h-4 text-rose-500" />
+          <span className="text-xs font-semibold text-rose-800 uppercase tracking-wide">
+            Weekly Life Pulse
+          </span>
+        </div>
+        {/* Hearts */}
+        <p className="text-xs text-rose-700 mb-1.5">How aligned did this week feel?</p>
+        <div className="flex items-center gap-1.5 mb-3">
+          {[1, 2, 3, 4, 5].map((n) => {
+            const filled = n <= filledHearts;
+            const isTarget = state === 'rate' && n === 4;
+            return (
+              <div key={n} className="relative">
+                <Heart
+                  className={`w-5 h-5 transition-all ${filled ? 'text-rose-500 fill-rose-500' : 'text-rose-200'} ${isTarget ? 'animate-pulse' : ''}`}
+                />
+                {isTarget && (
+                  <MousePointer2 className="w-3.5 h-3.5 text-indigo-600 absolute -bottom-2 -right-2 drop-shadow" />
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* Categories */}
+        <p className="text-xs text-rose-700 mb-1.5">Which areas got attention?</p>
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {PULSE_CATEGORIES.map((c) => {
+            const sel = selectedCats.includes(c.value);
+            const isTargetCat =
+              state === 'categories' &&
+              ((c.value === 'life_time' && selectedCats.length === 0) ||
+                (c.value === 'life_relationship' && selectedCats.length === 1));
+            return (
+              <span
+                key={c.value}
+                className={`relative inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] border transition-colors ${
+                  sel
+                    ? 'bg-rose-200 border-rose-300 text-rose-900'
+                    : 'bg-white border-rose-200 text-rose-600'
+                } ${isTargetCat ? 'ring-2 ring-indigo-300' : ''}`}
+              >
+                <span>{c.emoji}</span>
+                {c.label}
+              </span>
+            );
+          })}
+        </div>
+        {/* Submit */}
+        <div className="flex justify-end">
+          <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            disabled={state !== 'submit'}
+            className={`relative px-3 py-1.5 rounded-lg text-xs font-medium text-white transition-all ${
+              state === 'submit'
+                ? 'bg-rose-500 ring-4 ring-indigo-300/50'
+                : state === 'categories' && selectedCats.length >= 2
+                ? 'bg-rose-400'
+                : 'bg-rose-300'
+            }`}
+          >
+            Submit Pulse
+            {state === 'submit' && (
+              <MousePointer2 className="w-3.5 h-3.5 text-indigo-600 absolute -bottom-2 -right-2 drop-shadow" />
+            )}
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 text-xs">
+        <span className="flex-shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full font-bold text-white bg-rose-500">
+          {state === 'rate' ? '1' : state === 'categories' ? '2' : '3'}
+        </span>
+        <span className="text-slate-700 font-medium">{annotation}</span>
+      </div>
+      <DemoPips
+        active={state === 'rate' ? 0 : state === 'categories' ? 1 : 2}
+        total={4}
+      />
+    </div>
+  );
+}
+
+function DemoPips({ active, total }: { active: number; total: number }) {
+  return (
+    <div className="flex items-center justify-center gap-1.5 pt-1">
+      {Array.from({ length: total }).map((_, i) => (
+        <span
+          key={i}
+          className={`h-1 rounded-full transition-all ${
+            i === active ? 'w-8 bg-rose-500' : 'w-1.5 bg-slate-300'
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tutorial steps
+// ---------------------------------------------------------------------------
 
 interface TutorialStep {
   id: string;
@@ -117,6 +425,41 @@ const STEPS: TutorialStep[] = [
     ),
   },
   {
+    id: 'task-walkthrough',
+    icon: CheckCircle2,
+    iconColor: 'text-emerald-600',
+    iconBg: 'bg-emerald-50',
+    title: 'How to complete a task',
+    body: (
+      <div className="space-y-4 text-sm text-slate-600">
+        <p>
+          Every task has a circle on the left. Tap it once to mark it{' '}
+          <strong>in progress</strong>, tap again when you've done it. If you
+          didn't get to it, use <em>"Didn't do this"</em> on the right — being
+          honest matters more than perfect compliance.
+        </p>
+        <TaskWalkthroughDemo />
+      </div>
+    ),
+  },
+  {
+    id: 'pulse-walkthrough',
+    icon: Heart,
+    iconColor: 'text-rose-600',
+    iconBg: 'bg-rose-50',
+    title: 'How to submit the Life Pulse',
+    body: (
+      <div className="space-y-4 text-sm text-slate-600">
+        <p>
+          At the end of each week, the rose-coloured Life Pulse card appears on
+          your Sprint page. It takes about 30 seconds — pick a heart rating,
+          tap the life areas you tended to, and submit.
+        </p>
+        <PulseWalkthroughDemo />
+      </div>
+    ),
+  },
+  {
     id: 'life',
     icon: Heart,
     iconColor: 'text-rose-600',
@@ -177,8 +520,8 @@ const STEPS: TutorialStep[] = [
           <li>Watch the next week unlock automatically.</li>
         </ol>
         <p className="pt-2">
-          You can re-open this guide any time using the <strong>?</strong>{' '}
-          button in the top-right of any Goal Alignment page.
+          You can re-open this guide any time using the{' '}
+          <strong>"How this works"</strong> link in the sidebar.
         </p>
       </div>
     ),
@@ -208,7 +551,7 @@ export function GATutorialModal({ open, onClose }: GATutorialModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden">
         {/* Close button */}
         <button
           type="button"
@@ -288,14 +631,41 @@ export function GATutorialModal({ open, onClose }: GATutorialModalProps) {
   );
 }
 
-// Storage helpers — use clientId so each client sees the tutorial once
-function storageKey(clientId: string | null | undefined): string | null {
+// ---------------------------------------------------------------------------
+// Server-side tutorial-seen state (persisted on `client_service_lines`).
+// Falls back to localStorage in the unlikely case the column does not exist
+// yet (e.g. migration not yet applied) so the tutorial still doesn't loop.
+// ---------------------------------------------------------------------------
+
+const GA_SERVICE_CODES = ['365_method', '365_alignment'];
+
+function localStorageKey(clientId: string | null | undefined): string | null {
   if (!clientId) return null;
   return `ga_tutorial_seen_${clientId}`;
 }
 
-export function hasSeenGATutorial(clientId: string | null | undefined): boolean {
-  const key = storageKey(clientId);
+/** Returns true if the client has already seen the GA tutorial. */
+export async function hasSeenGATutorial(clientId: string | null | undefined): Promise<boolean> {
+  if (!clientId) return true;
+
+  try {
+    const { data, error } = await supabase
+      .from('client_service_lines')
+      .select('ga_tutorial_seen_at, service_lines!inner(code)')
+      .eq('client_id', clientId)
+      .in('service_lines.code', GA_SERVICE_CODES)
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && data) {
+      return Boolean((data as { ga_tutorial_seen_at: string | null }).ga_tutorial_seen_at);
+    }
+  } catch (err) {
+    console.warn('[GATutorial] read seen flag failed, falling back to localStorage', err);
+  }
+
+  // Fallback to localStorage if DB lookup fails (e.g. column missing yet).
+  const key = localStorageKey(clientId);
   if (!key) return true;
   try {
     return localStorage.getItem(key) === '1';
@@ -304,8 +674,29 @@ export function hasSeenGATutorial(clientId: string | null | undefined): boolean 
   }
 }
 
-export function markGATutorialSeen(clientId: string | null | undefined): void {
-  const key = storageKey(clientId);
+/** Marks the GA tutorial as seen for this client (server-side + localStorage cache). */
+export async function markGATutorialSeen(clientId: string | null | undefined): Promise<void> {
+  if (!clientId) return;
+
+  try {
+    const { data: rows } = await supabase
+      .from('client_service_lines')
+      .select('id, service_lines!inner(code)')
+      .eq('client_id', clientId)
+      .in('service_lines.code', GA_SERVICE_CODES);
+
+    const ids = (rows ?? []).map((r: { id: string }) => r.id);
+    if (ids.length > 0) {
+      await supabase
+        .from('client_service_lines')
+        .update({ ga_tutorial_seen_at: new Date().toISOString() })
+        .in('id', ids);
+    }
+  } catch (err) {
+    console.warn('[GATutorial] write seen flag failed, falling back to localStorage', err);
+  }
+
+  const key = localStorageKey(clientId);
   if (!key) return;
   try {
     localStorage.setItem(key, '1');

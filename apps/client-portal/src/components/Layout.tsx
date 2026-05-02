@@ -72,17 +72,23 @@ export function Layout({ children, title, subtitle, mode }: LayoutProps) {
     ? gaNavigation
     : globalNavigation;
 
-  // GA tutorial — auto-opens on first GA page visit, re-openable via "?" button
+  // GA tutorial — auto-opens on first GA page visit, re-openable via sidebar
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const clientId = clientSession?.clientId ?? null;
   useEffect(() => {
-    if (isGA && hasGA && clientId && !hasSeenGATutorial(clientId)) {
-      setTutorialOpen(true);
+    let cancelled = false;
+    if (isGA && hasGA && clientId) {
+      hasSeenGATutorial(clientId).then((seen) => {
+        if (!cancelled && !seen) setTutorialOpen(true);
+      });
     }
+    return () => {
+      cancelled = true;
+    };
   }, [isGA, hasGA, clientId]);
   const handleCloseTutorial = () => {
     setTutorialOpen(false);
-    markGATutorialSeen(clientId);
+    void markGATutorialSeen(clientId);
   };
   const handleOpenTutorial = () => setTutorialOpen(true);
 
