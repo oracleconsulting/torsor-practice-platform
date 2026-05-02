@@ -141,12 +141,27 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
       const pulseAlignmentScore = Math.round((avgPulseRating / 5) * 10000) / 100;
 
       // Derive hours adherence from real weekly check-in data ("yes" / "mostly" / "no")
-      // rather than a hard-coded floor.
-      const { data: checkinRows } = await supabase
+      // rather than a hard-coded floor. weekly_checkins uses sprint_id (FK to
+      // roadmap_stages), not sprint_number — look up the active sprint stage
+      // for this client and filter by that.
+      const { data: activeSprintStage } = await supabase
+        .from('roadmap_stages')
+        .select('id')
+        .eq('client_id', clientId)
+        .in('stage_type', ['sprint_plan', 'sprint_plan_part2'])
+        .in('status', ['generated', 'approved', 'published'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let checkinQuery = supabase
         .from('weekly_checkins')
         .select('time_protected')
-        .eq('client_id', clientId)
-        .eq('sprint_number', sprintNumber);
+        .eq('client_id', clientId);
+      if (activeSprintStage?.id) {
+        checkinQuery = checkinQuery.eq('sprint_id', activeSprintStage.id);
+      }
+      const { data: checkinRows } = await checkinQuery;
       const checkins = checkinRows ?? [];
       const hoursAdherenceScore = checkins.length > 0
         ? Math.round(
