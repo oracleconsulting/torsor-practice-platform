@@ -60,6 +60,7 @@ import {
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { ClientRoadmapPreview } from '../../components/admin/ClientRoadmapPreview';
+import { AdvisoryAgentPanel } from '../../components/admin/AdvisoryAgentPanel';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
 import BenchmarkingClientDashboard from '../../components/benchmarking/client/BenchmarkingClientDashboard';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
@@ -6601,6 +6602,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   // Regenerate state (no longer using selective options - regenerates all stages)
   const [regenerating, setRegenerating] = useState(false);
   const [showClientPreview, setShowClientPreview] = useState(false);
+  const [showAdvisoryAgent, setShowAdvisoryAgent] = useState(false);
   
   // Sprint editing state
   const [editingTask, setEditingTask] = useState<{weekNumber: number, taskId: string, original: any} | null>(null);
@@ -7668,6 +7670,31 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
         insightReport={(() => { const s = (client.roadmapStages || []).find((s: any) => s.stage_type === 'insight_report' && ['approved', 'published'].includes(s.status)); return s?.approved_content || s?.generated_content; })()}
         onClose={() => setShowClientPreview(false)}
         onPublish={() => { setShowClientPreview(false); handlePublishAll(); }}
+      />
+    )}
+    {showAdvisoryAgent && client?.id && (
+      <AdvisoryAgentPanel
+        clientId={client.id}
+        practiceId={client.practice_id || currentMember?.practice_id || ''}
+        clientName={client.name || 'Client'}
+        companyName={client.client_company || ''}
+        directors={(client.siblingDirectors || []).map((d: any) => ({
+          name: d.name || d.full_name || '',
+          role: d.role,
+        })).filter((d: any) => d.name)}
+        staffNames={(client.staffMembers || []).map((s: any) => s.name || s.full_name).filter(Boolean)}
+        financials={(() => {
+          const va = (client.roadmapStages || []).find((s: any) => s.stage_type === 'value_analysis' && ['generated', 'approved', 'published'].includes(s.status));
+          const data = va?.approved_content || va?.generated_content || {};
+          const fin: Record<string, number | string> = {};
+          if (data?.financialData?.revenue) fin.revenue = data.financialData.revenue;
+          if (data?.financialData?.grossProfit) fin.grossProfit = data.financialData.grossProfit;
+          if (data?.financialData?.netProfit) fin.netProfit = data.financialData.netProfit;
+          if (data?.totalOpportunity) fin.totalOpportunity = data.totalOpportunity;
+          return fin;
+        })()}
+        onClose={() => setShowAdvisoryAgent(false)}
+        onChangeApplied={() => fetchClientDetail()}
       />
     )}
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -9844,6 +9871,17 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 >
                                   <Eye className="w-4 h-4" />
                                   Preview as Client
+                                </button>
+                              )}
+                              {(hasGeneratedStages || allStagesPublished) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAdvisoryAgent(true)}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                  title="Open the in-platform AI advisor for this client"
+                                >
+                                  <Sparkles className="w-4 h-4" />
+                                  Advisory Agent
                                 </button>
                               )}
                               {hasGeneratedStages && (
