@@ -23,6 +23,30 @@ interface ClientLite {
   name: string;
   client_company: string | null;
   practice_id: string;
+  /** Optional richer tokeniser context — directors / staff / financials.
+   *  When supplied (e.g. by the modal's button) the panel can build a more
+   *  complete tokeniser map. When absent (e.g. picker), it falls back to
+   *  name + company only. */
+  directors?: Array<{ name: string; role?: string }>;
+  staffNames?: string[];
+  financials?: Record<string, number | string>;
+}
+
+/** Global event other components dispatch to open the agent panel for a
+ *  specific client. Useful for in-modal "Advisory Agent" buttons that want
+ *  the panel to outlive the modal. */
+export const OPEN_AGENT_EVENT = 'torsor:open-agent';
+export interface OpenAgentEventDetail {
+  clientId: string;
+  practiceId: string;
+  clientName: string;
+  companyName?: string | null;
+  directors?: Array<{ name: string; role?: string }>;
+  staffNames?: string[];
+  financials?: Record<string, number | string>;
+}
+export function dispatchOpenAgent(detail: OpenAgentEventDetail): void {
+  window.dispatchEvent(new CustomEvent(OPEN_AGENT_EVENT, { detail }));
 }
 
 export function AgentLauncher() {
@@ -64,6 +88,29 @@ export function AgentLauncher() {
     if (!showPicker) return;
     if (clients.length === 0) void loadClients();
   }, [showPicker, clients.length, loadClients]);
+
+  // Listen for global "open agent" events so other parts of the app (e.g. an
+  // in-modal "Advisory Agent" button) can open the panel without owning its
+  // state. Survives modal close, route changes, etc.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const ce = event as CustomEvent<OpenAgentEventDetail>;
+      const d = ce.detail;
+      if (!d?.clientId || !d?.practiceId) return;
+      setShowPicker(false);
+      setActiveClient({
+        id: d.clientId,
+        name: d.clientName,
+        client_company: d.companyName ?? null,
+        practice_id: d.practiceId,
+        directors: d.directors,
+        staffNames: d.staffNames,
+        financials: d.financials,
+      });
+    };
+    window.addEventListener(OPEN_AGENT_EVENT, handler);
+    return () => window.removeEventListener(OPEN_AGENT_EVENT, handler);
+  }, []);
 
   // If the URL has a client id and user clicks the launcher, pre-select that client
   const open = useCallback(async () => {
@@ -189,10 +236,15 @@ export function AgentLauncher() {
           practiceId={activeClient.practice_id}
           clientName={activeClient.name}
           companyName={activeClient.client_company ?? ''}
+          directors={activeClient.directors}
+          staffNames={activeClient.staffNames}
+          financials={activeClient.financials}
           onClose={() => setActiveClient(null)}
           onChangeApplied={() => {
-            // No parent to refresh from the launcher path; reload of the page
-            // (or a route with a client view) will re-fetch independently.
+            // Other panels and modals re-fetch their own data on focus; this
+            // launcher has no parent to notify. Fire a custom event the page
+            // can listen for if it wants to reload.
+            window.dispatchEvent(new CustomEvent('torsor:agent-change-applied'));
           }}
         />
       )}

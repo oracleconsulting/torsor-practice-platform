@@ -602,14 +602,14 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
   return (
     <>
       <div
-        className="fixed inset-0 bg-black/30 z-40"
+        className="fixed inset-0 bg-black/30 z-[55]"
         onClick={onClose}
         aria-hidden
       />
       <aside
         role="dialog"
         aria-label="Advisory Agent"
-        className="fixed right-0 top-0 h-full w-full sm:w-[520px] bg-white border-l border-slate-200 shadow-2xl z-50 flex flex-col"
+        className="fixed right-0 top-0 h-full w-full sm:w-[520px] bg-white border-l border-slate-200 shadow-2xl z-[60] flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">

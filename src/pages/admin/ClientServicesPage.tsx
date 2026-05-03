@@ -60,7 +60,7 @@ import {
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
 import { ClientRoadmapPreview } from '../../components/admin/ClientRoadmapPreview';
-import { AdvisoryAgentPanel } from '../../components/admin/AdvisoryAgentPanel';
+import { dispatchOpenAgent } from '../../components/admin/AgentLauncher';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
 import BenchmarkingClientDashboard from '../../components/benchmarking/client/BenchmarkingClientDashboard';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
@@ -6602,7 +6602,6 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   // Regenerate state (no longer using selective options - regenerates all stages)
   const [regenerating, setRegenerating] = useState(false);
   const [showClientPreview, setShowClientPreview] = useState(false);
-  const [showAdvisoryAgent, setShowAdvisoryAgent] = useState(false);
   
   // Sprint editing state
   const [editingTask, setEditingTask] = useState<{weekNumber: number, taskId: string, original: any} | null>(null);
@@ -7672,31 +7671,9 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
         onPublish={() => { setShowClientPreview(false); handlePublishAll(); }}
       />
     )}
-    {showAdvisoryAgent && client?.id && (
-      <AdvisoryAgentPanel
-        clientId={client.id}
-        practiceId={client.practice_id || currentMember?.practice_id || ''}
-        clientName={client.name || 'Client'}
-        companyName={client.client_company || ''}
-        directors={(client.siblingDirectors || []).map((d: any) => ({
-          name: d.name || d.full_name || '',
-          role: d.role,
-        })).filter((d: any) => d.name)}
-        staffNames={(client.staffMembers || []).map((s: any) => s.name || s.full_name).filter(Boolean)}
-        financials={(() => {
-          const va = (client.roadmapStages || []).find((s: any) => s.stage_type === 'value_analysis' && ['generated', 'approved', 'published'].includes(s.status));
-          const data = va?.approved_content || va?.generated_content || {};
-          const fin: Record<string, number | string> = {};
-          if (data?.financialData?.revenue) fin.revenue = data.financialData.revenue;
-          if (data?.financialData?.grossProfit) fin.grossProfit = data.financialData.grossProfit;
-          if (data?.financialData?.netProfit) fin.netProfit = data.financialData.netProfit;
-          if (data?.totalOpportunity) fin.totalOpportunity = data.totalOpportunity;
-          return fin;
-        })()}
-        onClose={() => setShowAdvisoryAgent(false)}
-        onChangeApplied={() => fetchClientDetail()}
-      />
-    )}
+    {/* Advisory agent panel is now owned by the global AgentLauncher in
+        AdminLayout — it survives modal close and route changes. The button
+        below dispatches a custom event with the client's tokeniser context. */}
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Modal Header */}
@@ -9873,10 +9850,37 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                   Preview as Client
                                 </button>
                               )}
-                              {(hasGeneratedStages || allStagesPublished) && (
+                              {(hasGeneratedStages || allStagesPublished) && client?.id && (
                                 <button
                                   type="button"
-                                  onClick={() => setShowAdvisoryAgent(true)}
+                                  onClick={() => {
+                                    const directors = (client.siblingDirectors || [])
+                                      .map((d: any) => ({ name: d.name || d.full_name || '', role: d.role }))
+                                      .filter((d: any) => d.name);
+                                    const staffNames = (client.staffMembers || [])
+                                      .map((s: any) => s.name || s.full_name)
+                                      .filter(Boolean);
+                                    const fin: Record<string, number | string> = {};
+                                    const va = (client.roadmapStages || []).find((s: any) =>
+                                      s.stage_type === 'value_analysis' &&
+                                      ['generated', 'approved', 'published'].includes(s.status),
+                                    );
+                                    const vaData = va?.approved_content || va?.generated_content || {};
+                                    if (vaData?.financialData?.revenue) fin.revenue = vaData.financialData.revenue;
+                                    if (vaData?.financialData?.grossProfit) fin.grossProfit = vaData.financialData.grossProfit;
+                                    if (vaData?.financialData?.netProfit) fin.netProfit = vaData.financialData.netProfit;
+                                    if (vaData?.totalOpportunity) fin.totalOpportunity = vaData.totalOpportunity;
+
+                                    dispatchOpenAgent({
+                                      clientId: client.id,
+                                      practiceId: client.practice_id || currentMember?.practice_id || '',
+                                      clientName: client.name || 'Client',
+                                      companyName: client.client_company || '',
+                                      directors,
+                                      staffNames,
+                                      financials: fin,
+                                    });
+                                  }}
                                   className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
                                   title="Open the in-platform AI advisor for this client"
                                 >
