@@ -171,19 +171,22 @@ list them as a bibliography.
 // External calls
 // ---------------------------------------------------------------------------
 
-async function generateEmbedding(text: string, openaiKey: string): Promise<number[] | null> {
-  if (!text || !openaiKey) return null;
+async function generateEmbedding(text: string, openRouterKey: string): Promise<number[] | null> {
+  if (!text || !openRouterKey) return null;
   // Cap input to ~8000 chars to stay within embedding token limits.
   const trimmed = text.length > 8000 ? text.slice(0, 8000) : text;
   try {
-    const response = await fetch('https://api.openai.com/v1/embeddings', {
+    const response = await fetch('https://openrouter.ai/api/v1/embeddings', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${openaiKey}`,
+        Authorization: `Bearer ${openRouterKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://torsor.co.uk',
+        'X-Title': 'Torsor Advisory Agent',
       },
       body: JSON.stringify({
-        model: EMBEDDING_MODEL,
+        // OpenRouter exposes OpenAI's embedding family with the openai/ prefix.
+        model: `openai/${EMBEDDING_MODEL}`,
         input: trimmed,
       }),
     });
@@ -194,7 +197,7 @@ async function generateEmbedding(text: string, openaiKey: string): Promise<numbe
     const data = await response.json();
     const vec = data?.data?.[0]?.embedding;
     if (Array.isArray(vec) && vec.length === EMBEDDING_DIMS) return vec;
-    console.warn('[advisory-agent] embedding response missing vector');
+    console.warn(`[advisory-agent] embedding response unexpected: vec length ${Array.isArray(vec) ? vec.length : 'n/a'}`);
     return null;
   } catch (err) {
     console.warn('[advisory-agent] embedding error:', err);
@@ -346,7 +349,6 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
-  const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -368,7 +370,7 @@ serve(async (req) => {
   // 1. Generate embedding for the user's message (for retrieval + storage)
   // -----------------------------------------------------------------------
 
-  const userEmbedding = openaiKey ? await generateEmbedding(body.message, openaiKey) : null;
+  const userEmbedding = await generateEmbedding(body.message, openRouterKey);
 
   // -----------------------------------------------------------------------
   // 2. Retrieve relevant prior messages (same-client + cross-client)
@@ -442,9 +444,7 @@ serve(async (req) => {
     const costCents = approxCostCents(model, tokensUsed);
 
     // 5. Embed the assistant response too (for future retrieval).
-    const assistantEmbedding = openaiKey
-      ? await generateEmbedding(cleanedContent, openaiKey)
-      : null;
+    const assistantEmbedding = await generateEmbedding(cleanedContent, openRouterKey);
 
     return new Response(
       JSON.stringify({
