@@ -461,6 +461,32 @@ serve(async (req) => {
   const model = modelForMode(body.mode, body.modelOverride);
 
   // -----------------------------------------------------------------------
+  // 0. Check whether this client's roadmap is currently locked (active sprint)
+  // -----------------------------------------------------------------------
+
+  let lockState: {
+    locked: boolean;
+    reason?: string;
+    sprint_number?: number;
+    sprint_start_date?: string;
+    calendar_unlock_date?: string;
+    active_week?: number;
+  } = { locked: false };
+  if (body.clientId) {
+    try {
+      const { data: lockData } = await supabase.rpc('is_client_change_locked', {
+        p_client_id: body.clientId,
+        p_service_line_code: null,
+      });
+      if (lockData && typeof lockData === 'object') {
+        lockState = lockData as typeof lockState;
+      }
+    } catch (err) {
+      console.warn('[advisory-agent] lock check error:', err);
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // 1. Resolve which service modules apply to this client
   // -----------------------------------------------------------------------
 
@@ -549,10 +575,72 @@ serve(async (req) => {
       ? `\n\nACTIVE SERVICES FOR THIS CLIENT: ${activeServiceLabels.join(', ')}\n`
       : '\n\nACTIVE SERVICES FOR THIS CLIENT: (none / not enrolled in any tracked service)\n';
 
+  // Build the lock instruction. When the roadmap is locked, the agent must
+  // not propose changes; instead it should discuss freely and offer to park
+  // the discussion for revisit when the sprint completes.
+  let lockInstruction = '';
+  if (lockState.locked) {
+    lockInstruction = `
+
+CHANGE LOCK ACTIVE (CRITICAL — read carefully):
+
+This client's roadmap is currently LOCKED. ${lockState.reason ?? ''}
+Lock lifts on ${lockState.calendar_unlock_date ?? 'sprint completion'}.
+
+You MUST NOT emit \`proposed_change\` blocks while the lock is active. The
+\`apply_roadmap_change\` RPC will refuse the write anyway, so emitting one
+would just confuse the advisor.
+
+What you CAN do:
+  - Discuss anything the advisor asks about: data, patterns, the rationale
+    behind existing content, observations about the client's progress.
+  - Suggest changes in PROSE (not as proposed_change blocks). Be explicit
+    that "this can't be applied until the lock lifts on
+    ${lockState.calendar_unlock_date ?? 'sprint end'}".
+  - In your \`next_steps\` block, prefer options that DISCUSS, RESEARCH,
+    or OFFER TO PARK rather than options that imply immediate edits.
+
+The "park" pattern: when the advisor asks for an edit you cannot apply,
+include a next_steps option like:
+
+\`\`\`next_steps
+{
+  "context": "We're mid-sprint, so this can't be applied right now. How would you like to handle it?",
+  "options": [
+    {
+      "id": "park",
+      "title": "Park this for revisit at sprint end",
+      "description": "I'll keep the discussion in memory. When the sprint lifts on ${lockState.calendar_unlock_date ?? 'sprint end'}, we can pick it back up and apply the changes.",
+      "action_hint": "discuss"
+    },
+    {
+      "id": "discuss_only",
+      "title": "Just discuss it for now",
+      "description": "Talk through the implications and rationale without committing to anything.",
+      "action_hint": "discuss"
+    },
+    {
+      "id": "override_check",
+      "title": "Check whether the lock can be lifted early",
+      "description": "Sometimes the advisor wants to mark a sprint complete early. Walk them through the trade-offs.",
+      "action_hint": "discuss"
+    }
+  ]
+}
+\`\`\`
+
+When the user picks "park", their follow-up message will be tagged in
+metadata as parked. After the sprint, vector retrieval will surface
+parked items naturally so you can say "we parked this on <date>, ready
+to revisit?".
+`;
+  }
+
   const systemPrompt =
     GA_SYSTEM_PROMPT +
     AGENT_INSTRUCTIONS +
     activeServicesHeader +
+    lockInstruction +
     '\nSERVICE-SPECIFIC INSTRUCTIONS:\n' +
     (servicePrompts || '(no service modules active)') +
     '\n\n' +
@@ -585,10 +673,20 @@ serve(async (req) => {
       cleanedContent = validation.autoFixed;
     }
 
-    const proposedChanges = extractProposedChanges(cleanedContent);
+    let proposedChanges = extractProposedChanges(cleanedContent);
     const nextSteps = extractNextSteps(cleanedContent);
     const observations = extractSystemObservations(cleanedContent);
     const costCents = approxCostCents(model, tokensUsed);
+
+    // Defensive: if the lock is active and the model still emitted change
+    // blocks (despite the system-prompt instruction), drop them. They'd be
+    // refused by the RPC anyway and would only confuse the advisor.
+    if (lockState.locked && proposedChanges.length > 0) {
+      console.warn(
+        `[advisory-agent] Dropping ${proposedChanges.length} proposed_change blocks emitted while locked`,
+      );
+      proposedChanges = [];
+    }
 
     // 5. Persist any system observations the agent emitted. These are
     //    upserted (de-duped by practice/type/title) and bump occurrence_count
@@ -643,6 +741,8 @@ serve(async (req) => {
         // Active service modules.
         activeServiceCodes,
         activeServiceLabels,
+        // Sprint change-lock state, surfaced to the panel for the lock banner.
+        lockState,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );

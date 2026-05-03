@@ -30,6 +30,7 @@ import {
   Brain,
   Check,
   Loader2,
+  Lock,
   MessageSquare,
   Send,
   Shield,
@@ -179,6 +180,14 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
   const [autoSuggestedDeep, setAutoSuggestedDeep] = useState(false);
   const [activeServices, setActiveServices] = useState<string[]>([]);
   const [lastObservationsCount, setLastObservationsCount] = useState(0);
+  const [lockState, setLockState] = useState<{
+    locked: boolean;
+    reason?: string;
+    sprint_number?: number;
+    sprint_start_date?: string;
+    calendar_unlock_date?: string;
+    active_week?: number;
+  }>({ locked: false });
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const tokeniserRef = useRef(tokeniser);
   tokeniserRef.current = tokeniser;
@@ -234,6 +243,20 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
 
         if (!id || cancelled) return;
         setThreadId(id);
+
+        // Fetch the lock state up-front so the banner is visible from the
+        // moment the panel opens, not just after the first response.
+        try {
+          const { data: lockData } = await supabase.rpc('is_client_change_locked', {
+            p_client_id: clientId,
+            p_service_line_code: null,
+          });
+          if (!cancelled && lockData && typeof lockData === 'object') {
+            setLockState(lockData as typeof lockState);
+          }
+        } catch (err) {
+          console.warn('[AdvisoryAgentPanel] lock preload error:', err);
+        }
 
         const { data: rows } = await supabase
           .from('client_chat_messages')
@@ -343,6 +366,16 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
         if (opts?.alternativesOffered) {
           userMetadata.alternativesOffered = opts.alternativesOffered;
         }
+        // Tag "park" choices so we can later surface them after the sprint
+        // unlock. Anything with action_hint=discuss + chosen id starting
+        // 'park' is treated as a parked discussion.
+        if (opts?.chosenOptionId === 'park' || opts?.chosenOptionId?.startsWith('park_')) {
+          userMetadata.parked = true;
+          userMetadata.parkedAt = new Date().toISOString();
+          if (lockState.calendar_unlock_date) {
+            userMetadata.parkedUntilSprintEnd = lockState.calendar_unlock_date;
+          }
+        }
 
         await supabase.from('client_chat_messages').insert({
           thread_id: threadId,
@@ -416,6 +449,9 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
         }
         if (typeof agentResp?.observationsRecorded === 'number') {
           setLastObservationsCount(agentResp.observationsRecorded);
+        }
+        if (agentResp?.lockState && typeof agentResp.lockState === 'object') {
+          setLockState(agentResp.lockState);
         }
 
         // Strip the structured blocks from the displayed text — they're rendered
@@ -656,6 +692,37 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
           </div>
         </div>
 
+        {/* Sprint lock banner */}
+        {lockState.locked && (
+          <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 flex items-start gap-2">
+            <Lock className="w-4 h-4 text-amber-700 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-amber-900 leading-relaxed">
+              <p className="font-semibold">
+                Roadmap locked
+                {lockState.sprint_number ? ` — Sprint ${lockState.sprint_number}` : ''}
+                {lockState.active_week ? `, week ${lockState.active_week} of 12` : ''}
+              </p>
+              <p className="text-amber-800 mt-0.5">
+                {lockState.calendar_unlock_date ? (
+                  <>
+                    Edits resume on{' '}
+                    <strong>
+                      {new Date(lockState.calendar_unlock_date).toLocaleDateString(undefined, {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                      })}
+                    </strong>
+                    . Until then, suggestions are discussed only — not applied.
+                  </>
+                ) : (
+                  'Edits resume when the sprint completes. Suggestions are discussed only.'
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {messages.length === 0 && !error && (
@@ -734,22 +801,28 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
                       <p className="text-red-700 mt-1">Failed: {change.error}</p>
                     )}
                     <div className="flex gap-2 mt-2">
-                      <button
-                        type="button"
-                        onClick={() => applyChange(change, i)}
-                        disabled={isApplying}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:bg-emerald-700 disabled:opacity-50"
-                      >
-                        {isApplying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-                        {isApplying ? 'Applying' : isFailed ? 'Retry' : 'Apply'}
-                      </button>
+                      {lockState.locked ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-800 rounded text-xs font-medium">
+                          <Lock className="w-3 h-3" /> Locked until sprint ends
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => applyChange(change, i)}
+                          disabled={isApplying}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-600 text-white rounded text-xs font-medium hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {isApplying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                          {isApplying ? 'Applying' : isFailed ? 'Retry' : 'Apply'}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => rejectChange(i)}
                         disabled={isApplying}
                         className="inline-flex items-center gap-1 px-2 py-1 bg-slate-200 text-slate-700 rounded text-xs font-medium hover:bg-slate-300 disabled:opacity-50"
                       >
-                        <X className="w-3 h-3" /> Reject
+                        <X className="w-3 h-3" /> {lockState.locked ? 'Dismiss' : 'Reject'}
                       </button>
                     </div>
                   </div>
