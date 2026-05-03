@@ -21,7 +21,13 @@ changes to other parts of the client's record (BM positioning, SA findings,
 MA insights) is fine, but the advisor will apply those manually.
 `;
 
-function safeJsonString(value: unknown, max: number): string {
+// Generous per-stage budget so the agent can do full-stage batch rewrites.
+// 1M-token context windows mean we can afford this — see WS2 observation
+// "Agent context truncates roadmap stage content, blocking full-stage rewrite
+// batches".
+const PER_STAGE_CHAR_CAP = 30_000;
+
+function safeJsonString(value: unknown, max: number = PER_STAGE_CHAR_CAP): string {
   try {
     const s = JSON.stringify(value);
     return s.length > max ? `${s.slice(0, max)}...[truncated]` : s;
@@ -68,7 +74,7 @@ async function fetchGAContext(
     const flag = s.manually_edited ? ' [edited]' : '';
     const content = s.approved_content ?? s.generated_content ?? null;
     lines.push(`\n--- ${s.stage_type} (${s.status}, v${s.version})${flag} ---`);
-    lines.push(safeJsonString(content, 1500));
+    lines.push(safeJsonString(content, PER_STAGE_CHAR_CAP));
   }
   return lines.join('\n');
 }

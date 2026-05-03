@@ -36,7 +36,16 @@ export interface ContextSnapshotShape {
   stages?: Array<{ stage_type: string; status: string; version: number }>;
 }
 
-const SECTION_CHAR_CAP = 4000;
+// Truncation budgets. Both Sonnet 4.5 and Opus 4.7 have 1M-token context
+// windows so we can afford to be generous here. Earlier values (1500 per
+// stage / 8000 per section) were sized for a 200K window and blocked the
+// agent from doing full-stage batch rewrites — see the WS2 system_observation
+// "Agent context truncates roadmap stage content, blocking full-stage rewrite
+// batches". Caps below give a typical sprint_plan_part1 (~25K chars / ~6K
+// tokens) full visibility while still bounding total prompt size.
+const SECTION_CHAR_CAP = 25_000;
+const ROADMAP_SECTION_CAP = 200_000;
+const PER_STAGE_CAP = 30_000;
 
 function clip(s: string, n = SECTION_CHAR_CAP): string {
   if (!s) return '';
@@ -183,9 +192,9 @@ function buildRoadmapContext(stages: any[]): string {
     const flag = stage.manually_edited ? ' [edited]' : '';
     const content = stage.approved_content ?? stage.generated_content ?? null;
     lines.push(`\n--- ${stage.stage_type} (status=${stage.status}, v${stage.version})${flag} ---`);
-    lines.push(safeStringify(content, 1500));
+    lines.push(safeStringify(content, PER_STAGE_CAP));
   }
-  return clip(lines.join('\n'), SECTION_CHAR_CAP * 2);
+  return clip(lines.join('\n'), ROADMAP_SECTION_CAP);
 }
 
 function buildFinancialContext(engagements: any[]): string {
@@ -205,7 +214,7 @@ function buildFinancialContext(engagements: any[]): string {
     yearsTrading: pass1?.yearsTrading,
     keyRatios: pass1?.financialData?.ratios ?? null,
   };
-  return `FINANCIAL DATA (Benchmarking pass1):\n${safeStringify(summary, 1500)}`;
+  return `FINANCIAL DATA (Benchmarking pass1):\n${safeStringify(summary, 5_000)}`;
 }
 
 async function buildAssessmentContext(
@@ -223,7 +232,7 @@ async function buildAssessmentContext(
     try {
       const { data } = await supabase.from(t.table).select(t.select).eq('client_id', clientId);
       if (data && data.length > 0) {
-        return `ASSESSMENT RESPONSES (from ${t.table}):\n${safeStringify(data, 2500)}`;
+        return `ASSESSMENT RESPONSES (from ${t.table}):\n${safeStringify(data, 30_000)}`;
       }
     } catch {
       // Table doesn't exist or access denied — try next.
@@ -238,9 +247,11 @@ function buildCallNotesContext(notes: any[]): string {
   const lines: string[] = ['RECENT CALL / CONTEXT NOTES:'];
   for (const n of notes) {
     const when = n.created_at ? new Date(n.created_at).toISOString().slice(0, 10) : '?';
-    lines.push(`- [${when}] ${n.note_type ?? 'note'}: ${String(n.content ?? '').slice(0, 400)}`);
+    // Per-note cap raised from 400 to 2000 so longer call summaries
+    // aren't cut mid-sentence.
+    lines.push(`- [${when}] ${n.note_type ?? 'note'}: ${String(n.content ?? '').slice(0, 2_000)}`);
   }
-  return clip(lines.join('\n'));
+  return clip(lines.join('\n'), 30_000);
 }
 
 async function buildSprintStatus(

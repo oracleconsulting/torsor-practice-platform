@@ -398,7 +398,9 @@ function formatRetrievedMessages(messages: RetrievedMessage[]): string {
   for (const m of messages) {
     const date = new Date(m.created_at).toISOString().slice(0, 10);
     const tag = m.is_same_client ? 'this client' : 'another client (anonymised)';
-    const snippet = (m.anon_summary || m.content || '').slice(0, 800);
+    // 4_000 char cap per snippet keeps a 5-match retrieval under 20K chars
+    // while letting longer past discussions surface in full.
+    const snippet = (m.anon_summary || m.content || '').slice(0, 4_000);
     lines.push(`[${date} - ${tag} - similarity ${m.similarity.toFixed(2)}]\n${snippet}`);
   }
   return REFERENCES_HEADER + lines.join('\n\n---\n\n');
