@@ -273,7 +273,10 @@ async function callLLM(
   apiKey: string,
   messages: Array<{ role: string; content: string }>,
   model: string,
-  maxTokens = 4000,
+  // Default raised from 4K to 16K so batch-edit responses with 30+
+  // proposed_change blocks don't get cut off mid-stream. Both Sonnet 4.5
+  // and Opus 4.7 support up to 64K output tokens via OpenRouter.
+  maxTokens = 16_000,
 ): Promise<{ content: string; tokensUsed: number }> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',

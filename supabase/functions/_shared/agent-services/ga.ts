@@ -22,10 +22,11 @@ MA insights) is fine, but the advisor will apply those manually.
 `;
 
 // Generous per-stage budget so the agent can do full-stage batch rewrites.
-// 1M-token context windows mean we can afford this — see WS2 observation
-// "Agent context truncates roadmap stage content, blocking full-stage rewrite
-// batches".
-const PER_STAGE_CHAR_CAP = 30_000;
+// 1M-token context windows mean we can afford this. 100K covers even the
+// largest published sprint plans (typically 40-60K chars) with headroom.
+// See WS2 observation "Agent context truncates roadmap stage content,
+// blocking full-stage rewrite batches".
+const PER_STAGE_CHAR_CAP = 100_000;
 
 function safeJsonString(value: unknown, max: number = PER_STAGE_CHAR_CAP): string {
   try {

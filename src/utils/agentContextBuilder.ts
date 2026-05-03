@@ -41,11 +41,15 @@ export interface ContextSnapshotShape {
 // stage / 8000 per section) were sized for a 200K window and blocked the
 // agent from doing full-stage batch rewrites — see the WS2 system_observation
 // "Agent context truncates roadmap stage content, blocking full-stage rewrite
-// batches". Caps below give a typical sprint_plan_part1 (~25K chars / ~6K
-// tokens) full visibility while still bounding total prompt size.
-const SECTION_CHAR_CAP = 25_000;
-const ROADMAP_SECTION_CAP = 200_000;
-const PER_STAGE_CAP = 30_000;
+// batches". A second iteration showed sprint_plan_part1 was still cut at
+// Week 6 with a 30K cap, so the per-stage cap was raised again to 100K to
+// safely cover even the largest published sprint plans (typically 40-60K
+// chars). Section cap then bounds the cumulative roadmap content so we
+// don't accidentally ship a million-token request when a client has many
+// regenerated versions.
+const SECTION_CHAR_CAP = 50_000;
+const ROADMAP_SECTION_CAP = 500_000;
+const PER_STAGE_CAP = 100_000;
 
 function clip(s: string, n = SECTION_CHAR_CAP): string {
   if (!s) return '';
