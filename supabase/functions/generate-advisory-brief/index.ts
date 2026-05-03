@@ -7,6 +7,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { recordLlmCost } from '../_shared/llm-cost-logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -130,6 +131,28 @@ Return ONLY valid JSON. British English. No markdown.`;
 
     if (!response.ok) { const err = await response.text(); throw new Error(`LLM error: ${response.status} — ${err.substring(0, 200)}`); }
     const data = await response.json();
+
+    // Cost tracking — silent on failure.
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      if (supabaseUrl && serviceKey && practiceId) {
+        const sb = createClient(supabaseUrl, serviceKey);
+        await recordLlmCost({
+          supabase: sb,
+          practiceId,
+          clientId: clientId ?? null,
+          operationType: 'advisory_brief_generation',
+          sourceFunction: 'generate-advisory-brief',
+          model: 'anthropic/claude-sonnet-4.5',
+          inputTokens: data?.usage?.prompt_tokens ?? 0,
+          outputTokens: data?.usage?.completion_tokens ?? 0,
+          serviceLineCode: '365_method',
+          metadata: { sprintNumber },
+        });
+      }
+    } catch (_) { /* ignore */ }
+
     const raw = data.choices?.[0]?.message?.content || '{}';
     const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     const jsonStart = cleaned.indexOf('{');

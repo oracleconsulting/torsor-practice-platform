@@ -8,6 +8,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { recordLlmCost } from '../_shared/llm-cost-logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -132,6 +133,26 @@ Be direct, specific, data-grounded. Reference their exact words. British English
 
     if (!response.ok) throw new Error(`LLM error: ${response.status}`);
     const data = await response.json();
+
+    // Cost tracking — silent on failure. Anchored to the primary director
+    // so spend is attributed to the lead client of the alignment map.
+    try {
+      if (practiceId) {
+        await recordLlmCost({
+          supabase,
+          practiceId,
+          clientId: primaryDirectorId ?? directorIds?.[0] ?? null,
+          operationType: 'director_alignment_generation',
+          sourceFunction: 'generate-director-alignment',
+          model: 'anthropic/claude-sonnet-4.5',
+          inputTokens: data?.usage?.prompt_tokens ?? 0,
+          outputTokens: data?.usage?.completion_tokens ?? 0,
+          serviceLineCode: '365_method',
+          metadata: { directorCount: directorIds?.length ?? 0, primaryDirectorId },
+        });
+      }
+    } catch (_) { /* ignore */ }
+
     const raw = data.choices?.[0]?.message?.content || '{}';
     const cleaned = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     const js = cleaned.indexOf('{'); const je = cleaned.lastIndexOf('}');
