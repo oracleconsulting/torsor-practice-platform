@@ -13,6 +13,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
 import { validateGAContent } from '../_shared/ga-content-validator.ts';
 import { buildResearchContext } from '../_shared/ga-research-base.ts';
+import { recordLlmCostByClient } from '../_shared/llm-cost-logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -287,7 +288,7 @@ interface NarrativeFitProfile {
   journeyReasoning: string;
 }
 
-async function generateNarrativeProfile(part1: Record<string, any>, signals: FitSignals, bmEnrichment = ''): Promise<NarrativeFitProfile> {
+async function generateNarrativeProfile(part1: Record<string, any>, signals: FitSignals, bmEnrichment = '', clientId: string | null = null): Promise<NarrativeFitProfile> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   
   if (!openRouterKey) {
@@ -450,7 +451,26 @@ CRITICAL RULES:
 
     const data = await response.json();
     console.log('LLM response received');
-    
+
+    // Cost tracking — silent on failure.
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      if (supabaseUrl && serviceKey && clientId) {
+        const sb = createClient(supabaseUrl, serviceKey);
+        await recordLlmCostByClient({
+          supabase: sb,
+          clientId,
+          operationType: 'fit_profile_generation',
+          sourceFunction: 'generate-fit-profile',
+          model: 'anthropic/claude-sonnet-4.5',
+          inputTokens: data?.usage?.prompt_tokens ?? 0,
+          outputTokens: data?.usage?.completion_tokens ?? 0,
+          serviceLineCode: '365_method',
+        });
+      }
+    } catch (_) { /* ignore */ }
+
     const content = data.choices[0].message.content;
     const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     const start = cleaned.indexOf('{');
@@ -843,7 +863,7 @@ BENCHMARKING CONTEXT (from completed BM assessment):
     console.log(`Fit signals: ${signals.overallFit} (avg: ${Math.round((signals.readinessScore + signals.commitmentScore + signals.clarityScore + signals.urgencyScore + signals.coachabilityScore) / 5)})`);
 
     // Generate narrative profile (LLM-powered)
-    const narrativeProfile = await generateNarrativeProfile(part1, signals, bmEnrichment);
+    const narrativeProfile = await generateNarrativeProfile(part1, signals, bmEnrichment, clientId);
     console.log('Narrative profile generated');
 
     // Extract Life Design Profile (for downstream pipeline)

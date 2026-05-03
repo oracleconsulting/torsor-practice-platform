@@ -25,6 +25,7 @@ const ClientServicesPage = lazy(() => import('./pages/admin/clients').then(m => 
 const GADashboardPage = lazy(() => import('./pages/admin/GADashboardPage').then(m => ({ default: m.GADashboardPage })));
 const GAClientLiveViewPage = lazy(() => import('./pages/admin/GAClientLiveViewPage').then(m => ({ default: m.GAClientLiveViewPage })));
 const AgentObservationsPage = lazy(() => import('./pages/admin/AgentObservationsPage').then(m => ({ default: m.AgentObservationsPage })));
+const LlmCostsPage = lazy(() => import('./pages/admin/LlmCostsPage').then(m => ({ default: m.LlmCostsPage })));
 const BIPortalPage = lazy(() => import('./pages/admin/BIPortalPage').then(m => ({ default: m.BIPortalPage })));
 const DeliveryManagementPage = lazy(() => import('./pages/admin/DeliveryManagementPage').then(m => ({ default: m.DeliveryManagementPage })));
 const SkillsHeatmapPage = lazy(() => import('./pages/admin/SkillsHeatmapPage').then(m => ({ default: m.SkillsHeatmapPage })));
@@ -120,6 +121,7 @@ function AppRoutes() {
           <Route path="/practice/readiness" element={<ServiceReadinessPage />} />
           <Route path="/practice/assessments" element={<AssessmentPreviewPage />} />
           <Route path="/practice/agent-observations" element={<AgentObservationsPage />} />
+          <Route path="/practice/llm-costs" element={<LlmCostsPage />} />
           <Route path="/config/services" element={<ServiceConfigPage />} />
           <Route path="/config/service-builder" element={<ServiceLineBuilderPage />} />
           <Route path="/config/tech-database" element={<TechDatabasePage />} />

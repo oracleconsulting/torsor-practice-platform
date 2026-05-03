@@ -14,6 +14,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
 import { validateGAContent } from '../_shared/ga-content-validator.ts';
 import { buildResearchContext } from '../_shared/ga-research-base.ts';
+import { recordLlmCostByClient } from '../_shared/llm-cost-logger.ts';
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
@@ -323,7 +324,7 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
 
     console.log(`Generating weeks 7-12 for ${context.userName}...`);
 
-    const sprintPart2 = await generateSprintPart2(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + sprintCarryForward + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
+    const sprintPart2 = await generateSprintPart2(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + sprintCarryForward + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''), clientId);
 
     // Enforce Life Design Thread — every week must have at least one life task
     if (Array.isArray(sprintPart2?.weeks)) {
@@ -502,7 +503,7 @@ function mergeSprints(part1: any, part2: any): any {
   };
 }
 
-async function generateSprintPart2(ctx: any, enrichmentBlock = ''): Promise<any> {
+async function generateSprintPart2(ctx: any, enrichmentBlock = '', clientId: string | null = null): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
   
@@ -556,6 +557,26 @@ async function generateSprintPart2(ctx: any, enrichmentBlock = ''): Promise<any>
 
     data = await response.json();
     console.log(`OpenRouter response received, content length: ${data.choices?.[0]?.message?.content?.length || 0} chars`);
+
+    // Cost tracking — silent on failure.
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      if (supabaseUrl && serviceKey && clientId) {
+        const sb = createClient(supabaseUrl, serviceKey);
+        await recordLlmCostByClient({
+          supabase: sb,
+          clientId,
+          operationType: 'sprint_plan_generation',
+          sourceFunction: 'generate-sprint-plan-part2',
+          model: 'anthropic/claude-sonnet-4.5',
+          inputTokens: data?.usage?.prompt_tokens ?? 0,
+          outputTokens: data?.usage?.completion_tokens ?? 0,
+          serviceLineCode: '365_method',
+          metadata: { part: 'weeks_7_to_12' },
+        });
+      }
+    } catch (_) { /* ignore */ }
   } catch (fetchError: any) {
     clearTimeout(timeoutId);
     if (fetchError.name === 'AbortError') {

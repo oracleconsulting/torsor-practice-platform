@@ -28,6 +28,7 @@ import {
   TrendingUp,
   Calendar,
   MessageSquare,
+  Coins,
 } from 'lucide-react';
 
 // ----------------------------------------------------------------------------
@@ -169,6 +170,13 @@ function formatDate(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatPence(cents: number | null | undefined): string {
+  if (!cents || cents <= 0) return '£0';
+  const pounds = cents / 100;
+  if (pounds < 1) return `${cents}p`;
+  return `£${pounds.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
 function daysSince(iso: string | null | undefined): string {
@@ -568,6 +576,12 @@ export function GAClientLiveViewPage() {
   const [data, setData] = useState<SprintViewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [costSummary, setCostSummary] = useState<{
+    total_cost_cents: number;
+    month_cost_cents: number;
+    last_30d_cost_cents: number;
+    event_count: number;
+  } | null>(null);
 
   const load = useCallback(async () => {
     if (!clientId) return;
@@ -576,6 +590,20 @@ export function GAClientLiveViewPage() {
     try {
       const next = await fetchClientLiveSprint(clientId);
       setData(next);
+      // Fetch cost summary in parallel; failure is non-blocking.
+      const { data: costRow } = await supabase
+        .from('client_llm_cost_summary')
+        .select('total_cost_cents, month_cost_cents, last_30d_cost_cents, event_count')
+        .eq('client_id', clientId)
+        .maybeSingle();
+      setCostSummary(
+        (costRow as {
+          total_cost_cents: number;
+          month_cost_cents: number;
+          last_30d_cost_cents: number;
+          event_count: number;
+        } | null) ?? { total_cost_cents: 0, month_cost_cents: 0, last_30d_cost_cents: 0, event_count: 0 },
+      );
     } catch (err) {
       console.error('[GAClientLiveView] load error:', err);
       setError(err instanceof Error ? err.message : 'Failed to load client sprint data');
@@ -746,7 +774,7 @@ export function GAClientLiveViewPage() {
         </div>
 
         {/* Hero metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <MetricCard
             icon={<Heart className="w-5 h-5 text-teal-600" />}
             label="Life Alignment"
@@ -777,6 +805,21 @@ export function GAClientLiveViewPage() {
             }
             sub={enrollment?.sprint_start_date ? '7-day pacing active' : 'Client hasn\'t started yet'}
             tone="amber"
+          />
+          <MetricCard
+            icon={<Coins className="w-5 h-5 text-emerald-600" />}
+            label="LLM Spend"
+            value={
+              costSummary?.total_cost_cents != null
+                ? formatPence(costSummary.total_cost_cents)
+                : '—'
+            }
+            sub={
+              costSummary
+                ? `${formatPence(costSummary.month_cost_cents)} this month · ${costSummary.event_count} events`
+                : 'No data'
+            }
+            tone="emerald"
           />
         </div>
 
@@ -1035,14 +1078,19 @@ function MetricCard({
   label: string;
   value: string;
   sub?: string;
-  tone: 'teal' | 'indigo' | 'amber';
+  tone: 'teal' | 'indigo' | 'amber' | 'emerald';
 }) {
-  const toneClasses =
-    tone === 'teal'
-      ? 'from-teal-50 to-emerald-50 border-teal-200 text-teal-800'
-      : tone === 'indigo'
-      ? 'from-indigo-50 to-purple-50 border-indigo-200 text-indigo-800'
-      : 'from-amber-50 to-orange-50 border-amber-200 text-amber-800';
+  let toneClasses: string;
+  if (tone === 'teal') {
+    toneClasses = 'from-teal-50 to-cyan-50 border-teal-200 text-teal-800';
+  } else if (tone === 'indigo') {
+    toneClasses = 'from-indigo-50 to-purple-50 border-indigo-200 text-indigo-800';
+  } else if (tone === 'amber') {
+    toneClasses = 'from-amber-50 to-orange-50 border-amber-200 text-amber-800';
+  } else {
+    // emerald
+    toneClasses = 'from-emerald-50 to-green-50 border-emerald-200 text-emerald-800';
+  }
 
   return (
     <div className={`rounded-xl border p-5 bg-gradient-to-br ${toneClasses}`}>

@@ -12,6 +12,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
 import { validateGAContent } from '../_shared/ga-content-validator.ts';
 import { buildResearchContext } from '../_shared/ga-research-base.ts';
+import { recordLlmCostByClient } from '../_shared/llm-cost-logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -179,7 +180,7 @@ BENCHMARKING CONTEXT (from completed BM assessment):
     console.log(`Generating transformation narrative for ${context.userName}...`);
 
     // Generate vision
-    const vision = await generateTransformationNarrative(context);
+    const vision = await generateTransformationNarrative(context, clientId);
 
     const duration = Date.now() - startTime;
 
@@ -291,7 +292,7 @@ function parseIncome(str: string | undefined): number {
 // TRANSFORMATION NARRATIVE GENERATOR
 // ============================================================================
 
-async function generateTransformationNarrative(ctx: VisionContext): Promise<any> {
+async function generateTransformationNarrative(ctx: VisionContext, clientId: string | null = null): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
 
@@ -332,7 +333,26 @@ async function generateTransformationNarrative(ctx: VisionContext): Promise<any>
 
   const data = await response.json();
   console.log('LLM response received');
-  
+
+  // Cost tracking — silent on failure.
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (supabaseUrl && serviceKey && clientId) {
+      const sb = createClient(supabaseUrl, serviceKey);
+      await recordLlmCostByClient({
+        supabase: sb,
+        clientId,
+        operationType: 'vision_generation',
+        sourceFunction: 'generate-five-year-vision',
+        model: 'anthropic/claude-sonnet-4.5',
+        inputTokens: data?.usage?.prompt_tokens ?? 0,
+        outputTokens: data?.usage?.completion_tokens ?? 0,
+        serviceLineCode: '365_method',
+      });
+    }
+  } catch (_) { /* ignore */ }
+
   const content = data.choices[0].message.content;
   const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   const start = cleaned.indexOf('{');

@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Coins,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -63,6 +64,7 @@ const sections: NavSection[] = [
       { id: 'readiness', label: 'Service Readiness', icon: Target },
       { id: 'assessments', label: 'Assessments', icon: ClipboardList },
       { id: 'agent-observations', label: 'Agent Observations', icon: Sparkles },
+      { id: 'llm-costs', label: 'LLM Costs', icon: Coins },
     ],
   },
   {

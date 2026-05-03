@@ -19,6 +19,7 @@ export const ADMIN_ROUTES = {
   readiness: '/practice/readiness',
   assessments: '/practice/assessments',
   'agent-observations': '/practice/agent-observations',
+  'llm-costs': '/practice/llm-costs',
   config: '/config/services',
   'service-builder': '/config/service-builder',
   'tech-database': '/config/tech-database',

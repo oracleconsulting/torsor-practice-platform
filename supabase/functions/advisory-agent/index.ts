@@ -37,6 +37,7 @@ import {
   modulesForCodes,
   systemPromptForModules,
 } from '../_shared/agent-services/registry.ts';
+import { recordLlmCost, estimateCostCents } from '../_shared/llm-cost-logger.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -235,7 +236,15 @@ list them as a bibliography.
 // External calls
 // ---------------------------------------------------------------------------
 
-async function generateEmbedding(text: string, openRouterKey: string): Promise<number[] | null> {
+interface EmbeddingResult {
+  vector: number[];
+  promptTokens: number;
+}
+
+async function generateEmbedding(
+  text: string,
+  openRouterKey: string,
+): Promise<EmbeddingResult | null> {
   if (!text || !openRouterKey) return null;
   // Cap input to ~8000 chars to stay within embedding token limits.
   const trimmed = text.length > 8000 ? text.slice(0, 8000) : text;
@@ -260,7 +269,10 @@ async function generateEmbedding(text: string, openRouterKey: string): Promise<n
     }
     const data = await response.json();
     const vec = data?.data?.[0]?.embedding;
-    if (Array.isArray(vec) && vec.length === EMBEDDING_DIMS) return vec;
+    const promptTokens = data?.usage?.prompt_tokens ?? data?.usage?.total_tokens ?? 0;
+    if (Array.isArray(vec) && vec.length === EMBEDDING_DIMS) {
+      return { vector: vec, promptTokens };
+    }
     console.warn(`[advisory-agent] embedding response unexpected: vec length ${Array.isArray(vec) ? vec.length : 'n/a'}`);
     return null;
   } catch (err) {
@@ -277,7 +289,7 @@ async function callLLM(
   // proposed_change blocks don't get cut off mid-stream. Both Sonnet 4.5
   // and Opus 4.7 support up to 64K output tokens via OpenRouter.
   maxTokens = 16_000,
-): Promise<{ content: string; tokensUsed: number }> {
+): Promise<{ content: string; tokensUsed: number; inputTokens: number; outputTokens: number }> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -301,8 +313,10 @@ async function callLLM(
 
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content ?? '';
-  const tokensUsed = data?.usage?.total_tokens ?? 0;
-  return { content, tokensUsed };
+  const inputTokens = data?.usage?.prompt_tokens ?? 0;
+  const outputTokens = data?.usage?.completion_tokens ?? 0;
+  const tokensUsed = data?.usage?.total_tokens ?? (inputTokens + outputTokens);
+  return { content, tokensUsed, inputTokens, outputTokens };
 }
 
 // ---------------------------------------------------------------------------
@@ -537,7 +551,22 @@ serve(async (req) => {
   // 2. Generate embedding for the user's message (for retrieval + storage)
   // -----------------------------------------------------------------------
 
-  const userEmbedding = await generateEmbedding(body.message, openRouterKey);
+  const userEmbeddingResult = await generateEmbedding(body.message, openRouterKey);
+  const userEmbedding = userEmbeddingResult?.vector ?? null;
+  if (userEmbeddingResult && body.practiceId) {
+    void recordLlmCost({
+      supabase,
+      practiceId: body.practiceId,
+      clientId: body.clientId ?? null,
+      operationType: 'advisory_embedding',
+      sourceFunction: 'advisory-agent',
+      model: `openai/${EMBEDDING_MODEL}`,
+      inputTokens: userEmbeddingResult.promptTokens,
+      outputTokens: 0,
+      serviceLineCode: 'platform',
+      metadata: { phase: 'user_message_embedding', threadId: body.threadId },
+    });
+  }
 
   // -----------------------------------------------------------------------
   // 2. Retrieve relevant prior messages (same-client + cross-client)
@@ -669,7 +698,31 @@ to revisit?".
   // -----------------------------------------------------------------------
 
   try {
-    const { content: rawContent, tokensUsed } = await callLLM(openRouterKey, messages, model);
+    const { content: rawContent, tokensUsed, inputTokens, outputTokens } =
+      await callLLM(openRouterKey, messages, model);
+
+    // Log the chat call cost (most significant per-message line item).
+    if (body.practiceId) {
+      void recordLlmCost({
+        supabase,
+        practiceId: body.practiceId,
+        clientId: body.clientId ?? null,
+        operationType: 'advisory_chat',
+        sourceFunction: 'advisory-agent',
+        model,
+        inputTokens,
+        outputTokens,
+        serviceLineCode: 'platform',
+        metadata: {
+          mode: body.mode ?? 'quick',
+          threadId: body.threadId,
+          messageLength: body.message.length,
+          contextLength: (body.context ?? '').length,
+          retrievedCount: retrieved.length,
+          historyTurns: trimmedHistory.length,
+        },
+      });
+    }
 
     let cleanedContent = rawContent;
     const validation = validateGAContent(rawContent);
@@ -722,7 +775,22 @@ to revisit?".
     }
 
     // 6. Embed the assistant response too (for future retrieval).
-    const assistantEmbedding = await generateEmbedding(cleanedContent, openRouterKey);
+    const assistantEmbeddingResult = await generateEmbedding(cleanedContent, openRouterKey);
+    const assistantEmbedding = assistantEmbeddingResult?.vector ?? null;
+    if (assistantEmbeddingResult && body.practiceId) {
+      void recordLlmCost({
+        supabase,
+        practiceId: body.practiceId,
+        clientId: body.clientId ?? null,
+        operationType: 'advisory_embedding',
+        sourceFunction: 'advisory-agent',
+        model: `openai/${EMBEDDING_MODEL}`,
+        inputTokens: assistantEmbeddingResult.promptTokens,
+        outputTokens: 0,
+        serviceLineCode: 'platform',
+        metadata: { phase: 'assistant_response_embedding', threadId: body.threadId },
+      });
+    }
 
     return new Response(
       JSON.stringify({

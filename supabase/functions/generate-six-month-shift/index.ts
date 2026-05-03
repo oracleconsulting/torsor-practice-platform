@@ -12,6 +12,7 @@ import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supa
 import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
 import { validateGAContent } from '../_shared/ga-content-validator.ts';
 import { buildResearchContext } from '../_shared/ga-research-base.ts';
+import { recordLlmCostByClient } from '../_shared/llm-cost-logger.ts';
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
@@ -247,7 +248,7 @@ serve(async (req) => {
     console.log(`Generating 6-month shift for ${context.userName}...`);
 
     // Generate shift (with optional enrichment + BM context)
-    const shift = await generateShift(context, (enrichedContext?.promptContext || '') + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
+    const shift = await generateShift(context, (enrichedContext?.promptContext || '') + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''), clientId);
 
     const duration = Date.now() - startTime;
 
@@ -324,7 +325,7 @@ function buildShiftContext(part1: any, part2: any, client: any, vision: any, fit
 // SHIFT GENERATOR
 // ============================================================================
 
-async function generateShift(ctx: any, enrichmentBlock = ''): Promise<any> {
+async function generateShift(ctx: any, enrichmentBlock = '', clientId: string | null = null): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
   
@@ -368,6 +369,25 @@ async function generateShift(ctx: any, enrichmentBlock = ''): Promise<any> {
   const data = await response.json();
   const content = data.choices[0].message.content;
   console.log(`LLM response length: ${content.length} characters`);
+
+  // Cost tracking — silent on failure.
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (supabaseUrl && serviceKey && clientId) {
+      const sb = createClient(supabaseUrl, serviceKey);
+      await recordLlmCostByClient({
+        supabase: sb,
+        clientId,
+        operationType: 'shift_generation',
+        sourceFunction: 'generate-six-month-shift',
+        model: 'anthropic/claude-sonnet-4.5',
+        inputTokens: data?.usage?.prompt_tokens ?? 0,
+        outputTokens: data?.usage?.completion_tokens ?? 0,
+        serviceLineCode: '365_method',
+      });
+    }
+  } catch (_) { /* ignore */ }
   
   const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   const start = cleaned.indexOf('{');
