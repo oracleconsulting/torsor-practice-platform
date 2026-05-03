@@ -131,6 +131,23 @@ if [[ -f "$CONFIG" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
+# Per-function max timeouts (seconds). Long-running ones (Opus deep-mode
+# advisory chat, multi-stage sprint plan / value analysis generation) need
+# the full 400s Pro window; everything else is fine on the default 150s.
+# ---------------------------------------------------------------------------
+
+function timeout_for_fn() {
+  case "$1" in
+    advisory-agent|generate-sprint-plan-part1|generate-sprint-plan-part2|generate-value-analysis|generate-fit-profile|generate-five-year-vision|generate-six-month-shift|generate-advisory-brief|generate-insight-report|generate-director-alignment|generate-roadmap|generate-discovery-report-pass1|generate-discovery-report-pass2|generate-discovery-report-pass2a|generate-discovery-report-pass2b|generate-discovery-analysis|process-sa-transcript)
+      echo "400"
+      ;;
+    *)
+      echo ""  # default
+      ;;
+  esac
+}
+
+# ---------------------------------------------------------------------------
 # Deploy each function
 # ---------------------------------------------------------------------------
 
@@ -139,7 +156,13 @@ for fn in "${FUNCTIONS[@]}"; do
   echo "=========================================="
   echo "[deploy] $fn"
   echo "=========================================="
-  if npx --yes supabase functions deploy "$fn" --project-ref "$PROJECT_REF"; then
+  fn_timeout="$(timeout_for_fn "$fn")"
+  deploy_args=("functions" "deploy" "$fn" "--project-ref" "$PROJECT_REF")
+  if [[ -n "$fn_timeout" ]]; then
+    deploy_args+=("--max-timeout" "$fn_timeout")
+    echo "[deploy] Setting max-timeout=${fn_timeout}s"
+  fi
+  if npx --yes supabase "${deploy_args[@]}"; then
     echo "[deploy] ✓ $fn"
   else
     echo "[deploy] ✗ $fn FAILED" >&2

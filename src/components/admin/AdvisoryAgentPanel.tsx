@@ -428,7 +428,34 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
             },
           },
         );
-        if (invokeErr) throw invokeErr;
+        if (invokeErr) {
+          // Try to extract the function's actual error body — supabase-js
+          // tucks the Response object on error.context.response. Common
+          // failure modes: 504/546 (function timeout), 500 (unhandled
+          // exception), or the function's own JSON {error: ...}.
+          let detail = invokeErr.message ?? 'Unknown error';
+          try {
+            const ctx = (invokeErr as unknown as { context?: { response?: Response } })?.context;
+            if (ctx?.response) {
+              const status = ctx.response.status;
+              const text = await ctx.response.text();
+              try {
+                const parsed = JSON.parse(text) as { error?: string };
+                if (parsed?.error) detail = `(${status}) ${parsed.error}`;
+                else detail = `(${status}) ${text.slice(0, 300)}`;
+              } catch {
+                detail = `(${status}) ${text.slice(0, 300)}`;
+              }
+              // Friendly hint for the most common cause
+              if (status === 504 || /timeout|timed out|wall clock/i.test(text)) {
+                detail += ' — this looks like a timeout. Try Quick mode, or break the request into smaller chunks (e.g. one stage at a time).';
+              }
+            }
+          } catch {
+            // fall back to invokeErr.message
+          }
+          throw new Error(detail);
+        }
         if (agentResp?.ok === false && agentResp?.error) throw new Error(agentResp.error);
 
         const tokenisedReply = String(agentResp?.message ?? '');
