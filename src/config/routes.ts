@@ -18,6 +18,7 @@ export const ADMIN_ROUTES = {
   'staff-permissions': '/team/permissions',
   readiness: '/practice/readiness',
   assessments: '/practice/assessments',
+  'agent-observations': '/practice/agent-observations',
   config: '/config/services',
   'service-builder': '/config/service-builder',
   'tech-database': '/config/tech-database',

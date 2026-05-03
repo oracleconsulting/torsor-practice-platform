@@ -177,6 +177,8 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<AgentMode>('quick');
   const [autoSuggestedDeep, setAutoSuggestedDeep] = useState(false);
+  const [activeServices, setActiveServices] = useState<string[]>([]);
+  const [lastObservationsCount, setLastObservationsCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const tokeniserRef = useRef(tokeniser);
   tokeniserRef.current = tokeniser;
@@ -409,6 +411,12 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
           sameClient: Number(agentResp?.retrievedSameClientCount ?? 0),
           total: Number(agentResp?.retrievedCount ?? 0),
         };
+        if (Array.isArray(agentResp?.activeServiceLabels)) {
+          setActiveServices(agentResp.activeServiceLabels);
+        }
+        if (typeof agentResp?.observationsRecorded === 'number') {
+          setLastObservationsCount(agentResp.observationsRecorded);
+        }
 
         // Strip the structured blocks from the displayed text — they're rendered
         // separately as cards / change rows below the bubble.
@@ -614,6 +622,18 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
               <p className="text-xs text-slate-500 truncate">
                 {clientName} {companyName ? `· ${companyName}` : ''}
               </p>
+              {activeServices.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {activeServices.map((s) => (
+                    <span
+                      key={s}
+                      className="inline-block px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] uppercase tracking-wide"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -736,6 +756,21 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Recently-recorded observations */}
+        {lastObservationsCount > 0 && (
+          <div className="border-t border-fuchsia-200 bg-fuchsia-50 px-4 py-2 text-xs text-fuchsia-900 flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 flex-shrink-0" />
+            Agent flagged {lastObservationsCount} system observation
+            {lastObservationsCount === 1 ? '' : 's'} from this exchange.
+            <a
+              href="/practice/agent-observations"
+              className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded bg-fuchsia-600 text-white hover:bg-fuchsia-700"
+            >
+              Review <ArrowRight className="w-3 h-3" />
+            </a>
           </div>
         )}
 

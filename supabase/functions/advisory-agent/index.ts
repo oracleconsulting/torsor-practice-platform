@@ -1,17 +1,23 @@
 // =============================================================================
 // EDGE FUNCTION: advisory-agent
 // =============================================================================
-// In-platform AI advisor for Goal Alignment clients. Handles:
+// In-platform AI advisor — Torsor-wide. Handles:
 //   - Model routing (Quick=Sonnet 4.5, Deep=Opus 4.7).
-//   - Per-message embedding generation (OpenAI text-embedding-3-small).
+//   - Per-message embedding generation (text-embedding-3-small via OpenRouter).
 //   - Same-client + (opt-in) cross-client vector retrieval before each LLM
 //     call so the conversation grows over time.
+//   - Service-aware system prompt + context: GA, Benchmarking, Systems Audit,
+//     Management Accounts, Discovery. Each service contributes a prompt
+//     module + context fetcher; the agent only sees modules for services
+//     the client is actually enrolled in.
 //   - Tone-validated responses (validateGAContent post-pass).
-//   - Two structured response artefacts:
-//       1. `proposed_change` blocks  -> applied via apply_roadmap_change RPC
-//       2. `next_steps` blocks       -> rendered as clickable cards in the
-//          panel; the client picks one and the choice (plus the alternatives
-//          offered) is persisted alongside the message.
+//   - Three structured response artefacts:
+//       1. `proposed_change`     -> applied via apply_roadmap_change RPC
+//          (currently GA-only; other services suggest in plain text).
+//       2. `next_steps`          -> clickable cards in the panel; the
+//          choice (plus alternatives offered) is persisted in metadata.
+//       3. `system_observation`  -> upserted via record_system_observation
+//          for the practice owner to review on /practice/agent-observations.
 //
 // PII: receives only tokenised content. Does not de-tokenise.
 // =============================================================================
@@ -27,6 +33,10 @@ import {
   modelForMode,
   type AgentMode,
 } from '../_shared/agent-models.ts';
+import {
+  modulesForCodes,
+  systemPromptForModules,
+} from '../_shared/agent-services/registry.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -67,6 +77,20 @@ interface NextSteps {
   options: NextStepOption[];
 }
 
+interface SystemObservation {
+  observation_type:
+    | 'gap'
+    | 'pattern'
+    | 'tone_drift'
+    | 'data_quality'
+    | 'prompt_idea'
+    | 'feature_idea';
+  service_line?: string;
+  title: string;
+  body: string;
+  evidence?: Record<string, unknown>;
+}
+
 interface RetrievedMessage {
   id: string;
   content: string;
@@ -83,8 +107,10 @@ interface RetrievedMessage {
 const AGENT_INSTRUCTIONS = `
 
 You are an advisory agent inside the Torsor practice management platform. You are
-helping a senior advisor at a UK accounting firm review and refine the content of
-a specific client's Goal Alignment programme.
+helping a senior advisor at a UK accounting firm review and refine content for
+a specific client across whichever Torsor services they're engaged in. The list
+of active services for this client (and what content you can directly edit) is
+spelled out in the SERVICE-SPECIFIC INSTRUCTIONS section below.
 
 You have access to the client's full context (provided below). The client's name,
 company name, and financial figures have been tokenised for GDPR compliance —
@@ -153,6 +179,44 @@ its own:
 
 Do NOT claim a change has been applied. Use language like "Here's a suggested
 rewrite — tap Apply to push it" instead of "I have updated the opening".
+
+SYSTEM OBSERVATIONS (when you spot platform-level patterns):
+
+When you notice a recurring issue — a topic that comes up across multiple
+conversations, a gap in the prompts, a tone drift that keeps slipping through,
+data-quality problems in the inputs — emit a fenced \`system_observation\`
+block alongside your normal response. These are NOT applied to client content;
+they go into a backlog the practice owner reviews on
+/practice/agent-observations.
+
+\`\`\`system_observation
+{
+  "observation_type": "gap",
+  "service_line": "365_method",
+  "title": "Sprint plan generator under-handles family-business power dynamics",
+  "body": "Three separate clients with ageing parent-as-shareholder dynamics have all needed manual rewrites of Week 3 to address succession anxiety. The generator currently treats it as a delegation issue. Suggest adding a 'family power dynamics' branch to generate-sprint-plan-part1's user prompt.",
+  "evidence": {
+    "client_count": 3,
+    "thread_ids": ["..."],
+    "message_excerpts": ["..."]
+  }
+}
+\`\`\`
+
+Field rules:
+  - "observation_type": gap | pattern | tone_drift | data_quality | prompt_idea | feature_idea
+  - "service_line": one of the service codes (365_method, benchmarking,
+    systems_audit, management_accounts, discovery) or "platform" for
+    cross-cutting issues
+  - "title": short, declarative; will be deduplicated against existing
+    observations of the same type — re-raise the same title to bump
+    occurrence_count rather than create a new row
+  - "body": full reasoning, cite evidence
+  - "evidence": optional structured supporting data
+
+Only emit observations when you have GENUINE evidence of a recurring pattern
+(at least 2-3 supporting data points). Do not speculate. Do not emit one on
+every message.
 
 CLIENT CONTEXT (tokenised):
 `;
@@ -268,6 +332,36 @@ function extractProposedChanges(content: string): ProposedChange[] {
   return out;
 }
 
+function extractSystemObservations(content: string): SystemObservation[] {
+  const out: SystemObservation[] = [];
+  const regex = /```system_observation\s*\n([\s\S]*?)\n```/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(content)) !== null) {
+    try {
+      const parsed = JSON.parse(match[1]);
+      if (
+        typeof parsed?.observation_type === 'string' &&
+        typeof parsed?.title === 'string' &&
+        typeof parsed?.body === 'string' &&
+        ['gap', 'pattern', 'tone_drift', 'data_quality', 'prompt_idea', 'feature_idea'].includes(
+          parsed.observation_type,
+        )
+      ) {
+        out.push({
+          observation_type: parsed.observation_type,
+          service_line: typeof parsed.service_line === 'string' ? parsed.service_line : undefined,
+          title: parsed.title,
+          body: parsed.body,
+          evidence: parsed.evidence && typeof parsed.evidence === 'object' ? parsed.evidence : {},
+        });
+      }
+    } catch (err) {
+      console.warn('[advisory-agent] system_observation parse error:', err);
+    }
+  }
+  return out;
+}
+
 function extractNextSteps(content: string): NextSteps | null {
   const regex = /```next_steps\s*\n([\s\S]*?)\n```/g;
   const match = regex.exec(content);
@@ -367,7 +461,49 @@ serve(async (req) => {
   const model = modelForMode(body.mode, body.modelOverride);
 
   // -----------------------------------------------------------------------
-  // 1. Generate embedding for the user's message (for retrieval + storage)
+  // 1. Resolve which service modules apply to this client
+  // -----------------------------------------------------------------------
+
+  let activeServiceCodes: string[] = [];
+  let activeServiceLabels: string[] = [];
+  let serviceContextBlock = '';
+  if (body.clientId) {
+    try {
+      const { data: serviceRows } = await supabase
+        .from('client_service_lines')
+        .select('service_lines(code, name), status')
+        .eq('client_id', body.clientId);
+      activeServiceCodes = (serviceRows ?? [])
+        .map((r: any) => {
+          const sl = Array.isArray(r.service_lines) ? r.service_lines[0] : r.service_lines;
+          return sl?.code ?? null;
+        })
+        .filter(Boolean);
+
+      const modules = modulesForCodes(activeServiceCodes);
+      activeServiceLabels = modules.map((m) => m.label);
+
+      // Fetch per-service context in parallel.
+      const sections = await Promise.all(
+        modules.map(async (m) => {
+          try {
+            return await m.fetchContext(supabase, body.clientId!);
+          } catch (err) {
+            console.warn(`[advisory-agent] ${m.label} context fetch error:`, err);
+            return '';
+          }
+        }),
+      );
+      serviceContextBlock = sections.filter(Boolean).join('\n\n');
+    } catch (err) {
+      console.warn('[advisory-agent] service detection error:', err);
+    }
+  }
+
+  const servicePrompts = systemPromptForModules(modulesForCodes(activeServiceCodes));
+
+  // -----------------------------------------------------------------------
+  // 2. Generate embedding for the user's message (for retrieval + storage)
   // -----------------------------------------------------------------------
 
   const userEmbedding = await generateEmbedding(body.message, openRouterKey);
@@ -405,13 +541,23 @@ serve(async (req) => {
   }
 
   // -----------------------------------------------------------------------
-  // 3. Build the prompt
+  // 4. Build the prompt
   // -----------------------------------------------------------------------
+
+  const activeServicesHeader =
+    activeServiceLabels.length > 0
+      ? `\n\nACTIVE SERVICES FOR THIS CLIENT: ${activeServiceLabels.join(', ')}\n`
+      : '\n\nACTIVE SERVICES FOR THIS CLIENT: (none / not enrolled in any tracked service)\n';
 
   const systemPrompt =
     GA_SYSTEM_PROMPT +
     AGENT_INSTRUCTIONS +
+    activeServicesHeader +
+    '\nSERVICE-SPECIFIC INSTRUCTIONS:\n' +
+    (servicePrompts || '(no service modules active)') +
+    '\n\n' +
     (body.context ?? '') +
+    (serviceContextBlock ? '\n\n' + serviceContextBlock : '') +
     formatRetrievedMessages(retrieved);
 
   const trimmedHistory = (body.conversationHistory ?? []).slice(-20).map((m) => ({
@@ -441,9 +587,38 @@ serve(async (req) => {
 
     const proposedChanges = extractProposedChanges(cleanedContent);
     const nextSteps = extractNextSteps(cleanedContent);
+    const observations = extractSystemObservations(cleanedContent);
     const costCents = approxCostCents(model, tokensUsed);
 
-    // 5. Embed the assistant response too (for future retrieval).
+    // 5. Persist any system observations the agent emitted. These are
+    //    upserted (de-duped by practice/type/title) and bump occurrence_count
+    //    when re-raised. Failures are logged but do not break the response.
+    let observationsRecorded = 0;
+    if (observations.length > 0 && body.practiceId) {
+      for (const obs of observations) {
+        try {
+          const { error: obsErr } = await supabase.rpc('record_system_observation', {
+            p_practice_id: body.practiceId,
+            p_observation_type: obs.observation_type,
+            p_title: obs.title,
+            p_body: obs.body,
+            p_service_line: obs.service_line ?? null,
+            p_evidence: obs.evidence ?? {},
+            p_source_thread_id: body.threadId ?? null,
+            p_source_message_id: null, // panel hasn't yet inserted the message
+          });
+          if (obsErr) {
+            console.warn('[advisory-agent] record_system_observation error:', obsErr);
+          } else {
+            observationsRecorded++;
+          }
+        } catch (err) {
+          console.warn('[advisory-agent] observation persist error:', err);
+        }
+      }
+    }
+
+    // 6. Embed the assistant response too (for future retrieval).
     const assistantEmbedding = await generateEmbedding(cleanedContent, openRouterKey);
 
     return new Response(
@@ -454,6 +629,8 @@ serve(async (req) => {
         costCents,
         proposedChanges,
         nextSteps,
+        observations,
+        observationsRecorded,
         model,
         mode: body.mode ?? 'quick',
         violations: validation.passed ? [] : validation.violations,
@@ -463,6 +640,9 @@ serve(async (req) => {
         // Diagnostics: how many references the agent had access to.
         retrievedCount: retrieved.length,
         retrievedSameClientCount: retrieved.filter((r) => r.is_same_client).length,
+        // Active service modules.
+        activeServiceCodes,
+        activeServiceLabels,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
