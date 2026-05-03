@@ -1,32 +1,51 @@
 // =============================================================================
 // EDGE FUNCTION: advisory-agent
 // =============================================================================
-// In-platform AI advisor for Goal Alignment clients. Receives a tokenised
-// message and tokenised client context from the browser, calls Claude via
-// OpenRouter, and returns the (still-tokenised) response plus any
-// proposed-change blocks for the advisor to approve.
+// In-platform AI advisor for Goal Alignment clients. Handles:
+//   - Model routing (Quick=Sonnet 4.5, Deep=Opus 4.7).
+//   - Per-message embedding generation (OpenAI text-embedding-3-small).
+//   - Same-client + (opt-in) cross-client vector retrieval before each LLM
+//     call so the conversation grows over time.
+//   - Tone-validated responses (validateGAContent post-pass).
+//   - Two structured response artefacts:
+//       1. `proposed_change` blocks  -> applied via apply_roadmap_change RPC
+//       2. `next_steps` blocks       -> rendered as clickable cards in the
+//          panel; the client picks one and the choice (plus the alternatives
+//          offered) is persisted alongside the message.
 //
-// PII safety: this function never sees raw client names, company names, or
-// financial figures. The browser tokeniser swaps them before the request
-// and reverses the swap on the response.
+// PII: receives only tokenised content. Does not de-tokenise.
 // =============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
 import { validateGAContent } from '../_shared/ga-content-validator.ts';
+import {
+  EMBEDDING_DIMS,
+  EMBEDDING_MODEL,
+  approxCostCents,
+  modelForMode,
+  type AgentMode,
+} from '../_shared/agent-models.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 interface AdvisoryAgentRequest {
   threadId: string;
   message: string;
   context: string;
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>;
-  /** Optional model override; defaults to claude-sonnet-4.5 via OpenRouter. */
-  model?: string;
+  mode?: AgentMode;
+  modelOverride?: string;
+  practiceId?: string;
+  clientId?: string;
 }
 
 interface ProposedChange {
@@ -35,6 +54,31 @@ interface ProposedChange {
   new_value: string;
   reason: string;
 }
+
+interface NextStepOption {
+  id: string;
+  title: string;
+  description?: string;
+  action_hint?: 'apply' | 'rewrite' | 'draft' | 'research' | 'compare' | 'discuss';
+}
+
+interface NextSteps {
+  context?: string;
+  options: NextStepOption[];
+}
+
+interface RetrievedMessage {
+  id: string;
+  content: string;
+  anon_summary: string;
+  is_same_client: boolean;
+  similarity: number;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Agent instructions
+// ---------------------------------------------------------------------------
 
 const AGENT_INSTRUCTIONS = `
 
@@ -48,41 +92,121 @@ e.g. CLIENT_A, COMPANY_1, REVENUE_VALUE. Reason about patterns and relationships
 using the tokens. Do NOT ask for the real values; the advisor sees them
 de-tokenised on their screen.
 
-When the advisor asks you to make changes to the roadmap content, respond with
-one or more PROPOSED_CHANGE blocks. Each block must be a single JSON object on
-its own, fenced with the language tag \`proposed_change\`:
+CONVERSATION FLOW (this is non-negotiable):
+
+For every substantive response, finish with a \`next_steps\` block listing 2-4
+concrete options the advisor can pick from. The advisor will click one option,
+which sends back a follow-up "I'll go with: <title>" message. Only THEN should
+you emit \`proposed_change\` blocks (if needed). This way every change is
+explicitly chosen by the advisor.
+
+If the user is just chatting / asking a clarifying question without needing
+action, you can omit next_steps. But err on the side of giving them options:
+agency over the conversation matters.
+
+\`\`\`next_steps
+{
+  "context": "Three ways forward:",
+  "options": [
+    {
+      "id": "tighten",
+      "title": "Tighten the existing narrative",
+      "description": "Cut em dashes, replace 'transformation journey', keep the Tuesday Test framing.",
+      "action_hint": "rewrite"
+    },
+    {
+      "id": "rewrite_research",
+      "title": "Rewrite using Pencavel + Mark research",
+      "description": "Ground it in the 50h plateau and 23-min interruption findings.",
+      "action_hint": "research"
+    },
+    {
+      "id": "compare",
+      "title": "Show me a side-by-side comparison first",
+      "action_hint": "compare"
+    }
+  ]
+}
+\`\`\`
+
+PROPOSED CHANGES (for client content edits):
+
+When the advisor has chosen a path that requires editing roadmap content, emit
+one or more \`proposed_change\` blocks. Each block is a single JSON object on
+its own:
 
 \`\`\`proposed_change
 {
   "stage_type": "fit_assessment",
   "json_path": "{openingReflection}",
   "new_value": "The new text goes here.",
-  "reason": "Tightened the opening to remove em dashes and 'transformation journey' phrasing."
+  "reason": "Tightened opening: removed em dashes and 'transformation journey' phrasing."
 }
 \`\`\`
 
-Field rules:
-  - "stage_type" must be one of: fit_assessment | five_year_vision |
-    six_month_shift | sprint_plan | sprint_plan_part1 | sprint_plan_part2 |
-    value_analysis | advisory_brief | insight_report | director_alignment
-  - "json_path" uses Postgres array notation, e.g. {weeks,0,tasks,1,description}
-  - "new_value" is the full replacement string (not a diff)
-  - "reason" is one short sentence explaining WHY the change is being suggested
+  - "stage_type": fit_assessment | five_year_vision | six_month_shift |
+    sprint_plan | sprint_plan_part1 | sprint_plan_part2 | value_analysis |
+    advisory_brief | insight_report | director_alignment
+  - "json_path": Postgres array notation, e.g. {weeks,0,tasks,1,description}
+  - "new_value": full replacement string (not a diff)
+  - "reason": one short sentence
 
-Multiple changes? Emit multiple blocks, each in its own fence.
-
-Do NOT assume changes are applied until the advisor confirms. The advisor will
-review each block in the panel UI and click Apply or Reject. If you say "I have
-updated the opening", the advisor will lose trust in you. Use language like
-"Here's a suggested rewrite — let me know if you want to apply it" instead.
+Do NOT claim a change has been applied. Use language like "Here's a suggested
+rewrite — tap Apply to push it" instead of "I have updated the opening".
 
 CLIENT CONTEXT (tokenised):
 `;
 
-async function callOpenRouter(
+const REFERENCES_HEADER = `
+
+PRIOR DISCUSSIONS RELEVANT TO THIS QUESTION:
+The system has retrieved the following past messages (tokenised). Use them for
+continuity. Reference them naturally if they help — "we discussed this with this
+client on <date>" or "this echoes a similar pattern we've seen before". Do NOT
+list them as a bibliography.
+
+`;
+
+// ---------------------------------------------------------------------------
+// External calls
+// ---------------------------------------------------------------------------
+
+async function generateEmbedding(text: string, openaiKey: string): Promise<number[] | null> {
+  if (!text || !openaiKey) return null;
+  // Cap input to ~8000 chars to stay within embedding token limits.
+  const trimmed = text.length > 8000 ? text.slice(0, 8000) : text;
+  try {
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${openaiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: EMBEDDING_MODEL,
+        input: trimmed,
+      }),
+    });
+    if (!response.ok) {
+      console.warn(`[advisory-agent] embedding failed: ${response.status} ${await response.text()}`);
+      return null;
+    }
+    const data = await response.json();
+    const vec = data?.data?.[0]?.embedding;
+    if (Array.isArray(vec) && vec.length === EMBEDDING_DIMS) return vec;
+    console.warn('[advisory-agent] embedding response missing vector');
+    return null;
+  } catch (err) {
+    console.warn('[advisory-agent] embedding error:', err);
+    return null;
+  }
+}
+
+async function callLLM(
   apiKey: string,
   messages: Array<{ role: string; content: string }>,
   model: string,
+  maxTokens = 4000,
 ): Promise<{ content: string; tokensUsed: number }> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -94,7 +218,7 @@ async function callOpenRouter(
     },
     body: JSON.stringify({
       model,
-      max_tokens: 4000,
+      max_tokens: maxTokens,
       temperature: 0.4,
       messages,
     }),
@@ -110,6 +234,10 @@ async function callOpenRouter(
   const tokensUsed = data?.usage?.total_tokens ?? 0;
   return { content, tokensUsed };
 }
+
+// ---------------------------------------------------------------------------
+// Parsers
+// ---------------------------------------------------------------------------
 
 function extractProposedChanges(content: string): ProposedChange[] {
   const out: ProposedChange[] = [];
@@ -131,17 +259,57 @@ function extractProposedChanges(content: string): ProposedChange[] {
         });
       }
     } catch (err) {
-      console.warn('[advisory-agent] failed to parse proposed_change block:', err);
+      console.warn('[advisory-agent] proposed_change parse error:', err);
     }
   }
   return out;
 }
 
-function approxCostCents(tokensUsed: number): number {
-  // Claude Sonnet 4.5 via OpenRouter ~$3 per 1M input + $15 per 1M output.
-  // Without splitting input/output, assume an average of ~$5 per 1M tokens.
-  return Math.max(1, Math.ceil((tokensUsed / 1_000_000) * 500));
+function extractNextSteps(content: string): NextSteps | null {
+  const regex = /```next_steps\s*\n([\s\S]*?)\n```/g;
+  const match = regex.exec(content);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (parsed && Array.isArray(parsed.options)) {
+      const options: NextStepOption[] = parsed.options
+        .filter((o: unknown) => o && typeof o === 'object')
+        .map((o: any, i: number) => ({
+          id: typeof o.id === 'string' && o.id.length > 0 ? o.id : `option_${i + 1}`,
+          title: String(o.title ?? `Option ${i + 1}`),
+          description: typeof o.description === 'string' ? o.description : undefined,
+          action_hint:
+            typeof o.action_hint === 'string'
+              ? (o.action_hint as NextStepOption['action_hint'])
+              : undefined,
+        }));
+      if (options.length === 0) return null;
+      return {
+        context: typeof parsed.context === 'string' ? parsed.context : undefined,
+        options,
+      };
+    }
+  } catch (err) {
+    console.warn('[advisory-agent] next_steps parse error:', err);
+  }
+  return null;
 }
+
+function formatRetrievedMessages(messages: RetrievedMessage[]): string {
+  if (messages.length === 0) return '';
+  const lines: string[] = [];
+  for (const m of messages) {
+    const date = new Date(m.created_at).toISOString().slice(0, 10);
+    const tag = m.is_same_client ? 'this client' : 'another client (anonymised)';
+    const snippet = (m.anon_summary || m.content || '').slice(0, 800);
+    lines.push(`[${date} - ${tag} - similarity ${m.similarity.toFixed(2)}]\n${snippet}`);
+  }
+  return REFERENCES_HEADER + lines.join('\n\n---\n\n');
+}
+
+// ---------------------------------------------------------------------------
+// Server
+// ---------------------------------------------------------------------------
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -178,11 +346,72 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
   }
+  const openaiKey = Deno.env.get('OPENAI_API_KEY') ?? '';
 
-  const model = body.model ?? 'anthropic/claude-sonnet-4.5';
-  const systemPrompt = `${GA_SYSTEM_PROMPT}\n${AGENT_INSTRUCTIONS}\n${body.context ?? ''}`;
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  // Use the caller's auth header so RLS applies to the vector match.
+  const authHeader = req.headers.get('authorization') ?? '';
+  const supabase = createClient(
+    supabaseUrl,
+    supabaseAnonKey || supabaseServiceKey,
+    {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    },
+  );
 
-  // Cap conversation history to last 20 turns to keep the prompt size sane.
+  const model = modelForMode(body.mode, body.modelOverride);
+
+  // -----------------------------------------------------------------------
+  // 1. Generate embedding for the user's message (for retrieval + storage)
+  // -----------------------------------------------------------------------
+
+  const userEmbedding = openaiKey ? await generateEmbedding(body.message, openaiKey) : null;
+
+  // -----------------------------------------------------------------------
+  // 2. Retrieve relevant prior messages (same-client + cross-client)
+  // -----------------------------------------------------------------------
+
+  let retrieved: RetrievedMessage[] = [];
+  if (userEmbedding && body.practiceId && body.clientId) {
+    try {
+      const { data, error } = await supabase.rpc('match_chat_messages_for_practice', {
+        p_query_embedding: userEmbedding,
+        p_practice_id: body.practiceId,
+        p_current_client_id: body.clientId,
+        p_match_count: 5,
+      });
+      if (error) {
+        console.warn('[advisory-agent] match function error:', error);
+      } else if (Array.isArray(data)) {
+        retrieved = data
+          .filter((r: any) => r.id && r.similarity >= 0.7)
+          .map((r: any) => ({
+            id: r.id,
+            content: r.content ?? '',
+            anon_summary: r.anon_summary ?? r.content ?? '',
+            is_same_client: Boolean(r.is_same_client),
+            similarity: Number(r.similarity ?? 0),
+            created_at: r.created_at,
+          }));
+      }
+    } catch (err) {
+      console.warn('[advisory-agent] retrieval error:', err);
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // 3. Build the prompt
+  // -----------------------------------------------------------------------
+
+  const systemPrompt =
+    GA_SYSTEM_PROMPT +
+    AGENT_INSTRUCTIONS +
+    (body.context ?? '') +
+    formatRetrievedMessages(retrieved);
+
   const trimmedHistory = (body.conversationHistory ?? []).slice(-20).map((m) => ({
     role: m.role === 'assistant' ? 'assistant' : 'user',
     content: String(m.content ?? ''),
@@ -194,19 +423,28 @@ serve(async (req) => {
     { role: 'user', content: body.message },
   ];
 
-  try {
-    const { content, tokensUsed } = await callOpenRouter(openRouterKey, messages, model);
+  // -----------------------------------------------------------------------
+  // 4. Call the LLM
+  // -----------------------------------------------------------------------
 
-    // Tone-check the response just like the generators do, then auto-fix em dashes.
-    let cleanedContent = content;
-    const validation = validateGAContent(content);
+  try {
+    const { content: rawContent, tokensUsed } = await callLLM(openRouterKey, messages, model);
+
+    let cleanedContent = rawContent;
+    const validation = validateGAContent(rawContent);
     if (!validation.passed) {
       console.warn('[advisory-agent] content violations:', validation.violations);
       cleanedContent = validation.autoFixed;
     }
 
     const proposedChanges = extractProposedChanges(cleanedContent);
-    const costCents = approxCostCents(tokensUsed);
+    const nextSteps = extractNextSteps(cleanedContent);
+    const costCents = approxCostCents(model, tokensUsed);
+
+    // 5. Embed the assistant response too (for future retrieval).
+    const assistantEmbedding = openaiKey
+      ? await generateEmbedding(cleanedContent, openaiKey)
+      : null;
 
     return new Response(
       JSON.stringify({
@@ -215,8 +453,16 @@ serve(async (req) => {
         tokensUsed,
         costCents,
         proposedChanges,
+        nextSteps,
         model,
+        mode: body.mode ?? 'quick',
         violations: validation.passed ? [] : validation.violations,
+        // Embeddings — the panel persists these on the message rows.
+        userMessageEmbedding: userEmbedding,
+        assistantMessageEmbedding: assistantEmbedding,
+        // Diagnostics: how many references the agent had access to.
+        retrievedCount: retrieved.length,
+        retrievedSameClientCount: retrieved.filter((r) => r.is_same_client).length,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
