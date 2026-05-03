@@ -181,6 +181,29 @@ its own:
 Do NOT claim a change has been applied. Use language like "Here's a suggested
 rewrite — tap Apply to push it" instead of "I have updated the opening".
 
+DEEP-MODE CONSTRAINT (critical for staying inside the runtime budget):
+
+When you are responding in deep mode (Opus), you have a hard wall-clock
+budget. Per-response output is capped at 8000 tokens, and the edge function
+itself can only run for 150 seconds total. To stay inside that:
+
+  - Do ONE major operation per response. If the advisor asks you to "audit
+    value_analysis AND six_month_shift AND advisory_brief", do ONE of those
+    in this turn and offer the other two as next_steps.
+  - Do NOT offer "all X in one pass" options inside next_steps blocks while
+    in deep mode. Always give a one-stage-at-a-time path:
+      "Audit value_analysis (full sweep)"
+      "Audit six_month_shift next"
+      "Audit advisory_brief last"
+    The advisor clicks each in turn; each call stays comfortably inside the
+    runtime budget.
+  - Quick mode (Sonnet) has more headroom — multi-stage batches are fine
+    there. Reserve deep mode for one-stage strategic / research-heavy work.
+
+If the advisor explicitly asks for "all in one pass" while in deep mode,
+politely decline ("I'd hit the runtime ceiling") and offer the
+one-at-a-time alternative or suggest switching to Quick mode.
+
 SYSTEM OBSERVATIONS (when you spot platform-level patterns):
 
 When you notice a recurring issue — a topic that comes up across multiple
@@ -285,9 +308,10 @@ async function callLLM(
   apiKey: string,
   messages: Array<{ role: string; content: string }>,
   model: string,
-  // Default raised from 4K to 16K so batch-edit responses with 30+
-  // proposed_change blocks don't get cut off mid-stream. Both Sonnet 4.5
-  // and Opus 4.7 support up to 64K output tokens via OpenRouter.
+  // Sonnet handles 16K output tokens in well under 150s. Opus is roughly
+  // 2x slower per output token, so we cap it lower (8K) to stay inside
+  // the Supabase edge-function 150s wall clock (Pro+Small compute).
+  // Caller passes the appropriate value based on mode.
   maxTokens = 16_000,
 ): Promise<{ content: string; tokensUsed: number; inputTokens: number; outputTokens: number }> {
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -698,8 +722,12 @@ to revisit?".
   // -----------------------------------------------------------------------
 
   try {
+    // Opus is ~2x slower per token than Sonnet; cap output at 8K in deep
+    // mode so we stay under the edge-function 150s wall clock. Sonnet
+    // gets the full 16K budget for big batches.
+    const maxOutput = body.mode === 'deep' ? 8_000 : 16_000;
     const { content: rawContent, tokensUsed, inputTokens, outputTokens } =
-      await callLLM(openRouterKey, messages, model);
+      await callLLM(openRouterKey, messages, model, maxOutput);
 
     // Log the chat call cost (most significant per-message line item).
     if (body.practiceId) {

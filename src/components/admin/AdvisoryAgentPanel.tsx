@@ -188,6 +188,14 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
     calendar_unlock_date?: string;
     active_week?: number;
   }>({ locked: false });
+  /** When the last failure looks like a timeout, store the original prompt so
+   *  we can offer a "Retry in Quick mode" button. */
+  const [retryableError, setRetryableError] = useState<{
+    text: string;
+    chosenOptionId?: string;
+    alternativesOffered?: NextStepOption[];
+    sourceMessageId?: string;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const tokeniserRef = useRef(tokeniser);
   tokeniserRef.current = tokeniser;
@@ -562,16 +570,35 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
           .eq('id', threadId);
       } catch (err) {
         console.error('[AdvisoryAgentPanel] send error:', err);
-        setError(err instanceof Error ? err.message : 'Something went wrong sending the message.');
+        const msg = err instanceof Error ? err.message : 'Something went wrong sending the message.';
+        setError(msg);
+
+        // Detect timeout-like errors so we can surface a "Retry in Quick mode" button.
+        const looksLikeTimeout =
+          /504|timeout|timed out|wall clock|non-2xx status code/i.test(msg);
+        if (looksLikeTimeout && mode === 'deep') {
+          setRetryableError({
+            text: realMessage,
+            chosenOptionId: opts?.chosenOptionId,
+            alternativesOffered: opts?.alternativesOffered,
+            sourceMessageId: opts?.sourceMessageId,
+          });
+        } else {
+          setRetryableError(null);
+        }
+
         setMessages((prev) => [
           ...prev,
           {
             id: `error-${Date.now()}`,
             role: 'assistant',
-            displayContent:
-              err instanceof Error
-                ? `Sorry — couldn't reach the agent: ${err.message}`
-                : "Sorry — couldn't reach the agent.",
+            displayContent: looksLikeTimeout
+              ? `The agent ran past the 150-second runtime budget. ${
+                  mode === 'deep'
+                    ? 'Try Quick mode for batch operations, or split this into one stage at a time.'
+                    : 'Try splitting this into smaller chunks.'
+                } (Error: ${msg})`
+              : `Sorry — couldn't reach the agent: ${msg}`,
             tokenisedContent: '',
             createdAt: new Date().toISOString(),
           },
@@ -871,6 +898,33 @@ export function AdvisoryAgentPanel(props: AdvisoryAgentPanelProps) {
             >
               Review <ArrowRight className="w-3 h-3" />
             </a>
+          </div>
+        )}
+
+        {/* Retry-in-quick-mode banner after a deep-mode timeout */}
+        {retryableError && mode === 'deep' && (
+          <div className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900 flex items-center gap-2">
+            <Zap className="w-3.5 h-3.5 flex-shrink-0" />
+            That request hit the runtime budget on Opus.
+            <button
+              type="button"
+              onClick={() => {
+                const original = retryableError;
+                setMode('quick');
+                setRetryableError(null);
+                // Defer one tick so setMode propagates before we resend.
+                setTimeout(() => {
+                  void sendMessageInternal(original.text, {
+                    chosenOptionId: original.chosenOptionId,
+                    alternativesOffered: original.alternativesOffered,
+                    sourceMessageId: original.sourceMessageId,
+                  });
+                }, 0);
+              }}
+              className="ml-auto inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-600 text-white hover:bg-amber-700"
+            >
+              Retry in Quick mode <ArrowRight className="w-3 h-3" />
+            </button>
           </div>
         )}
 
