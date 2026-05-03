@@ -184,46 +184,17 @@ jobs:
           # Use the cleaned token for the rest of this step
           export SUPABASE_ACCESS_TOKEN="$clean_token"
 
-          # Long-running edge functions need the Pro plan's 400s ceiling.
-          # Everything else uses Supabase's default. Update this list when
-          # adding new heavy generators.
-          long_running_fns=(
-            advisory-agent
-            generate-fit-profile
-            generate-five-year-vision
-            generate-six-month-shift
-            generate-sprint-plan-part1
-            generate-sprint-plan-part2
-            generate-value-analysis
-            generate-advisory-brief
-            generate-insight-report
-            generate-director-alignment
-            generate-roadmap
-            generate-discovery-report-pass1
-            generate-discovery-report-pass2
-            generate-discovery-report-pass2a
-            generate-discovery-report-pass2b
-            generate-discovery-analysis
-            process-sa-transcript
-          )
-          is_long_running() {
-            local needle="$1"
-            for f in "${long_running_fns[@]}"; do
-              [[ "$f" == "$needle" ]] && return 0
-            done
-            return 1
-          }
-
+          # NOTE: per-function max-timeout is no longer settable via the
+          # Supabase CLI. Long-running edge functions (advisory-agent,
+          # generate-sprint-plan-*, generate-value-analysis, etc.) must
+          # have their max execution time bumped to 400s manually in the
+          # Supabase dashboard:
+          #   https://supabase.com/dashboard/project/<ref>/functions/<fn>/details
           failed=()
           while IFS= read -r fn; do
             [[ -z "$fn" ]] && continue
             echo "::group::Deploying $fn"
-            deploy_args=(functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF")
-            if is_long_running "$fn"; then
-              deploy_args+=(--max-timeout 400)
-              echo "  -> max-timeout 400s (Pro window)"
-            fi
-            if supabase "${deploy_args[@]}"; then
+            if supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF"; then
               echo "::notice::Deployed $fn"
             else
               echo "::error::Failed to deploy $fn"

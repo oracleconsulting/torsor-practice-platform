@@ -131,21 +131,14 @@ if [[ -f "$CONFIG" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Per-function max timeouts (seconds). Long-running ones (Opus deep-mode
-# advisory chat, multi-stage sprint plan / value analysis generation) need
-# the full 400s Pro window; everything else is fine on the default 150s.
+# Per-function max timeouts: NOTE — the current Supabase CLI does not accept
+# a --max-timeout flag (it was removed; per-function timeouts are now set
+# in the Supabase dashboard). Long-running edge functions (advisory-agent
+# in Opus deep mode, generate-sprint-plan-*, generate-value-analysis, etc.)
+# need their max execution time bumped manually in the dashboard at:
+#   https://supabase.com/dashboard/project/<ref>/functions/<fn>/details
+# Set max execution time to 400s (Pro plan ceiling) on those.
 # ---------------------------------------------------------------------------
-
-function timeout_for_fn() {
-  case "$1" in
-    advisory-agent|generate-sprint-plan-part1|generate-sprint-plan-part2|generate-value-analysis|generate-fit-profile|generate-five-year-vision|generate-six-month-shift|generate-advisory-brief|generate-insight-report|generate-director-alignment|generate-roadmap|generate-discovery-report-pass1|generate-discovery-report-pass2|generate-discovery-report-pass2a|generate-discovery-report-pass2b|generate-discovery-analysis|process-sa-transcript)
-      echo "400"
-      ;;
-    *)
-      echo ""  # default
-      ;;
-  esac
-}
 
 # ---------------------------------------------------------------------------
 # Deploy each function
@@ -156,13 +149,7 @@ for fn in "${FUNCTIONS[@]}"; do
   echo "=========================================="
   echo "[deploy] $fn"
   echo "=========================================="
-  fn_timeout="$(timeout_for_fn "$fn")"
-  deploy_args=("functions" "deploy" "$fn" "--project-ref" "$PROJECT_REF")
-  if [[ -n "$fn_timeout" ]]; then
-    deploy_args+=("--max-timeout" "$fn_timeout")
-    echo "[deploy] Setting max-timeout=${fn_timeout}s"
-  fi
-  if npx --yes supabase "${deploy_args[@]}"; then
+  if npx --yes supabase functions deploy "$fn" --project-ref "$PROJECT_REF"; then
     echo "[deploy] ✓ $fn"
   else
     echo "[deploy] ✗ $fn FAILED" >&2
