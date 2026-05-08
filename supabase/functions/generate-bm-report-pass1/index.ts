@@ -6826,7 +6826,7 @@ When writing narratives:
     // ====================================================================
     // POST-LLM: Enrich Revenue Growth metric with CAGR context
     // ====================================================================
-    if (pass1Data.metricsComparison && assessmentData.multi_year_profile?.revenue?.cagr !== null) {
+    if (pass1Data.metricsComparison && assessmentData.multi_year_profile?.revenue?.cagr != null) {
       const myp = assessmentData.multi_year_profile;
       const revenueMetric = pass1Data.metricsComparison.find((m: any) => {
         const code = (m.metricCode || m.metric_code || '').toLowerCase();
