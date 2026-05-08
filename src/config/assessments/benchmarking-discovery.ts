@@ -9,7 +9,7 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
   name: 'Benchmarking Assessment',
   description: 'Industry Comparison Assessment - We use your Hidden Value Audit data to avoid asking duplicate questions',
   estimatedMinutes: 18,
-  totalQuestions: 19, // Added 4 investment context questions
+  totalQuestions: 23, // 19 base + 4 conditional pre-revenue stage context questions
   aiAnchors: 5,
   
   sections: [
@@ -121,6 +121,69 @@ export const benchmarkingDiscoveryConfig: AssessmentConfig = {
       ],
     },
     
+    // ═══════════════════════════════════════════════════════════════
+    // SECTION 2.5: STAGE CONTEXT (PRE-REVENUE / EARLY-REVENUE ONLY)
+    // ═══════════════════════════════════════════════════════════════
+    {
+      id: 'stage_context',
+      title: 'Stage Context',
+      description: 'For pre-revenue and early-revenue businesses',
+      conditional: (ctx: { businessStage?: string }) =>
+        ctx.businessStage === 'pre_revenue' || ctx.businessStage === 'early_revenue',
+      questions: [
+        {
+          id: 'q2_5_1',
+          field: 'funding_round_clarity',
+          type: 'single_select',
+          required: false,
+          label: 'Where are you in the fundraising process?',
+          options: [
+            { value: 'signed_termsheet', label: 'Signed term sheet' },
+            { value: 'soft_circled', label: 'Soft-circled commitments' },
+            { value: 'in_discussion', label: 'In active discussions' },
+            { value: 'searching', label: 'Searching for investors' },
+            { value: 'none', label: 'Not currently raising' },
+          ],
+        },
+        {
+          id: 'q2_5_2',
+          field: 'cap_table_complexity',
+          type: 'single_select',
+          required: false,
+          label: 'How would you describe your cap table?',
+          options: [
+            { value: 'clean', label: 'Clean - simple share structure, few shareholders' },
+            { value: 'moderate', label: 'Moderate - some complexity but manageable' },
+            { value: 'complex', label: 'Complex - multiple share classes or convertibles' },
+            { value: 'problematic', label: 'Problematic - needs restructuring' },
+          ],
+        },
+        {
+          id: 'q2_5_3',
+          field: 'pipeline_evidence_strength',
+          type: 'single_select',
+          required: false,
+          label: 'What is the strongest evidence of customer demand?',
+          options: [
+            { value: 'signed_contracts', label: 'Signed contracts or purchase orders' },
+            { value: 'signed_lois', label: 'Signed letters of intent' },
+            { value: 'verbal_commitments', label: 'Verbal commitments from identified prospects' },
+            { value: 'active_discussions', label: 'Active discussions / demos booked' },
+            { value: 'cold_outreach', label: 'Cold outreach only / no direct demand signals' },
+          ],
+        },
+        {
+          id: 'q2_5_4',
+          field: 'key_hire_plan',
+          type: 'free_text',
+          required: false,
+          label: 'What are your critical hires in the next 12 months?',
+          placeholder: 'e.g., CTO (Q3 2026, £80k budget), Head of Sales (Q4 2026, £70k)',
+          maxLength: 500,
+        },
+      ],
+    },
+
     // ═══════════════════════════════════════════════════════════════
     // SECTION 3: INVESTMENT CONTEXT (NEW)
     // ═══════════════════════════════════════════════════════════════

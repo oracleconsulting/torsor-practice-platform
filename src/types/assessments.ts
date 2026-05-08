@@ -10,7 +10,7 @@ export interface QuestionOption {
 export interface Question {
   id: string;
   field: string;
-  type: 'free_text' | 'single_choice' | 'multiple_choice' | 'number' | 'industry_select';
+  type: 'free_text' | 'single_choice' | 'single_select' | 'multiple_choice' | 'number' | 'industry_select';
   required: boolean;
   aiAnchor?: boolean;
   label: string;
@@ -27,6 +27,7 @@ export interface Section {
   id: string;
   title: string;
   description: string;
+  conditional?: (context: { businessStage?: string }) => boolean;
   questions: Question[];
 }
 
