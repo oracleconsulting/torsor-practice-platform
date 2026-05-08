@@ -1292,6 +1292,7 @@ interface PreRevenueAnalysisResult {
     blockers: string[];
   }>;
   investmentReadiness: InvestmentReadinessResult;
+  metricTargets?: any[];
   caveats: string[];
 }
 
@@ -2634,6 +2635,54 @@ function calculatePreRevenueValueAnalysis(
     },
   ];
 
+  // ── Metric targets for pre-revenue trajectory ─────────────────────────
+  const metricTargets: any[] = [];
+  const targetExitValForMetrics = engagement.target_exit_valuation || 6000000;
+  const exitMultipleForMetrics = basis?.multiple_mid || 10;
+
+  const PRE_REV_METRICS = [
+    { code: 'arr', name: 'Annual Recurring Revenue', category: 'valuation_defining', unit: '£',
+      p25: 500000, p50: 1000000, p75: 2500000, targetByYear: 3,
+      whyThisMatters: 'ARR is the primary valuation driver for SaaS businesses. Hitting P75 commands premium multiples.' },
+    { code: 'nrr', name: 'Net Revenue Retention', category: 'valuation_defining', unit: '%',
+      p25: 100, p50: 110, p75: 120, targetByYear: 3,
+      whyThisMatters: 'NRR above 110% shows expansion revenue outpaces churn — the strongest signal of product-market fit for investors.' },
+    { code: 'gross_margin', name: 'Gross Margin', category: 'operational', unit: '%',
+      p25: 60, p50: 70, p75: 78, targetByYear: 2,
+      whyThisMatters: 'Gross margin above 70% confirms SaaS-grade unit economics and scalable delivery model.' },
+    { code: 'rule_of_40', name: 'Rule of 40', category: 'valuation_defining', unit: '%',
+      p25: 20, p50: 30, p75: 40, targetByYear: 4,
+      whyThisMatters: 'Growth rate + margin above 40 is the benchmark PE/VC use to separate premium from average SaaS.' },
+    { code: 'cac_payback', name: 'CAC Payback Period', category: 'operational', unit: 'months',
+      p25: 30, p50: 18, p75: 12, targetByYear: 3,
+      whyThisMatters: 'CAC payback under 18 months shows capital-efficient growth — critical for fundraising credibility.' },
+    { code: 'contract_length', name: 'Average Contract Length', category: 'investor_readiness', unit: 'years',
+      p25: 1, p50: 2, p75: 3, targetByYear: 2,
+      whyThisMatters: 'Multi-year contracts add 1-2x to ARR multiple and dramatically improve revenue predictability.' },
+  ];
+
+  for (const m of PRE_REV_METRICS) {
+    const impactDelta = (m.p75 - m.p50) / m.p50;
+    const valuationImpactAtP75 = Math.round(targetExitValForMetrics * impactDelta * 0.1);
+    metricTargets.push({
+      metricCode: m.code,
+      metricName: m.name,
+      metricCategory: m.category,
+      p25: m.p25, p50: m.p50, p75: m.p75,
+      unit: m.unit,
+      targetValue: m.p75,
+      targetByYear: m.targetByYear,
+      currentValue: undefined,
+      currentValueDisplay: 'Pre-revenue',
+      status: 'not_engaged' as const,
+      valuationImpactAtP75,
+      valuationImpactRationale: `Moving from P50 to P75 on ${m.name} drives ~${(impactDelta * 100).toFixed(0)}% valuation uplift at exit`,
+      whyThisMatters: m.whyThisMatters,
+    });
+  }
+
+  console.log('[Pre-Revenue Calculator] Generated', metricTargets.length, 'metric targets');
+
   // ── Caveats ───────────────────────────────────────────────────────────
   const caveats: string[] = [
     'Pre-revenue valuations are inherently speculative. All figures are indicative ranges, not precise values.',
@@ -2657,6 +2706,7 @@ function calculatePreRevenueValueAnalysis(
     forwardSuppressors,
     milestonePath,
     investmentReadiness,
+    metricTargets,
     caveats,
   };
 

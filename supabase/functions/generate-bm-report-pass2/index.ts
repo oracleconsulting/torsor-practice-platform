@@ -463,19 +463,61 @@ function buildPreRevenuePass2Prompt(pass1Data: any): string {
   const signals = pass1Data.pre_revenue_signals || {};
   const quotes = pass1Data.clientQuotes || {};
   const hva = pass1Data.hva || {};
+  const defensible = preRevenue.defensiblePreMoney || {};
+  const irScore = preRevenue.investmentReadiness || {};
+  const metricTargets = preRevenue.metricTargets || [];
+
+  const valuationLenses = [
+    preRevenue.vcMethodBackSolve ? `VC Method: £${((preRevenue.vcMethodBackSolve.todayPreMoneyImplied || 0) / 1e6).toFixed(2)}M` : null,
+    preRevenue.scorecardValuation ? `Scorecard: £${((preRevenue.scorecardValuation.impliedPreMoney || 0) / 1e6).toFixed(2)}M` : null,
+    preRevenue.berkusValuation ? `Berkus: £${((preRevenue.berkusValuation.impliedPreMoney || 0) / 1e6).toFixed(2)}M` : null,
+    preRevenue.comparableRoundsAnalysis ? `Comparable Rounds: £${((preRevenue.comparableRoundsAnalysis.impliedRange?.mid || 0) / 1e6).toFixed(2)}M` : null,
+  ].filter(Boolean);
 
   return `
 You are writing the narrative sections of a Pre-Revenue Benchmarking report. Your job is to tell an INVESTMENT STORY, not list problems.
 
 ═══════════════════════════════════════════════════════════════════════════════
+MANDATORY TONE ENFORCEMENT
+═══════════════════════════════════════════════════════════════════════════════
+
+REQUIRED LANGUAGE STYLE:
+- Write like a smart advisor talking to a founder over coffee
+- Use contractions (you're, don't, it's, that's)
+- Use "you" and "your" liberally
+- Short sentences. Varied rhythm. Numbers land like punches.
+- Acknowledge uncertainty ("probably", "likely", "suggests")
+- Use specific £ figures, not vague phrases
+
+FORBIDDEN LANGUAGE (automatic failure if used):
+- Em dashes (—) or en dashes (–) used as separators. Use periods, semicolons, colons, or commas instead.
+- "Additionally", "Furthermore", "Moreover" (just continue the thought)
+- "Delve", "crucial", "pivotal", "testament to", "synergy", "streamline"
+- "Holistic", "impactful", "robust", "unlock potential"
+- "It's not just A, it's B" pattern
+- "Not only X but also Y" parallelisms
+- "From X to Y, from A to B" pattern
+- "3am panic", "scared decisions", "running out of money", "burn rate panic"
+- "Hit by a bus", "flying blind", "ticking bomb"
+- Starting any paragraph with "Your" (vary openings)
+- Ending with "-ing" phrases ("ensuring excellence, fostering growth")
+- "Despite challenges, positioned for growth" formula
+- "It's important to note..." / "In summary..." / "In conclusion..."
+
+GOOD EXAMPLE: "The pipeline says £400k ARR is achievable. At 8x, that's a £3.2M valuation. But investors will discount 40% until you convert at least two signed contracts."
+BAD EXAMPLE: "The analysis reveals that pipeline metrics demonstrate significant potential, with forward-looking projections indicating substantial valuation upside."
+
+═══════════════════════════════════════════════════════════════════════════════
 THE PRE-REVENUE NARRATIVE ARC
 ═══════════════════════════════════════════════════════════════════════════════
 
-1. THE HEADLINE     → Target exit value, required ARR path, key forward suppressors
-2. THE POSITION     → Defensible pre-money range, industry valuation method, comparable rounds
-3. THE CREDIBILITY  → What evidence supports the plan (forecast credibility)
-4. THE SUPPRESSORS  → Forward suppressors, each tied to remediation
-5. THE PATH         → Exit path, milestone-by-milestone with valuation step-ups
+1. THE HEADLINE        → Target exit value, required ARR path, key forward suppressor
+2. THE POSITION        → Defensible pre-money range, valuation lenses, comparable rounds
+3. FORECAST CREDIBILITY → What evidence supports the plan
+4. FORWARD SUPPRESSORS → Each tied to specific remediation + timeline
+5. MILESTONES          → Step-by-step with valuation step-ups
+6. INVESTMENT READINESS → Score breakdown and what to fix first
+7. THE OPPORTUNITY     → Exit path painted clearly with metric targets
 
 ═══════════════════════════════════════════════════════════════════════════════
 THEIR WORDS (USE THESE VERBATIM)
@@ -497,29 +539,60 @@ ${pass1Data.assessmentResponses.bm_business_direction ? `Direction: ${pass1Data.
 ${pass1Data.assessmentResponses.bm_business_direction_context ? `Direction context: "${pass1Data.assessmentResponses.bm_business_direction_context}"` : ''}
 ${pass1Data.assessmentResponses.bm_exit_timeline ? `Exit timeline: ${pass1Data.assessmentResponses.bm_exit_timeline}` : ''}
 ${pass1Data.assessmentResponses.bm_exit_timeline_context ? `Exit context: "${pass1Data.assessmentResponses.bm_exit_timeline_context}"` : ''}
+${pass1Data.assessmentResponses.bm_pricing_confidence ? `Pricing confidence: ${pass1Data.assessmentResponses.bm_pricing_confidence}` : ''}
+${pass1Data.assessmentResponses.bm_investment_plans ? `Investment plans: ${pass1Data.assessmentResponses.bm_investment_plans}` : ''}
+${pass1Data.assessmentResponses.bm_investment_plans_context ? `Investment context: "${pass1Data.assessmentResponses.bm_investment_plans_context}"` : ''}
 ` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
 PRE-REVENUE ANALYSIS DATA
 ═══════════════════════════════════════════════════════════════════════════════
 
-DEFENSIBLE PRE-MONEY: £${(preRevenue.defensiblePreMoney || 0).toLocaleString()}
-INVESTMENT READINESS SCORE: ${preRevenue.investmentReadiness || 'N/A'}/100
+DEFENSIBLE PRE-MONEY RANGE:
+- Conservative: £${((defensible.conservative || 0) / 1e6).toFixed(2)}M
+- Base case: £${((defensible.base || 0) / 1e6).toFixed(2)}M
+- Stretch: £${((defensible.stretch || 0) / 1e6).toFixed(2)}M
+- Rationale: ${defensible.rationale || 'N/A'}
+
+VALUATION LENSES:
+${valuationLenses.map((l: string) => `- ${l}`).join('\n')}
+
+${preRevenue.versusOwnerStated ? `
+VERSUS OWNER STATED:
+- Owner pre-money: ${preRevenue.versusOwnerStated.ownerStatedPreMoney ? `£${(preRevenue.versusOwnerStated.ownerStatedPreMoney / 1e6).toFixed(2)}M` : 'Not stated'}
+- Verdict: ${preRevenue.versusOwnerStated.plausibilityVerdict || 'N/A'}
+- ${preRevenue.versusOwnerStated.rationale || ''}
+` : ''}
+
+INVESTMENT READINESS: ${irScore.score || 0}/100 (${irScore.verdict || 'unknown'})
+${irScore.components ? Object.entries(irScore.components).map(([k, v]: [string, any]) => `- ${k.replace(/_/g, ' ')}: ${v.score}/${v.max}${v.gaps?.length ? ` (gaps: ${v.gaps.join('; ')})` : ''}`).join('\n') : ''}
+Overall strengths: ${(irScore.overallStrengths || []).join('; ') || 'None identified'}
+Overall gaps: ${(irScore.overallGaps || []).join('; ') || 'None identified'}
 
 FORWARD SUPPRESSORS:
-${Array.isArray(preRevenue.forwardSuppressors) ? preRevenue.forwardSuppressors.map((s: any) => `- ${s.name || s}: Impact ${s.impact || 'unknown'}, Remediation: ${s.remediation || 'TBD'}`).join('\n') : 'None identified'}
+${Array.isArray(preRevenue.forwardSuppressors) ? preRevenue.forwardSuppressors.map((s: any) => `- ${s.name}: Severity ${s.severity}, Discount ${s.discountPercent?.low}-${s.discountPercent?.high}%, Impact £${((s.impactAmount?.low || 0) / 1e3).toFixed(0)}k-£${((s.impactAmount?.high || 0) / 1e3).toFixed(0)}k. Remediation: ${s.remediationService || 'TBD'} (${s.remediationTimeMonths || '?'} months)`).join('\n') : 'None identified'}
 
 MILESTONE PATH:
-${Array.isArray(preRevenue.milestonePath) ? preRevenue.milestonePath.map((m: any) => `- ${m.milestone || m.name}: Target ${m.timeline || 'TBD'}, Valuation step-up: ${m.valuationStepUp || 'TBD'}`).join('\n') : 'Not mapped'}
+${Array.isArray(preRevenue.milestonePath) ? preRevenue.milestonePath.map((m: any) => `- Milestone ${m.milestoneNumber}: "${m.description}" by month ${m.timeframeMonths}. ARR target: ${m.arrTarget ? `£${(m.arrTarget / 1e3).toFixed(0)}k` : 'N/A'}. Valuation step-up: £${((m.valuationStepUp?.from || 0) / 1e6).toFixed(2)}M → £${((m.valuationStepUp?.to || 0) / 1e6).toFixed(2)}M${m.blockers?.length ? `. Blockers: ${m.blockers.join(', ')}` : ''}`).join('\n') : 'Not mapped'}
+
+${metricTargets.length > 0 ? `
+METRIC TARGETS (trajectory to P75):
+${metricTargets.map((t: any) => `- ${t.metricName} (${t.metricCategory}): P25=${t.p25}, P50=${t.p50}, P75=${t.p75} ${t.unit}. Target: ${t.targetValue} by year ${t.targetByYear}. Valuation impact at P75: £${(t.valuationImpactAtP75 / 1e3).toFixed(0)}k. ${t.whyThisMatters}`).join('\n')}
+` : ''}
 
 PRE-REVENUE SIGNALS:
-${signals.pipeline ? `- Pipeline: £${signals.pipeline.toLocaleString()}` : ''}
-${signals.forecast ? `- Forecast: £${signals.forecast.toLocaleString()}` : ''}
-${signals.founderAsk ? `- Founder ask: £${signals.founderAsk.toLocaleString()}` : ''}
-${signals.burnRate ? `- Monthly burn: £${signals.burnRate.toLocaleString()}` : ''}
-${signals.runway ? `- Runway: ${signals.runway} months` : ''}
-${signals.arr ? `- Current ARR: £${signals.arr.toLocaleString()}` : ''}
-${signals.mrr ? `- Current MRR: £${signals.mrr.toLocaleString()}` : ''}
+${signals.pipeline_qualified_acv ? `- Qualified pipeline ACV: £${signals.pipeline_qualified_acv.toLocaleString()}` : ''}
+${signals.pipeline_signed_loi_count ? `- Signed LOIs: ${signals.pipeline_signed_loi_count}` : ''}
+${signals.pipeline_verbal_count ? `- Verbal commitments: ${signals.pipeline_verbal_count}` : ''}
+${signals.pipeline_evidence_strength ? `- Evidence strength: ${signals.pipeline_evidence_strength}` : ''}
+${signals.current_runway_months ? `- Runway: ${signals.current_runway_months} months` : ''}
+${signals.monthly_burn ? `- Monthly burn: £${signals.monthly_burn.toLocaleString()}` : ''}
+${signals.round_size_target ? `- Round target: £${signals.round_size_target.toLocaleString()}` : ''}
+${signals.round_committed_to_date ? `- Committed: £${signals.round_committed_to_date.toLocaleString()}` : ''}
+${signals.forecast_confidence ? `- Forecast confidence: ${signals.forecast_confidence}` : ''}
+${signals.forecast_year_1?.revenue ? `- Year 1 forecast: £${signals.forecast_year_1.revenue.toLocaleString()}` : ''}
+${signals.forecast_year_2?.revenue ? `- Year 2 forecast: £${signals.forecast_year_2.revenue.toLocaleString()}` : ''}
+${signals.forecast_year_3?.revenue ? `- Year 3 forecast: £${signals.forecast_year_3.revenue.toLocaleString()}` : ''}
 
 ${Object.keys(hva).length > 0 ? `
 ═══════════════════════════════════════════════════════════════════════════════
@@ -533,6 +606,8 @@ ${hva.unique_methods_protection ? `- IP protection: ${hva.unique_methods_protect
 ${hva.tech_stack_health_percentage !== undefined ? `- Tech/systems health: ${hva.tech_stack_health_percentage}%` : ''}
 ${hva.explored_equity ? `- Equity funding explored: ${hva.explored_equity}` : ''}
 ${hva.explored_eis_seis ? `- EIS/SEIS: ${hva.explored_eis_seis}` : ''}
+${hva.team_advocacy_percentage !== undefined ? `- Team advocacy: ${hva.team_advocacy_percentage}%` : ''}
+${hva.founder_prior_exits ? `- Prior exits: Yes` : ''}
 ` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -543,65 +618,16 @@ Return JSON:
 {
   "headline": "Under 25 words. Target exit value, required ARR path, and the key forward suppressor blocking it.",
 
-  "executiveSummary": "3 paragraphs. Open with the defensible pre-money range and investment readiness score. Describe the pipeline status and forecast credibility. Close with the single biggest risk to the raise.",
+  "executiveSummary": "3 paragraphs. Open with the defensible pre-money range (conservative/base/stretch) and investment readiness score. Describe the pipeline status and forecast credibility. Close with the single biggest risk to the raise.",
 
-  "positionNarrative": "2 paragraphs. Industry valuation method used, comparable rounds cited (if available), defensible pre-money vs founder ask. Explain the methodology honestly.",
+  "positionNarrative": "2 paragraphs. All four valuation lenses used (VC method, Scorecard, Berkus, comparable rounds if available). Defensible pre-money vs founder ask. Explain the methodology honestly, cite specific £ figures from each lens.",
 
-  "strengthNarrative": "2 paragraphs. Reframed as FORECAST CREDIBILITY. What evidence supports the business plan? Signed pipeline, IP protection, team completeness, market timing, early traction signals.",
+  "strengthNarrative": "2 paragraphs. Reframed as FORECAST CREDIBILITY. What evidence supports the business plan? Signed pipeline, IP protection, team completeness, market timing, IR score strengths. Cite the specific component scores.",
 
-  "gapNarrative": "3 paragraphs. Reframed as FORWARD SUPPRESSORS. Each suppressor tied to a specific remediation action and timeline. Quantify the valuation drag where possible.",
+  "gapNarrative": "3 paragraphs. Reframed as FORWARD SUPPRESSORS. Each suppressor tied to a specific remediation action, timeline, and valuation drag (£ figure). IR component weaknesses should be woven in. Include metric targets that are at 'not_engaged' status.",
 
-  "opportunityNarrative": "2 paragraphs. Path to exit, milestone-by-milestone with valuation step-ups at each stage. Paint the investment thesis clearly."
+  "opportunityNarrative": "2 paragraphs. Path to exit, milestone-by-milestone with valuation step-ups at each stage. Reference the metric targets and what hitting P75 would mean for valuation. Paint the investment thesis clearly."
 }
-
-═══════════════════════════════════════════════════════════════════════════════
-TONE: SMART ADVISOR OVER COFFEE, NOT CORPORATE CONSULTANT
-═══════════════════════════════════════════════════════════════════════════════
-
-Write like you're explaining this to a smart founder over coffee.
-They don't need impressing. They need clarity about their investability.
-
-GOOD: "Your pipeline says £400k ARR is achievable. At 8x, that's a £3.2M valuation.
-But investors will discount that 40% until you convert at least two signed contracts."
-
-BAD: "The analysis reveals that pipeline metrics demonstrate significant potential,
-with forward-looking revenue projections indicating substantial valuation upside."
-
-WRITE LIKE A PERSON:
-- Use contractions (you're, don't, it's)
-- Use "you" and "your" liberally
-- Short sentences. Varied rhythm.
-- Numbers should land like punches
-- Acknowledge uncertainty where it exists
-
-═══════════════════════════════════════════════════════════════════════════════
-BANNED AI-SLOP
-═══════════════════════════════════════════════════════════════════════════════
-
-BANNED VOCABULARY (never use):
-- Additionally, Furthermore, Moreover (just continue the thought)
-- Delve, delving (look at, examine, dig into)
-- Crucial, pivotal, vital, key as adjective (show why it matters)
-- Testament to, underscores, highlights (shows, makes clear)
-- Showcases, fostering, garnered (shows, building, got)
-- Tapestry, landscape, ecosystem (figurative uses)
-- Intricate, vibrant, enduring (puffery)
-- Synergy, leverage (verb), value-add (corporate nonsense)
-- Streamline, optimize, holistic, impactful, scalable, robust (consultant clichés)
-- Best practices, industry-leading, unlock potential, drive growth
-
-BANNED PUNCTUATION:
-- Em dashes (—) are COMPLETELY BANNED. Never use them.
-  Instead use: period + new sentence, semicolon, comma, colon, or parentheses.
-- Do not use en dashes (–) as substitutes for em dashes either.
-
-BANNED STRUCTURES:
-- "Not only X but also Y" parallelisms
-- "It's important to note..." / "In summary..." / "In conclusion..."
-- Rule of three lists (pick the best one)
-- "Despite challenges, positioned for growth" formula
-- Starting any paragraph with "Your" (vary openings)
-- Ending with "-ing" phrases ("ensuring excellence, fostering growth")
 
 ═══════════════════════════════════════════════════════════════════════════════
 REQUIRED ELEMENTS
@@ -609,13 +635,59 @@ REQUIRED ELEMENTS
 
 EVERY narrative must include:
 - At least ONE verbatim client quote per section where available
-- At least THREE specific numbers per section
-- Reference to the defensible pre-money vs founder ask gap (if applicable)
-- Forward suppressors connected to specific remediation actions
-- Milestone path with valuation implications
+- At least THREE specific numbers per section (£ figures, percentages, scores)
+- Reference to the defensible pre-money range (conservative/base/stretch)
+- Forward suppressors connected to specific remediation actions and timelines
+- Milestone path with valuation step-ups
+- Investment readiness score and component breakdown
+${metricTargets.length > 0 ? '- Metric targets and what hitting P75 means for exit valuation' : ''}
 
 Return ONLY valid JSON.
 `;
+}
+
+const FORBIDDEN_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
+  { pattern: /3am panic/gi, label: '3am panic' },
+  { pattern: /scared decisions/gi, label: 'scared decisions' },
+  { pattern: /running out of money/gi, label: 'running out of money' },
+  { pattern: /burn rate panic/gi, label: 'burn rate panic' },
+  { pattern: /hit by a bus/gi, label: 'hit by a bus' },
+  { pattern: /flying blind/gi, label: 'flying blind' },
+  { pattern: /ticking bomb/gi, label: 'ticking bomb' },
+  { pattern: /\u2014/g, label: 'em dash' },
+  { pattern: /\u2013/g, label: 'en dash used as em dash' },
+  { pattern: / — /g, label: 'spaced em dash' },
+  { pattern: /it'?s not just .+, it'?s/gi, label: "it's not just A, it's B" },
+  { pattern: /not only .+ but also/gi, label: 'not only X but also Y' },
+  { pattern: /from (\w+) to (\w+), from/gi, label: 'from X to Y, from A to B pattern' },
+  { pattern: /additionally,/gi, label: 'additionally' },
+  { pattern: /furthermore,/gi, label: 'furthermore' },
+  { pattern: /moreover,/gi, label: 'moreover' },
+  { pattern: /\bdelve\b/gi, label: 'delve' },
+  { pattern: /\bcrucial\b/gi, label: 'crucial' },
+  { pattern: /\bpivotal\b/gi, label: 'pivotal' },
+  { pattern: /\btestament to\b/gi, label: 'testament to' },
+  { pattern: /\bsynergy\b/gi, label: 'synergy' },
+  { pattern: /\bstreamline\b/gi, label: 'streamline' },
+  { pattern: /\bholistic\b/gi, label: 'holistic' },
+  { pattern: /\bimpactful\b/gi, label: 'impactful' },
+  { pattern: /\brobust\b/gi, label: 'robust' },
+  { pattern: /unlock potential/gi, label: 'unlock potential' },
+];
+
+function auditNarrative(text: string): { violations: string[]; cleanText: string } {
+  const violations: string[] = [];
+  let cleanText = text;
+  for (const { pattern, label } of FORBIDDEN_PATTERNS) {
+    const matches = text.match(pattern);
+    if (matches) {
+      violations.push(`"${label}" found ${matches.length}x`);
+      if (label.includes('em dash') || label.includes('en dash')) {
+        cleanText = cleanText.replace(/\u2014/g, '. ').replace(/\u2013/g, '. ').replace(/ — /g, '. ');
+      }
+    }
+  }
+  return { violations, cleanText };
 }
 
 serve(async (req) => {
@@ -841,6 +913,22 @@ serve(async (req) => {
     if (narratives.opportunityNarrative) narratives.opportunityNarrative = sanitiseNarrative(narratives.opportunityNarrative);
     if (narratives.headline) narratives.headline = sanitiseNarrative(narratives.headline);
     
+    // AI-language audit
+    const allNarrativeText = [
+      narratives.headline, narratives.executiveSummary, narratives.positionNarrative,
+      narratives.strengthNarrative, narratives.gapNarrative, narratives.opportunityNarrative
+    ].filter(Boolean).join(' ');
+
+    const { violations } = auditNarrative(allNarrativeText);
+    if (violations.length > 0) {
+      console.warn(`[BM Pass 2] AI-language audit violations (${violations.length}):`, violations);
+      for (const key of ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative']) {
+        if (narratives[key]) {
+          narratives[key] = narratives[key].replace(/\u2014/g, '. ').replace(/\u2013/g, '. ').replace(/ — /g, '. ');
+        }
+      }
+    }
+    
     const tokensUsed = result.usage?.total_tokens || 0;
     const cost = (tokensUsed / 1000) * 0.015; // Approximate cost for Opus 4
     const generationTime = Date.now() - startTime;
@@ -861,7 +949,8 @@ serve(async (req) => {
         llm_model: report.llm_model + ' + claude-opus-4',
         llm_tokens_used: (report.llm_tokens_used || 0) + tokensUsed,
         llm_cost: (report.llm_cost || 0) + cost,
-        generation_time_ms: (report.generation_time_ms || 0) + generationTime
+        generation_time_ms: (report.generation_time_ms || 0) + generationTime,
+        ai_audit_violations: violations.length > 0 ? violations : null,
       })
       .eq('engagement_id', engagementId);
     

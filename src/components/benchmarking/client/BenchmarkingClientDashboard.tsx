@@ -30,6 +30,9 @@ import type {
   SurplusCashData
 } from '../../../types/opportunity-calculations';
 import { ForwardValueBridgeSection } from './ForwardValueBridgeSection';
+import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
+import { InvestmentReadinessSection } from './InvestmentReadinessSection';
+import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
 
 // ─── Types (FROZEN — matches BenchmarkingClientReport exactly) ────────────
 
@@ -689,7 +692,7 @@ export default function BenchmarkingClientDashboard({
 
   const NAV_ITEMS = [
     { id: 'overview', label: 'Overview', icon: BarChart3, section: 'overview' },
-    { id: 'metrics', label: 'Metrics', icon: Activity, section: 'analysis' },
+    { id: 'metrics', label: isPreRevenue ? 'Targets' : 'Metrics', icon: Activity, section: 'analysis' },
     { id: 'position', label: 'Position', icon: Target, section: 'analysis' },
     { id: 'hidden', label: 'Hidden Value', icon: Gem, section: 'analysis' },
     { id: 'value', label: 'Valuation', icon: PoundSterling, section: 'value' },
@@ -822,6 +825,16 @@ export default function BenchmarkingClientDashboard({
 
       // ─── METRICS ─────────────────────────────────────────────────────────
       case 'metrics':
+        if (isPreRevenue && preRevenueAnalysis?.metricTargets) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <KeyMetricsAsTargetsSection
+                metricTargets={preRevenueAnalysis.metricTargets}
+                targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+              />
+            </div>
+          );
+        }
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <RevealCard style={{ ...glass({ padding: 24 }), display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -1515,6 +1528,13 @@ export default function BenchmarkingClientDashboard({
 
       // ─── EXIT / INVESTMENT READINESS ─────────────────────────────────────
       case 'exit': {
+        if (isPreRevenue && investmentReadinessBreakdown && investmentReadinessBreakdown.components && !investmentReadinessBreakdown.totalScore) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <InvestmentReadinessSection breakdown={investmentReadinessBreakdown} />
+            </div>
+          );
+        }
         const effectiveBreakdown = isPreRevenue && investmentReadinessBreakdown ? investmentReadinessBreakdown : exitBreakdown;
         if (!effectiveBreakdown) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>{isPreRevenue ? 'Investment readiness' : 'Exit readiness'} data not available.</p></RevealCard>;
         const score = effectiveBreakdown.totalScore;
@@ -1631,6 +1651,16 @@ export default function BenchmarkingClientDashboard({
 
       // ─── SCENARIOS ───────────────────────────────────────────────────────
       case 'scenarios': {
+        if (isPreRevenue && preRevenueAnalysis?.scenarios) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <PreRevenueScenariosSection
+                scenarios={preRevenueAnalysis.scenarios}
+                targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+              />
+            </div>
+          );
+        }
         if (!baselineMetrics) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Scenario data requires baseline financial metrics.</p></RevealCard>;
         const revenue = baselineMetrics.revenue;
         const currentGM = baselineMetrics.grossMargin || 0;

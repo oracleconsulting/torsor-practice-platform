@@ -112,10 +112,29 @@ export interface HirePlanItem {
   candidateStatus?: string;
 }
 
+export interface MetricTarget {
+  metricCode: string;
+  metricName: string;
+  metricCategory: 'valuation_defining' | 'operational' | 'investor_readiness';
+  p25: number;
+  p50: number;
+  p75: number;
+  unit: string;
+  targetValue: number;
+  targetByYear: number;
+  currentValue?: number;
+  currentValueDisplay: string;
+  status: 'not_engaged' | 'on_track' | 'behind_trajectory' | 'at_target';
+  valuationImpactAtP75: number;
+  valuationImpactRationale: string;
+  whyThisMatters: string;
+}
+
 export interface InvestmentReadinessComponent {
   score: number;
   max: number;
   gaps: string[];
+  strengths?: string[];
 }
 
 export interface InvestmentReadinessScore {
@@ -205,6 +224,8 @@ export interface PreRevenueAnalysis {
   }>;
 
   investmentReadiness: InvestmentReadinessScore;
+
+  metricTargets?: MetricTarget[];
 
   caveats: string[];
 }
