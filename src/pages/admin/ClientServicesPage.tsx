@@ -64,6 +64,7 @@ import { dispatchOpenAgent } from '../../components/admin/AgentLauncher';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
 import BenchmarkingClientDashboard from '../../components/benchmarking/client/BenchmarkingClientDashboard';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
+import { EngagementSetupPanel } from '../../components/benchmarking/admin/EngagementSetupPanel';
 import { calculateFounderRisk } from '../../lib/services/benchmarking/founder-risk-calculator';
 import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-mapper';
 
@@ -12932,33 +12933,48 @@ function BenchmarkingClientModal({
               {activeTab === 'analysis' && (
                 <div className="space-y-6">
                   {!hasReport ? (
-                    <div className="border border-gray-200 rounded-xl p-8 text-center">
-                      <Sparkles className="w-12 h-12 text-teal-600 mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Report Generated</h3>
-                      <p className="text-gray-600 mb-6">
-                        {canGenerate 
-                          ? 'Generate the benchmarking report to view analysis and recommendations.'
-                          : 'Complete the assessment first before generating the report.'}
-                      </p>
-                      {canGenerate && (
-                        <button
-                          onClick={handleGenerateReport}
-                          disabled={generating}
-                          className="px-6 py-3 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white rounded-lg flex items-center gap-2 mx-auto"
-                        >
-                          {generating ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>Generating...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-4 h-4" />
-                              <span>Generate Report</span>
-                            </>
-                          )}
-                        </button>
+                    <div className="space-y-6">
+                      {/* Stage setup — set business stage before generating */}
+                      {engagement?.id && (
+                        <div className="border border-gray-200 rounded-xl overflow-hidden">
+                          <div className="bg-gray-50 px-6 py-3 border-b border-gray-200">
+                            <h3 className="text-sm font-semibold text-gray-700">1. Configure Engagement</h3>
+                            <p className="text-xs text-gray-500 mt-0.5">Set the business stage before generating. Defaults to &quot;Operating&quot; for standard businesses.</p>
+                          </div>
+                          <div className="p-4">
+                            <EngagementSetupPanel engagementId={engagement.id} />
+                          </div>
+                        </div>
                       )}
+
+                      <div className="border border-gray-200 rounded-xl p-8 text-center">
+                        <Sparkles className="w-12 h-12 text-teal-600 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{engagement?.id ? '2. Generate Report' : 'No Report Generated'}</h3>
+                        <p className="text-gray-600 mb-6">
+                          {canGenerate 
+                            ? 'Generate the benchmarking report to view analysis and recommendations.'
+                            : 'Complete the assessment first before generating the report.'}
+                        </p>
+                        {canGenerate && (
+                          <button
+                            onClick={handleGenerateReport}
+                            disabled={generating}
+                            className="px-6 py-3 bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 text-white rounded-lg flex items-center gap-2 mx-auto"
+                          >
+                            {generating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Generating...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4" />
+                                <span>Generate Report</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ) : (report && (report.status === 'generated' || report.status === 'approved' || report.status === 'published')) || (engagement?.status === 'generated' || engagement?.status === 'approved') ? (
                     <div className="space-y-4">
