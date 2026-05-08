@@ -11871,20 +11871,20 @@ function BenchmarkingClientModal({
       });
 
       // Auto-create engagement if one doesn't exist for this client
-      if (!engagementData && clientData?.practice_id) {
-        console.log('[Benchmarking Modal] No engagement found, auto-creating...');
+      if (!engagementData && currentMember?.practice_id) {
+        console.log('[Benchmarking Modal] No engagement found, auto-creating for client:', clientId, 'practice:', currentMember.practice_id);
         const { data: newEngagement, error: createErr } = await supabase
           .from('bm_engagements')
           .insert({
             client_id: clientId,
-            practice_id: clientData.practice_id,
+            practice_id: currentMember.practice_id,
             status: 'not_started',
             business_stage: 'operating',
           })
           .select('*')
           .single();
         if (createErr) {
-          console.error('[Benchmarking Modal] Failed to auto-create engagement:', createErr);
+          console.error('[Benchmarking Modal] Failed to auto-create engagement:', createErr.message, createErr.code, createErr.details);
         } else if (newEngagement) {
           console.log('[Benchmarking Modal] Created engagement:', newEngagement.id);
           setEngagement(newEngagement);
