@@ -11878,7 +11878,7 @@ function BenchmarkingClientModal({
           .insert({
             client_id: clientId,
             practice_id: currentMember.practice_id,
-            status: 'not_started',
+            status: 'draft',
             business_stage: 'operating',
           })
           .select('*')
