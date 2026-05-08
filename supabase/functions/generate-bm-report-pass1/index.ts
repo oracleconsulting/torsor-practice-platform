@@ -6040,8 +6040,26 @@ serve(async (req) => {
     
     let industryCode: string | null = null;
     
+    // PRIORITY 0: Pre-revenue industry resolution — never silently fall back to operating-only industries
+    const businessStage = engagement.business_stage || 'operating';
+    const isPreRevenueEngagement = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+    if (isPreRevenueEngagement && !industryOverride) {
+      const descLower = (businessDescription || '').toLowerCase();
+      const regtechKeywords = ['regtech', 'compliance', 'aml', 'kyc', 'financial crime', 'sanctions', 'regulatory', 'dnfbp', 'grc'];
+      const saasKeywords = ['saas', 'platform', 'subscription', 'recurring revenue', 'arr'];
+      const isRegtech = regtechKeywords.some(kw => descLower.includes(kw));
+      const isSaas = saasKeywords.some(kw => descLower.includes(kw));
+      if (isRegtech) {
+        console.log('[BM Pass 1] ✅ Pre-revenue + regtech keywords detected → SAAS_REGTECH');
+        industryCode = 'SAAS_REGTECH';
+      } else if (isSaas) {
+        console.log('[BM Pass 1] ✅ Pre-revenue + SaaS keywords detected → SAAS');
+        industryCode = 'SAAS';
+      }
+    }
+
     // PRIORITY 1: Use admin industry override if set (highest priority)
-    if (industryOverride && industryOverride !== 'undefined' && industryOverride !== 'null') {
+    if (!industryCode && industryOverride && industryOverride !== 'undefined' && industryOverride !== 'null') {
       console.log('[BM Pass 1] ✅ Using ADMIN INDUSTRY OVERRIDE:', industryOverride);
       industryCode = industryOverride;
     }
