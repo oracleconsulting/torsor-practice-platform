@@ -6091,8 +6091,8 @@ serve(async (req) => {
     let industryCode: string | null = null;
     
     // PRIORITY 0: Pre-revenue industry resolution — never silently fall back to operating-only industries
-    const businessStage = engagement.business_stage || 'operating';
-    const isPreRevenueEngagement = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+    const engagementStage = engagement.business_stage || 'operating';
+    const isPreRevenueEngagement = engagementStage === 'pre_revenue' || engagementStage === 'early_revenue';
     if (isPreRevenueEngagement && !industryOverride) {
       const descLower = (businessDescription || '').toLowerCase();
       const regtechKeywords = ['regtech', 'compliance', 'aml', 'kyc', 'financial crime', 'sanctions', 'regulatory', 'dnfbp', 'grc'];
