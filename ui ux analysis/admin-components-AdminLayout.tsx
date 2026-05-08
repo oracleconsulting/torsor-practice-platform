@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { Navigation } from './Navigation';
 import { useAuth } from '../hooks/useAuth';
 import { useCurrentMember } from '../hooks/useCurrentMember';
+import { AgentLauncher } from './admin/AgentLauncher';
 import { LogOut, Menu, X } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -77,6 +78,8 @@ export function AdminLayout({
         </header>
         <main className="p-6 page-enter" key={location.pathname}>{children}</main>
       </div>
+      {/* Global advisory-agent launcher — floats on every admin page */}
+      <AgentLauncher />
     </div>
   );
 }

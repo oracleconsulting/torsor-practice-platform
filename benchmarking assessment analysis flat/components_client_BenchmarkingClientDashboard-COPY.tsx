@@ -635,6 +635,17 @@ export default function BenchmarkingClientDashboard({
   const surplusCash = data.surplus_cash?.surplusCash || data.pass1_data?.surplus_cash?.surplusCash || 0;
   const valueAnalysis = data.value_analysis;
   const enhancedSuppressors = data.pass1_data?.enhanced_suppressors || [];
+  /** Sum of marginal waterfall £ from enhanced suppressors; falls back to value gap when none. */
+  const totalWaterfallGapMarginal = enhancedSuppressors.reduce((sum, s) => {
+    const marginal = s.waterfallAmount ?? s.current?.waterfallAmount ?? s.current?.discountValue ?? 0;
+    return sum + marginal;
+  }, 0);
+  const totalWaterfallGap =
+    enhancedSuppressors.length > 0 ? totalWaterfallGapMarginal : valueAnalysis?.valueGap?.mid ?? 0;
+  const REALISTIC_RECOVERY_RATE = 0.7;
+  const realisticRecovery = Math.round(totalWaterfallGap * REALISTIC_RECOVERY_RATE);
+  /** Potential value after remediation, aligned with waterfall gap × 70% (not legacy pathToValue.mid). */
+  const alignedPotentialValue = (valueAnalysis?.currentMarketValue?.mid ?? 0) + realisticRecovery;
   const exitBreakdown = data.exit_readiness_breakdown ?? data.pass1_data?.exit_readiness_breakdown;
   const opportunitySynthesis = safeJsonParse<{ quickWins?: string[]; watchOuts?: string[]; topPriority?: string; clientHealth?: string } | null>(data.opportunity_synthesis as string, null);
   const twoPathsNarrative = data.pass1_data?.two_paths_narrative || 
@@ -646,20 +657,19 @@ export default function BenchmarkingClientDashboard({
     .filter((m: any) => { const code = (m.metricCode || m.metric_code || '').toLowerCase(); return !code.includes('concentration'); })
     .filter((m: any) => m.p50 != null && m.p50 !== 0);
 
-  const strengthMetrics = displayMetrics.filter((m: any) => {
-    const pct = m.percentile || 0;
-    const impact = m.annualImpact ?? m.annual_impact ?? m._originalAnnualImpact ?? 0;
-    if (pct >= 75) return true;
-    if (pct >= 50 && (!impact || impact === 0)) return true;
-    return false;
-  });
-  const gapMetrics = displayMetrics.filter((m: any) => {
-    const pct = m.percentile || 0;
-    const impact = m.annualImpact ?? m.annual_impact ?? m._originalAnnualImpact ?? 0;
-    if (pct < 50) return true;
-    if (pct >= 50 && pct < 75 && impact && impact > 0) return true;
-    return false;
-  });
+  // Classify metric as strength or gap using Pass 1 `assessment` (authoritative when present).
+  // Rule: top_quartile or top_10 = STRENGTH; else GAP. Fallback: P75+ = strength.
+  const classifyMetric = (metric: any): 'strength' | 'gap' => {
+    const assessment = String(metric.assessment || '').toLowerCase();
+    if (assessment) {
+      return assessment === 'top_quartile' || assessment === 'top_10' ? 'strength' : 'gap';
+    }
+    const pct = metric.percentile || 0;
+    return pct >= 75 ? 'strength' : 'gap';
+  };
+
+  const strengthMetrics = displayMetrics.filter((m: any) => classifyMetric(m) === 'strength');
+  const gapMetrics = displayMetrics.filter((m: any) => classifyMetric(m) === 'gap');
 
   // ─── Navigation Config ─────────────────────────────────────────────────
 
@@ -806,8 +816,8 @@ export default function BenchmarkingClientDashboard({
                 <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>{displayMetrics.length} metrics benchmarked against your sector peers</p>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.emerald}12`, color: C.emerald, border: `1px solid ${C.emerald}25` }}>{strengthMetrics.length} strengths</span>
-                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.red}12`, color: C.red, border: `1px solid ${C.red}25` }}>{gapMetrics.length} gaps</span>
+                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.emerald}12`, color: C.emerald, border: `1px solid ${C.emerald}25`, whiteSpace: 'nowrap' }}>{strengthMetrics.length} strengths</span>
+                <span style={{ fontSize: 12, fontWeight: 600, padding: '6px 16px', borderRadius: 20, background: `${C.red}12`, color: C.red, border: `1px solid ${C.red}25`, whiteSpace: 'nowrap' }}>{gapMetrics.length} gaps</span>
               </div>
             </RevealCard>
 
@@ -821,14 +831,14 @@ export default function BenchmarkingClientDashboard({
                 const format = getMetricFormat(code);
                 const higherIsBetter = !(code.includes('days') || code.includes('debtor') || code.includes('creditor') || code.includes('turnover'));
                 const impact = metric.annualImpact ?? metric.annual_impact ?? metric._originalAnnualImpact ?? 0;
-                const isStrength = pct >= 75 || (pct >= 50 && (!impact || impact === 0));
+                const isStrength = classifyMetric(metric) === 'strength';
                 const barColor = pct >= 75 ? C.emerald : pct >= 50 ? C.blue : pct >= 25 ? C.amber : C.red;
 
                 return (
                   <RevealCard key={i} delay={i * 40} style={{ ...glass({ padding: 20 }), borderLeft: `4px solid ${barColor}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                       <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{name}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12, background: isStrength ? `${C.emerald}12` : `${C.red}12`, color: isStrength ? C.emerald : C.red, ...mono }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 12, background: isStrength ? `${C.emerald}12` : `${C.red}12`, color: isStrength ? C.emerald : C.red, whiteSpace: 'nowrap', ...mono }}>
                         {isStrength ? 'STRENGTH' : 'GAP'}
                       </span>
                     </div>
@@ -950,6 +960,16 @@ export default function BenchmarkingClientDashboard({
                                 <ChevronDown style={{ width: 16, height: 16, color: C.textMuted, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
                               )}
                             </div>
+                            {annualVal > 0 && (
+                              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', margin: '6px 0 0', lineHeight: 1.5 }}>
+                                Proportional share of the £{heroTotal.toLocaleString()} annual margin opportunity, allocated by estimated contribution to the net margin gap.
+                              </p>
+                            )}
+                            {annualVal === 0 && totalWaterfallGap > 0 && (
+                              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', margin: '6px 0 0', lineHeight: 1.5 }}>
+                                This recommendation addresses trapped enterprise value (part of the {fmt(totalWaterfallGap)} structural gap) rather than annual profit — it improves what a buyer would pay for the business.
+                              </p>
+                            )}
                           </div>
                         </div>
                         {isExpanded && (steps.length > 0 || quickWins.length > 0 || whatWeCanHelp) && (
@@ -1235,7 +1255,7 @@ export default function BenchmarkingClientDashboard({
               <DotGrid opacity={0.05} /><NoiseOverlay opacity={0.15} />
               <div style={{ position: 'relative', zIndex: 1 }}>
                 <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 6 }}>Business Valuation Analysis</h2>
-                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>What {clientName} could be worth, and what's holding back the value</p>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 24 }}>What {clientName && clientName !== 'Your Business' ? clientName : 'your business'} could be worth, and what's holding back the value</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
                   {[
                     { lbl: 'Baseline Value', val: fmt(baseline.enterpriseValue.mid), sub: `${baseline.multipleRange.mid}x EBITDA`, color: '#60A5FA' },
@@ -1364,12 +1384,18 @@ export default function BenchmarkingClientDashboard({
                   {enhancedSuppressors.map((sup) => {
                     const sevColor = sup.severity === 'CRITICAL' ? C.red : sup.severity === 'HIGH' ? C.orange : sup.severity === 'MEDIUM' ? C.amber : C.textMuted;
                     const isExpanded = expandedSuppressor === sup.code;
+                    const recoveryRaw = sup.recovery?.valueRecoverable ?? 0;
+                    const waterfallPounds =
+                      sup.waterfallAmount ?? sup.current?.waterfallAmount ?? sup.current?.discountValue;
+                    const cappedRec = Math.min(recoveryRaw, waterfallPounds || recoveryRaw);
+                    const inv = sup.pathToFix.investment;
+                    const roiMult = inv > 0 ? Math.round(cappedRec / inv) : null;
                     return (
                       <div key={sup.code} style={{ ...glass({ padding: 0, overflow: 'hidden' }), borderTop: `3px solid ${sevColor}` }}>
                         <div style={{ padding: 18 }}>
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 12 }}>
                             <div><p style={{ fontWeight: 700, color: C.text, fontSize: 14, margin: '0 0 4px' }}>{sup.name}</p><span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: sevColor, color: '#fff', ...mono }}>{sup.severity}</span></div>
-                            <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.red, margin: 0, ...mono }}>-{sup.current.discountPercent}%</p><p style={{ fontSize: 12, color: C.textMuted, ...mono }}>-{fmt(sup.current.discountValue)}</p></div>
+                            <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.red, margin: 0, ...mono }}>-{sup.current.discountPercent}%</p><p style={{ fontSize: 12, color: C.textMuted, ...mono }}>-{fmt(waterfallPounds ?? sup.current.discountValue)}</p></div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
                             <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(0,0,0,0.02)' }}><span style={{ fontSize: 10, color: C.textMuted, textTransform: 'uppercase', fontWeight: 600 }}>Current</span><p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: '4px 0 0' }}>{sup.current.value}</p><p style={{ fontSize: 11, color: C.textMuted }}>{sup.current.metric}</p></div>
@@ -1377,7 +1403,7 @@ export default function BenchmarkingClientDashboard({
                           </div>
                           <div style={{ padding: '10px 14px', borderRadius: 10, background: `${C.emerald}08`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><TrendingUp style={{ width: 16, height: 16, color: C.emerald }} /><span style={{ fontWeight: 600, color: C.emerald, fontSize: 13 }}>Value Recoverable</span></div>
-                            <div style={{ textAlign: 'right' }}><span style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(sup.recovery.valueRecoverable)}</span><p style={{ fontSize: 10, color: C.emerald, ...mono, marginTop: 2 }}>{sup.recovery.timeframe}</p></div>
+                            <div style={{ textAlign: 'right' }}><span style={{ fontSize: 18, fontWeight: 800, color: C.emerald, ...mono }}>{fmt(cappedRec)}</span><p style={{ fontSize: 10, color: C.emerald, ...mono, marginTop: 2 }}>{sup.recovery.timeframe}</p></div>
                           </div>
                         </div>
                         <button onClick={() => setExpandedSuppressor(isExpanded ? null : sup.code)} style={{ width: '100%', padding: '10px 18px', borderTop: '1px solid rgba(0,0,0,0.06)', background: 'none', border: 'none', borderTopStyle: 'solid', borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.06)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, color: C.textMuted }}>
@@ -1400,7 +1426,7 @@ export default function BenchmarkingClientDashboard({
                               </ol>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, paddingTop: 8, borderTop: `1px solid ${C.emerald}20`, fontSize: 12, color: C.emerald }}>
                                 <span>Investment: {fmt(sup.pathToFix.investment)}</span>
-                                <span>ROI: {Math.round(sup.recovery.valueRecoverable / sup.pathToFix.investment)}x</span>
+                                <span>ROI: {roiMult != null ? `${roiMult}x` : '—'}</span>
                               </div>
                             </div>
                           </div>
@@ -1432,10 +1458,14 @@ export default function BenchmarkingClientDashboard({
             <RevealCard delay={350} style={{ borderRadius: 16, background: `linear-gradient(135deg, ${C.blue}08, ${C.purple}06, rgba(255,255,255,0.97))`, border: `1px solid ${C.blue}15`, padding: 24, boxShadow: SHADOW.sm }}>
               <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Path to Full Value</h3>
               <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 16 }}>
-                Over the next {pathToValue.timeframeMonths} months, addressing structural issues could unlock <strong style={{ color: C.blue }}>{fmt(pathToValue.recoverableValue.mid)}</strong> in hidden value.
+                Over the next {pathToValue.timeframeMonths ?? 24} months, addressing the {enhancedSuppressors.length || 'identified'} structural{' '}
+                {enhancedSuppressors.length === 1 ? 'issue' : 'issues'} could unlock up to <strong style={{ color: C.blue }}>{fmt(realisticRecovery)}</strong> in hidden value.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {pathToValue.keyActions.map((action: string, i: number) => (
+                {(enhancedSuppressors.length > 0
+                  ? enhancedSuppressors.map((s) => s.pathToFix?.summary || s.name)
+                  : pathToValue.keyActions
+                ).map((action: string, i: number) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.7)', border: `1px solid ${C.blue}12` }}>
                     <div style={{ width: 24, height: 24, borderRadius: 12, background: C.blue, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
                     <span style={{ fontSize: 13, color: C.text }}>{action}</span>
@@ -1444,8 +1474,19 @@ export default function BenchmarkingClientDashboard({
               </div>
               <div style={{ marginTop: 16, padding: '14px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.8)', border: `1px solid ${C.blue}20`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div><p style={{ fontSize: 12, color: C.blue }}>Potential Future Value</p><p style={{ fontSize: 10, color: C.textMuted }}>After addressing key issues</p></div>
-                <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.blue, margin: 0, ...mono }}>{fmt(valueAnalysis.potentialValue.mid)}</p><p style={{ fontSize: 12, color: C.emerald, marginTop: 2 }}>+{fmt(valueAnalysis.potentialValue.mid - currentMarketValue.mid)} uplift</p></div>
+                <div style={{ textAlign: 'right' }}><p style={{ fontSize: 24, fontWeight: 800, color: C.blue, margin: 0, ...mono }}>{fmt(alignedPotentialValue)}</p><p style={{ fontSize: 12, color: C.emerald, marginTop: 2 }}>+{fmt(realisticRecovery)} uplift</p></div>
               </div>
+              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.6 }}>
+                {enhancedSuppressors.length === 3
+                  ? 'The three structural discounts'
+                  : enhancedSuppressors.length > 0
+                    ? `The ${enhancedSuppressors.length} structural discounts`
+                    : 'The structural discount gap'} above total {fmt(totalWaterfallGap)} in trapped value (
+                {enhancedSuppressors.length > 0
+                  ? enhancedSuppressors.map((s) => fmt(s.waterfallAmount ?? s.current?.waterfallAmount ?? s.current?.discountValue ?? 0)).join(' + ')
+                  : fmt(totalWaterfallGap)}
+                ). Applying a {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery factor gives {fmt(realisticRecovery)} — full recovery is rarely achieved in practice, as buyers discount newly implemented changes until they see them embedded in the business.
+              </p>
             </RevealCard>
           </div>
         );
@@ -1527,7 +1568,7 @@ export default function BenchmarkingClientDashboard({
                   {[
                     { icon: Clock, val: exitBreakdown.pathTo70.timeframe, sub: 'Timeline' },
                     { icon: Wallet, val: fmt(exitBreakdown.pathTo70.investment), sub: 'Investment' },
-                    { icon: TrendingUp, val: fmt(exitBreakdown.pathTo70.valueUnlocked), sub: 'Value Unlocked' },
+                    { icon: TrendingUp, val: fmt(realisticRecovery), sub: 'Value Unlocked' },
                   ].map((s, i) => (
                     <div key={i} style={{ textAlign: 'center', padding: '12px', borderRadius: 10, background: `${C.emerald}06` }}>
                       <s.icon style={{ width: 18, height: 18, color: C.emerald, margin: '0 auto 6px' }} />
@@ -1536,6 +1577,30 @@ export default function BenchmarkingClientDashboard({
                     </div>
                   ))}
                 </div>
+                <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.5 }}>
+                  Value unlocked: {fmt(totalWaterfallGap)} trapped value × {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery = {fmt(realisticRecovery)}, over {exitBreakdown.pathTo70.timeframe}. The {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% factor reflects that buyers need to see structural changes embedded before giving full credit.
+                </p>
+                {(() => {
+                  const invSucc = enhancedSuppressors.find((x) => x.code === 'SUCCESSION')?.pathToFix?.investment;
+                  const invIp = enhancedSuppressors.find((x) => x.code === 'UNDOCUMENTED_IP')?.pathToFix?.investment;
+                  const invRev = enhancedSuppressors.find((x) => x.code === 'REVENUE_PREDICTABILITY')?.pathToFix?.investment;
+                  const parts: string[] = [];
+                  if (invSucc != null && invSucc > 0) parts.push(`succession planning (${fmt(invSucc)})`);
+                  if (invIp != null && invIp > 0) parts.push(`process documentation (${fmt(invIp)})`);
+                  if (invRev != null && invRev > 0) parts.push(`revenue model work (${fmt(invRev)})`);
+                  if (parts.length === 0) {
+                    return (
+                      <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 1.5 }}>
+                        Investment ({fmt(exitBreakdown.pathTo70.investment)}) is a rounded aggregate of remediation costs on the path to exit-ready.
+                      </p>
+                    );
+                  }
+                  return (
+                    <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 1.5 }}>
+                      Investment covers {parts.join(', ')}.
+                    </p>
+                  );
+                })()}
               </RevealCard>
             )}
           </div>
@@ -1551,7 +1616,8 @@ export default function BenchmarkingClientDashboard({
           const m = metrics.find((x: any) => (x.metricCode || x.metric_code || '').toLowerCase().includes('gross_margin'));
           return m?.p50 ?? 18;
         })();
-        const targetGM = Math.max(currentGM, Math.min(35, targetGrossMargin));
+        const sliderMax = Math.max(35, Math.ceil(currentGM / 5) * 5 + 10);
+        const targetGM = Math.max(currentGM, targetGrossMargin);
         const marginResult = calcMarginScenario(revenue, currentGM, targetGM);
         const currentValue = valueAnalysis?.currentMarketValue?.mid || 0;
         const baselineValue = valueAnalysis?.baseline?.totalBaseline || valueAnalysis?.baseline?.enterpriseValue?.mid || 0;
@@ -1644,7 +1710,7 @@ export default function BenchmarkingClientDashboard({
                         <span style={{ fontSize: 12, color: C.textMuted }}>Target Gross Margin</span>
                         <span style={{ fontSize: 14, fontWeight: 700, color: C.blue, ...mono }}>{targetGM.toFixed(1)}%</span>
                       </div>
-                      <input type="range" min={Math.round(currentGM * 2) / 2} max={35} step={0.5} value={targetGM}
+                      <input type="range" min={Math.round(currentGM * 2) / 2} max={sliderMax} step={0.5} value={targetGM}
                         onChange={e => setTargetGrossMargin(parseFloat(e.target.value))}
                         style={{ width: '100%', height: 8, borderRadius: 4, accentColor: C.blue }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.textMuted, marginTop: 4 }}>
@@ -2011,7 +2077,7 @@ export default function BenchmarkingClientDashboard({
           // Meaningful fallback: synthesize from available data
           const marginOpp = totalOpportunity;
           const valueGapMid = valueAnalysis?.valueGap?.mid || 0;
-          const potentialVal = valueAnalysis?.potentialValue?.mid || 0;
+          const potentialVal = alignedPotentialValue;
           const currentVal = valueAnalysis?.currentMarketValue?.mid || 0;
           const pathActions = valueAnalysis?.pathToValue?.keyActions || [];
 
@@ -2021,15 +2087,15 @@ export default function BenchmarkingClientDashboard({
                 <NoiseOverlay opacity={0.12} /><DotGrid opacity={0.04} />
                 <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
                   <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Two Connected Opportunities</h2>
-                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, marginBottom: 24, maxWidth: '48ch', margin: '0 auto 24px' }}>Improving margins funds the journey to unlocking trapped business value</p>
+                  <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, marginBottom: 24, maxWidth: '48ch', margin: '0 auto 24px' }}>Two different kinds of value — one adds to your annual profit, the other increases what the business is worth</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                     <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
                       <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual margin opportunity</p>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
                     </div>
                     <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
                       <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped value</p>
+                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
@@ -2040,6 +2106,9 @@ export default function BenchmarkingClientDashboard({
                       </Fragment>
                     ))}
                   </div>
+                  <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 20, maxWidth: '60ch', margin: '20px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
+                    The {fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The {fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.
+                  </p>
                 </div>
               </RevealCard>
 
@@ -2063,14 +2132,17 @@ export default function BenchmarkingClientDashboard({
                 <RevealCard delay={200} style={{ ...glass({ padding: '20px 24px' }), borderTop: `3px solid ${C.emerald}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <p style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 2 }}>If you address these structural issues:</p>
-                      <p style={{ fontSize: 12, color: C.textMuted }}>Current: {fmt(currentVal)} → Potential: {fmt(potentialVal)}</p>
+                      <p style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 2 }}>If you address the structural issues:</p>
+                      <p style={{ fontSize: 12, color: C.textMuted }}>Enterprise value: {fmt(currentVal)} → {fmt(potentialVal)}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <p style={{ fontSize: 24, fontWeight: 800, color: C.emerald, margin: 0, ...mono }}>+{fmt(potentialVal - currentVal)}</p>
-                      <p style={{ fontSize: 11, color: C.emerald }}>uplift potential</p>
+                      <p style={{ fontSize: 11, color: C.emerald }}>enterprise value uplift</p>
                     </div>
                   </div>
+                  <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.5 }}>
+                    This is separate from the {fmt(marginOpp)}/yr margin opportunity — that adds to profit annually, this increases what the business is worth at point of sale.
+                  </p>
                 </RevealCard>
               )}
 
@@ -2131,11 +2203,11 @@ export default function BenchmarkingClientDashboard({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
                   <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
                     <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual margin opportunity</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
                   </div>
                   <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
                     <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped value</p>
+                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
                   </div>
                 </div>
                 {/* Connection flow */}
@@ -2148,12 +2220,15 @@ export default function BenchmarkingClientDashboard({
                   ))}
                 </div>
                 <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 1.7 }}>{twoPathsNarrative.explanation}</p>
+                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 16, maxWidth: '60ch', margin: '16px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
+                  The {fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The {fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.
+                </p>
               </div>
             </RevealCard>
 
             {/* Owner journey */}
             <RevealCard delay={150} style={{ ...glass({ padding: 24 }) }}>
-              <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{clientName}'s Path to Optionality</h3>
+              <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{clientName && clientName !== 'Your Business' ? `${clientName}'s` : 'Your'} Path to Optionality</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
                   { year: 'Year 1', color: C.emerald, text: twoPathsNarrative.ownerJourney.year1 },
@@ -2232,9 +2307,9 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 0 }}>
                   {[
-                    { val: fmt(totalOpportunity), sub: 'Opportunity/yr', bg: `${C.emerald}20` },
-                    ...(valueAnalysis ? [{ val: fmt(valueAnalysis.valueGap.mid), sub: 'Trapped value', bg: `${C.amber}20` }] : []),
-                    ...(valueAnalysis ? [{ val: fmt(valueAnalysis.potentialValue.mid), sub: 'Potential value', bg: `${C.blue}20` }] : []),
+                    { val: fmt(totalOpportunity), sub: 'Annual profit improvement', bg: `${C.emerald}20` },
+                    ...(valueAnalysis ? [{ val: fmt(valueAnalysis.valueGap.mid), sub: 'Trapped enterprise value', bg: `${C.amber}20` }] : []),
+                    ...(valueAnalysis ? [{ val: fmt(alignedPotentialValue), sub: 'Potential enterprise value', bg: `${C.blue}20` }] : []),
                   ].map((s, i) => (
                     <div key={i} style={{ background: s.bg, borderRadius: 16, padding: '22px 36px', border: '1px solid rgba(255,255,255,0.15)', minWidth: 160, backdropFilter: 'blur(8px)' }}>
                       <p style={{ fontSize: 32, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{s.val}</p>
@@ -2242,6 +2317,9 @@ export default function BenchmarkingClientDashboard({
                     </div>
                   ))}
                 </div>
+                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 16, maxWidth: '60ch', margin: '16px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
+                  The annual profit improvement recurs every year. The trapped and potential enterprise values are one-time — they reflect what the business would be worth to a buyer.
+                </p>
               </div>
             </RevealCard>
 

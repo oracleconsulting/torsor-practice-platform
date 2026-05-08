@@ -92,6 +92,8 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
   }, [fetchPulseAndScores]);
 
   const hasPulseThisWeek = pulse.some((p) => p.week_number === currentWeek);
+  const hasPulseForWeek = (weekNum: number) => pulse.some((p) => p.week_number === weekNum);
+  const pulseWeeks = new Set(pulse.map(p => p.week_number));
 
   const latestScore = scores.length > 0 ? scores[scores.length - 1] : null;
   const currentScore = latestScore != null ? Number(latestScore.overall_score) : null;
@@ -138,7 +140,41 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
         : 0;
       const pulseAlignmentScore = Math.round((avgPulseRating / 5) * 10000) / 100;
 
-      const hoursAdherenceScore = 80;
+      // Derive hours adherence from real weekly check-in data ("yes" / "mostly" / "no")
+      // rather than a hard-coded floor. weekly_checkins uses sprint_id (FK to
+      // roadmap_stages), not sprint_number — look up the active sprint stage
+      // for this client and filter by that.
+      const { data: activeSprintStage } = await supabase
+        .from('roadmap_stages')
+        .select('id')
+        .eq('client_id', clientId)
+        .in('stage_type', ['sprint_plan', 'sprint_plan_part2'])
+        .in('status', ['generated', 'approved', 'published'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let checkinQuery = supabase
+        .from('weekly_checkins')
+        .select('time_protected')
+        .eq('client_id', clientId);
+      if (activeSprintStage?.id) {
+        checkinQuery = checkinQuery.eq('sprint_id', activeSprintStage.id);
+      }
+      const { data: checkinRows } = await checkinQuery;
+      const checkins = checkinRows ?? [];
+      const hoursAdherenceScore = checkins.length > 0
+        ? Math.round(
+            (checkins.reduce((sum: number, c: { time_protected: string }) => {
+              const v = String(c.time_protected || '').toLowerCase();
+              if (v === 'yes') return sum + 100;
+              if (v === 'mostly') return sum + 60;
+              if (v === 'no') return sum + 20;
+              return sum;
+            }, 0) /
+              checkins.length) * 100
+          ) / 100
+        : 0;
 
       const categoriesWithCompletion = new Set(
         completedLifeTasks.map((t: any) => t.category).filter(Boolean)
@@ -204,29 +240,29 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
 
   const submitPulse = useCallback(
     async (rating: number, categories: string[], protectText?: string) => {
-      if (!clientId || !practiceId || sprintNumber < 1 || currentWeek < 1) return;
-      try {
-        const { error } = await supabase.from('life_pulse_entries').upsert(
-          {
-            client_id: clientId,
-            practice_id: practiceId,
-            sprint_number: sprintNumber,
-            week_number: currentWeek,
-            alignment_rating: rating,
-            active_categories: categories,
-            protect_next_week: protectText?.trim() || null,
-          },
-          { onConflict: 'client_id,sprint_number,week_number' }
-        );
-        if (error) {
-          console.warn('[useLifeAlignment] submit pulse error:', error);
-          return;
-        }
-        await fetchPulseAndScores();
-        await recalculateScore();
-      } catch (err) {
-        console.warn('[useLifeAlignment] submitPulse error:', err);
+      if (!clientId || !practiceId || sprintNumber < 1 || currentWeek < 1) {
+        throw new Error('Cannot submit pulse: missing client/sprint/week context.');
       }
+      const { error } = await supabase.from('life_pulse_entries').upsert(
+        {
+          client_id: clientId,
+          practice_id: practiceId,
+          sprint_number: sprintNumber,
+          week_number: currentWeek,
+          alignment_rating: rating,
+          active_categories: categories,
+          protect_next_week: protectText?.trim() || null,
+        },
+        { onConflict: 'client_id,sprint_number,week_number' }
+      );
+      if (error) {
+        // Surface the error so the UI doesn't optimistically show "saved" while
+        // the row was actually rejected (e.g. by RLS).
+        console.error('[useLifeAlignment] submit pulse error:', error);
+        throw new Error(error.message || 'Failed to save Life Pulse.');
+      }
+      await fetchPulseAndScores();
+      await recalculateScore();
     },
     [clientId, practiceId, sprintNumber, currentWeek, fetchPulseAndScores, recalculateScore]
   );
@@ -240,6 +276,8 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
     submitPulse,
     recalculateScore,
     hasPulseThisWeek,
+    hasPulseForWeek,
+    pulseWeeks,
     loading,
     refetch: fetchPulseAndScores,
   };

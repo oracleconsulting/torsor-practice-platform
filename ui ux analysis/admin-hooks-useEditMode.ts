@@ -9,6 +9,7 @@ const DEFAULT_SECTION_ORDER: SectionId[] = [
   'insights',
   'profitability',
   'kpis',
+  'catalog_metrics',
 ];
 
 const DEFAULT_VISIBILITY: Record<SectionId, boolean> = {
@@ -18,6 +19,7 @@ const DEFAULT_VISIBILITY: Record<SectionId, boolean> = {
   insights: true,
   profitability: true,
   kpis: true,
+  catalog_metrics: true,
   revenue_trend: true,
   documents: true,
 };

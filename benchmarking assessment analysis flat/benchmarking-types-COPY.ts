@@ -12,7 +12,7 @@ export interface ValueAnalysis {
   
   // Baseline valuation
   baseline: {
-    method: 'EBITDA' | 'Revenue' | 'SDE';
+    method: 'EBITDA' | 'Revenue' | 'SDE' | 'ARR' | 'Comparable_Round' | 'Berkus_Scorecard';
     ebitda: number;
     ebitdaMargin: number;
     multipleRange: { low: number; mid: number; high: number };

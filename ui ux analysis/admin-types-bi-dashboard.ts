@@ -31,6 +31,7 @@ export type SectionId =
   | 'insights'
   | 'profitability'
   | 'kpis'
+  | 'catalog_metrics'
   | 'revenue_trend'
   | 'documents';
 

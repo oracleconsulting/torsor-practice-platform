@@ -90,6 +90,18 @@ export function ClientListTable({
                           TEST
                         </span>
                       )}
+                      {client._role_label && (
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded ${
+                            client._is_primary
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}
+                          title={client._is_primary ? 'Primary partner' : 'Assigned role'}
+                        >
+                          {client._role_label}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td>

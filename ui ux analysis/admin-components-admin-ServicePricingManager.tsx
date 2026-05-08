@@ -76,7 +76,11 @@ const FREQUENCY_OPTIONS = [
 // COMPONENT
 // ============================================================================
 
-export function ServicePricingManager() {
+interface ServicePricingManagerProps {
+  canEdit?: boolean;
+}
+
+export function ServicePricingManager({ canEdit = true }: ServicePricingManagerProps = {}) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   
@@ -158,6 +162,7 @@ export function ServicePricingManager() {
   // ========================================
 
   const seedDefaults = async () => {
+    if (!canEdit) return;
     if (!currentMember?.practice_id) return;
     
     setSaving(true);
@@ -187,6 +192,7 @@ export function ServicePricingManager() {
   // ========================================
 
   const handleSaveService = async (service: ServicePricing) => {
+    if (!canEdit) return;
     if (!currentMember?.practice_id) return;
     
     setSaving(true);
@@ -251,6 +257,7 @@ export function ServicePricingManager() {
   };
 
   const handleDeleteService = async (serviceId: string) => {
+    if (!canEdit) return;
     if (!confirm('Delete this service and all its tiers? This cannot be undone.')) return;
     
     setSaving(true);
@@ -278,6 +285,7 @@ export function ServicePricingManager() {
   // ========================================
 
   const handleSaveTier = async (serviceId: string, tier: ServicePricingTier) => {
+    if (!canEdit) return;
     setSaving(true);
     setError(null);
 
@@ -335,6 +343,7 @@ export function ServicePricingManager() {
   };
 
   const handleDeleteTier = async (tierId: string) => {
+    if (!canEdit) return;
     if (!confirm('Delete this pricing tier?')) return;
     
     setSaving(true);
@@ -381,8 +390,11 @@ export function ServicePricingManager() {
             Manage pricing for your service lines. Changes apply to all future reports.
           </p>
         </div>
-        <div className="flex gap-2">
-          {services.length === 0 && (
+        <div className="flex gap-2 items-center">
+          {!canEdit && (
+            <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-600">Read-only</span>
+          )}
+          {canEdit && services.length === 0 && (
             <button
               onClick={seedDefaults}
               disabled={saving}
@@ -392,26 +404,28 @@ export function ServicePricingManager() {
               Load Defaults
             </button>
           )}
-          <button
-            onClick={() => {
-              setShowAddService(true);
-              setEditingService({
-                service_code: '',
-                service_name: '',
-                description: '',
-                category: 'strategic' as any,
-                pricing_model: 'tiered',
-                display_order: services.length * 10 + 10,
-                is_active: true,
-                exclude_from_recommendations: false,
-                tiers: []
-              });
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
-          >
-            <Plus className="h-4 w-4" />
-            Add Service
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => {
+                setShowAddService(true);
+                setEditingService({
+                  service_code: '',
+                  service_name: '',
+                  description: '',
+                  category: 'strategic' as any,
+                  pricing_model: 'tiered',
+                  display_order: services.length * 10 + 10,
+                  is_active: true,
+                  exclude_from_recommendations: false,
+                  tiers: []
+                });
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+            >
+              <Plus className="h-4 w-4" />
+              Add Service
+            </button>
+          )}
         </div>
       </div>
 
@@ -501,24 +515,28 @@ export function ServicePricingManager() {
                     Paused
                   </span>
                 )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingService(service);
-                  }}
-                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                >
-                  <Edit2 className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    service.id && handleDeleteService(service.id);
-                  }}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingService(service);
+                    }}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                )}
+                {canEdit && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      service.id && handleDeleteService(service.id);
+                    }}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
                 {expandedService === service.service_code ? (
                   <ChevronUp className="h-5 w-5 text-gray-400" />
                 ) : (
@@ -534,13 +552,15 @@ export function ServicePricingManager() {
                   <h4 className="font-medium text-gray-700 dark:text-gray-300">
                     Pricing Tiers
                   </h4>
-                  <button
-                    onClick={() => setShowAddTier(service.service_code)}
-                    className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Tier
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => setShowAddTier(service.service_code)}
+                      className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Tier
+                    </button>
+                  )}
                 </div>
 
                 {/* Add Tier Form */}
@@ -594,20 +614,22 @@ export function ServicePricingManager() {
                                 {tier.tier_name}
                               </h5>
                             </div>
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => setEditingTier({ serviceCode: service.service_code, tier })}
-                                className="p-1 text-gray-400 hover:text-blue-600"
-                              >
-                                <Edit2 className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                onClick={() => tier.id && handleDeleteTier(tier.id)}
-                                className="p-1 text-gray-400 hover:text-red-600"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
+                            {canEdit && (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => setEditingTier({ serviceCode: service.service_code, tier })}
+                                  className="p-1 text-gray-400 hover:text-blue-600"
+                                >
+                                  <Edit2 className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => tier.id && handleDeleteTier(tier.id)}
+                                  className="p-1 text-gray-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                           <div className="text-2xl font-bold text-gray-900 dark:text-white">
                             £{tier.price.toLocaleString()}

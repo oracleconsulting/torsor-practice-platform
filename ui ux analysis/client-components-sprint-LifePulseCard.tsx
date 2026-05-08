@@ -46,6 +46,7 @@ export function LifePulseCard({
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(true);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (isCatchUp || isSprintComplete) return null;
 
@@ -58,10 +59,14 @@ export function LifePulseCard({
   const handleSubmit = async () => {
     if (rating < 1 || rating > 5) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       await onSubmit(rating, categories, protectText.trim() || undefined);
       setSubmitted(true);
       setShowForm(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save your Life Pulse.';
+      setSubmitError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -169,6 +174,11 @@ export function LifePulseCard({
           Save Pulse
         </button>
       </div>
+      {submitError && (
+        <div className="mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">
+          Couldn&apos;t save your Life Pulse: {submitError}
+        </div>
+      )}
     </div>
   );
 }

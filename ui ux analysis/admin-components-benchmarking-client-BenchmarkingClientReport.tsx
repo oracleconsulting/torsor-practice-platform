@@ -14,9 +14,11 @@ import { ScenarioPlanningSection } from './ScenarioPlanningSection';
 import { RecommendedServicesSection } from './RecommendedServicesSection';
 import type { RecommendedService } from './RecommendedServicesSection';
 import { ValueBridgeSection } from './ValueBridgeSection';
+import { ForwardValueBridgeSection } from './ForwardValueBridgeSection';
 import { AlertTriangle, Gem, Shield, CheckCircle, Download } from 'lucide-react';
 import { exportToPDF } from '../../../lib/pdf-export';
 import type { ValueAnalysis } from '../../../types/benchmarking';
+import type { BusinessStage } from '../../../types/pre-revenue';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 // DEPRECATED: Old static types - no longer using issue-service-mapping.ts
 // import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
@@ -126,7 +128,16 @@ interface BenchmarkAnalysis {
     exit_readiness_breakdown?: ExitReadinessScore;
     surplus_cash_breakdown?: SurplusCashData;
     two_paths_narrative?: TwoPathsNarrative;
+    // Pre-revenue data
+    business_stage?: string;
+    pre_revenue_analysis?: any;
+    investment_readiness_breakdown?: any;
   };
+  // Pre-revenue fields (top-level)
+  business_stage?: string;
+  pre_revenue_analysis?: any;
+  investment_readiness_score?: number;
+  investment_readiness_breakdown?: any;
   // HVA fields for competitive moat
   hva_data?: {
     competitive_moat?: string[];
@@ -243,6 +254,13 @@ export function BenchmarkingClientReport({
   
   const metrics = safeJsonParse<MetricComparison[]>(data.metrics_comparison, []);
   const rawRecommendations = safeJsonParse(data.recommendations, []);
+
+  // Pre-revenue detection
+  const businessStage = (data.pass1_data?.business_stage || data.business_stage || 'operating') as string;
+  const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+  const preRevenueAnalysis = data.pass1_data?.pre_revenue_analysis || data.pre_revenue_analysis;
+  const investmentReadinessBreakdown = data.investment_readiness_breakdown || data.pass1_data?.investment_readiness_breakdown;
+  const investmentReadinessScore = data.investment_readiness_score;
   
   // Normalize recommendation values to sum to the hero total
   // This ensures the breakdown adds up to the headline figure
@@ -822,14 +840,16 @@ export function BenchmarkingClientReport({
         )}
         
         {/* Business Valuation Analysis */}
-        {data.value_analysis && (
+        {isPreRevenue && preRevenueAnalysis ? (
+          <ForwardValueBridgeSection preRevenueAnalysis={preRevenueAnalysis} businessStage={businessStage} />
+        ) : data.value_analysis ? (
           <ValueBridgeSection
             valueAnalysis={data.value_analysis}
             enhancedSuppressors={data.pass1_data?.enhanced_suppressors}
             clientName={clientName}
             forceExpanded={printMode}
           />
-        )}
+        ) : null}
         
         {/* Enhanced Value Suppressors - Where Your Value Is Going */}
         {data.pass1_data?.enhanced_suppressors && data.pass1_data.enhanced_suppressors.length > 0 && (
@@ -850,10 +870,15 @@ export function BenchmarkingClientReport({
           </div>
         )}
         
-        {/* Exit Readiness Breakdown - Component Scoring */}
-        {data.pass1_data?.exit_readiness_breakdown && (
+        {/* Exit / Investment Readiness Breakdown - Component Scoring */}
+        {isPreRevenue && investmentReadinessBreakdown ? (
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 mb-4">Investment Readiness</h2>
+            <ExitReadinessBreakdown data={{ ...investmentReadinessBreakdown, totalScore: investmentReadinessScore ?? investmentReadinessBreakdown.totalScore }} />
+          </div>
+        ) : data.pass1_data?.exit_readiness_breakdown ? (
           <ExitReadinessBreakdown data={data.pass1_data.exit_readiness_breakdown} />
-        )}
+        ) : null}
         
         {/* Recommended Services - "How We Can Help" section */}
         {/* MOVED UP: After showing problems (exit readiness), services = the fix */}

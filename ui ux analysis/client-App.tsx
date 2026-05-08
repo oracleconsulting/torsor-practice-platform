@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -25,6 +25,9 @@ const AppointmentsPage = lazy(() => import('./pages/appointments/AppointmentsPag
 const ServiceAssessmentPage = lazy(() => import('./pages/services/ServiceAssessmentPage'));
 const BIReportPage = lazy(() => import('./pages/services/BIReportPage'));
 const BIDashboardPage = lazy(() => import('./pages/services/BIDashboardPage'));
+const BIReportsListPage = lazy(() => import('./pages/services/BIReportsListPage'));
+const BIPeriodReportPage = lazy(() => import('./pages/services/BIPeriodReportPage'));
+const BIPerpetualViewPage = lazy(() => import('./pages/services/BIPerpetualViewPage'));
 const BIPresentationPage = lazy(() => import('./pages/services/BIPresentationPage'));
 const SystemInventoryPage = lazy(() => import('./pages/services/SystemInventoryPage'));
 const ProcessDeepDivesPage = lazy(() => import('./pages/services/ProcessDeepDivesPage'));
@@ -39,6 +42,18 @@ const ProgressPage = lazy(() => import('./pages/ProgressPage'));
 const DestinationDiscoveryPage = lazy(() => import('./pages/discovery/DestinationDiscoveryPage'));
 const DiscoveryReportPage = lazy(() => import('./pages/discovery/DiscoveryReportPage'));
 const DiscoveryFollowUpPage = lazy(() => import('./pages/discovery/DiscoveryFollowUpPage'));
+
+/** Legacy `management_accounts` and hyphenated `/services/...` URLs → canonical BI routes. */
+function RedirectManagementAccountsReports() {
+  const { periodId } = useParams<{ periodId?: string }>();
+  if (periodId) return <Navigate to={`/service/business_intelligence/reports/${periodId}`} replace />;
+  return <Navigate to="/service/business_intelligence/reports" replace />;
+}
+
+function RedirectServicesHyphenBiReport() {
+  const { periodId } = useParams<{ periodId: string }>();
+  return <Navigate to={`/service/business_intelligence/reports/${periodId}`} replace />;
+}
 
 function PageLoadingFallback() {
   return (
@@ -83,9 +98,18 @@ function App() {
               <Route path="/service/:serviceCode/assessment" element={<ServiceAssessmentPage />} />
               <Route path="/service/business_intelligence/report" element={<BIReportPage />} />
               <Route path="/service/business_intelligence/dashboard" element={<BIDashboardPage />} />
+              <Route path="/service/business_intelligence/reports" element={<BIReportsListPage />} />
+              <Route path="/service/business_intelligence/reports/:periodId" element={<BIPeriodReportPage />} />
+              <Route path="/service/business_intelligence/perpetual" element={<BIPerpetualViewPage />} />
               <Route path="/service/business_intelligence/presentation" element={<BIPresentationPage />} />
+              <Route path="/services/business-intelligence/reports" element={<Navigate to="/service/business_intelligence/reports" replace />} />
+              <Route path="/services/business-intelligence/reports/:periodId" element={<RedirectServicesHyphenBiReport />} />
+              <Route path="/services/business-intelligence/perpetual" element={<Navigate to="/service/business_intelligence/perpetual" replace />} />
               <Route path="/service/management_accounts/report" element={<Navigate to="/service/business_intelligence/report" replace />} />
               <Route path="/service/management_accounts/dashboard" element={<Navigate to="/service/business_intelligence/dashboard" replace />} />
+              <Route path="/service/management_accounts/reports" element={<RedirectManagementAccountsReports />} />
+              <Route path="/service/management_accounts/reports/:periodId" element={<RedirectManagementAccountsReports />} />
+              <Route path="/service/management_accounts/perpetual" element={<Navigate to="/service/business_intelligence/perpetual" replace />} />
               <Route path="/service/management_accounts/presentation" element={<Navigate to="/service/business_intelligence/presentation" replace />} />
               <Route path="/service/systems_audit/inventory" element={<SystemInventoryPage />} />
               <Route path="/service/systems_audit/process-deep-dives" element={<ProcessDeepDivesPage />} />

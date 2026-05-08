@@ -23,6 +23,25 @@ export function EnhancedSuppressorCard({ suppressor }: EnhancedSuppressorCardPro
     if (value >= 1000) return `£${(value / 1000).toFixed(0)}k`;
     return `£${value.toFixed(0)}`;
   };
+
+  const waterfallPounds =
+    suppressor.waterfallAmount ??
+    suppressor.current?.waterfallAmount ??
+    suppressor.current?.discountValue ??
+    0;
+
+  const recoveryRaw = suppressor.recovery?.valueRecoverable ?? 0;
+  const cappedRecoverable = Math.min(
+    recoveryRaw,
+    (suppressor.waterfallAmount ??
+      suppressor.current?.waterfallAmount ??
+      suppressor.current?.discountValue) ||
+      recoveryRaw
+  );
+
+  const investment = suppressor.pathToFix.investment;
+  const roiMultiplier =
+    investment > 0 ? Math.round(cappedRecoverable / investment) : null;
   
   const severityColors = {
     CRITICAL: 'border-red-300 bg-red-50',
@@ -62,7 +81,7 @@ export function EnhancedSuppressorCard({ suppressor }: EnhancedSuppressorCardPro
               -{suppressor.current.discountPercent}%
             </div>
             <div className="text-sm text-slate-500">
-              -{formatCurrency(suppressor.current.discountValue)}
+              -{formatCurrency(waterfallPounds)}
             </div>
           </div>
         </div>
@@ -85,21 +104,29 @@ export function EnhancedSuppressorCard({ suppressor }: EnhancedSuppressorCardPro
           </div>
         </div>
         
-        {/* Value Recoverable */}
-        <div className="mt-4 p-3 bg-emerald-100 rounded-lg flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-emerald-600" />
-            <span className="font-medium text-emerald-800">Value Recoverable</span>
-          </div>
-          <div className="text-right">
-            <span className="text-xl font-bold text-emerald-700">
-              {formatCurrency(suppressor.recovery.valueRecoverable)}
-            </span>
-            <div className="text-xs text-emerald-600 flex items-center gap-1 justify-end">
-              <Clock className="w-3 h-3" />
-              {suppressor.recovery.timeframe}
+        {/* Recovery Potential — capped to waterfall share (matches PDF / dashboard) */}
+        <div className="mt-4 p-3 bg-emerald-100 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-emerald-600" />
+              <span className="font-medium text-emerald-800">Recovery Potential</span>
+            </div>
+            <div className="text-right">
+              <span className="text-xl font-bold text-emerald-700">
+                {formatCurrency(cappedRecoverable)}
+              </span>
+              <div className="text-xs text-emerald-600 flex items-center gap-1 justify-end">
+                <Clock className="w-3 h-3" />
+                {suppressor.recovery.timeframe}
+              </div>
             </div>
           </div>
+          <p className="text-xs text-emerald-700/70 mt-2 leading-relaxed">
+            Fixing this alone would reduce your discount from {suppressor.current.discountPercent}% to a{' '}
+            {suppressor.target.discountPercent}% residual. The {formatCurrency(waterfallPounds)} in the
+            waterfall above is this factor&apos;s proportional share after all suppressor discounts
+            compound together.
+          </p>
         </div>
       </div>
       
@@ -152,7 +179,7 @@ export function EnhancedSuppressorCard({ suppressor }: EnhancedSuppressorCardPro
                   Investment: {formatCurrency(suppressor.pathToFix.investment)}
                 </div>
                 <div className="text-emerald-600">
-                  ROI: {Math.round(suppressor.recovery.valueRecoverable / suppressor.pathToFix.investment)}x
+                  ROI: {roiMultiplier != null ? `${roiMultiplier}x` : '—'}
                 </div>
               </div>
             </div>

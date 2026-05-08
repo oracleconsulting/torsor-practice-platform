@@ -13,17 +13,23 @@ import {
   Wrench,
   Box,
   Database,
+  ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  Sparkles,
+  Coins,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ADMIN_ROUTES, type PageId } from '../config/routes';
+import { useStaffPermissions, type NavKey } from '../hooks/useStaffPermissions';
 
 interface NavItem {
   id: PageId;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  ownerOnly?: boolean;
+  navKey?: NavKey;
 }
 
 interface NavSection {
@@ -44,11 +50,12 @@ const sections: NavSection[] = [
   {
     title: 'TEAM',
     items: [
-      { id: 'heatmap', label: 'Skills Heatmap', icon: LayoutDashboard },
-      { id: 'management', label: 'Skills Management', icon: TrendingUp },
-      { id: 'analytics', label: 'Team Analytics', icon: Brain },
-      { id: 'cpd', label: 'CPD Tracker', icon: Award },
-      { id: 'training', label: 'Training', icon: BookOpen },
+      { id: 'heatmap', label: 'Skills Heatmap', icon: LayoutDashboard, navKey: 'skills-heatmap' },
+      { id: 'management', label: 'Skills Management', icon: TrendingUp, navKey: 'skills-management' },
+      { id: 'analytics', label: 'Team Analytics', icon: Brain, navKey: 'team-analytics' },
+      { id: 'cpd', label: 'CPD Tracker', icon: Award, navKey: 'cpd-tracker' },
+      { id: 'training', label: 'Training', icon: BookOpen, navKey: 'training' },
+      { id: 'staff-permissions', label: 'Staff Permissions', icon: ShieldCheck, ownerOnly: true },
     ],
   },
   {
@@ -56,6 +63,8 @@ const sections: NavSection[] = [
     items: [
       { id: 'readiness', label: 'Service Readiness', icon: Target },
       { id: 'assessments', label: 'Assessments', icon: ClipboardList },
+      { id: 'agent-observations', label: 'Agent Observations', icon: Sparkles },
+      { id: 'llm-costs', label: 'LLM Costs', icon: Coins },
     ],
   },
   {
@@ -78,6 +87,7 @@ export function Navigation({ mobile, onMobileClose }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { isOwner, canSeeNav } = useStaffPermissions();
 
   const handleNav = (id: PageId) => {
     navigate(ADMIN_ROUTES[id]);
@@ -130,7 +140,10 @@ export function Navigation({ mobile, onMobileClose }: SidebarProps) {
               </p>
             )}
             <div className="space-y-0.5">
-              {section.items.map((item) => {
+              {section.items
+                .filter((item) => !item.ownerOnly || isOwner)
+                .filter((item) => !item.navKey || canSeeNav(item.navKey))
+                .map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.id);
                 return (

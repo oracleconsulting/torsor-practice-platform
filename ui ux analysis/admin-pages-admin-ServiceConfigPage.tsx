@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 import { supabase } from '../../lib/supabase';
 import { ServicePricingManager } from '../../components/admin/ServicePricingManager';
 import { 
@@ -69,6 +70,8 @@ export function ServiceConfigPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canEditSection } = useStaffPermissions();
+  const canEdit = canEditSection('service-config');
   
   // Top-level tabs: 'workflow' or 'pricing'
   const [activeTab, setActiveTab] = useState<'workflow' | 'pricing'>('workflow');
@@ -216,6 +219,7 @@ export function ServiceConfigPage() {
   };
 
   const addActivity = async (phaseId: string) => {
+    if (!canEdit) return;
     if (!newActivity.trim()) return;
 
     try {
@@ -239,6 +243,7 @@ export function ServiceConfigPage() {
   };
 
   const deleteActivity = async (activityId: string) => {
+    if (!canEdit) return;
     try {
       await supabase
         .from('phase_activities')
@@ -258,7 +263,9 @@ export function ServiceConfigPage() {
     return (
       <AdminLayout
         title="Service Configuration"
-        subtitle="Configure workflows, pricing, and team assignments for your services"
+        subtitle={canEdit
+          ? 'Configure workflows, pricing, and team assignments for your services'
+          : 'Workflows, pricing, and team assignments (read-only)'}
         headerActions={
           <button
             onClick={() => navigate(ADMIN_ROUTES.delivery)}
@@ -324,7 +331,7 @@ export function ServiceConfigPage() {
               })}
             </div>
           ) : (
-            <ServicePricingManager />
+            <ServicePricingManager canEdit={canEdit} />
           )}
         </div>
       </AdminLayout>
@@ -390,13 +397,15 @@ export function ServiceConfigPage() {
                         <div className="p-6">
                           <div className="flex items-center justify-between mb-4">
                             <h4 className="font-medium text-gray-900">Activities in this phase</h4>
-                            <button
-                              onClick={() => setAddingToPhase(phase.id)}
-                              className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
-                            >
-                              <Plus className="w-4 h-4" />
-                              Add
-                            </button>
+                            {canEdit && (
+                              <button
+                                onClick={() => setAddingToPhase(phase.id)}
+                                className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                              >
+                                <Plus className="w-4 h-4" />
+                                Add
+                              </button>
+                            )}
                           </div>
 
                           <div className="space-y-2">
@@ -421,12 +430,14 @@ export function ServiceConfigPage() {
                                     </div>
                                   )}
                                 </div>
-                                <button
-                                  onClick={() => deleteActivity(activity.id)}
-                                  className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {canEdit && (
+                                  <button
+                                    onClick={() => deleteActivity(activity.id)}
+                                    className="p-1 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             ))}
 

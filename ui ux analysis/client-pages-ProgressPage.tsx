@@ -15,6 +15,7 @@ export default function ProgressPage() {
   const { heroStats, chartData, valueStory, wins, totalSprints, currentSprint, loading, recalculate } = useProgress();
   const [showAllTime, setShowAllTime] = useState(false);
   const [chartDataFiltered, setChartDataFiltered] = useState(chartData);
+  const [hasTriedRecalc, setHasTriedRecalc] = useState(false);
 
   useEffect(() => {
     if (showAllTime) {
@@ -27,11 +28,13 @@ export default function ProgressPage() {
     }
   }, [showAllTime, chartData, currentSprint]);
 
+  // Only attempt recalculate once on mount when there's no data — prevents infinite loop
   useEffect(() => {
-    if (!loading && chartData.length === 0) {
+    if (!loading && chartData.length === 0 && !hasTriedRecalc) {
+      setHasTriedRecalc(true);
       recalculate();
     }
-  }, [loading, chartData.length, recalculate]);
+  }, [loading, chartData.length, hasTriedRecalc, recalculate]);
 
   if (loading) {
     return (

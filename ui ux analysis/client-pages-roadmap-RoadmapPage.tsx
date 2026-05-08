@@ -340,6 +340,32 @@ export default function RoadmapPage() {
               </div>
             )}
 
+            {/* Why This Works — evidence base for the 12-week sprint design */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                Why This Works
+              </h3>
+              <div className="space-y-3 text-sm text-slate-600 leading-relaxed">
+                <p>
+                  Your 12-week sprint is built on research, not guesswork. UCL found that
+                  new habits take an average of 66 days to stick. Your sprint runs for
+                  84 days, deliberately exceeding that threshold.
+                </p>
+                <p>
+                  Stanford research shows that productivity drops sharply above 50 hours
+                  per week and effectively plateaus at 55. Working 70 hours produces
+                  roughly the same output as 55. The goal is not to work harder. It is to
+                  work on the right things.
+                </p>
+                <p>
+                  People who write their goals down and report progress weekly to someone
+                  else are 33-42% more likely to achieve them. That is why your sprint
+                  has weekly check-ins and a written scorecard. It is not busywork. It
+                  is how goals actually get met.
+                </p>
+              </div>
+            </div>
+
             {/* Fit Profile Summary - if available */}
             {fitProfile?.archetype && (
               <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-6">
@@ -717,6 +743,22 @@ export default function RoadmapPage() {
             >
               Go to Sprint <ArrowRight className="w-4 h-4" />
             </Link>
+
+            {roadmapData?.sprint?.futureSprints && (
+              <div className="mt-8 pt-6 border-t border-slate-200 text-left max-w-md mx-auto">
+                <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wide mb-2">{roadmapData.sprint.futureSprints.title || 'Coming in Future Sprints'}</h4>
+                {roadmapData.sprint.futureSprints.intro && <p className="text-sm text-slate-500 mb-4">{roadmapData.sprint.futureSprints.intro}</p>}
+                <div className="space-y-3">
+                  {roadmapData.sprint.futureSprints.sprints?.map((s: any) => (
+                    <div key={s.sprint} className="flex items-start gap-3">
+                      <span className="bg-slate-200 text-slate-600 w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold shrink-0">{s.sprint}</span>
+                      <p className="text-sm text-slate-600 pt-1">{s.focus}</p>
+                    </div>
+                  ))}
+                </div>
+                {roadmapData.sprint.futureSprints.note && <p className="text-xs text-slate-400 mt-4 italic">{roadmapData.sprint.futureSprints.note}</p>}
+              </div>
+            )}
           </div>
         )}
 
@@ -930,6 +972,21 @@ export default function RoadmapPage() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Pressure Points */}
+            {valueAnalysis.pressurePoints && (
+              <div className="mt-6">
+                <h4 className="text-sm font-bold text-amber-800 mb-3">{valueAnalysis.pressurePoints.title || 'Where the Pressure Points Are'}</h4>
+                <div className="space-y-3">
+                  {valueAnalysis.pressurePoints.items?.map((item: string, i: number) => (
+                    <div key={i} className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <span className="text-amber-500 mt-0.5 shrink-0">⚠️</span>
+                      <p className="text-sm text-amber-900">{item}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

@@ -5,6 +5,7 @@ import { useTeamMembers } from '../../hooks/useTeamMembers';
 import { useSkillAssessments } from '../../hooks/useSkillAssessments';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useAuth } from '../../hooks/useAuth';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 import { SkillsHeatmapGrid } from '../../components/SkillsHeatmapGrid';
 import { AdminLayout } from '../../components/AdminLayout';
 import { PageSkeleton, StatCard, EmptyState } from '../../components/ui';
@@ -13,8 +14,12 @@ import { SKILL_CATEGORIES } from '../../lib/types';
 export function SkillsHeatmapPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { isOwner } = useStaffPermissions();
   const { data: skills, isLoading: skillsLoading } = useSkills();
-  const { data: members, isLoading: membersLoading } = useTeamMembers(currentMember?.practice_id ?? null);
+  const { data: allMembers, isLoading: membersLoading } = useTeamMembers(currentMember?.practice_id ?? null);
+  const members = isOwner
+    ? allMembers
+    : (allMembers ?? []).filter((m) => m.id === currentMember?.id);
   const memberIds = members?.map((m) => m.id) ?? [];
   const { data: assessments, isLoading: assessmentsLoading } = useSkillAssessments(memberIds);
 
@@ -54,7 +59,7 @@ export function SkillsHeatmapPage() {
 
   return (
     <AdminLayout
-      title="Skills Heatmap"
+      title={isOwner ? 'Skills Heatmap' : 'My Skills'}
       subtitle={currentMember ? `${currentMember.name} • ${currentMember.role}` : undefined}
     >
       {isLoading ? (

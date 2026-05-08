@@ -1119,7 +1119,7 @@ interface ValueEnhancer {
 interface ValueAnalysis {
   asOfDate: string;
   baseline: {
-    method: 'EBITDA' | 'Revenue' | 'SDE';
+    method: 'EBITDA' | 'Revenue' | 'SDE' | 'ARR' | 'Comparable_Round' | 'Berkus_Scorecard';
     ebitda: number;
     ebitdaMargin: number;
     multipleRange: { low: number; mid: number; high: number };
@@ -1151,6 +1151,148 @@ interface ValueAnalysis {
     keyActions: string[];
   };
   enhancers: ValueEnhancer[];
+}
+
+// =============================================================================
+// PRE-REVENUE VALUATION INTERFACES
+// =============================================================================
+
+interface PreRevenueSignalsData {
+  founder_capital_invested?: number;
+  founder_capital_basis?: string;
+  current_runway_months?: number;
+  monthly_burn?: number;
+  capital_raised_to_date?: number;
+  forecast_year_1?: { revenue?: number; arr?: number; ebitda?: number; headcount?: number; gross_margin?: number };
+  forecast_year_2?: { revenue?: number; arr?: number; ebitda?: number; headcount?: number; gross_margin?: number };
+  forecast_year_3?: { revenue?: number; arr?: number; ebitda?: number; headcount?: number; gross_margin?: number };
+  forecast_assumptions?: string;
+  forecast_confidence?: 'high' | 'medium' | 'low';
+  pipeline_qualified_acv?: number;
+  pipeline_top3_acv?: number;
+  pipeline_top3_concentration_pct?: number;
+  pipeline_signed_loi_count?: number;
+  pipeline_verbal_count?: number;
+  pipeline_cold_count?: number;
+  pipeline_expected_conversion_pct?: number;
+  pipeline_first_revenue_eta?: string;
+  pipeline_evidence_strength?: string;
+  round_size_target?: number;
+  round_pre_money_target?: number;
+  round_pre_money_min?: number;
+  round_seis_eis_eligible?: boolean;
+  round_seis_eis_advance_assurance?: boolean;
+  round_lead_investor_status?: string;
+  round_committed_to_date?: number;
+  round_closing_target_date?: string;
+  follow_on_round_size?: number;
+  follow_on_milestones?: string[];
+  cap_table_complexity?: string;
+  cap_table_share_classes?: string[];
+  cap_table_eis_friendly?: boolean;
+  cap_table_voting_structure_notes?: string;
+  founder_ownership_current_pct?: number;
+  team_size_current?: number;
+  team_gaps_critical?: string[];
+  hire_plan_12mo?: Array<{ role: string; timing: string; budget: number; candidate_status?: string }>;
+  founder_pedigree_summary?: string;
+  founder_prior_exits?: boolean;
+  ip_holding_entity?: string;
+  ip_protection_status?: string[];
+  corporate_structure_clean?: boolean;
+  ip_migration_required?: boolean;
+  ip_migration_notes?: string;
+  data_room_completeness_pct?: number;
+  data_room_gaps?: string[];
+  governance_board_status?: string;
+  governance_neds_count?: number;
+  governance_advisors_count?: number;
+  context_notes?: string;
+}
+
+interface IndustryValuationBasisRow {
+  primary_method: string;
+  secondary_method?: string;
+  multiple_low?: number;
+  multiple_mid?: number;
+  multiple_high?: number;
+  pre_money_anchor_low?: number;
+  pre_money_anchor_mid?: number;
+  pre_money_anchor_high?: number;
+  primary_metric: string;
+  multiple_expansion_drivers?: string[];
+  key_operational_metrics?: Record<string, unknown>;
+  uk_specific_notes?: string;
+  uk_discount_vs_us?: number;
+  typical_buyer_types?: string[];
+  methodology_note: string;
+  sources: string[];
+  confidence_level?: string;
+}
+
+interface InvestmentReadinessResult {
+  score: number;
+  verdict: 'investment_ready' | 'needs_preparation' | 'not_ready';
+  components: Record<string, { score: number; max: number; gaps: string[] }>;
+  overallGaps: string[];
+  overallStrengths: string[];
+}
+
+interface PreRevenueAnalysisResult {
+  asOfDate: string;
+  industryBasis: IndustryValuationBasisRow & { industry_code: string; business_stage: string };
+  vcMethodBackSolve: {
+    targetExitValuation: number;
+    exitHorizonYears: number;
+    requiredArrAtExit?: number;
+    impliedExitMultiple: number;
+    investorIrr: number;
+    expectedDilutionToExit: number;
+    todayPostMoneyImplied: number;
+    todayPreMoneyImplied: number;
+    methodology: string;
+  };
+  scorecardValuation: {
+    regionalMedianPreMoney: number;
+    weightedFactor: number;
+    impliedPreMoney: number;
+    factorBreakdown: Record<string, { weight: number; score: number; rationale: string }>;
+  };
+  berkusValuation: {
+    impliedPreMoney: number;
+    factorBreakdown: Record<string, { value: number; rationale: string }>;
+  };
+  comparableRoundsAnalysis?: {
+    rounds: Array<{ company: string; stage: string; year: number; amountGbp?: number; preMoneyGbp?: number; relevanceNote: string }>;
+    impliedRange: { low: number; mid: number; high: number };
+  };
+  defensiblePreMoney: {
+    conservative: number;
+    base: number;
+    stretch: number;
+    triggerForBaseToStretch: string;
+    triggerForStretchToSeriesA: string;
+    rationale: string;
+    sources: string[];
+  };
+  versusOwnerStated: {
+    ownerStatedPreMoney?: number;
+    gapToBaseCase: number;
+    gapToStretchCase: number;
+    plausibilityVerdict: 'aligned' | 'stretch_defensible' | 'materially_above' | 'below_market';
+    rationale: string;
+  };
+  forwardSuppressors: ValueSuppressor[];
+  milestonePath: Array<{
+    milestoneNumber: number;
+    timeframeMonths: number;
+    description: string;
+    arrTarget?: number;
+    valuationStepUp: { from: number; to: number };
+    blockers: string[];
+  }>;
+  investmentReadiness: InvestmentReadinessResult;
+  caveats: string[];
 }
 
 const VALUE_INDUSTRY_MULTIPLES: Record<string, { low: number; mid: number; high: number; factors: string[] }> = {

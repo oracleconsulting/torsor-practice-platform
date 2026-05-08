@@ -29,6 +29,7 @@ import type {
   TwoPathsNarrative,
   SurplusCashData
 } from '../../../types/opportunity-calculations';
+import { ForwardValueBridgeSection } from './ForwardValueBridgeSection';
 
 // ─── Types (FROZEN — matches BenchmarkingClientReport exactly) ────────────
 

@@ -3,6 +3,8 @@ import type { PageId } from '../../types/navigation';
 import { AdminLayout } from '../../components/AdminLayout';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
+import { useScopedClients } from '../../hooks/useScopedClients';
+import { useStaffPermissions } from '../../hooks/useStaffPermissions';
 import { supabase } from '../../lib/supabase';
 import { RPGCC_LOGO_LIGHT, RPGCC_LOGO_DARK, RPGCC_COLORS } from '../../constants/brandAssets';
 import { 
@@ -11,6 +13,7 @@ import {
   useAnalysisComments
 } from '../../components/discovery';
 import { ServiceRecommendationPopup } from '../../components/shared/ServiceRecommendationPopup';
+import { ClientTeamPanel } from '../../components/admin/ClientTeamPanel';
 import { 
   Users, 
   CheckCircle,
@@ -56,6 +59,8 @@ import {
   Map as MapIcon
 } from 'lucide-react';
 import { SAAdminReportView } from '../../components/systems-audit/SAAdminReportView';
+import { ClientRoadmapPreview } from '../../components/admin/ClientRoadmapPreview';
+import { dispatchOpenAgent } from '../../components/admin/AgentLauncher';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
 import BenchmarkingClientDashboard from '../../components/benchmarking/client/BenchmarkingClientDashboard';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
@@ -65,6 +70,7 @@ import { resolveIndustryCode } from '../../lib/services/benchmarking/industry-ma
 // Management Accounts Report Components (Two-Pass Architecture)
 import { MAAdminReportView } from '../../components/business-intelligence/MAAdminReportView';
 import { MAClientReportView } from '../../components/business-intelligence/MAClientReportView';
+import { SumaryImportPanel } from '../../components/business-intelligence/SumaryImportPanel';
 
 // MA report context shape (matches AdditionalContext from MAAdminReportView)
 interface MAReportContext {
@@ -233,10 +239,20 @@ interface StaffMember {
 
 const GA_DASHBOARD_STORAGE_KEY = 'gaDashboardSelected';
 
+// Map ClientServicesPage's internal service-line ids to canonical staff_permissions codes
+const SERVICE_LINE_TO_PERMISSION_CODE: Record<string, string> = {
+  '365_method': 'goal_alignment',
+};
+function permissionCodeFor(serviceLineId: string | null): string | undefined {
+  if (!serviceLineId) return undefined;
+  return SERVICE_LINE_TO_PERMISSION_CODE[serviceLineId] ?? serviceLineId;
+}
+
 export function ClientServicesPage() {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
   const [selectedServiceLine, setSelectedServiceLine] = useState<string | null>(null);
+  const { data: scopedClients } = useScopedClients(permissionCodeFor(selectedServiceLine));
   const [clients, setClients] = useState<Client[]>([]);
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [_loading, setLoading] = useState(false);
@@ -245,7 +261,7 @@ export function ClientServicesPage() {
   const [pendingGAClientId, setPendingGAClientId] = useState<string | null>(null);
   const [_assigningOwner, setAssigningOwner] = useState<string | null>(null);
   const [_updatingDiscoveryHide, setUpdatingDiscoveryHide] = useState<string | null>(null);
-
+  
   // Invitation modal state
   const [_showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
@@ -990,11 +1006,33 @@ export function ClientServicesPage() {
     }
   };
 
-  const filteredClients = clients.filter(client => 
+  const scopedClientIds = React.useMemo(
+    () => new Set((scopedClients ?? []).map((c: { id: string }) => c.id)),
+    [scopedClients]
+  );
+  const scopedRoleByClientId = React.useMemo(() => {
+    const map = new Map<string, { _role_label?: string; _is_primary?: boolean }>();
+    (scopedClients ?? []).forEach((c: { id: string; _role_label?: string; _is_primary?: boolean }) => {
+      if (c._role_label || c._is_primary) {
+        map.set(c.id, { _role_label: c._role_label, _is_primary: c._is_primary });
+      }
+    });
+    return map;
+  }, [scopedClients]);
+  const isOwnerOrAdmin = currentMember?.role === 'owner' || currentMember?.role === 'admin';
+  const scopeAll = isOwnerOrAdmin || currentMember?.client_scope === 'all' || currentMember?.client_scope == null;
+
+  const filteredClients = clients
+    .filter(client => scopeAll || scopedClientIds.has(client.id))
+    .filter(client =>
     client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     client.company?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+    )
+    .map(client => {
+      const role = scopedRoleByClientId.get(client.id);
+      return role ? { ...client, ...role } : client;
+    });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1308,7 +1346,7 @@ export function ClientServicesPage() {
   ) : renderClientList();
 
   function renderClientList() {
-    return (
+                      return (
       <ClientServicesClientList
         serviceLines={SERVICE_LINES}
         selectedServiceLine={selectedServiceLine}
@@ -1368,26 +1406,26 @@ export function ClientServicesPage() {
       subtitle="Manage clients across all service lines"
       headerActions={
         <>
-          <button
+                <button
             onClick={() => setShowBulkImportModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <Upload className="w-4 h-4" />
             Bulk Import
-          </button>
-          <button
+                </button>
+                <button
             onClick={() => setShowInviteModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
-            <Mail className="w-4 h-4" />
+                      <Mail className="w-4 h-4" />
             Invite Client
-          </button>
+                </button>
         </>
       }
     >
       <div className="max-w-7xl mx-auto">
         {mainContent}
-      </div>
+                        </div>
     </AdminLayout>
   );
 }
@@ -1406,6 +1444,7 @@ function DiscoveryClientModal({
 }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canRun } = useStaffPermissions();
   const [client, setClient] = useState<any>(null);
   const [discovery, setDiscovery] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1993,6 +2032,10 @@ function DiscoveryClientModal({
   const PHASE1_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
 
   const handlePhase1DeepAnalysis = async () => {
+    if (!canRun('discovery')) {
+      alert('You do not have permission to run Discovery actions.');
+      return;
+    }
     const engagementId = await ensureDiscoveryEngagement();
     if (!engagementId) {
       alert('Could not create or find discovery engagement.');
@@ -2073,6 +2116,10 @@ function DiscoveryClientModal({
   const PHASE2_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
 
   const handlePhase2AnalyseAndScore = async () => {
+    if (!canRun('discovery')) {
+      alert('You do not have permission to run Discovery actions.');
+      return;
+    }
     const engagementId = discoveryEngagement?.id ?? (await ensureDiscoveryEngagement());
     if (!engagementId) {
       alert('No discovery engagement. Run Phase 1 first.');
@@ -2144,6 +2191,10 @@ function DiscoveryClientModal({
   // PHASE 2B: Regenerate Opportunities only
   // ================================================================
   const handleRegenerateOpportunities = async () => {
+    if (!canRun('discovery')) {
+      alert('You do not have permission to run Discovery actions.');
+      return;
+    }
     if (!discoveryEngagement?.id) return;
     setCurrentPhase(2);
     setPhaseProgress('Regenerating opportunities...');
@@ -2222,6 +2273,10 @@ function DiscoveryClientModal({
   const PHASE3_INVOKE_TIMEOUT_MS = 600000; // 10 minutes
 
   const handlePhase3GenerateReport = async () => {
+    if (!canRun('discovery')) {
+      alert('You do not have permission to run Discovery actions.');
+      return;
+    }
     const engagementId = discoveryEngagement?.id;
     if (!engagementId) {
       alert('No discovery engagement. Run Phase 2 first.');
@@ -5159,9 +5214,9 @@ function DiscoveryClientModal({
                                                   £{Math.round(destinationReport.comprehensive_analysis.payroll.annualExcess / 1000)}k/year
                                                 </p>
                                                 {(destinationReport.comprehensive_analysis.payroll.staffCostsPct != null && destinationReport.comprehensive_analysis.payroll.benchmark?.good != null) && (
-                                                  <p className="text-xs text-rose-700 mt-1">
+                                                <p className="text-xs text-rose-700 mt-1">
                                                     {Number(destinationReport.comprehensive_analysis.payroll.staffCostsPct).toFixed(1)}% vs {destinationReport.comprehensive_analysis.payroll.benchmark.good}% benchmark
-                                                  </p>
+                                                </p>
                                                 )}
                                               </div>
                                             </div>
@@ -5330,7 +5385,7 @@ function DiscoveryClientModal({
                                         </div>
                                       </div>
                                     )}
-
+                                    
                                     {page5.theAsk && (
                                       <div className="bg-slate-800 rounded-lg p-6 text-center">
                                         <p className="text-slate-300 text-lg mb-4">{page5.theAsk}</p>
@@ -6499,6 +6554,7 @@ function DiscoveryClientModal({
 function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: { clientId: string; serviceLineCode: string; onClose: () => void; onNavigate: (page: PageId) => void }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canRun } = useStaffPermissions();
   const [client, setClient] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   
@@ -6507,6 +6563,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [activeTab, setActiveTab] = useState<'overview' | 'roadmap' | 'context' | 'sprint' | 'assessments' | 'documents' | 'analysis' | 'progress'>(
     isManagementAccounts ? 'assessments' : 'overview'
   );
+  const [maDocsSubTab, setMaDocsSubTab] = useState<'upload' | 'sumary'>('upload');
   
   // MA-specific state
   const [generatingMAInsights, setGeneratingMAInsights] = useState(false);
@@ -6544,6 +6601,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   const [generatingValueAnalysis, setGeneratingValueAnalysis] = useState(false);
   // Regenerate state (no longer using selective options - regenerates all stages)
   const [regenerating, setRegenerating] = useState(false);
+  const [showClientPreview, setShowClientPreview] = useState(false);
   
   // Sprint editing state
   const [editingTask, setEditingTask] = useState<{weekNumber: number, taskId: string, original: any} | null>(null);
@@ -6689,27 +6747,10 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
         }
       }
       
-      // Check if roadmap contains data that doesn't match client (e.g., fitness data for non-fitness client)
-      if (roadmap && roadmap.roadmap_data && clientData) {
-        const roadmapText = JSON.stringify(roadmap.roadmap_data).toLowerCase();
-        const clientEmail = (clientData.email || '').toLowerCase();
-        const clientName = (clientData.name || '').toLowerCase();
-        
-        // Check for fitness/rowing keywords
-        const hasFitnessData = roadmapText.includes('fitness equipment') || 
-                               roadmapText.includes('rowing') || 
-                               roadmapText.includes('rowgear');
-        
-        // Check if client is NOT in fitness industry
-        const isFitnessClient = clientEmail.includes('rowgear') || 
-                                clientEmail.includes('fitness') || 
-                                clientName.includes('tom');
-        
-        if (hasFitnessData && !isFitnessClient) {
-          roadmapNeedsRegeneration = true;
-          console.warn(`⚠️ Roadmap for ${clientData.email} contains fitness/rowing data but client is not in fitness industry. Roadmap needs regeneration.`);
-        }
-      }
+      // Data integrity check removed — the hardcoded fitness/rowing keyword
+      // matching produced false positives ("rowing" matched inside "growing").
+      // Cross-client data contamination is now prevented at generation time
+      // via client validation in the sprint/roadmap functions.
 
       // Fetch assessments based on service line context
       // For service-specific views (like management_accounts), only show relevant assessments
@@ -6936,13 +6977,13 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
       if (serviceLineCode === '365_method') {
         const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
         if (sl?.id) {
-          const { data: enrollmentRow } = await supabase
-            .from('client_service_lines')
-            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status, advisor_notes')
-            .eq('client_id', clientId)
+        const { data: enrollmentRow } = await supabase
+          .from('client_service_lines')
+            .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status, advisor_notes, sprint_start_date')
+          .eq('client_id', clientId)
             .eq('service_line_id', sl.id)
-            .maybeSingle();
-          gaEnrollment = enrollmentRow;
+          .maybeSingle();
+        gaEnrollment = enrollmentRow;
         }
       }
 
@@ -7205,6 +7246,10 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
   // GENERATE VALUE ANALYSIS (SEPARATE FROM ROADMAP)
   // ================================================================
   const handleGenerateValueAnalysis = async () => {
+    if (!canRun('goal_alignment')) {
+      alert('You do not have permission to run Goal Alignment actions.');
+      return;
+    }
     if (!client?.practice_id) return;
     
     setGeneratingValueAnalysis(true);
@@ -7432,6 +7477,10 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
 
   // Resume from last successful stage
   const handleResumePipeline = async () => {
+    if (!canRun('goal_alignment')) {
+      alert('You do not have permission to run Goal Alignment actions.');
+      return;
+    }
     if (!clientId || !client?.practice_id) return;
     
     if (!confirm('This will resume the roadmap generation from the last successful stage. Continue?')) return;
@@ -7475,6 +7524,10 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
 
   // Full regenerate from scratch
   const handleRegenerate = async () => {
+    if (!canRun('goal_alignment')) {
+      alert('You do not have permission to run Goal Alignment actions.');
+      return;
+    }
     if (!client?.practice_id || !clientId) return;
     
     const unprocessedContext = client.context?.filter((c: any) => !c.processed) || [];
@@ -7594,7 +7647,33 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
     }
   };
 
+  const handlePublishAll = async () => {
+    if (!confirm('Publish all roadmap stages to the client portal?')) return;
+    try {
+      const stageIds = (client?.roadmapStages || []).filter((s: any) => s.status === 'generated' && ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type)).map((s: any) => s.id);
+      if (stageIds.length > 0) await supabase.from('roadmap_stages').update({ status: 'published' }).in('id', stageIds);
+      if (client?.roadmap?.id) await supabase.from('client_roadmaps').update({ status: 'published' }).eq('id', client.roadmap.id);
+      try { await supabase.functions.invoke('notify-roadmap-ready', { body: { clientId } }); } catch {}
+      alert(`Published ${stageIds.length} stages.`);
+      await fetchClientDetail();
+    } catch (e) { console.error(e); alert('Failed to publish.'); }
+  };
+
   return (
+    <>
+    {showClientPreview && client?.roadmap?.roadmap_data && (
+      <ClientRoadmapPreview
+        client={{ name: client.name || 'Client', company: client.client_company || '' }}
+        roadmapData={client.roadmap.roadmap_data}
+        valueAnalysis={(() => { const s = (client.roadmapStages || []).find((s: any) => s.stage_type === 'value_analysis' && ['generated', 'approved', 'published'].includes(s.status)); return s?.approved_content || s?.generated_content; })()}
+        insightReport={(() => { const s = (client.roadmapStages || []).find((s: any) => s.stage_type === 'insight_report' && ['approved', 'published'].includes(s.status)); return s?.approved_content || s?.generated_content; })()}
+        onClose={() => setShowClientPreview(false)}
+        onPublish={() => { setShowClientPreview(false); handlePublishAll(); }}
+      />
+    )}
+    {/* Advisory agent panel is now owned by the global AgentLauncher in
+        AdminLayout — it survives modal close and route changes. The button
+        below dispatches a custom event with the client's tokeniser context. */}
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Modal Header */}
@@ -7762,6 +7841,9 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* OVERVIEW TAB */}
               {activeTab === 'overview' && (
                 <div className="space-y-6">
+                  {client?.id && client?.practice_id && (
+                    <ClientTeamPanel clientId={client.id} practiceId={client.practice_id} />
+                  )}
                   {serviceLineCode === '365_method' && (
                     <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
                       <p className="text-sm font-medium text-slate-700 mb-3">Goal Alignment Tier</p>
@@ -7796,9 +7878,16 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         ))}
                       </div>
                       {client?.gaEnrollment && (
-                        <p className="text-xs text-slate-400 mt-2">
-                          Current: Sprint {client.gaEnrollment.current_sprint_number ?? 1} of {client.gaEnrollment.max_sprints ?? 1}
-                        </p>
+                        <div className="mt-2 space-y-1">
+                          <p className="text-xs text-slate-400">
+                            Current: Sprint {client.gaEnrollment.current_sprint_number ?? 1} of {client.gaEnrollment.max_sprints ?? 1}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-slate-400">Start date:</label>
+                            <input type="date" value={client.gaEnrollment.sprint_start_date || ''} onChange={async (e) => { await supabase.from('client_service_lines').update({ sprint_start_date: e.target.value || null }).eq('client_id', clientId).eq('service_line_id', client.gaEnrollment.service_line_id); fetchClientDetail(); }} className="border border-slate-200 rounded px-2 py-0.5 text-xs" />
+                            {!client.gaEnrollment.sprint_start_date && <span className="text-xs text-amber-500">Not set</span>}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
@@ -7935,6 +8024,34 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
               {/* DOCUMENTS TAB (Management Accounts) */}
               {activeTab === 'documents' && isManagementAccounts && (
                 <div className="space-y-6">
+                  <div className="flex gap-2 border-b border-gray-200 pb-3">
+                    <button
+                      type="button"
+                      onClick={() => setMaDocsSubTab('upload')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        maDocsSubTab === 'upload'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Document Upload
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMaDocsSubTab('sumary')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        maDocsSubTab === 'sumary'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Sumary Import
+                    </button>
+                  </div>
+                  {maDocsSubTab === 'sumary' ? (
+                    <SumaryImportPanel clientId={clientId} practiceId={client?.practice_id} memberId={currentMember?.id} />
+                  ) : (
+                  <>
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <p className="text-sm text-blue-800">
                       <strong>Document Upload:</strong> Upload management accounts, financial statements, or other documents. 
@@ -8509,6 +8626,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                       })()}
                     </div>
                   </div>
+                  </>
+                  )}
                 </div>
               )}
 
@@ -9715,52 +9834,93 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             {client.roadmap.status || 'pending_review'}
                           </p>
                         </div>
-                        {client.roadmap.status !== 'published' && (
+                        {(() => {
+                          const allStagesPublished = (client.roadmapStages || []).filter((s: any) => ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type)).every((s: any) => s.status === 'published');
+                          const hasGeneratedStages = (client.roadmapStages || []).some((s: any) => s.status === 'generated' && ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type));
+
+                          return (
+                            <>
+                              {(hasGeneratedStages || allStagesPublished) && (
                           <button
-                            onClick={async () => {
-                              if (!confirm('Mark this roadmap as ready and send email notification to client?')) return;
-                              
-                              try {
-                                // Update roadmap status to published
-                                const { error: updateError } = await supabase
-                                  .from('client_roadmaps')
-                                  .update({ status: 'published' })
-                                  .eq('id', client.roadmap.id);
-                                
-                                if (updateError) throw updateError;
-                                
-                                // Send email notification
-                                const { error: emailError } = await supabase.functions.invoke('notify-roadmap-ready', {
-                                  body: {
-                                    roadmapId: client.roadmap.id,
-                                    clientId: clientId
-                                  }
-                                });
-                                
-                                if (emailError) {
-                                  console.error('Email error:', emailError);
-                                  alert('Roadmap marked as ready, but email failed to send. Please check logs.');
-                                } else {
-                                  alert('Roadmap marked as ready and email sent to client!');
-                                }
-                                
-                                // Refresh client data
+                                  type="button"
+                                  onClick={() => setShowClientPreview(true)}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 text-sm font-medium"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  Preview as Client
+                                </button>
+                              )}
+                              {(hasGeneratedStages || allStagesPublished) && client?.id && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const directors = (client.siblingDirectors || [])
+                                      .map((d: any) => ({ name: d.name || d.full_name || '', role: d.role }))
+                                      .filter((d: any) => d.name);
+                                    const staffNames = (client.staffMembers || [])
+                                      .map((s: any) => s.name || s.full_name)
+                                      .filter(Boolean);
+                                    const fin: Record<string, number | string> = {};
+                                    const va = (client.roadmapStages || []).find((s: any) =>
+                                      s.stage_type === 'value_analysis' &&
+                                      ['generated', 'approved', 'published'].includes(s.status),
+                                    );
+                                    const vaData = va?.approved_content || va?.generated_content || {};
+                                    if (vaData?.financialData?.revenue) fin.revenue = vaData.financialData.revenue;
+                                    if (vaData?.financialData?.grossProfit) fin.grossProfit = vaData.financialData.grossProfit;
+                                    if (vaData?.financialData?.netProfit) fin.netProfit = vaData.financialData.netProfit;
+                                    if (vaData?.totalOpportunity) fin.totalOpportunity = vaData.totalOpportunity;
+
+                                    dispatchOpenAgent({
+                                      clientId: client.id,
+                                      practiceId: client.practice_id || currentMember?.practice_id || '',
+                                      clientName: client.name || 'Client',
+                                      companyName: client.client_company || '',
+                                      directors,
+                                      staffNames,
+                                      financials: fin,
+                                    });
+                                  }}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                                  title="Open the in-platform AI advisor for this client"
+                                >
+                                  <Sparkles className="w-4 h-4" />
+                                  Advisory Agent
+                                </button>
+                              )}
+                              {hasGeneratedStages && (
+                                <button
+                                  onClick={async () => {
+                                    if (!confirm('Publish all roadmap stages to the client portal? The client will be able to see their roadmap, sprint, and value analysis.')) return;
+                                    try {
+                                      const stageIds = (client.roadmapStages || []).filter((s: any) => s.status === 'generated' && ['fit_assessment', 'five_year_vision', 'six_month_shift', 'sprint_plan_part1', 'sprint_plan_part2', 'value_analysis'].includes(s.stage_type)).map((s: any) => s.id);
+                                      if (stageIds.length > 0) {
+                                        await supabase.from('roadmap_stages').update({ status: 'published' }).in('id', stageIds);
+                                      }
+                                      if (client.roadmap?.id) {
+                                        await supabase.from('client_roadmaps').update({ status: 'published' }).eq('id', client.roadmap.id);
+                                      }
+                                      try { await supabase.functions.invoke('notify-roadmap-ready', { body: { clientId } }); } catch {}
+                                      alert(`Published ${stageIds.length} stages to client portal.`);
                                 await fetchClientDetail();
                               } catch (error) {
-                                console.error('Error marking roadmap as ready:', error);
-                                alert('Failed to mark roadmap as ready. Please try again.');
+                                      console.error('Error publishing:', error);
+                                      alert('Failed to publish. Please try again.');
                               }
                             }}
                             className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
                           >
-                            Mark as Ready & Send Email
+                                  Publish to Client
                           </button>
                         )}
-                        {client.roadmap.status === 'published' && (
+                              {allStagesPublished && (
                           <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
                             ✓ Published
                           </span>
                         )}
+                            </>
+                          );
+                        })()}
                       </div>
                       
                       {/* Fit Profile (North Star) */}
@@ -10026,7 +10186,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === currentSprintNum
                         );
                         return (
-                          <div>
+                        <div>
                             <div className="flex items-center justify-between mb-3">
                               <h3 className="font-semibold text-gray-900">12-Week Sprint Overview</h3>
                               {sprintStage && (
@@ -10057,55 +10217,55 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 </div>
                               )}
                             </div>
-                            <div className="grid grid-cols-4 gap-3">
-                              {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
-                                <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-3 text-center">
-                                  <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 inline-flex items-center justify-center font-medium text-sm mb-2">
-                                    {week.weekNumber}
-                                  </span>
-                                  <p className="text-xs text-gray-600 line-clamp-2">{week.theme}</p>
-                                </div>
-                              ))}
-                            </div>
+                          <div className="grid grid-cols-4 gap-3">
+                            {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
+                              <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-3 text-center">
+                                <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 inline-flex items-center justify-center font-medium text-sm mb-2">
+                                  {week.weekNumber}
+                                </span>
+                                <p className="text-xs text-gray-600 line-clamp-2">{week.theme}</p>
+                              </div>
+                            ))}
                           </div>
+                        </div>
                         );
                       })()}
 
                       {/* Sprint Summary (Phase 3 — generated when all 12 weeks resolved) */}
                       {(client as any).roadmapStages && (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary')
                         ? (() => {
-                            const sprintSummaryStage = (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary');
-                            const content = sprintSummaryStage?.approved_content || sprintSummaryStage?.generated_content;
-                            return (
-                              <div className="mt-6 pt-6 border-t border-gray-200">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h3 className="text-lg font-semibold text-gray-900">Sprint Summary</h3>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
-                                      sprintSummaryStage.status === 'approved' || sprintSummaryStage.status === 'published'
-                                        ? 'bg-emerald-100 text-emerald-700'
-                                        : sprintSummaryStage.status === 'generated'
-                                          ? 'bg-amber-100 text-amber-700'
-                                          : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                      {sprintSummaryStage.status}
-                                    </span>
-                                    {sprintSummaryStage.status === 'generated' && (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={async () => {
-                                            try {
-                                              const { error } = await supabase
-                                                .from('roadmap_stages')
-                                                .update({
-                                                  status: 'approved',
-                                                  approved_content: sprintSummaryStage.generated_content,
-                                                  approved_at: new Date().toISOString(),
-                                                })
-                                                .eq('id', sprintSummaryStage.id);
-                                              if (error) throw error;
-                                              await fetchClientDetail();
+                        const sprintSummaryStage = (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary');
+                        const content = sprintSummaryStage?.approved_content || sprintSummaryStage?.generated_content;
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="text-lg font-semibold text-gray-900">Sprint Summary</h3>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
+                                  sprintSummaryStage.status === 'approved' || sprintSummaryStage.status === 'published'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : sprintSummaryStage.status === 'generated'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {sprintSummaryStage.status}
+                                </span>
+                                {sprintSummaryStage.status === 'generated' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const { error } = await supabase
+                                            .from('roadmap_stages')
+                                            .update({
+                                              status: 'approved',
+                                              approved_content: sprintSummaryStage.generated_content,
+                                              approved_at: new Date().toISOString(),
+                                            })
+                                            .eq('id', sprintSummaryStage.id);
+                                          if (error) throw error;
+                                          await fetchClientDetail();
                                               try {
                                                 await supabase.functions.invoke('notify-sprint-lifecycle', {
                                                   body: {
@@ -10117,47 +10277,47 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                               } catch (emailErr) {
                                                 console.warn('Summary notification email failed:', emailErr);
                                               }
-                                            } catch (e) {
-                                              console.error(e);
-                                              alert('Failed to approve. Please try again.');
-                                            }
-                                          }}
-                                          className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
-                                        >
-                                          Approve & Publish
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={async () => {
-                                            if (!confirm('Regenerate Sprint Summary? This will create a new version.')) return;
-                                            try {
-                                              await supabase.functions.invoke('generate-sprint-summary', {
-                                                body: {
-                                                  clientId: clientId,
-                                                  practiceId: client?.practice_id,
-                                                  sprintNumber: 1,
-                                                  action: 'regenerate',
-                                                },
-                                              });
-                                              await fetchClientDetail();
-                                            } catch (e) {
-                                              console.error(e);
-                                              alert('Failed to trigger regeneration.');
-                                            }
-                                          }}
-                                          className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
-                                        >
-                                          Regenerate
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 max-h-[400px] overflow-y-auto">
-                                  <SprintSummaryAdminPreview content={content} />
-                                </div>
+                                        } catch (e) {
+                                          console.error(e);
+                                          alert('Failed to approve. Please try again.');
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                                    >
+                                      Approve & Publish
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (!confirm('Regenerate Sprint Summary? This will create a new version.')) return;
+                                        try {
+                                          await supabase.functions.invoke('generate-sprint-summary', {
+                                            body: {
+                                              clientId: clientId,
+                                              practiceId: client?.practice_id,
+                                              sprintNumber: 1,
+                                              action: 'regenerate',
+                                            },
+                                          });
+                                          await fetchClientDetail();
+                                        } catch (e) {
+                                          console.error(e);
+                                          alert('Failed to trigger regeneration.');
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                    >
+                                      Regenerate
+                                    </button>
+                                  </>
+                                )}
                               </div>
-                            );
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 max-h-[400px] overflow-y-auto">
+                              <SprintSummaryAdminPreview content={content} />
+                            </div>
+                          </div>
+                        );
                           })()
                         : null}
 
@@ -10350,8 +10510,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                   {client.client_company} — {allDirIds.length} directors: {client.name}{client.siblingDirectors.map((s: any) => ', ' + s.name).join('')}
                                 </p>
                               </div>
-                              <button
-                                onClick={async () => {
+                                  <button
+                                    onClick={async () => {
                                   try {
                                     await supabase.functions.invoke('generate-director-alignment', { body: { directorIds: allDirIds, practiceId: client.practice_id, primaryDirectorId: clientId } });
                                     await fetchClientDetail();
@@ -10481,22 +10641,22 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             action: allTasksResolved && summaryStage && !lifeCheckSent && currentSprint < maxSprints ? {
                               label: `Start Sprint ${nextSprint} Renewal`,
                               onClick: async () => {
-                                try {
-                                  await supabase
-                                    .from('client_service_lines')
-                                    .update({ renewal_status: 'life_check_pending' })
-                                    .eq('client_id', clientId)
+                                      try {
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'life_check_pending' })
+                                          .eq('client_id', clientId)
                                     .eq('service_line_id', enrollment.service_line_id);
                                   try {
                                     await supabase.functions.invoke('notify-sprint-lifecycle', {
                                       body: { clientId, type: 'life_check_pending', sprintNumber: currentSprint }
                                     });
                                   } catch {}
-                                  await fetchClientDetail();
-                                } catch (e) {
-                                  console.error(e);
-                                  alert('Failed to start renewal.');
-                                }
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to start renewal.');
+                                      }
                               },
                             } : null,
                           },
@@ -10514,24 +10674,24 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               label: `Generate Sprint ${nextSprint}`,
                               onClick: async () => {
                                 try {
-                                  await supabase
-                                    .from('client_service_lines')
-                                    .update({ renewal_status: 'generating', current_sprint_number: nextSprint })
-                                    .eq('client_id', clientId)
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'generating', current_sprint_number: nextSprint })
+                                          .eq('client_id', clientId)
                                     .eq('service_line_id', enrollment.service_line_id);
-                                  await supabase.from('generation_queue').insert({
-                                    practice_id: client.practice_id,
-                                    client_id: clientId,
-                                    stage_type: 'life_design_refresh',
-                                    sprint_number: nextSprint,
-                                    status: 'pending',
-                                  });
-                                  await supabase.functions.invoke('roadmap-orchestrator', { body: { action: 'process' } });
-                                  await fetchClientDetail();
-                                } catch (e) {
-                                  console.error(e);
-                                  alert('Failed to trigger generation.');
-                                }
+                                        await supabase.from('generation_queue').insert({
+                                          practice_id: client.practice_id,
+                                          client_id: clientId,
+                                          stage_type: 'life_design_refresh',
+                                          sprint_number: nextSprint,
+                                          status: 'pending',
+                                        });
+                                        await supabase.functions.invoke('roadmap-orchestrator', { body: { action: 'process' } });
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to trigger generation.');
+                                      }
                               },
                             } : null,
                           },
@@ -10612,8 +10772,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                     )}
 
                                     {step.action && isActive && (
-                                      <button
-                                        type="button"
+                                  <button
+                                    type="button"
                                         onClick={step.action.onClick}
                                         className="mt-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-xs font-medium whitespace-nowrap"
                                       >
@@ -10671,11 +10831,11 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                   const newNotes = e.target.value.trim();
                                   const currentNotes = (enrollment.advisor_notes || '').trim();
                                   if (newNotes === currentNotes) return;
-                                  try {
-                                    await supabase
-                                      .from('client_service_lines')
+                                      try {
+                                        await supabase
+                                          .from('client_service_lines')
                                       .update({ advisor_notes: newNotes || null })
-                                      .eq('client_id', clientId)
+                                          .eq('client_id', clientId)
                                       .eq('service_line_id', enrollment.service_line_id);
                                     console.log('Advisor notes saved');
                                   } catch (err) {
@@ -10687,8 +10847,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               <p className="text-xs text-gray-400 mt-1">
                                 Auto-saves when you click away. These notes are included in the AI prompt when generating Sprint {nextSprint}.
                               </p>
+                              </div>
                             </div>
-                          </div>
                         );
                           })()
                         : null}
@@ -10697,7 +10857,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
                       <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-5">
                         <MapIcon className="w-8 h-8 text-indigo-400" />
-                      </div>
+                            </div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">No roadmap generated yet</h3>
                       <p className="text-sm text-gray-500 mb-6 max-w-sm">
                         The pipeline will generate a Fit Profile, 5-Year Vision, 6-Month Shift, 12-Week Sprint Plan, and Value Analysis.
@@ -10726,8 +10886,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               {isComplete && (
                                 <span className="ml-auto text-xs text-emerald-600 font-medium">Complete</span>
                               )}
-                            </div>
-                          );
+                          </div>
+                        );
                         })}
                       </div>
 
@@ -10744,8 +10904,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           <>
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             Generating...
-                          </>
-                        ) : (
+                    </>
+                  ) : (
                           <>
                             <Play className="w-4 h-4" />
                             Generate Roadmap
@@ -11141,15 +11301,15 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               </button>
                             </div>
                           ) : (
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
-                                <p className="text-amber-700 text-sm mt-1">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
+                      <p className="text-amber-700 text-sm mt-1">
                                   Click on any task to edit it. Changes are logged to the knowledge base. For full editing use the Sprint Editor when a sprint stage is available.
-                                </p>
-                              </div>
-                            </div>
+                      </p>
+                    </div>
+                  </div>
                           )}
                         </div>
                       </>
@@ -11162,15 +11322,15 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         <div key={week.weekNumber} className="border border-gray-200 rounded-xl overflow-hidden">
                           <div className="bg-gray-50 p-4">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <span className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
-                                  {week.weekNumber}
-                                </span>
-                                <div>
-                                  <p className="font-medium text-gray-900">{week.theme}</p>
-                                  <p className="text-sm text-gray-500">{week.phase} • {week.tasks?.length || 0} tasks</p>
-                                </div>
+                            <div className="flex items-center gap-3">
+                              <span className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                                {week.weekNumber}
+                              </span>
+                              <div>
+                                <p className="font-medium text-gray-900">{week.theme}</p>
+                                <p className="text-sm text-gray-500">{week.phase} • {week.tasks?.length || 0} tasks</p>
                               </div>
+                            </div>
                             </div>
                             {week.narrative && (
                               <p className="mt-2 pl-[52px] text-sm text-gray-600 italic leading-relaxed">{week.narrative}</p>
@@ -11553,6 +11713,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -11571,6 +11732,7 @@ function BenchmarkingClientModal({
 }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canRun } = useStaffPermissions();
   const [activeTab, setActiveTab] = useState<'assessment' | 'hva' | 'context' | 'analysis'>('assessment');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
@@ -11610,19 +11772,27 @@ function BenchmarkingClientModal({
     try {
       const timestamp = newSharedStatus ? new Date().toISOString() : null;
       
-      // Update bm_reports
-      const { error: reportError } = await supabase
+      // Update bm_reports (must affect a row or client RLS / portal will not see the report)
+      const { data: updatedReportRows, error: reportError } = await supabase
         .from('bm_reports')
         .update({
           is_shared_with_client: newSharedStatus,
           shared_at: timestamp,
           shared_by: newSharedStatus ? currentMember?.id : null
         })
-        .eq('engagement_id', engagement.id);
+        .eq('engagement_id', engagement.id)
+        .select('id');
       
       if (reportError) {
         console.error('[Benchmarking] Error toggling share on bm_reports:', reportError);
         alert(`Failed to ${newSharedStatus ? 'share' : 'unshare'} report: ${reportError.message}`);
+        return;
+      }
+      if (!updatedReportRows?.length) {
+        console.error('[Benchmarking] No bm_reports row for engagement; cannot sync share flags', engagement.id);
+        alert(
+          'No benchmarking report row found for this engagement. Generate or save the report first, then share again.'
+        );
         return;
       }
       
@@ -12167,6 +12337,10 @@ function BenchmarkingClientModal({
   };
 
   const handleGenerateReport = async () => {
+    if (!canRun('benchmarking')) {
+      alert('You do not have permission to run Benchmarking actions.');
+      return;
+    }
     if (!engagement) return;
     
     setGenerating(true);
@@ -12246,6 +12420,10 @@ function BenchmarkingClientModal({
 
   // Handle Pass 3 only (opportunities & services) — preserves Pass 1/2 financial data
   const handleRegeneratePass3Only = async () => {
+    if (!canRun('benchmarking')) {
+      alert('You do not have permission to run Benchmarking actions.');
+      return;
+    }
     if (!engagement) return;
     if (!confirm('Re-run opportunities and service recommendations only? Pass 1/2 financial data will be preserved.')) return;
 
@@ -12282,11 +12460,14 @@ function BenchmarkingClientModal({
 
   // Handle regenerating the report with updated data (full pipeline)
   const handleRegenerateWithNewData = async () => {
+    if (!canRun('benchmarking')) {
+      alert('You do not have permission to run Benchmarking actions.');
+      return;
+    }
     if (!engagement) return;
     
     setGenerating(true);
     try {
-      // Use the regenerate function which forces benchmark refresh
       const { data: result, error } = await supabase.functions.invoke('regenerate-bm-report', {
         body: {
           engagementId: engagement.id,
@@ -12808,19 +12989,19 @@ function BenchmarkingClientModal({
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
+                        <button
                             onClick={handleRegeneratePass3Only}
-                            disabled={generating}
+                          disabled={generating}
                             className="px-4 py-2 rounded-lg flex items-center gap-2 border border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
-                          >
-                            {generating ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                        >
+                          {generating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
                                 <span>Running...</span>
-                              </>
-                            ) : (
-                              <>
-                                <RefreshCw className="w-4 h-4" />
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4" />
                                 <span>Re-run Opportunities (Pass 3)</span>
                               </>
                             )}
@@ -12842,9 +13023,9 @@ function BenchmarkingClientModal({
                               <>
                                 <RefreshCw className="w-4 h-4" />
                                 <span>Full Regeneration (All Passes)</span>
-                              </>
-                            )}
-                          </button>
+                            </>
+                          )}
+                        </button>
                         </div>
                       </div>
 
@@ -12854,8 +13035,8 @@ function BenchmarkingClientModal({
                           // Dashboard has its own full-width layout with sidebar nav
                           <div className="rounded-xl overflow-hidden -mx-2" style={{ height: '85vh' }}>
                             <BenchmarkingClientDashboard
-                              data={{
-                                ...report,
+                                data={{
+                                  ...report,
                                 created_at: report?.created_at,
                                 hva_data: (() => {
                                   const hvaResponses = hvaStatus?.responses;
@@ -12875,9 +13056,9 @@ function BenchmarkingClientModal({
                                     reputation_build_time: hvaResponses.reputation_build_time,
                                   };
                                 })(),
-                              }}
-                              clientName={clientName}
-                            />
+                                }}
+                                clientName={clientName}
+                              />
                           </div>
                         ) : (
                           <div className="text-center py-8 text-gray-500">
@@ -13233,6 +13414,7 @@ function SystemsAuditClientModal({
 }) {
   const { user } = useAuth();
   const { data: currentMember } = useCurrentMember(user?.id);
+  const { canRun } = useStaffPermissions();
   const [activeTab, setActiveTab] = useState<'assessments' | 'documents' | 'review' | 'analysis'>('assessments');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
@@ -13279,7 +13461,7 @@ function SystemsAuditClientModal({
   const [showTranscriptInput, setShowTranscriptInput] = useState(false);
   const [showPlatformDirectionGenerateWarning, setShowPlatformDirectionGenerateWarning] = useState(false);
   const [saGeneratingFromPhase, setSaGeneratingFromPhase] = useState<number | null>(null);
-
+  
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
   const [contextNotes, setContextNotes] = useState<any[]>([]);
@@ -13423,8 +13605,8 @@ function SystemsAuditClientModal({
             console.warn('[Systems Audit Modal] Stage 1 data exists but appears empty');
             setStage1Responses([]);
           }
-} else {
-            setStage1Responses([]);
+        } else {
+          setStage1Responses([]);
         }
 
         // Prefer service_line_assessments for Stage 1 display (same source as client portal)
@@ -13621,6 +13803,10 @@ function SystemsAuditClientModal({
   };
 
   const handleGenerateReport = async (startFromPhase = 1) => {
+    if (!canRun('systems_audit')) {
+      alert('You do not have permission to run Systems Audit actions.');
+      return;
+    }
     if (!engagement) return;
 
     if (engagement.platform_direction == null) {
@@ -13628,7 +13814,7 @@ function SystemsAuditClientModal({
     } else {
       setShowPlatformDirectionGenerateWarning(false);
     }
-
+    
     setGenerating(true);
     setSaGeneratingFromPhase(startFromPhase);
 
@@ -13754,8 +13940,8 @@ function SystemsAuditClientModal({
         alert('Report data extracted successfully, but narrative generation failed. You can retry.');
       }
 
-      await fetchData();
-      setGenerating(false);
+          await fetchData();
+          setGenerating(false);
       setSaGeneratingFromPhase(null);
 
     } catch (error: any) {
@@ -13807,14 +13993,14 @@ function SystemsAuditClientModal({
 
     const maxAttempts = 30; // Poll for up to 7.5 minutes (15s * 30 = 7.5 min) to allow for both passes
     const pollInterval = 15000; // 15 seconds
-
+    
     if (attempts >= maxAttempts) {
       setSaReportPollingAfterError(false);
       setGenerating(false);
       alert('Report generation didn\'t complete in time (the server may have timed out). Click "Generate Analysis" below to try again.');
       return;
     }
-
+    
     try {
       // Check report status
       const { data: report } = await supabase
@@ -13852,12 +14038,12 @@ function SystemsAuditClientModal({
           }
           console.log(`[SA Report] Pass 1 complete, waiting for Pass 2... (attempt ${attempts + 1}/${maxAttempts})`);
           if (!saReportPollingCancelledRef.current) {
-            setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+          setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
           }
           return;
         }
       }
-
+      
       // Report not ready yet - poll again
       if (saReportPollingCancelledRef.current) return;
       console.log(`[SA Report] Polling attempt ${attempts + 1}/${maxAttempts}...`);
@@ -13865,7 +14051,7 @@ function SystemsAuditClientModal({
     } catch (error: any) {
       console.error('[SA Report] Error polling for report:', error);
       if (!saReportPollingCancelledRef.current) {
-        setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+      setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
       }
     }
   };
@@ -14267,6 +14453,10 @@ function SystemsAuditClientModal({
   const SA_EDGE_FN_TIMEOUT_MS = 300000; // 5 minutes
 
   const handleRunPreliminary = async () => {
+    if (!canRun('systems_audit')) {
+      alert('You do not have permission to run Systems Audit actions.');
+      return;
+    }
     if (!engagement) return;
     setRunningPreliminary(true);
     const controller = new AbortController();
@@ -14321,6 +14511,10 @@ function SystemsAuditClientModal({
   };
 
   const handleGenerateScript = async () => {
+    if (!canRun('systems_audit')) {
+      alert('You do not have permission to run Systems Audit actions.');
+      return;
+    }
     if (!engagement?.id) return;
     setGeneratingScript(true);
     const controller = new AbortController();
@@ -14351,6 +14545,10 @@ function SystemsAuditClientModal({
   };
 
   const handleProcessTranscript = async () => {
+    if (!canRun('systems_audit')) {
+      alert('You do not have permission to run Systems Audit actions.');
+      return;
+    }
     if (!engagement?.id || !transcriptText.trim()) return;
     if (!window.confirm(`Process this transcript (${transcriptText.length} characters)? The AI will extract answers and auto-resolve matching gaps.`)) return;
     setProcessingTranscript(true);
@@ -14459,7 +14657,7 @@ function SystemsAuditClientModal({
                       </p>
                     </div>
                     <div className="p-6">
-                      {(() => {
+                          {(() => {
                             // Same source as client: prefer service_line_assessments.responses, else sa_discovery_responses.raw_responses
                             const discoveryRow = stage1Responses[0];
                             const responses: Record<string, unknown> = serviceLineAssessmentResponses
@@ -14545,7 +14743,7 @@ function SystemsAuditClientModal({
                               <div className="flex items-start justify-between mb-4">
                                 <div>
                                   <div className="flex items-center gap-3 flex-wrap">
-                                    <h4 className="text-lg font-semibold text-gray-900">{system.system_name}</h4>
+                                  <h4 className="text-lg font-semibold text-gray-900">{system.system_name}</h4>
                                     <SystemMatchBadge
                                       found={matchResult?.found ?? false}
                                       integrationCount={matchResult?.integration_count ?? 0}
@@ -15619,7 +15817,7 @@ function SystemsAuditClientModal({
                       <p className="text-gray-500 mb-4">No report generated yet</p>
                       {!hasPreliminary ? (
                         <>
-                          <button
+                      <button
                             onClick={handleRunPreliminary}
                             disabled={runningPreliminary || !allStagesComplete || !canRunAnalysis}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
@@ -15653,16 +15851,16 @@ function SystemsAuditClientModal({
                           ) : (
                             <button
                               onClick={() => handleGenerateReport(1)}
-                              disabled={generating || !canGenerateOrRegenerate}
+                        disabled={generating || !canGenerateOrRegenerate}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
-                            >
-                              {generating ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Sparkles className="w-4 h-4" />
-                              )}
+                      >
+                        {generating ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
                               {generating ? 'Generating Full Report...' : 'Generate Full Report'}
-                            </button>
+                      </button>
                           )}
                           <p className="mt-3">
                             <button
@@ -15730,30 +15928,30 @@ function SystemsAuditClientModal({
                         </div>
                         
                         <div className="flex flex-col items-end gap-2">
-                          <div className="flex items-center gap-4">
-                            <div className="text-right">
-                              <p className="text-sm font-medium text-gray-900">Generated Analysis</p>
-                              <p className="text-xs text-gray-500">
-                                {report.generated_at && new Date(report.generated_at).toLocaleString()}
-                              </p>
-                            </div>
-                            <button
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-gray-900">Generated Analysis</p>
+                            <p className="text-xs text-gray-500">
+                              {report.generated_at && new Date(report.generated_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <button
                               onClick={() => handleGenerateReport(1)}
-                              disabled={generating || !canGenerateOrRegenerate}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
-                            >
-                              {generating ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  <span>Regenerating...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <RefreshCw className="w-4 h-4" />
-                                  <span>Regenerate</span>
-                                </>
-                              )}
-                            </button>
+                            disabled={generating || !canGenerateOrRegenerate}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                          >
+                            {generating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Regenerating...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4" />
+                                <span>Regenerate</span>
+                              </>
+                            )}
+                          </button>
                           </div>
                           <SAPhaseControls
                             report={report}
@@ -15912,7 +16110,7 @@ function SystemsAuditClientModal({
                                 {staffInterviewCompleteCount} of {staffInterviewTotalCount} staff interviews completed
                               </p>
                             </>
-                          )}
+                            )}
                           </div>
                         </div>
                       )}

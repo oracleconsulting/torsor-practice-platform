@@ -261,7 +261,7 @@ export function ClientServicesPage() {
   const [pendingGAClientId, setPendingGAClientId] = useState<string | null>(null);
   const [_assigningOwner, setAssigningOwner] = useState<string | null>(null);
   const [_updatingDiscoveryHide, setUpdatingDiscoveryHide] = useState<string | null>(null);
-
+  
   // Invitation modal state
   const [_showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
@@ -1025,9 +1025,9 @@ export function ClientServicesPage() {
   const filteredClients = clients
     .filter(client => scopeAll || scopedClientIds.has(client.id))
     .filter(client =>
-      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.company?.toLowerCase().includes(searchQuery.toLowerCase())
+    client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    client.company?.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .map(client => {
       const role = scopedRoleByClientId.get(client.id);
@@ -1346,7 +1346,7 @@ export function ClientServicesPage() {
   ) : renderClientList();
 
   function renderClientList() {
-    return (
+                      return (
       <ClientServicesClientList
         serviceLines={SERVICE_LINES}
         selectedServiceLine={selectedServiceLine}
@@ -1406,26 +1406,26 @@ export function ClientServicesPage() {
       subtitle="Manage clients across all service lines"
       headerActions={
         <>
-          <button
+                <button
             onClick={() => setShowBulkImportModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
           >
             <Upload className="w-4 h-4" />
             Bulk Import
-          </button>
-          <button
+                </button>
+                <button
             onClick={() => setShowInviteModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
           >
-            <Mail className="w-4 h-4" />
+                      <Mail className="w-4 h-4" />
             Invite Client
-          </button>
+                </button>
         </>
       }
     >
       <div className="max-w-7xl mx-auto">
         {mainContent}
-      </div>
+                        </div>
     </AdminLayout>
   );
 }
@@ -5214,9 +5214,9 @@ function DiscoveryClientModal({
                                                   £{Math.round(destinationReport.comprehensive_analysis.payroll.annualExcess / 1000)}k/year
                                                 </p>
                                                 {(destinationReport.comprehensive_analysis.payroll.staffCostsPct != null && destinationReport.comprehensive_analysis.payroll.benchmark?.good != null) && (
-                                                  <p className="text-xs text-rose-700 mt-1">
+                                                <p className="text-xs text-rose-700 mt-1">
                                                     {Number(destinationReport.comprehensive_analysis.payroll.staffCostsPct).toFixed(1)}% vs {destinationReport.comprehensive_analysis.payroll.benchmark.good}% benchmark
-                                                  </p>
+                                                </p>
                                                 )}
                                               </div>
                                             </div>
@@ -5385,7 +5385,7 @@ function DiscoveryClientModal({
                                         </div>
                                       </div>
                                     )}
-
+                                    
                                     {page5.theAsk && (
                                       <div className="bg-slate-800 rounded-lg p-6 text-center">
                                         <p className="text-slate-300 text-lg mb-4">{page5.theAsk}</p>
@@ -6564,7 +6564,7 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
     isManagementAccounts ? 'assessments' : 'overview'
   );
   const [maDocsSubTab, setMaDocsSubTab] = useState<'upload' | 'sumary'>('upload');
-
+  
   // MA-specific state
   const [generatingMAInsights, setGeneratingMAInsights] = useState(false);
   const [maInsights, setMAInsights] = useState<any>(null);
@@ -6977,13 +6977,13 @@ function ClientDetailModal({ clientId, serviceLineCode, onClose, onNavigate }: {
       if (serviceLineCode === '365_method') {
         const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
         if (sl?.id) {
-          const { data: enrollmentRow } = await supabase
-            .from('client_service_lines')
+        const { data: enrollmentRow } = await supabase
+          .from('client_service_lines')
             .select('service_line_id, current_sprint_number, max_sprints, tier_name, renewal_status, advisor_notes, sprint_start_date')
-            .eq('client_id', clientId)
+          .eq('client_id', clientId)
             .eq('service_line_id', sl.id)
-            .maybeSingle();
-          gaEnrollment = enrollmentRow;
+          .maybeSingle();
+        gaEnrollment = enrollmentRow;
         }
       }
 
@@ -9841,7 +9841,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           return (
                             <>
                               {(hasGeneratedStages || allStagesPublished) && (
-                                <button
+                          <button
                                   type="button"
                                   onClick={() => setShowClientPreview(true)}
                                   className="inline-flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 text-sm font-medium"
@@ -9902,22 +9902,22 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                       }
                                       try { await supabase.functions.invoke('notify-roadmap-ready', { body: { clientId } }); } catch {}
                                       alert(`Published ${stageIds.length} stages to client portal.`);
-                                      await fetchClientDetail();
-                                    } catch (error) {
+                                await fetchClientDetail();
+                              } catch (error) {
                                       console.error('Error publishing:', error);
                                       alert('Failed to publish. Please try again.');
-                                    }
-                                  }}
-                                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
-                                >
+                              }
+                            }}
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+                          >
                                   Publish to Client
-                                </button>
-                              )}
+                          </button>
+                        )}
                               {allStagesPublished && (
-                                <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
-                                  ✓ Published
-                                </span>
-                              )}
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-sm font-medium">
+                            ✓ Published
+                          </span>
+                        )}
                             </>
                           );
                         })()}
@@ -10186,7 +10186,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           (s: any) => s.stage_type === 'sprint_plan_part2' && (s.sprint_number ?? 1) === currentSprintNum
                         );
                         return (
-                          <div>
+                        <div>
                             <div className="flex items-center justify-between mb-3">
                               <h3 className="font-semibold text-gray-900">12-Week Sprint Overview</h3>
                               {sprintStage && (
@@ -10217,55 +10217,55 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                 </div>
                               )}
                             </div>
-                            <div className="grid grid-cols-4 gap-3">
-                              {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
-                                <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-3 text-center">
-                                  <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 inline-flex items-center justify-center font-medium text-sm mb-2">
-                                    {week.weekNumber}
-                                  </span>
-                                  <p className="text-xs text-gray-600 line-clamp-2">{week.theme}</p>
-                                </div>
-                              ))}
-                            </div>
+                          <div className="grid grid-cols-4 gap-3">
+                            {client.roadmap.roadmap_data.sprint.weeks.map((week: any) => (
+                              <div key={week.weekNumber} className="border border-gray-200 rounded-lg p-3 text-center">
+                                <span className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 inline-flex items-center justify-center font-medium text-sm mb-2">
+                                  {week.weekNumber}
+                                </span>
+                                <p className="text-xs text-gray-600 line-clamp-2">{week.theme}</p>
+                              </div>
+                            ))}
                           </div>
+                        </div>
                         );
                       })()}
 
                       {/* Sprint Summary (Phase 3 — generated when all 12 weeks resolved) */}
                       {(client as any).roadmapStages && (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary')
                         ? (() => {
-                            const sprintSummaryStage = (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary');
-                            const content = sprintSummaryStage?.approved_content || sprintSummaryStage?.generated_content;
-                            return (
-                              <div className="mt-6 pt-6 border-t border-gray-200">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h3 className="text-lg font-semibold text-gray-900">Sprint Summary</h3>
-                                  <div className="flex items-center gap-2">
-                                    <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
-                                      sprintSummaryStage.status === 'approved' || sprintSummaryStage.status === 'published'
-                                        ? 'bg-emerald-100 text-emerald-700'
-                                        : sprintSummaryStage.status === 'generated'
-                                          ? 'bg-amber-100 text-amber-700'
-                                          : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                      {sprintSummaryStage.status}
-                                    </span>
-                                    {sprintSummaryStage.status === 'generated' && (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={async () => {
-                                            try {
-                                              const { error } = await supabase
-                                                .from('roadmap_stages')
-                                                .update({
-                                                  status: 'approved',
-                                                  approved_content: sprintSummaryStage.generated_content,
-                                                  approved_at: new Date().toISOString(),
-                                                })
-                                                .eq('id', sprintSummaryStage.id);
-                                              if (error) throw error;
-                                              await fetchClientDetail();
+                        const sprintSummaryStage = (client as any).roadmapStages.find((s: any) => s.stage_type === 'sprint_summary');
+                        const content = sprintSummaryStage?.approved_content || sprintSummaryStage?.generated_content;
+                        return (
+                          <div className="mt-6 pt-6 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="text-lg font-semibold text-gray-900">Sprint Summary</h3>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${
+                                  sprintSummaryStage.status === 'approved' || sprintSummaryStage.status === 'published'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : sprintSummaryStage.status === 'generated'
+                                      ? 'bg-amber-100 text-amber-700'
+                                      : 'bg-gray-100 text-gray-600'
+                                }`}>
+                                  {sprintSummaryStage.status}
+                                </span>
+                                {sprintSummaryStage.status === 'generated' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const { error } = await supabase
+                                            .from('roadmap_stages')
+                                            .update({
+                                              status: 'approved',
+                                              approved_content: sprintSummaryStage.generated_content,
+                                              approved_at: new Date().toISOString(),
+                                            })
+                                            .eq('id', sprintSummaryStage.id);
+                                          if (error) throw error;
+                                          await fetchClientDetail();
                                               try {
                                                 await supabase.functions.invoke('notify-sprint-lifecycle', {
                                                   body: {
@@ -10277,47 +10277,47 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                               } catch (emailErr) {
                                                 console.warn('Summary notification email failed:', emailErr);
                                               }
-                                            } catch (e) {
-                                              console.error(e);
-                                              alert('Failed to approve. Please try again.');
-                                            }
-                                          }}
-                                          className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
-                                        >
-                                          Approve & Publish
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={async () => {
-                                            if (!confirm('Regenerate Sprint Summary? This will create a new version.')) return;
-                                            try {
-                                              await supabase.functions.invoke('generate-sprint-summary', {
-                                                body: {
-                                                  clientId: clientId,
-                                                  practiceId: client?.practice_id,
-                                                  sprintNumber: 1,
-                                                  action: 'regenerate',
-                                                },
-                                              });
-                                              await fetchClientDetail();
-                                            } catch (e) {
-                                              console.error(e);
-                                              alert('Failed to trigger regeneration.');
-                                            }
-                                          }}
-                                          className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
-                                        >
-                                          Regenerate
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 max-h-[400px] overflow-y-auto">
-                                  <SprintSummaryAdminPreview content={content} />
-                                </div>
+                                        } catch (e) {
+                                          console.error(e);
+                                          alert('Failed to approve. Please try again.');
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium"
+                                    >
+                                      Approve & Publish
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        if (!confirm('Regenerate Sprint Summary? This will create a new version.')) return;
+                                        try {
+                                          await supabase.functions.invoke('generate-sprint-summary', {
+                                            body: {
+                                              clientId: clientId,
+                                              practiceId: client?.practice_id,
+                                              sprintNumber: 1,
+                                              action: 'regenerate',
+                                            },
+                                          });
+                                          await fetchClientDetail();
+                                        } catch (e) {
+                                          console.error(e);
+                                          alert('Failed to trigger regeneration.');
+                                        }
+                                      }}
+                                      className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                    >
+                                      Regenerate
+                                    </button>
+                                  </>
+                                )}
                               </div>
-                            );
+                            </div>
+                            <div className="bg-gray-50 rounded-xl p-5 border border-gray-200 max-h-[400px] overflow-y-auto">
+                              <SprintSummaryAdminPreview content={content} />
+                            </div>
+                          </div>
+                        );
                           })()
                         : null}
 
@@ -10510,8 +10510,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                   {client.client_company} — {allDirIds.length} directors: {client.name}{client.siblingDirectors.map((s: any) => ', ' + s.name).join('')}
                                 </p>
                               </div>
-                              <button
-                                onClick={async () => {
+                                  <button
+                                    onClick={async () => {
                                   try {
                                     await supabase.functions.invoke('generate-director-alignment', { body: { directorIds: allDirIds, practiceId: client.practice_id, primaryDirectorId: clientId } });
                                     await fetchClientDetail();
@@ -10641,22 +10641,22 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                             action: allTasksResolved && summaryStage && !lifeCheckSent && currentSprint < maxSprints ? {
                               label: `Start Sprint ${nextSprint} Renewal`,
                               onClick: async () => {
-                                try {
-                                  await supabase
-                                    .from('client_service_lines')
-                                    .update({ renewal_status: 'life_check_pending' })
-                                    .eq('client_id', clientId)
+                                      try {
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'life_check_pending' })
+                                          .eq('client_id', clientId)
                                     .eq('service_line_id', enrollment.service_line_id);
                                   try {
                                     await supabase.functions.invoke('notify-sprint-lifecycle', {
                                       body: { clientId, type: 'life_check_pending', sprintNumber: currentSprint }
                                     });
                                   } catch {}
-                                  await fetchClientDetail();
-                                } catch (e) {
-                                  console.error(e);
-                                  alert('Failed to start renewal.');
-                                }
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to start renewal.');
+                                      }
                               },
                             } : null,
                           },
@@ -10674,24 +10674,24 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               label: `Generate Sprint ${nextSprint}`,
                               onClick: async () => {
                                 try {
-                                  await supabase
-                                    .from('client_service_lines')
-                                    .update({ renewal_status: 'generating', current_sprint_number: nextSprint })
-                                    .eq('client_id', clientId)
+                                        await supabase
+                                          .from('client_service_lines')
+                                          .update({ renewal_status: 'generating', current_sprint_number: nextSprint })
+                                          .eq('client_id', clientId)
                                     .eq('service_line_id', enrollment.service_line_id);
-                                  await supabase.from('generation_queue').insert({
-                                    practice_id: client.practice_id,
-                                    client_id: clientId,
-                                    stage_type: 'life_design_refresh',
-                                    sprint_number: nextSprint,
-                                    status: 'pending',
-                                  });
-                                  await supabase.functions.invoke('roadmap-orchestrator', { body: { action: 'process' } });
-                                  await fetchClientDetail();
-                                } catch (e) {
-                                  console.error(e);
-                                  alert('Failed to trigger generation.');
-                                }
+                                        await supabase.from('generation_queue').insert({
+                                          practice_id: client.practice_id,
+                                          client_id: clientId,
+                                          stage_type: 'life_design_refresh',
+                                          sprint_number: nextSprint,
+                                          status: 'pending',
+                                        });
+                                        await supabase.functions.invoke('roadmap-orchestrator', { body: { action: 'process' } });
+                                        await fetchClientDetail();
+                                      } catch (e) {
+                                        console.error(e);
+                                        alert('Failed to trigger generation.');
+                                      }
                               },
                             } : null,
                           },
@@ -10772,8 +10772,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                     )}
 
                                     {step.action && isActive && (
-                                      <button
-                                        type="button"
+                                  <button
+                                    type="button"
                                         onClick={step.action.onClick}
                                         className="mt-2 px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-xs font-medium whitespace-nowrap"
                                       >
@@ -10831,11 +10831,11 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                                   const newNotes = e.target.value.trim();
                                   const currentNotes = (enrollment.advisor_notes || '').trim();
                                   if (newNotes === currentNotes) return;
-                                  try {
-                                    await supabase
-                                      .from('client_service_lines')
+                                      try {
+                                        await supabase
+                                          .from('client_service_lines')
                                       .update({ advisor_notes: newNotes || null })
-                                      .eq('client_id', clientId)
+                                          .eq('client_id', clientId)
                                       .eq('service_line_id', enrollment.service_line_id);
                                     console.log('Advisor notes saved');
                                   } catch (err) {
@@ -10847,8 +10847,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               <p className="text-xs text-gray-400 mt-1">
                                 Auto-saves when you click away. These notes are included in the AI prompt when generating Sprint {nextSprint}.
                               </p>
+                              </div>
                             </div>
-                          </div>
                         );
                           })()
                         : null}
@@ -10857,7 +10857,7 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                     <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
                       <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mb-5">
                         <MapIcon className="w-8 h-8 text-indigo-400" />
-                      </div>
+                            </div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">No roadmap generated yet</h3>
                       <p className="text-sm text-gray-500 mb-6 max-w-sm">
                         The pipeline will generate a Fit Profile, 5-Year Vision, 6-Month Shift, 12-Week Sprint Plan, and Value Analysis.
@@ -10886,8 +10886,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               {isComplete && (
                                 <span className="ml-auto text-xs text-emerald-600 font-medium">Complete</span>
                               )}
-                            </div>
-                          );
+                          </div>
+                        );
                         })}
                       </div>
 
@@ -10904,8 +10904,8 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                           <>
                             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                             Generating...
-                          </>
-                        ) : (
+                    </>
+                  ) : (
                           <>
                             <Play className="w-4 h-4" />
                             Generate Roadmap
@@ -11301,15 +11301,15 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                               </button>
                             </div>
                           ) : (
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
-                              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
-                                <p className="text-amber-700 text-sm mt-1">
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-amber-800 text-sm font-medium">Sprint Refinement</p>
+                      <p className="text-amber-700 text-sm mt-1">
                                   Click on any task to edit it. Changes are logged to the knowledge base. For full editing use the Sprint Editor when a sprint stage is available.
-                                </p>
-                              </div>
-                            </div>
+                      </p>
+                    </div>
+                  </div>
                           )}
                         </div>
                       </>
@@ -11322,15 +11322,15 @@ Submitted: ${feedback.submittedAt ? new Date(feedback.submittedAt).toLocaleDateS
                         <div key={week.weekNumber} className="border border-gray-200 rounded-xl overflow-hidden">
                           <div className="bg-gray-50 p-4">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <span className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
-                                  {week.weekNumber}
-                                </span>
-                                <div>
-                                  <p className="font-medium text-gray-900">{week.theme}</p>
-                                  <p className="text-sm text-gray-500">{week.phase} • {week.tasks?.length || 0} tasks</p>
-                                </div>
+                            <div className="flex items-center gap-3">
+                              <span className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                                {week.weekNumber}
+                              </span>
+                              <div>
+                                <p className="font-medium text-gray-900">{week.theme}</p>
+                                <p className="text-sm text-gray-500">{week.phase} • {week.tasks?.length || 0} tasks</p>
                               </div>
+                            </div>
                             </div>
                             {week.narrative && (
                               <p className="mt-2 pl-[52px] text-sm text-gray-600 italic leading-relaxed">{week.narrative}</p>
@@ -12989,19 +12989,19 @@ function BenchmarkingClientModal({
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
+                        <button
                             onClick={handleRegeneratePass3Only}
-                            disabled={generating}
+                          disabled={generating}
                             className="px-4 py-2 rounded-lg flex items-center gap-2 border border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
-                          >
-                            {generating ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                        >
+                          {generating ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
                                 <span>Running...</span>
-                              </>
-                            ) : (
-                              <>
-                                <RefreshCw className="w-4 h-4" />
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-4 h-4" />
                                 <span>Re-run Opportunities (Pass 3)</span>
                               </>
                             )}
@@ -13023,9 +13023,9 @@ function BenchmarkingClientModal({
                               <>
                                 <RefreshCw className="w-4 h-4" />
                                 <span>Full Regeneration (All Passes)</span>
-                              </>
-                            )}
-                          </button>
+                            </>
+                          )}
+                        </button>
                         </div>
                       </div>
 
@@ -13035,8 +13035,8 @@ function BenchmarkingClientModal({
                           // Dashboard has its own full-width layout with sidebar nav
                           <div className="rounded-xl overflow-hidden -mx-2" style={{ height: '85vh' }}>
                             <BenchmarkingClientDashboard
-                              data={{
-                                ...report,
+                                data={{
+                                  ...report,
                                 created_at: report?.created_at,
                                 hva_data: (() => {
                                   const hvaResponses = hvaStatus?.responses;
@@ -13056,9 +13056,9 @@ function BenchmarkingClientModal({
                                     reputation_build_time: hvaResponses.reputation_build_time,
                                   };
                                 })(),
-                              }}
-                              clientName={clientName}
-                            />
+                                }}
+                                clientName={clientName}
+                              />
                           </div>
                         ) : (
                           <div className="text-center py-8 text-gray-500">
@@ -13461,7 +13461,7 @@ function SystemsAuditClientModal({
   const [showTranscriptInput, setShowTranscriptInput] = useState(false);
   const [showPlatformDirectionGenerateWarning, setShowPlatformDirectionGenerateWarning] = useState(false);
   const [saGeneratingFromPhase, setSaGeneratingFromPhase] = useState<number | null>(null);
-
+  
   // Document & Context state
   const [documents, setDocuments] = useState<any[]>([]);
   const [contextNotes, setContextNotes] = useState<any[]>([]);
@@ -13605,8 +13605,8 @@ function SystemsAuditClientModal({
             console.warn('[Systems Audit Modal] Stage 1 data exists but appears empty');
             setStage1Responses([]);
           }
-} else {
-            setStage1Responses([]);
+        } else {
+          setStage1Responses([]);
         }
 
         // Prefer service_line_assessments for Stage 1 display (same source as client portal)
@@ -13814,7 +13814,7 @@ function SystemsAuditClientModal({
     } else {
       setShowPlatformDirectionGenerateWarning(false);
     }
-
+    
     setGenerating(true);
     setSaGeneratingFromPhase(startFromPhase);
 
@@ -13940,8 +13940,8 @@ function SystemsAuditClientModal({
         alert('Report data extracted successfully, but narrative generation failed. You can retry.');
       }
 
-      await fetchData();
-      setGenerating(false);
+          await fetchData();
+          setGenerating(false);
       setSaGeneratingFromPhase(null);
 
     } catch (error: any) {
@@ -13993,14 +13993,14 @@ function SystemsAuditClientModal({
 
     const maxAttempts = 30; // Poll for up to 7.5 minutes (15s * 30 = 7.5 min) to allow for both passes
     const pollInterval = 15000; // 15 seconds
-
+    
     if (attempts >= maxAttempts) {
       setSaReportPollingAfterError(false);
       setGenerating(false);
       alert('Report generation didn\'t complete in time (the server may have timed out). Click "Generate Analysis" below to try again.');
       return;
     }
-
+    
     try {
       // Check report status
       const { data: report } = await supabase
@@ -14038,12 +14038,12 @@ function SystemsAuditClientModal({
           }
           console.log(`[SA Report] Pass 1 complete, waiting for Pass 2... (attempt ${attempts + 1}/${maxAttempts})`);
           if (!saReportPollingCancelledRef.current) {
-            setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+          setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
           }
           return;
         }
       }
-
+      
       // Report not ready yet - poll again
       if (saReportPollingCancelledRef.current) return;
       console.log(`[SA Report] Polling attempt ${attempts + 1}/${maxAttempts}...`);
@@ -14051,7 +14051,7 @@ function SystemsAuditClientModal({
     } catch (error: any) {
       console.error('[SA Report] Error polling for report:', error);
       if (!saReportPollingCancelledRef.current) {
-        setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
+      setTimeout(() => pollForReport(engagementId, attempts + 1), pollInterval);
       }
     }
   };
@@ -14657,7 +14657,7 @@ function SystemsAuditClientModal({
                       </p>
                     </div>
                     <div className="p-6">
-                      {(() => {
+                          {(() => {
                             // Same source as client: prefer service_line_assessments.responses, else sa_discovery_responses.raw_responses
                             const discoveryRow = stage1Responses[0];
                             const responses: Record<string, unknown> = serviceLineAssessmentResponses
@@ -14743,7 +14743,7 @@ function SystemsAuditClientModal({
                               <div className="flex items-start justify-between mb-4">
                                 <div>
                                   <div className="flex items-center gap-3 flex-wrap">
-                                    <h4 className="text-lg font-semibold text-gray-900">{system.system_name}</h4>
+                                  <h4 className="text-lg font-semibold text-gray-900">{system.system_name}</h4>
                                     <SystemMatchBadge
                                       found={matchResult?.found ?? false}
                                       integrationCount={matchResult?.integration_count ?? 0}
@@ -15817,7 +15817,7 @@ function SystemsAuditClientModal({
                       <p className="text-gray-500 mb-4">No report generated yet</p>
                       {!hasPreliminary ? (
                         <>
-                          <button
+                      <button
                             onClick={handleRunPreliminary}
                             disabled={runningPreliminary || !allStagesComplete || !canRunAnalysis}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
@@ -15851,16 +15851,16 @@ function SystemsAuditClientModal({
                           ) : (
                             <button
                               onClick={() => handleGenerateReport(1)}
-                              disabled={generating || !canGenerateOrRegenerate}
+                        disabled={generating || !canGenerateOrRegenerate}
                               className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
-                            >
-                              {generating ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Sparkles className="w-4 h-4" />
-                              )}
+                      >
+                        {generating ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
                               {generating ? 'Generating Full Report...' : 'Generate Full Report'}
-                            </button>
+                      </button>
                           )}
                           <p className="mt-3">
                             <button
@@ -15928,30 +15928,30 @@ function SystemsAuditClientModal({
                         </div>
                         
                         <div className="flex flex-col items-end gap-2">
-                          <div className="flex items-center gap-4">
-                            <div className="text-right">
-                              <p className="text-sm font-medium text-gray-900">Generated Analysis</p>
-                              <p className="text-xs text-gray-500">
-                                {report.generated_at && new Date(report.generated_at).toLocaleString()}
-                              </p>
-                            </div>
-                            <button
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-gray-900">Generated Analysis</p>
+                            <p className="text-xs text-gray-500">
+                              {report.generated_at && new Date(report.generated_at).toLocaleString()}
+                            </p>
+                          </div>
+                          <button
                               onClick={() => handleGenerateReport(1)}
-                              disabled={generating || !canGenerateOrRegenerate}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
-                            >
-                              {generating ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  <span>Regenerating...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <RefreshCw className="w-4 h-4" />
-                                  <span>Regenerate</span>
-                                </>
-                              )}
-                            </button>
+                            disabled={generating || !canGenerateOrRegenerate}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg transition-colors text-sm font-medium"
+                          >
+                            {generating ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Regenerating...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-4 h-4" />
+                                <span>Regenerate</span>
+                              </>
+                            )}
+                          </button>
                           </div>
                           <SAPhaseControls
                             report={report}
@@ -16110,7 +16110,7 @@ function SystemsAuditClientModal({
                                 {staffInterviewCompleteCount} of {staffInterviewTotalCount} staff interviews completed
                               </p>
                             </>
-                          )}
+                            )}
                           </div>
                         </div>
                       )}

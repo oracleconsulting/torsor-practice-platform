@@ -100,9 +100,11 @@ export function FinancialPulse({ valueAnalysis, collapsed: initialCollapsed = tr
                 color={exitScore >= 70 ? 'emerald' : 'amber'}
               />
             )}
-            {(criticalRisks > 0 || highRisks > 0) && (
+            {valueAnalysis?.clientMetrics?.showExitReadiness ? (
+              <MetricCard label={valueAnalysis.clientMetrics.exitReadinessLabel || 'Exit Readiness'} value={`${valueAnalysis.clientMetrics.exitReadinessScore}/100`} sublabel={valueAnalysis.clientMetrics.exitReadinessContext} color="amber" />
+            ) : (criticalRisks > 0 || highRisks > 0) ? (
               <MetricCard label="Risk Alerts" value={`${criticalRisks} critical · ${highRisks} high`} color="red" />
-            )}
+            ) : null}
             {grossMargin != null && (
               <MetricCard label="Gross Margin" value={typeof grossMargin === 'string' ? grossMargin : `${grossMargin}%`} color="teal" />
             )}
