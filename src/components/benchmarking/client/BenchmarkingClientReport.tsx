@@ -18,7 +18,6 @@ import { ForwardValueBridgeSection } from './ForwardValueBridgeSection';
 import { AlertTriangle, Gem, Shield, CheckCircle, Download } from 'lucide-react';
 import { exportToPDF } from '../../../lib/pdf-export';
 import type { ValueAnalysis } from '../../../types/benchmarking';
-import type { BusinessStage } from '../../../types/pre-revenue';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 // DEPRECATED: Old static types - no longer using issue-service-mapping.ts
 // import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
