@@ -14,7 +14,9 @@ import { OpportunityPanel } from './OpportunityPanel';
 import { ValueAnalysisPanel } from './ValueAnalysisPanel';
 import { ExportAnalysisButton } from './ExportAnalysisButton';
 import { PDFExportEditor } from './PDFExportEditor';
-import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign, Share2, EyeOff, Loader2, Pin, Download } from 'lucide-react';
+import { EngagementSetupPanel } from './EngagementSetupPanel';
+import { PreRevenueSignalsPanel } from './PreRevenueSignalsPanel';
+import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign, Share2, EyeOff, Loader2, Pin, Download, Settings } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { ValueAnalysis } from '../../../types/benchmarking';
 import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
@@ -238,7 +240,24 @@ export function BenchmarkingAdminView({
   hvaCompletedAt,
   onRequestUpdatedHVA
 }: BenchmarkingAdminViewProps) {
-  const [activeTab, setActiveTab] = useState<'script' | 'risks' | 'services' | 'pin_services' | 'opportunities' | 'valuation' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('script');
+  const [activeTab, setActiveTab] = useState<'setup' | 'script' | 'risks' | 'services' | 'pin_services' | 'opportunities' | 'valuation' | 'actions' | 'collect' | 'accounts' | 'sources' | 'raw'>('setup');
+
+  // Track business stage for conditional rendering
+  const [businessStage, setBusinessStage] = useState<string | undefined>(undefined);
+  
+  useEffect(() => {
+    if (!engagementId) return;
+    (async () => {
+      const { data: eng } = await supabase
+        .from('bm_engagements')
+        .select('business_stage')
+        .eq('id', engagementId)
+        .single();
+      if (eng?.business_stage) setBusinessStage(eng.business_stage);
+    })();
+  }, [engagementId]);
+
+  const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
   
   // PDF Export Editor
   const [showPdfEditor, setShowPdfEditor] = useState(false);
@@ -468,6 +487,17 @@ export function BenchmarkingAdminView({
             <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
               <div className="flex border-b border-slate-200 overflow-x-auto">
                 <button
+                  onClick={() => setActiveTab('setup')}
+                  className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors whitespace-nowrap ${
+                    activeTab === 'setup'
+                      ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/50'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Settings className="w-4 h-4" />
+                  Setup
+                </button>
+                <button
                   onClick={() => setActiveTab('script')}
                   className={`px-4 py-3 flex items-center justify-center gap-2 text-sm font-medium transition-colors whitespace-nowrap ${
                     activeTab === 'script'
@@ -537,6 +567,11 @@ export function BenchmarkingAdminView({
                 >
                   <DollarSign className="w-4 h-4" />
                   Value
+                  {isPreRevenue && (
+                    <span className="ml-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-violet-100 text-violet-700 border border-violet-200">
+                      Pre-Rev
+                    </span>
+                  )}
                   {data.value_analysis && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full" />
                   )}
@@ -609,6 +644,32 @@ export function BenchmarkingAdminView({
               </div>
               
               <div className="p-6">
+                {activeTab === 'setup' && engagementId && (
+                  <EngagementSetupPanel
+                    engagementId={engagementId}
+                    currentStage={businessStage}
+                    onSave={() => {
+                      // Reload stage after save
+                      (async () => {
+                        const { data: eng } = await supabase
+                          .from('bm_engagements')
+                          .select('business_stage')
+                          .eq('id', engagementId)
+                          .single();
+                        if (eng?.business_stage) setBusinessStage(eng.business_stage);
+                      })();
+                    }}
+                    onNavigateToSignals={() => setActiveTab('collect')}
+                  />
+                )}
+                {activeTab === 'setup' && !engagementId && (
+                  <div className="text-center py-8 text-slate-500">
+                    <Settings className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p>Engagement context not available</p>
+                    <p className="text-sm mt-1">Cannot configure setup without engagement information</p>
+                  </div>
+                )}
+
                 {activeTab === 'script' && (
                   <ConversationScript
                     openingStatement={openingStatement}
@@ -698,7 +759,16 @@ export function BenchmarkingAdminView({
                   <NextStepsPanel nextSteps={nextSteps} tasks={tasks} />
                 )}
                 
-                {activeTab === 'collect' && (
+                {activeTab === 'collect' && isPreRevenue && engagementId && (
+                  <PreRevenueSignalsPanel
+                    engagementId={engagementId}
+                    onSave={() => {
+                      console.log('Pre-revenue signals saved — regenerate analysis to incorporate');
+                    }}
+                  />
+                )}
+
+                {activeTab === 'collect' && !isPreRevenue && (
                   <div className="space-y-4">
                     {/* Hidden Value Audit status */}
                     {(() => {
