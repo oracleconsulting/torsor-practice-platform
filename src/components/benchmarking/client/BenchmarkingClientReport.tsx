@@ -262,7 +262,8 @@ export function BenchmarkingClientReport({
   const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
   const preRevenueAnalysis = data.pass1_data?.pre_revenue_analysis || data.pre_revenue_analysis;
   const investmentReadinessBreakdown = data.investment_readiness_breakdown || data.pass1_data?.investment_readiness_breakdown;
-  const investmentReadinessScore = data.investment_readiness_score;
+  const investmentReadinessScore = data.investment_readiness_score; // used by InvestmentReadinessSection via breakdown.score
+  void investmentReadinessScore;
   
   // Normalize recommendation values to sum to the hero total
   // This ensures the breakdown adds up to the headline figure

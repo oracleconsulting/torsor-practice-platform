@@ -91,16 +91,16 @@ const PRE_REVENUE_SECTIONS: PreRevenueSection[] = [
     title: 'Metrics as Targets',
     questions: [
       { question: 'What NRR are you targeting and how are you measuring it?', purpose: 'Net retention drives valuation multiples', followUp: 'What expansion mechanisms exist in your current contracts?', templateVars: { nrr: '{nrr}' } },
-      { question: 'What gross margin are you targeting at scale?', purpose: 'Unit economics credibility', followUp: 'What's the biggest cost drag on gross margin right now?', templateVars: { margin: '{margin}' } },
+      { question: 'What gross margin are you targeting at scale?', purpose: 'Unit economics credibility', followUp: 'What is the biggest cost drag on gross margin right now?', templateVars: { margin: '{margin}' } },
       { question: 'How many multi-year contracts do you have vs month-to-month?', purpose: 'Revenue quality & predictability', followUp: 'What would it take to shift more customers onto annual or multi-year terms?', templateVars: { contracts: '{contracts}' } },
     ],
   },
   {
     title: 'Pipeline and Conversion',
     questions: [
-      { question: 'How many LOIs or near-close deals do you have in pipeline?', purpose: 'Pipeline quality signals revenue trajectory', followUp: 'What's the typical close timeline from first meeting to signed contract?', templateVars: { pipeline: '{pipeline}' } },
-      { question: 'What happened with your near-misses — why didn't they close?', purpose: 'Understand conversion blockers', followUp: 'Are those objections product-related, pricing, or trust/credibility?', templateVars: {} },
-      { question: 'Where's the next wave of pipeline coming from?', purpose: 'Growth sustainability', followUp: 'Is that inbound, outbound, or partnership-driven?', templateVars: {} },
+      { question: 'How many LOIs or near-close deals do you have in pipeline?', purpose: 'Pipeline quality signals revenue trajectory', followUp: 'What is the typical close timeline from first meeting to signed contract?', templateVars: { pipeline: '{pipeline}' } },
+      { question: 'What happened with your near-misses and why did they not close?', purpose: 'Understand conversion blockers', followUp: 'Are those objections product-related, pricing, or trust/credibility?', templateVars: {} },
+      { question: 'Where is the next wave of pipeline coming from?', purpose: 'Growth sustainability', followUp: 'Is that inbound, outbound, or partnership-driven?', templateVars: {} },
     ],
   },
   {
