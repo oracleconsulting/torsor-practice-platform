@@ -1959,6 +1959,756 @@ function calculateValueAnalysis(financials: ValueFinancialInputs, hvaResponses: 
 }
 
 // =============================================================================
+// PRE-REVENUE VALUATION CALCULATOR
+// =============================================================================
+
+function calculatePreRevenueValueAnalysis(
+  signals: PreRevenueSignalsData,
+  basis: IndustryValuationBasisRow,
+  engagement: any,
+  comparableRounds: any[],
+  scorecardParams: any,
+  berkusParams: any,
+  vcParams: any,
+  industryCode: string,
+  businessStage: string
+): { valueAnalysis: ValueAnalysis; preRevenueAnalysis: PreRevenueAnalysisResult } {
+  console.log('[Pre-Revenue Calculator] Starting for industry:', industryCode, 'stage:', businessStage);
+
+  const isEarlyRevenue = businessStage === 'early_revenue';
+
+  // ── VC Method back-solve ──────────────────────────────────────────────
+  const irr = vcParams?.irr ?? (isEarlyRevenue ? 0.30 : 0.40);
+  const exitHorizonYears = vcParams?.exit_horizon_years ?? 5;
+  const expectedDilution = vcParams?.expected_dilution ?? 0.50;
+  const roundSize = signals.round_size_target || 500_000;
+
+  const forecastYear3Rev = signals.forecast_year_3?.revenue || signals.forecast_year_3?.arr || 0;
+  const forecastYear2Rev = signals.forecast_year_2?.revenue || signals.forecast_year_2?.arr || 0;
+  const exitRevEstimate = forecastYear3Rev || forecastYear2Rev || 1_000_000;
+
+  const exitMultiple = basis.multiple_mid ?? 6;
+  const targetExitVal = exitRevEstimate * exitMultiple;
+  const discountFactor = Math.pow(1 + irr, exitHorizonYears);
+  const safeDilution = Math.min(Math.max(expectedDilution, 0.01), 0.99);
+  const todayPostMoney = discountFactor > 0 ? targetExitVal / discountFactor / (1 - safeDilution) : 0;
+  const todayPreMoney = Math.max(0, todayPostMoney - roundSize);
+
+  console.log('[Pre-Revenue Calculator] VC method: exit=', targetExitVal, 'post=', todayPostMoney, 'pre=', todayPreMoney);
+
+  const vcMethodBackSolve = {
+    targetExitValuation: targetExitVal,
+    exitHorizonYears,
+    requiredArrAtExit: forecastYear3Rev || undefined,
+    impliedExitMultiple: exitMultiple,
+    investorIrr: irr,
+    expectedDilutionToExit: safeDilution,
+    todayPostMoneyImplied: todayPostMoney,
+    todayPreMoneyImplied: todayPreMoney,
+    methodology: `VC method back-solve: target exit £${(targetExitVal / 1e6).toFixed(1)}M at ${exitMultiple}x revenue, ${(irr * 100).toFixed(0)}% IRR over ${exitHorizonYears} years, ${(safeDilution * 100).toFixed(0)}% dilution to exit.`,
+  };
+
+  // ── Scorecard valuation ───────────────────────────────────────────────
+  const ukRegionalMedian = scorecardParams?.uk_regional_median_gbp ?? 3_500_000;
+
+  const scorecardWeights: Record<string, number> = {
+    management_team: 0.30,
+    opportunity_size: 0.25,
+    product_technology: 0.15,
+    competitive_environment: 0.10,
+    marketing_sales_partnerships: 0.10,
+    need_additional_investment: 0.05,
+    other: 0.05,
+  };
+
+  const factorBreakdownScorecard: Record<string, { weight: number; score: number; rationale: string }> = {};
+
+  const scoreManagement = (): { score: number; rationale: string } => {
+    if (signals.founder_prior_exits) return { score: 1.4, rationale: 'Founder has prior exit(s) — premium team' };
+    if (signals.founder_pedigree_summary && signals.founder_pedigree_summary.length > 20) return { score: 1.2, rationale: 'Experienced founder with relevant background' };
+    if (signals.team_size_current && signals.team_size_current > 3) return { score: 1.0, rationale: 'Adequate team size but no standout pedigree' };
+    return { score: 0.8, rationale: 'Limited team information or small team' };
+  };
+
+  const scoreOpportunitySize = (): { score: number; rationale: string } => {
+    const yr3 = signals.forecast_year_3?.revenue || 0;
+    if (yr3 > 5_000_000) return { score: 1.4, rationale: `Year 3 forecast £${(yr3 / 1e6).toFixed(1)}M — large addressable market` };
+    if (yr3 > 2_000_000) return { score: 1.2, rationale: `Year 3 forecast £${(yr3 / 1e6).toFixed(1)}M — significant opportunity` };
+    if (yr3 > 500_000) return { score: 1.0, rationale: `Year 3 forecast £${(yr3 / 1e6).toFixed(1)}M — moderate opportunity` };
+    return { score: 0.7, rationale: 'Limited revenue projections or no forecast provided' };
+  };
+
+  const scoreProductTech = (): { score: number; rationale: string } => {
+    const hasIP = signals.ip_protection_status && signals.ip_protection_status.length > 0;
+    const hasPrototype = isEarlyRevenue;
+    if (hasIP && hasPrototype) return { score: 1.3, rationale: 'IP-protected product with market traction' };
+    if (hasPrototype) return { score: 1.1, rationale: 'Product in market but limited IP protection' };
+    if (hasIP) return { score: 1.0, rationale: 'IP protected but pre-market' };
+    return { score: 0.7, rationale: 'No IP protection or product validation' };
+  };
+
+  const scoreCompetitive = (): { score: number; rationale: string } => {
+    if (signals.pipeline_signed_loi_count && signals.pipeline_signed_loi_count > 0) return { score: 1.2, rationale: 'Signed LOIs indicate competitive differentiation' };
+    if (signals.pipeline_qualified_acv && signals.pipeline_qualified_acv > 100_000) return { score: 1.0, rationale: 'Qualified pipeline suggests market interest' };
+    return { score: 0.8, rationale: 'Limited evidence of competitive positioning' };
+  };
+
+  const scoreMarketing = (): { score: number; rationale: string } => {
+    if (signals.pipeline_qualified_acv && signals.pipeline_qualified_acv > 500_000) return { score: 1.3, rationale: `£${(signals.pipeline_qualified_acv / 1e3).toFixed(0)}k qualified pipeline` };
+    if (signals.pipeline_verbal_count && signals.pipeline_verbal_count > 2) return { score: 1.0, rationale: 'Multiple verbal commitments in pipeline' };
+    return { score: 0.7, rationale: 'Limited commercial traction or pipeline' };
+  };
+
+  const scoreInvestmentNeed = (): { score: number; rationale: string } => {
+    const runway = signals.current_runway_months || 0;
+    if (runway > 12) return { score: 1.2, rationale: `${runway} months runway — lower urgency` };
+    if (runway > 6) return { score: 1.0, rationale: `${runway} months runway — moderate` };
+    return { score: 0.7, rationale: `${runway || 'Unknown'} months runway — high urgency` };
+  };
+
+  const scoreOther = (): { score: number; rationale: string } => {
+    if (signals.round_seis_eis_eligible && signals.round_seis_eis_advance_assurance) return { score: 1.3, rationale: 'SEIS/EIS eligible with advance assurance' };
+    if (signals.round_seis_eis_eligible) return { score: 1.1, rationale: 'SEIS/EIS eligible' };
+    return { score: 0.9, rationale: 'No SEIS/EIS or unclear eligibility' };
+  };
+
+  const scoringFunctions: Record<string, () => { score: number; rationale: string }> = {
+    management_team: scoreManagement,
+    opportunity_size: scoreOpportunitySize,
+    product_technology: scoreProductTech,
+    competitive_environment: scoreCompetitive,
+    marketing_sales_partnerships: scoreMarketing,
+    need_additional_investment: scoreInvestmentNeed,
+    other: scoreOther,
+  };
+
+  let weightedFactor = 0;
+  for (const [factor, weight] of Object.entries(scorecardWeights)) {
+    const fn = scoringFunctions[factor];
+    const { score, rationale } = fn ? fn() : { score: 1.0, rationale: 'Default scoring' };
+    const clampedScore = Math.max(0.5, Math.min(1.5, score));
+    factorBreakdownScorecard[factor] = { weight, score: clampedScore, rationale };
+    weightedFactor += weight * clampedScore;
+  }
+
+  const scorecardImplied = ukRegionalMedian * weightedFactor;
+  console.log('[Pre-Revenue Calculator] Scorecard: median=', ukRegionalMedian, 'factor=', weightedFactor.toFixed(2), 'implied=', scorecardImplied);
+
+  const scorecardValuation = {
+    regionalMedianPreMoney: ukRegionalMedian,
+    weightedFactor,
+    impliedPreMoney: scorecardImplied,
+    factorBreakdown: factorBreakdownScorecard,
+  };
+
+  // ── Berkus valuation ──────────────────────────────────────────────────
+  const berkusMaxPerFactor = berkusParams?.max_per_factor_gbp ?? 400_000;
+  const berkusCap = berkusParams?.cap_gbp ?? 2_000_000;
+
+  const berkusFactors: Record<string, () => { value: number; rationale: string }> = {
+    sound_idea: () => {
+      const yr3 = signals.forecast_year_3?.revenue || 0;
+      if (yr3 > 2_000_000) return { value: berkusMaxPerFactor, rationale: 'Large addressable opportunity with clear revenue path' };
+      if (yr3 > 500_000) return { value: berkusMaxPerFactor * 0.7, rationale: 'Moderate addressable market' };
+      return { value: berkusMaxPerFactor * 0.4, rationale: 'Limited evidence of scalable idea' };
+    },
+    prototype: () => {
+      if (isEarlyRevenue) return { value: berkusMaxPerFactor, rationale: 'Product in market generating revenue' };
+      const hasIP = signals.ip_protection_status && signals.ip_protection_status.length > 0;
+      if (hasIP) return { value: berkusMaxPerFactor * 0.7, rationale: 'Pre-revenue but IP-protected prototype' };
+      return { value: berkusMaxPerFactor * 0.3, rationale: 'Early-stage prototype without market validation' };
+    },
+    management_team: () => {
+      if (signals.founder_prior_exits) return { value: berkusMaxPerFactor, rationale: 'Proven founder with prior exit(s)' };
+      if (signals.founder_pedigree_summary) return { value: berkusMaxPerFactor * 0.6, rationale: 'Experienced team' };
+      return { value: berkusMaxPerFactor * 0.3, rationale: 'Team experience unclear' };
+    },
+    strategic_relationships: () => {
+      if (signals.pipeline_signed_loi_count && signals.pipeline_signed_loi_count >= 2) return { value: berkusMaxPerFactor, rationale: `${signals.pipeline_signed_loi_count} signed LOIs demonstrate strong partnerships` };
+      if (signals.pipeline_verbal_count && signals.pipeline_verbal_count > 0) return { value: berkusMaxPerFactor * 0.5, rationale: 'Verbal commitments but no signed agreements' };
+      return { value: berkusMaxPerFactor * 0.2, rationale: 'Limited strategic relationships evident' };
+    },
+    product_rollout: () => {
+      if (isEarlyRevenue && signals.pipeline_qualified_acv && signals.pipeline_qualified_acv > 200_000) return { value: berkusMaxPerFactor, rationale: 'Active sales with significant qualified pipeline' };
+      if (isEarlyRevenue) return { value: berkusMaxPerFactor * 0.6, rationale: 'Early revenue but limited pipeline evidence' };
+      return { value: berkusMaxPerFactor * 0.2, rationale: 'Pre-revenue — no rollout evidence' };
+    },
+  };
+
+  const factorBreakdownBerkus: Record<string, { value: number; rationale: string }> = {};
+  let berkusTotal = 0;
+  for (const [factor, fn] of Object.entries(berkusFactors)) {
+    const { value, rationale } = fn();
+    const clamped = Math.max(0, Math.min(berkusMaxPerFactor, value));
+    factorBreakdownBerkus[factor] = { value: clamped, rationale };
+    berkusTotal += clamped;
+  }
+  berkusTotal = Math.min(berkusTotal, berkusCap);
+
+  console.log('[Pre-Revenue Calculator] Berkus: total=', berkusTotal);
+
+  const berkusValuation = {
+    impliedPreMoney: berkusTotal,
+    factorBreakdown: factorBreakdownBerkus,
+  };
+
+  // ── Comparable rounds ─────────────────────────────────────────────────
+  let comparableRoundsAnalysis: PreRevenueAnalysisResult['comparableRoundsAnalysis'] | undefined;
+  const relevantComps = (comparableRounds || []).filter((r: any) => {
+    const stage = (r.stage || '').toLowerCase();
+    return stage === 'pre_revenue' || stage === 'pre-revenue' || stage === 'seed' || stage === 'pre-seed' ||
+      (isEarlyRevenue && (stage === 'early_revenue' || stage === 'early-revenue' || stage === 'early'));
+  });
+
+  let compMedian: number | null = null;
+  if (relevantComps.length > 0) {
+    const preMoneyValues = relevantComps
+      .map((r: any) => r.preMoneyGbp || r.pre_money_gbp || r.pre_money)
+      .filter((v: any) => typeof v === 'number' && v > 0)
+      .sort((a: number, b: number) => a - b);
+
+    if (preMoneyValues.length > 0) {
+      compMedian = preMoneyValues.length % 2 === 0
+        ? (preMoneyValues[preMoneyValues.length / 2 - 1] + preMoneyValues[preMoneyValues.length / 2]) / 2
+        : preMoneyValues[Math.floor(preMoneyValues.length / 2)];
+
+      const low = preMoneyValues[Math.floor(preMoneyValues.length * 0.25)] || preMoneyValues[0];
+      const high = preMoneyValues[Math.floor(preMoneyValues.length * 0.75)] || preMoneyValues[preMoneyValues.length - 1];
+
+      comparableRoundsAnalysis = {
+        rounds: relevantComps.slice(0, 10).map((r: any) => ({
+          company: r.company || r.name || 'Unknown',
+          stage: r.stage || 'seed',
+          year: r.year || new Date().getFullYear(),
+          amountGbp: r.amountGbp || r.amount_gbp,
+          preMoneyGbp: r.preMoneyGbp || r.pre_money_gbp || r.pre_money,
+          relevanceNote: r.relevanceNote || r.note || 'UK comparable',
+        })),
+        impliedRange: { low, mid: compMedian, high },
+      };
+    }
+
+    console.log('[Pre-Revenue Calculator] Comparables: count=', preMoneyValues.length, 'median=', compMedian);
+  }
+
+  // ── Triangulate defensible pre-money ──────────────────────────────────
+  const methodValues = [todayPreMoney, scorecardImplied, berkusTotal];
+  if (compMedian !== null) methodValues.push(compMedian);
+
+  const sorted = [...methodValues].filter(v => v > 0).sort((a, b) => a - b);
+  const median = (arr: number[]): number => {
+    if (arr.length === 0) return 0;
+    const mid = Math.floor(arr.length / 2);
+    return arr.length % 2 === 0 ? (arr[mid - 1] + arr[mid]) / 2 : arr[mid];
+  };
+  const percentile = (arr: number[], p: number): number => {
+    if (arr.length === 0) return 0;
+    const idx = (arr.length - 1) * p;
+    const lower = Math.floor(idx);
+    const upper = Math.ceil(idx);
+    if (lower === upper) return arr[lower];
+    return arr[lower] + (arr[upper] - arr[lower]) * (idx - lower);
+  };
+
+  let conservative = percentile(sorted, 0.25);
+  let base = median(sorted);
+  let stretch = percentile(sorted, 0.75);
+
+  if (basis.pre_money_anchor_low && basis.pre_money_anchor_high) {
+    conservative = Math.max(conservative, basis.pre_money_anchor_low);
+    stretch = Math.min(stretch, basis.pre_money_anchor_high);
+    base = Math.max(conservative, Math.min(base, stretch));
+    if (basis.pre_money_anchor_mid) {
+      base = (base + basis.pre_money_anchor_mid) / 2;
+    }
+  }
+
+  if (conservative > base) conservative = base * 0.75;
+  if (stretch < base) stretch = base * 1.33;
+
+  console.log('[Pre-Revenue Calculator] Defensible: conservative=', conservative, 'base=', base, 'stretch=', stretch);
+
+  const defensiblePreMoney = {
+    conservative,
+    base,
+    stretch,
+    triggerForBaseToStretch: 'First £100k+ enterprise contract signed and pipeline exceeds £500k qualified ACV',
+    triggerForStretchToSeriesA: '£500k+ contracted ARR, clear path to £1.5M ARR, and Series A lead term sheet in hand',
+    rationale: `Triangulated from VC method (£${(todayPreMoney / 1e6).toFixed(2)}M), Scorecard (£${(scorecardImplied / 1e6).toFixed(2)}M), Berkus (£${(berkusTotal / 1e6).toFixed(2)}M)${compMedian !== null ? `, Comparable rounds (£${(compMedian / 1e6).toFixed(2)}M)` : ''}. ${basis.methodology_note || ''}`,
+    sources: [...(basis.sources || []), 'VC Method back-solve', 'Scorecard (Payne)', 'Berkus method', ...(compMedian !== null ? ['Comparable UK rounds'] : [])],
+  };
+
+  // ── Compare to owner-stated ───────────────────────────────────────────
+  const ownerStated = signals.round_pre_money_target;
+  const gapToBase = ownerStated ? ownerStated - base : 0;
+  const gapToStretch = ownerStated ? ownerStated - stretch : 0;
+
+  let plausibilityVerdict: 'aligned' | 'stretch_defensible' | 'materially_above' | 'below_market' = 'aligned';
+  let verdictRationale = '';
+  if (ownerStated) {
+    const pctFromBase = base > 0 ? Math.abs(gapToBase) / base : 0;
+    if (ownerStated < conservative) {
+      plausibilityVerdict = 'below_market';
+      verdictRationale = `Stated pre-money £${(ownerStated / 1e6).toFixed(2)}M is below our conservative estimate of £${(conservative / 1e6).toFixed(2)}M — likely under-pricing.`;
+    } else if (pctFromBase <= 0.20) {
+      plausibilityVerdict = 'aligned';
+      verdictRationale = `Stated pre-money £${(ownerStated / 1e6).toFixed(2)}M is within 20% of our base estimate £${(base / 1e6).toFixed(2)}M — well aligned.`;
+    } else if (ownerStated <= stretch) {
+      plausibilityVerdict = 'stretch_defensible';
+      verdictRationale = `Stated pre-money £${(ownerStated / 1e6).toFixed(2)}M exceeds base but is within stretch range £${(stretch / 1e6).toFixed(2)}M — defensible with key milestones.`;
+    } else {
+      const pctAboveStretch = stretch > 0 ? (ownerStated - stretch) / stretch : 0;
+      if (pctAboveStretch > 0.20) {
+        plausibilityVerdict = 'materially_above';
+        verdictRationale = `Stated pre-money £${(ownerStated / 1e6).toFixed(2)}M is >20% above our stretch estimate of £${(stretch / 1e6).toFixed(2)}M — materially above market.`;
+      } else {
+        plausibilityVerdict = 'stretch_defensible';
+        verdictRationale = `Stated pre-money £${(ownerStated / 1e6).toFixed(2)}M is marginally above stretch — may be defensible with exceptional traction.`;
+      }
+    }
+  } else {
+    verdictRationale = 'No owner-stated pre-money valuation provided.';
+  }
+
+  const versusOwnerStated = {
+    ownerStatedPreMoney: ownerStated,
+    gapToBaseCase: gapToBase,
+    gapToStretchCase: gapToStretch,
+    plausibilityVerdict,
+    rationale: verdictRationale,
+  };
+
+  // ── Forward suppressors ───────────────────────────────────────────────
+  const forwardSuppressors: ValueSuppressor[] = [];
+
+  const evidenceStrength = (signals.pipeline_evidence_strength || '').toLowerCase();
+  if (!evidenceStrength || evidenceStrength === 'cold_outreach' || evidenceStrength === 'speculative') {
+    forwardSuppressors.push({
+      id: 'pipeline_credibility',
+      name: 'Pipeline Credibility Risk',
+      category: 'other',
+      hvaField: 'pipeline_evidence_strength',
+      hvaValue: signals.pipeline_evidence_strength || 'not_provided',
+      evidence: `Pipeline evidence strength: "${signals.pipeline_evidence_strength || 'none'}". No signed contracts or LOIs to anchor revenue forecasts.`,
+      discountPercent: { low: 15, high: 25 },
+      impactAmount: { low: base * 0.15, high: base * 0.25 },
+      severity: 'critical',
+      remediable: true,
+      remediationService: 'Accelerate pipeline qualification: target signed LOIs with top 3 prospects within 90 days.',
+      remediationTimeMonths: 3,
+      talkingPoint: 'Pipeline evidence is speculative — investors will heavily discount until contracts materialise.',
+      methodology: {
+        sources: ['Torsor pre-revenue pipeline analysis', 'UK seed investor survey'],
+        calibrationNote: 'Pre-revenue companies with no signed contracts typically receive 15-25% lower valuations.',
+        confidenceLevel: 'moderate',
+        limitationsNote: 'Discount assumes current pipeline composition persists.',
+      },
+    });
+  }
+
+  const capTableComplexity = (signals.cap_table_complexity || '').toLowerCase();
+  if (capTableComplexity === 'complex' || capTableComplexity === 'problematic' || !signals.governance_board_status || (!signals.round_seis_eis_eligible)) {
+    const issues: string[] = [];
+    if (capTableComplexity === 'complex' || capTableComplexity === 'problematic') issues.push(`cap table: ${capTableComplexity}`);
+    if (!signals.governance_board_status || signals.governance_board_status === 'none') issues.push('no formal board');
+    if (!signals.round_seis_eis_eligible) issues.push('not SEIS/EIS eligible');
+    forwardSuppressors.push({
+      id: 'cap_table_governance',
+      name: 'Cap Table & Governance Gaps',
+      category: 'other',
+      hvaField: 'cap_table_complexity',
+      hvaValue: capTableComplexity || 'unknown',
+      evidence: `Issues identified: ${issues.join('; ')}.`,
+      discountPercent: { low: 5, high: 15 },
+      impactAmount: { low: base * 0.05, high: base * 0.15 },
+      severity: issues.length >= 3 ? 'high' : 'medium',
+      remediable: true,
+      remediationService: 'Cap table restructuring and governance setup — appoint NED, clean share classes, obtain SEIS/EIS advance assurance.',
+      remediationTimeMonths: 4,
+      talkingPoint: 'Clean cap table and governance are table stakes for institutional investors.',
+      methodology: {
+        sources: ['BVCA cap table best practices', 'HMRC SEIS/EIS guidelines'],
+        calibrationNote: 'Investors typically discount 5-15% for governance deficiencies at seed stage.',
+        confidenceLevel: 'strong',
+        limitationsNote: 'Some issues (e.g. non-EIS eligibility) may be structural and not easily remediated.',
+      },
+    });
+  }
+
+  const criticalGaps = signals.team_gaps_critical || [];
+  if (criticalGaps.length > 0 || !signals.hire_plan_12mo || signals.hire_plan_12mo.length === 0) {
+    forwardSuppressors.push({
+      id: 'team_gaps',
+      name: 'Critical Team Gaps',
+      category: 'other',
+      hvaField: 'team_gaps_critical',
+      hvaValue: criticalGaps.join(', ') || 'no hire plan',
+      evidence: `${criticalGaps.length} critical role(s) unfilled: ${criticalGaps.join(', ') || 'N/A'}. ${!signals.hire_plan_12mo || signals.hire_plan_12mo.length === 0 ? 'No 12-month hire plan provided.' : ''}`,
+      discountPercent: { low: 5, high: 15 },
+      impactAmount: { low: base * 0.05, high: base * 0.15 },
+      severity: criticalGaps.length >= 2 ? 'high' : 'medium',
+      remediable: true,
+      remediationService: 'Develop hiring plan with budget, timeline, and candidate pipeline for all critical roles.',
+      remediationTimeMonths: 6,
+      talkingPoint: 'Investors need confidence the team can execute — critical gaps are a red flag.',
+      methodology: {
+        sources: ['Torsor team assessment framework', 'UK startup hiring benchmarks'],
+        calibrationNote: 'Each unfilled critical role typically discounts 3-5% from pre-money at seed stage.',
+        confidenceLevel: 'moderate',
+        limitationsNote: 'Impact depends on specific role criticality and availability of talent.',
+      },
+    });
+  }
+
+  if (signals.ip_migration_required || !signals.corporate_structure_clean || (signals.ip_protection_status && signals.ip_protection_status.length === 0)) {
+    const issues: string[] = [];
+    if (signals.ip_migration_required) issues.push('IP migration required');
+    if (!signals.corporate_structure_clean) issues.push('corporate structure not clean');
+    if (!signals.ip_protection_status || signals.ip_protection_status.length === 0) issues.push('no IP protection');
+    forwardSuppressors.push({
+      id: 'ip_structuring',
+      name: 'IP & Corporate Structuring Risk',
+      category: 'other',
+      hvaField: 'ip_protection_status',
+      hvaValue: (signals.ip_protection_status || []).join(', ') || 'none',
+      evidence: `Issues: ${issues.join('; ')}.${signals.ip_migration_notes ? ' Notes: ' + signals.ip_migration_notes : ''}`,
+      discountPercent: { low: 5, high: 20 },
+      impactAmount: { low: base * 0.05, high: base * 0.20 },
+      severity: issues.length >= 2 ? 'high' : 'medium',
+      remediable: true,
+      remediationService: 'IP assignment, corporate restructuring, and protection filings.',
+      remediationTimeMonths: 3,
+      talkingPoint: 'IP must sit in the operating entity with clear ownership before investment.',
+      methodology: {
+        sources: ['UK IP Office guidance', 'Seed legal due diligence standards'],
+        calibrationNote: 'IP deficiencies can discount valuations 5-20% depending on severity.',
+        confidenceLevel: 'strong',
+        limitationsNote: 'Assumes IP issues are legal/structural rather than fundamental ownership disputes.',
+      },
+    });
+  }
+
+  const confidence = (signals.forecast_confidence || '').toLowerCase();
+  if (!confidence || confidence === 'low') {
+    forwardSuppressors.push({
+      id: 'forecast_assumptions',
+      name: 'Forecast Credibility Risk',
+      category: 'trajectory',
+      hvaField: 'forecast_confidence',
+      hvaValue: confidence || 'not_provided',
+      evidence: `Forecast confidence: "${confidence || 'not provided'}". ${!signals.forecast_assumptions ? 'No underlying assumptions documented.' : ''}`,
+      discountPercent: { low: 10, high: 20 },
+      impactAmount: { low: base * 0.10, high: base * 0.20 },
+      severity: 'high',
+      remediable: true,
+      remediationService: 'Build bottom-up financial model with documented assumptions, multi-scenario analysis, and sensitivity testing.',
+      remediationTimeMonths: 2,
+      talkingPoint: 'Investors need to stress-test forecasts — "low confidence" signals a lack of rigour.',
+      methodology: {
+        sources: ['Torsor forecast analysis', 'UK seed investor expectations'],
+        calibrationNote: 'Low-confidence forecasts typically result in 10-20% valuation haircut.',
+        confidenceLevel: 'moderate',
+        limitationsNote: 'Confidence is self-assessed; actual model quality may differ.',
+      },
+    });
+  }
+
+  const runway = signals.current_runway_months || 0;
+  const committed = signals.round_committed_to_date || 0;
+  if (runway < 6 && committed < (roundSize * 0.3)) {
+    forwardSuppressors.push({
+      id: 'runway_risk',
+      name: 'Runway & Capital Risk',
+      category: 'other',
+      hvaField: 'current_runway_months',
+      hvaValue: runway,
+      evidence: `${runway} months runway remaining. Only £${(committed / 1e3).toFixed(0)}k committed of £${(roundSize / 1e3).toFixed(0)}k target round.`,
+      discountPercent: { low: 10, high: 25 },
+      impactAmount: { low: base * 0.10, high: base * 0.25 },
+      severity: 'critical',
+      remediable: true,
+      remediationService: 'Accelerate fundraising close; secure bridge or convertible note from existing backers.',
+      remediationTimeMonths: 3,
+      talkingPoint: 'Short runway creates negotiating pressure — extend before entering term sheet discussions.',
+      methodology: {
+        sources: ['Torsor runway analysis', 'UK seed funding timeline benchmarks'],
+        calibrationNote: 'Companies with <6 months runway and <30% committed face 10-25% valuation pressure.',
+        confidenceLevel: 'strong',
+        limitationsNote: 'Assumes no material revenue materialises before runway exhaustion.',
+      },
+    });
+  }
+
+  console.log('[Pre-Revenue Calculator] Forward suppressors:', forwardSuppressors.length);
+
+  // ── Investment readiness scoring ──────────────────────────────────────
+  const irComponents: Record<string, { score: number; max: number; gaps: string[] }> = {};
+
+  // Pipeline Quality (25 pts)
+  let pipelineScore = 0;
+  const pipelineGaps: string[] = [];
+  const esLower = evidenceStrength;
+  if (esLower === 'signed_contracts') pipelineScore += 10;
+  else if (esLower === 'signed_lois') pipelineScore += 7;
+  else if (esLower === 'verbal') pipelineScore += 4;
+  else if (esLower === 'active_discussions') pipelineScore += 2;
+  else { pipelineScore += 0; pipelineGaps.push('No pipeline evidence — need signed contracts or LOIs'); }
+
+  const top3Conc = signals.pipeline_top3_concentration_pct || 100;
+  if (top3Conc < 60) pipelineScore += 5;
+  else if (top3Conc <= 80) pipelineScore += 3;
+  else { pipelineScore += 1; pipelineGaps.push('Pipeline over-concentrated in top 3 prospects'); }
+
+  const etaStr = (signals.pipeline_first_revenue_eta || '').toLowerCase();
+  const etaMonths = parseFloat(etaStr) || 99;
+  if (etaStr.includes('<6') || etaStr.includes('3') || etaMonths <= 6) pipelineScore += 5;
+  else if (etaStr.includes('6-12') || etaStr.includes('6') || (etaMonths > 6 && etaMonths <= 12)) pipelineScore += 3;
+  else { pipelineScore += 1; pipelineGaps.push('First revenue >12 months away'); }
+
+  if (signals.pipeline_expected_conversion_pct && signals.pipeline_expected_conversion_pct > 0 && signals.forecast_assumptions) pipelineScore += 5;
+  else if (signals.pipeline_expected_conversion_pct && signals.pipeline_expected_conversion_pct > 0) { pipelineScore += 2; pipelineGaps.push('Conversion expectations lack documented assumptions'); }
+  else { pipelineScore += 0; pipelineGaps.push('No conversion evidence or expectations'); }
+
+  irComponents.pipeline_quality = { score: Math.min(25, pipelineScore), max: 25, gaps: pipelineGaps };
+
+  // Team & Hires (25 pts)
+  let teamScore = 0;
+  const teamGaps: string[] = [];
+  if (signals.founder_prior_exits) teamScore += 8;
+  else if (signals.founder_pedigree_summary && signals.founder_pedigree_summary.includes('10+')) teamScore += 6;
+  else if (signals.founder_pedigree_summary) teamScore += 4;
+  else { teamScore += 2; teamGaps.push('No founder pedigree or exit history'); }
+
+  const gapCount = criticalGaps.length;
+  if (gapCount === 0) teamScore += 8;
+  else if (gapCount === 1) { teamScore += 5; teamGaps.push(`1 critical gap: ${criticalGaps[0]}`); }
+  else if (gapCount === 2) { teamScore += 3; teamGaps.push(`2 critical gaps: ${criticalGaps.join(', ')}`); }
+  else { teamScore += 1; teamGaps.push(`${gapCount} critical gaps: ${criticalGaps.join(', ')}`); }
+
+  const hirePlan = signals.hire_plan_12mo || [];
+  if (hirePlan.length > 0 && hirePlan.every((h: any) => h.budget > 0 && h.timing)) teamScore += 5;
+  else if (hirePlan.length > 0) { teamScore += 3; teamGaps.push('Hire plan lacks budget or timing detail'); }
+  else { teamScore += 0; teamGaps.push('No 12-month hire plan'); }
+
+  const withCandidate = hirePlan.filter((h: any) => h.candidate_status).length;
+  if (hirePlan.length > 0 && withCandidate === hirePlan.length) teamScore += 4;
+  else if (withCandidate > 0) { teamScore += 2; teamGaps.push('Some hire plan roles lack candidate pipeline'); }
+  else { teamScore += 0; if (hirePlan.length > 0) teamGaps.push('No candidate pipeline for any planned hire'); }
+
+  irComponents.team_hires = { score: Math.min(25, teamScore), max: 25, gaps: teamGaps };
+
+  // Cap Table & Governance (20 pts)
+  let capScore = 0;
+  const capGaps: string[] = [];
+  const ctc = capTableComplexity;
+  if (ctc === 'clean') capScore += 8;
+  else if (ctc === 'moderate') { capScore += 5; capGaps.push('Cap table is moderate complexity'); }
+  else if (ctc === 'complex') { capScore += 2; capGaps.push('Cap table is complex — needs restructuring'); }
+  else { capScore += 0; capGaps.push('Cap table status unknown or problematic'); }
+
+  if (signals.round_seis_eis_eligible && signals.round_seis_eis_advance_assurance) capScore += 5;
+  else if (signals.round_seis_eis_eligible) { capScore += 3; capGaps.push('SEIS/EIS eligible but no advance assurance'); }
+  else { capScore += 0; capGaps.push('Not SEIS/EIS eligible'); }
+
+  const boardStatus = (signals.governance_board_status || '').toLowerCase();
+  if (boardStatus.includes('formal') && (signals.governance_neds_count || 0) > 0) capScore += 4;
+  else if (boardStatus.includes('advisory') || boardStatus.includes('board')) { capScore += 2; capGaps.push('Advisory board only — no formal board with NEDs'); }
+  else { capScore += 0; capGaps.push('No board governance'); }
+
+  if (signals.cap_table_voting_structure_notes && signals.cap_table_eis_friendly) capScore += 3;
+  else if (signals.cap_table_voting_structure_notes || signals.cap_table_eis_friendly) { capScore += 1; capGaps.push('Voting structure or EIS compatibility needs work'); }
+  else { capScore += 0; capGaps.push('Voting structure undocumented and EIS compatibility unclear'); }
+
+  irComponents.cap_table_governance = { score: Math.min(20, capScore), max: 20, gaps: capGaps };
+
+  // Forecast Credibility (15 pts)
+  let forecastScore = 0;
+  const forecastGaps: string[] = [];
+  if ((confidence === 'high') && signals.forecast_assumptions) forecastScore += 6;
+  else if (confidence === 'medium') { forecastScore += 3; forecastGaps.push('Forecast confidence is medium'); }
+  else { forecastScore += 1; forecastGaps.push('Forecast confidence is low or not provided'); }
+
+  if (esLower === 'signed_contracts' || esLower === 'signed_lois') forecastScore += 5;
+  else if (esLower === 'verbal') { forecastScore += 3; forecastGaps.push('Year 1 forecast anchored on verbal commitments only'); }
+  else { forecastScore += 0; forecastGaps.push('Year 1 forecast is speculative — no anchor contracts'); }
+
+  if (signals.forecast_year_1 && signals.forecast_year_2 && signals.forecast_year_3) forecastScore += 4;
+  else if (signals.forecast_year_1 && signals.forecast_year_2) { forecastScore += 2; forecastGaps.push('Only 2-year forecast provided'); }
+  else { forecastScore += 0; forecastGaps.push('Incomplete multi-year forecast'); }
+
+  irComponents.forecast_credibility = { score: Math.min(15, forecastScore), max: 15, gaps: forecastGaps };
+
+  // Data Room & IP (15 pts)
+  let dataRoomScore = 0;
+  const dataRoomGaps: string[] = [];
+  const drPct = signals.data_room_completeness_pct || 0;
+  if (drPct > 75) dataRoomScore += 5;
+  else if (drPct >= 50) { dataRoomScore += 3; dataRoomGaps.push(`Data room ${drPct}% complete — gaps: ${(signals.data_room_gaps || []).join(', ') || 'unspecified'}`); }
+  else { dataRoomScore += 1; dataRoomGaps.push(`Data room only ${drPct}% complete`); }
+
+  if (signals.corporate_structure_clean && !signals.ip_migration_required) dataRoomScore += 4;
+  else if (signals.ip_migration_required) { dataRoomScore += 2; dataRoomGaps.push('IP migration required to operating entity'); }
+  else { dataRoomScore += 0; dataRoomGaps.push('Corporate structure and IP ownership unclear'); }
+
+  const ipStatuses = signals.ip_protection_status || [];
+  if (ipStatuses.some((s: string) => s.toLowerCase().includes('patent'))) dataRoomScore += 3;
+  else if (ipStatuses.some((s: string) => s.toLowerCase().includes('trademark'))) { dataRoomScore += 2; dataRoomGaps.push('Trademark protection only — consider patents'); }
+  else if (ipStatuses.some((s: string) => s.toLowerCase().includes('trade_secret'))) { dataRoomScore += 1; dataRoomGaps.push('Only trade secret protection — limited formal IP'); }
+  else { dataRoomScore += 0; dataRoomGaps.push('No IP protection filings'); }
+
+  if (signals.corporate_structure_clean) dataRoomScore += 3;
+  else if (signals.corporate_structure_clean === false) { dataRoomScore += 0; dataRoomGaps.push('Corporate structure has major issues'); }
+  else { dataRoomScore += 2; dataRoomGaps.push('Corporate structure status not confirmed'); }
+
+  irComponents.data_room_ip = { score: Math.min(15, dataRoomScore), max: 15, gaps: dataRoomGaps };
+
+  const totalIrScore = Object.values(irComponents).reduce((sum, c) => sum + c.score, 0);
+  const allGaps = Object.values(irComponents).flatMap(c => c.gaps);
+  const allStrengths: string[] = [];
+  for (const [key, comp] of Object.entries(irComponents)) {
+    if (comp.score >= comp.max * 0.7) {
+      allStrengths.push(`${key.replace(/_/g, ' ')}: strong (${comp.score}/${comp.max})`);
+    }
+  }
+
+  const irVerdict: 'investment_ready' | 'needs_preparation' | 'not_ready' =
+    totalIrScore >= 70 ? 'investment_ready' :
+    totalIrScore >= 40 ? 'needs_preparation' :
+    'not_ready';
+
+  console.log('[Pre-Revenue Calculator] Investment readiness: score=', totalIrScore, 'verdict=', irVerdict);
+
+  const investmentReadiness: InvestmentReadinessResult = {
+    score: totalIrScore,
+    verdict: irVerdict,
+    components: irComponents,
+    overallGaps: allGaps,
+    overallStrengths: allStrengths,
+  };
+
+  // ── Milestone path ────────────────────────────────────────────────────
+  const firstRevenueMonths = (() => {
+    if (etaStr.includes('<6') || etaStr.includes('3') || etaMonths <= 6) return 6;
+    if (etaStr.includes('6-12') || (etaMonths > 6 && etaMonths <= 12)) return 9;
+    return 12;
+  })();
+
+  const yr1Rev = signals.forecast_year_1?.revenue || signals.forecast_year_1?.arr || 0;
+  const yr2Rev = signals.forecast_year_2?.revenue || signals.forecast_year_2?.arr || 0;
+  const yr3Rev = signals.forecast_year_3?.revenue || signals.forecast_year_3?.arr || 0;
+
+  const monthsTo500k = yr1Rev >= 500_000 ? 12 : yr2Rev >= 500_000 ? 18 : 24;
+  const monthsTo1_5m = yr2Rev >= 1_500_000 ? 18 : yr3Rev >= 1_500_000 ? 30 : 36;
+
+  const milestonePath = [
+    {
+      milestoneNumber: 1,
+      timeframeMonths: firstRevenueMonths,
+      description: 'First signed enterprise contract (£100k+ ACV)',
+      arrTarget: 100_000,
+      valuationStepUp: { from: conservative, to: base },
+      blockers: forwardSuppressors.filter(s => s.id === 'pipeline_credibility').map(s => s.name),
+    },
+    {
+      milestoneNumber: 2,
+      timeframeMonths: monthsTo500k,
+      description: '£500k contracted ARR',
+      arrTarget: 500_000,
+      valuationStepUp: { from: base, to: (base + stretch) / 2 },
+      blockers: forwardSuppressors.filter(s => s.id === 'team_gaps' || s.id === 'forecast_assumptions').map(s => s.name),
+    },
+    {
+      milestoneNumber: 3,
+      timeframeMonths: monthsTo1_5m,
+      description: '£1.5M contracted ARR',
+      arrTarget: 1_500_000,
+      valuationStepUp: { from: (base + stretch) / 2, to: stretch },
+      blockers: forwardSuppressors.filter(s => s.id === 'runway_risk' || s.id === 'ip_structuring').map(s => s.name),
+    },
+    {
+      milestoneNumber: 4,
+      timeframeMonths: firstRevenueMonths + 24,
+      description: 'Series A ready — metrics, governance, and team in place',
+      valuationStepUp: { from: stretch, to: stretch * 2.5 },
+      blockers: forwardSuppressors.filter(s => s.id === 'cap_table_governance').map(s => s.name),
+    },
+  ];
+
+  // ── Caveats ───────────────────────────────────────────────────────────
+  const caveats: string[] = [
+    'Pre-revenue valuations are inherently speculative. All figures are indicative ranges, not precise values.',
+    'The VC method back-solve is highly sensitive to IRR, dilution, and exit multiple assumptions.',
+    'Scorecard and Berkus methods use UK regional medians which may not reflect specific sector dynamics.',
+  ];
+  if (!compMedian) caveats.push('No comparable rounds data available — triangulation based on 3 methods only.');
+  if (confidence === 'low' || !confidence) caveats.push('Forecast confidence is low or unassessed — revenue projections may be unreliable.');
+  if (!signals.pipeline_evidence_strength) caveats.push('No pipeline evidence provided — commercial traction is unvalidated.');
+
+  // ── Build the PreRevenueAnalysisResult ─────────────────────────────────
+  const preRevenueAnalysis: PreRevenueAnalysisResult = {
+    asOfDate: new Date().toISOString(),
+    industryBasis: { ...basis, industry_code: industryCode, business_stage: businessStage },
+    vcMethodBackSolve,
+    scorecardValuation,
+    berkusValuation,
+    ...(comparableRoundsAnalysis ? { comparableRoundsAnalysis } : {}),
+    defensiblePreMoney,
+    versusOwnerStated,
+    forwardSuppressors,
+    milestonePath,
+    investmentReadiness,
+    caveats,
+  };
+
+  // ── Build compatible ValueAnalysis ────────────────────────────────────
+  const method: ValueAnalysis['baseline']['method'] = isEarlyRevenue ? 'ARR' : 'Berkus_Scorecard';
+
+  const valueAnalysis: ValueAnalysis = {
+    asOfDate: new Date().toISOString(),
+    baseline: {
+      method,
+      ebitda: 0,
+      ebitdaMargin: 0,
+      multipleRange: { low: 0, mid: 0, high: 0 },
+      baseValue: { low: conservative, mid: base, high: stretch },
+      surplusCash: 0,
+      enterpriseValue: { low: conservative, mid: base, high: stretch },
+      totalBaseline: base,
+      multipleJustification: `Pre-revenue ${method} valuation: triangulated from VC method, Scorecard, and Berkus methods. ${defensiblePreMoney.rationale}`,
+    },
+    suppressors: forwardSuppressors,
+    aggregateDiscount: {
+      percentRange: {
+        low: forwardSuppressors.reduce((sum, s) => sum + s.discountPercent.low, 0),
+        mid: forwardSuppressors.reduce((sum, s) => sum + (s.discountPercent.low + s.discountPercent.high) / 2, 0),
+        high: forwardSuppressors.reduce((sum, s) => sum + s.discountPercent.high, 0),
+      },
+      methodology: 'Pre-revenue forward suppressors represent risks that could erode value. Discounts are additive indicators, not applied to the defensible range.',
+    },
+    currentMarketValue: { low: conservative, mid: base, high: stretch },
+    valueGap: { low: stretch - base, mid: stretch - base, high: stretch - conservative },
+    valueGapPercent: base > 0 ? ((stretch - base) / base) * 100 : 0,
+    exitReadiness: {
+      score: totalIrScore,
+      verdict: irVerdict === 'investment_ready' ? 'ready' : irVerdict === 'needs_preparation' ? 'needs_work' : 'not_ready',
+      blockers: allGaps.slice(0, 5),
+      strengths: allStrengths,
+    },
+    potentialValue: { low: base, mid: stretch, high: stretch * 1.5 },
+    pathToValue: {
+      timeframeMonths: 24,
+      recoverableValue: { low: stretch - base, mid: stretch - conservative, high: stretch * 1.5 - conservative },
+      keyActions: milestonePath.slice(0, 4).map(m => m.description),
+    },
+    enhancers: [],
+  };
+
+  console.log('[Pre-Revenue Calculator] Complete. Base pre-money:', base, 'IR score:', totalIrScore);
+
+  return { valueAnalysis, preRevenueAnalysis };
+}
+
+// =============================================================================
 // HELPER: Extract numeric value from text (handles "99%" or "What percentage... 99%")
 // =============================================================================
 function extractNumericFromText(text: string | number | null | undefined): number | null {
@@ -5668,6 +6418,93 @@ serve(async (req) => {
       gross_margin: assessmentData.gross_margin,
       client_concentration: assessmentData.client_concentration_top3
     });
+
+    // ═══════════════════════════════════════════════════════════════
+    // PRE-REVENUE / EARLY-REVENUE VALUATION BRANCH
+    // ═══════════════════════════════════════════════════════════════
+    const businessStage = engagement.business_stage || 'operating';
+    const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+    let preRevenueAnalysis: PreRevenueAnalysisResult | null = null;
+    let investmentReadinessScore: number | null = null;
+    let investmentReadinessBreakdown: InvestmentReadinessResult | null = null;
+
+    if (isPreRevenue) {
+      console.log('[Pre-Revenue Calculator] Detected business_stage:', businessStage, '— running pre-revenue valuation branch');
+
+      try {
+        const industryCodeForPR = assessmentData.industry_code || 'DEFAULT';
+
+        const { data: signals } = await supabaseClient
+          .from('bm_pre_revenue_signals')
+          .select('*')
+          .eq('engagement_id', engagementId)
+          .single();
+
+        const { data: ivb } = await supabaseClient
+          .from('industry_valuation_basis')
+          .select('*')
+          .eq('industry_code', industryCodeForPR)
+          .eq('business_stage', businessStage)
+          .eq('is_current', true)
+          .single();
+
+        const basisRow = ivb || (await supabaseClient
+          .from('industry_valuation_basis')
+          .select('*')
+          .eq('industry_code', 'SAAS')
+          .eq('business_stage', 'pre_revenue')
+          .eq('is_current', true)
+          .single()).data;
+
+        const { data: industryProfile } = await supabaseClient
+          .from('industries')
+          .select('benchmark_profile')
+          .eq('code', industryCodeForPR)
+          .single();
+
+        const comparableRounds = industryProfile?.benchmark_profile?.comparable_rounds || [];
+
+        const { data: scorecardFramework } = await supabaseClient
+          .from('valuation_frameworks')
+          .select('parameters')
+          .eq('code', 'SCORECARD')
+          .single();
+
+        const { data: berkusFramework } = await supabaseClient
+          .from('valuation_frameworks')
+          .select('parameters')
+          .eq('code', 'BERKUS')
+          .single();
+
+        const { data: vcFramework } = await supabaseClient
+          .from('valuation_frameworks')
+          .select('parameters')
+          .eq('code', 'VC_METHOD')
+          .single();
+
+        const prResult = calculatePreRevenueValueAnalysis(
+          signals || {} as PreRevenueSignalsData,
+          (basisRow || { primary_method: 'Berkus_Scorecard', primary_metric: 'pre_money', methodology_note: 'Default SAAS basis', sources: ['Torsor default'] }) as IndustryValuationBasisRow,
+          engagement,
+          comparableRounds,
+          scorecardFramework?.parameters || {},
+          berkusFramework?.parameters || {},
+          vcFramework?.parameters || {},
+          industryCodeForPR,
+          businessStage
+        );
+
+        assessmentData.value_analysis = prResult.valueAnalysis;
+        preRevenueAnalysis = prResult.preRevenueAnalysis;
+        investmentReadinessScore = prResult.preRevenueAnalysis.investmentReadiness.score;
+        investmentReadinessBreakdown = prResult.preRevenueAnalysis.investmentReadiness;
+
+        console.log('[Pre-Revenue Calculator] Valuation complete. Base pre-money:', prResult.preRevenueAnalysis.defensiblePreMoney.base);
+        console.log('[Pre-Revenue Calculator] Investment readiness:', investmentReadinessScore, '/', 100, '-', prResult.preRevenueAnalysis.investmentReadiness.verdict);
+      } catch (prError) {
+        console.error('[Pre-Revenue Calculator] Error (continuing with standard valuation):', prError);
+      }
+    }
     
     // Calculate employee band for benchmark lookup
     const employeeBand = calculateEmployeeBand(assessmentData._enriched_employee_count || assessmentData.employee_count || 0);
@@ -6419,6 +7256,12 @@ When writing narratives:
         two_paths_narrative: assessmentData.two_paths_narrative,
         // Multi-year financial profile
         multi_year_profile: assessmentData.multi_year_profile || null,
+        // Pre-revenue analysis (if applicable)
+        ...(preRevenueAnalysis ? {
+          pre_revenue_analysis: preRevenueAnalysis,
+          investment_readiness_score: investmentReadinessScore,
+          investment_readiness_breakdown: investmentReadinessBreakdown,
+        } : {}),
       },
       llm_model: 'gpt-4o-mini',
       llm_tokens_used: tokensUsed,
@@ -6465,6 +7308,13 @@ When writing narratives:
         succession_readiness: founderRisk.successionReadiness  // Store in JSONB
       };
       console.log('[BM Pass 1] Added founder risk data to report');
+    }
+
+    if (preRevenueAnalysis) {
+      reportData.pre_revenue_analysis = preRevenueAnalysis;
+      reportData.investment_readiness_score = investmentReadinessScore;
+      reportData.investment_readiness_breakdown = investmentReadinessBreakdown;
+      console.log('[BM Pass 1] Added pre-revenue analysis to report');
     }
     
     const { data: report, error: saveError } = await supabaseClient
