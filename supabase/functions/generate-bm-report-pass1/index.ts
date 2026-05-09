@@ -7324,6 +7324,8 @@ When writing narratives:
         two_paths_narrative: assessmentData.two_paths_narrative,
         // Multi-year financial profile
         multi_year_profile: assessmentData.multi_year_profile || null,
+        // Business stage (drives client dashboard rendering)
+        business_stage: businessStage,
         // Pre-revenue analysis (if applicable)
         ...(preRevenueAnalysis ? {
           pre_revenue_analysis: preRevenueAnalysis,
