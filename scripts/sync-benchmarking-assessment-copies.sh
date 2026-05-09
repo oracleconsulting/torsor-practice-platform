@@ -26,16 +26,21 @@ done
 # --- Config & types ---
 [ -f "$ROOT/src/config/assessments/benchmarking-discovery.ts" ] && cp "$ROOT/src/config/assessments/benchmarking-discovery.ts" "$DEST/benchmarking-discovery-COPY.ts" && echo "  benchmarking-discovery-COPY.ts"
 [ -f "$ROOT/src/types/benchmarking.ts" ] && cp "$ROOT/src/types/benchmarking.ts" "$DEST/benchmarking-types-COPY.ts" && echo "  benchmarking-types-COPY.ts"
+[ -f "$ROOT/src/types/pre-revenue.ts" ] && cp "$ROOT/src/types/pre-revenue.ts" "$DEST/pre-revenue-types-COPY.ts" && echo "  pre-revenue-types-COPY.ts"
+[ -f "$ROOT/src/types/opportunity-calculations.ts" ] && cp "$ROOT/src/types/opportunity-calculations.ts" "$DEST/opportunity-calculations-types-COPY.ts" && echo "  opportunity-calculations-types-COPY.ts"
 
 # --- Lib / calculators ---
 [ -f "$ROOT/src/lib/export-benchmarking-data.ts" ] && cp "$ROOT/src/lib/export-benchmarking-data.ts" "$DEST/export-benchmarking-data-COPY.ts" && echo "  export-benchmarking-data-COPY.ts"
 [ -f "$ROOT/src/lib/scenario-calculator.ts" ] && cp "$ROOT/src/lib/scenario-calculator.ts" "$DEST/scenario-calculator-COPY.ts" && echo "  scenario-calculator-COPY.ts"
 [ -f "$ROOT/src/lib/services/benchmarking/founder-risk-calculator.ts" ] && cp "$ROOT/src/lib/services/benchmarking/founder-risk-calculator.ts" "$DEST/founder-risk-calculator-COPY.ts" && echo "  founder-risk-calculator-COPY.ts"
 [ -f "$ROOT/src/lib/services/benchmarking/industry-mapper.ts" ] && cp "$ROOT/src/lib/services/benchmarking/industry-mapper.ts" "$DEST/industry-mapper-COPY.ts" && echo "  industry-mapper-COPY.ts"
+[ -f "$ROOT/src/lib/scenario-calculator-pre-revenue.ts" ] && cp "$ROOT/src/lib/scenario-calculator-pre-revenue.ts" "$DEST/scenario-calculator-pre-revenue-COPY.ts" && echo "  scenario-calculator-pre-revenue-COPY.ts"
 
 # --- Admin UI: src/components/benchmarking/admin/ ---
-for base in AccountsUploadPanel BenchmarkingAdminView ConversationScript DataCollectionPanel ExportAnalysisButton \
-  NextStepsPanel OpportunityDashboard OpportunityPanel PDFExportEditor ServicePathwayPanel ServiceSelectionPanel ValueAnalysisPanel; do
+for base in AccountsUploadPanel BenchmarkingAdminView BenchmarkSourcesPanel ClientDataReference ConversationScript DataCollectionPanel \
+  EngagementSetupPanel ExportAnalysisButton FinancialDataReviewModal NextStepsPanel OpportunityDashboard OpportunityPanel \
+  PDFExportEditor PreRevenueSignalsPanel QuickStatsBar RiskFlagsPanel ServiceCreationModal ServicePathwayPanel \
+  ServiceSelectionPanel ValueAnalysisPanel; do
   f="$ROOT/src/components/benchmarking/admin/${base}.tsx"
   if [ -f "$f" ]; then
     cp "$f" "$DEST/components_admin_${base}-COPY.tsx" && echo "  components_admin_${base}-COPY.tsx"
@@ -43,8 +48,10 @@ for base in AccountsUploadPanel BenchmarkingAdminView ConversationScript DataCol
 done
 
 # --- Client report UI: src/components/benchmarking/client/ ---
-for base in BenchmarkingClientDashboard BenchmarkingClientReport HeroSection MetricComparisonCard NarrativeSection \
-  ScenarioPlanningSection ServiceRecommendationsSection ValueBridgeSection; do
+for base in BenchmarkingClientDashboard BenchmarkingClientReport EnhancedServiceRecommendations ForwardValueBridgeSection \
+  HeroSection InvestmentReadinessSection KeyMetricsAsTargetsSection MetricComparisonCard NarrativeSection \
+  PreRevenueScenariosSection RecommendationsSection RecommendedServicesSection ScenarioExplorer ScenarioPlanningSection \
+  ServiceRecommendationsSection ValueBridgeSection; do
   f="$ROOT/src/components/benchmarking/client/${base}.tsx"
   if [ -f "$f" ]; then
     cp "$f" "$DEST/components_client_${base}-COPY.tsx" && echo "  components_client_${base}-COPY.tsx"
@@ -52,7 +59,7 @@ for base in BenchmarkingClientDashboard BenchmarkingClientReport HeroSection Met
 done
 
 # --- Shared (root of benchmarking components package) ---
-for base in CalculationBreakdown EnhancedSuppressorCard ExitReadinessBreakdown SurplusCashBreakdown TwoPathsSection; do
+for base in CalculationBreakdown EnhancedSuppressorCard ExitReadinessBreakdown SurplusCashBreakdown TierSelector TwoPathsSection; do
   f="$ROOT/src/components/benchmarking/${base}.tsx"
   if [ -f "$f" ]; then
     cp "$f" "$DEST/components_shared_${base}-COPY.tsx" && echo "  components_shared_${base}-COPY.tsx"
@@ -94,7 +101,9 @@ for m in \
   20260205_add_bm_reports_delete_policy \
   20260205_fix_bm_reports_client_rls \
   20260207100000_bm_engagements_hva_status \
-  20260208100000_bm_engagements_status_in_progress; do
+  20260208100000_bm_engagements_status_in_progress \
+  20260411120000_bm_reports_rls_engagement_share \
+  20260508000001_pre_revenue_stage_aware_benchmarking; do
   if [ -f "$ROOT/supabase/migrations/${m}.sql" ]; then
     cp "$ROOT/supabase/migrations/${m}.sql" "$DEST/migrations_${m}-COPY.sql" && echo "  migrations_${m}-COPY.sql"
   fi

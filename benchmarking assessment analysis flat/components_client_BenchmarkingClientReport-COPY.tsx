@@ -18,7 +18,6 @@ import { ForwardValueBridgeSection } from './ForwardValueBridgeSection';
 import { AlertTriangle, Gem, Shield, CheckCircle, Download } from 'lucide-react';
 import { exportToPDF } from '../../../lib/pdf-export';
 import type { ValueAnalysis } from '../../../types/benchmarking';
-import type { BusinessStage } from '../../../types/pre-revenue';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
 // DEPRECATED: Old static types - no longer using issue-service-mapping.ts
 // import type { DetectedIssue, ServiceRecommendation } from '../../../lib/issue-service-mapping';
@@ -28,6 +27,9 @@ import { SurplusCashBreakdown } from '../SurplusCashBreakdown';
 import { EnhancedSuppressorCard } from '../EnhancedSuppressorCard';
 import { ExitReadinessBreakdown } from '../ExitReadinessBreakdown';
 import { TwoPathsSection } from '../TwoPathsSection';
+import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
+import { InvestmentReadinessSection } from './InvestmentReadinessSection';
+import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
 import type { 
   EnhancedValueSuppressor, 
   ExitReadinessScore, 
@@ -260,7 +262,8 @@ export function BenchmarkingClientReport({
   const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
   const preRevenueAnalysis = data.pass1_data?.pre_revenue_analysis || data.pre_revenue_analysis;
   const investmentReadinessBreakdown = data.investment_readiness_breakdown || data.pass1_data?.investment_readiness_breakdown;
-  const investmentReadinessScore = data.investment_readiness_score;
+  const investmentReadinessScore = data.investment_readiness_score; // used by InvestmentReadinessSection via breakdown.score
+  void investmentReadinessScore;
   
   // Normalize recommendation values to sum to the hero total
   // This ensures the breakdown adds up to the headline figure
@@ -581,6 +584,13 @@ export function BenchmarkingClientReport({
           percentile={data.overall_percentile || 0}
           headline={data.headline}
           trend="up"
+          isPreRevenue={isPreRevenue}
+          preRevenueData={isPreRevenue ? {
+            targetExitValuation: preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation,
+            defensiblePreMoney: preRevenueAnalysis?.defensiblePreMoney?.base,
+            targetArr: preRevenueAnalysis?.vcMethodBackSolve?.targetArr,
+            investmentReadinessScore: data.investment_readiness_score ?? investmentReadinessBreakdown?.score,
+          } : undefined}
         />
         
         {/* Executive Summary */}
@@ -740,7 +750,12 @@ export function BenchmarkingClientReport({
         )}
         
         {/* Metrics Grid */}
-        {metrics.length > 0 && (
+        {isPreRevenue && preRevenueAnalysis?.metricTargets ? (
+          <KeyMetricsAsTargetsSection
+            metricTargets={preRevenueAnalysis.metricTargets}
+            targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+          />
+        ) : metrics.length > 0 && (
           <div>
             <h2 className="text-xl font-semibold text-slate-900 mb-4">Key Metrics</h2>
             <div className="grid gap-6 md:grid-cols-2">
@@ -872,10 +887,7 @@ export function BenchmarkingClientReport({
         
         {/* Exit / Investment Readiness Breakdown - Component Scoring */}
         {isPreRevenue && investmentReadinessBreakdown ? (
-          <div>
-            <h2 className="text-xl font-bold text-slate-900 mb-4">Investment Readiness</h2>
-            <ExitReadinessBreakdown data={{ ...investmentReadinessBreakdown, totalScore: investmentReadinessScore ?? investmentReadinessBreakdown.totalScore }} />
-          </div>
+          <InvestmentReadinessSection breakdown={investmentReadinessBreakdown} />
         ) : data.pass1_data?.exit_readiness_breakdown ? (
           <ExitReadinessBreakdown data={data.pass1_data.exit_readiness_breakdown} />
         ) : null}
@@ -904,7 +916,12 @@ export function BenchmarkingClientReport({
         
         {/* Scenario Planning - What If Projections */}
         {/* ASPIRATIONAL CLOSE: Ends on possibility, not pressure */}
-        {baselineMetrics && baselineMetrics.revenue > 0 && (
+        {isPreRevenue && preRevenueAnalysis?.scenarios ? (
+          <PreRevenueScenariosSection
+            scenarios={preRevenueAnalysis.scenarios}
+            targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+          />
+        ) : baselineMetrics && baselineMetrics.revenue > 0 ? (
           <ScenarioPlanningSection 
             revenue={baselineMetrics.revenue}
             currentValue={data.value_analysis?.currentMarketValue?.mid}
@@ -915,7 +932,7 @@ export function BenchmarkingClientReport({
             forceExpanded={printMode}
             clientPreferences={data.client_preferences}
           />
-        )}
+        ) : null}
         
         {/* Closing Summary - Confident wrap-up, no CTA */}
         {baselineMetrics && (

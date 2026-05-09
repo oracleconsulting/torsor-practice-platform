@@ -29,6 +29,10 @@ import type {
   TwoPathsNarrative,
   SurplusCashData
 } from '../../../types/opportunity-calculations';
+import { ForwardValueBridgeSection } from './ForwardValueBridgeSection';
+import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
+import { InvestmentReadinessSection } from './InvestmentReadinessSection';
+import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
 
 // ─── Types (FROZEN — matches BenchmarkingClientReport exactly) ────────────
 
@@ -101,6 +105,9 @@ interface BenchmarkAnalysis {
     exit_readiness_breakdown?: ExitReadinessScore;
     surplus_cash_breakdown?: SurplusCashData;
     two_paths_narrative?: TwoPathsNarrative;
+    business_stage?: string;
+    pre_revenue_analysis?: any;
+    investment_readiness_breakdown?: any;
   };
   hva_data?: {
     competitive_moat?: string[];
@@ -116,6 +123,10 @@ interface BenchmarkAnalysis {
   recommended_services?: any[];
   not_recommended_services?: any[];
   client_preferences?: any;
+  business_stage?: string;
+  pre_revenue_analysis?: any;
+  investment_readiness_score?: number;
+  investment_readiness_breakdown?: any;
 }
 
 interface MetricComparison {
@@ -652,6 +663,12 @@ export default function BenchmarkingClientDashboard({
     safeJsonParse<any>(data.pass1_data as any, {})?.two_paths_narrative || null;
   const surplusCashBreakdown = data.pass1_data?.surplus_cash_breakdown;
 
+  // Pre-revenue detection
+  const businessStage = data.pass1_data?.business_stage || data.business_stage || 'operating';
+  const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+  const preRevenueAnalysis = data.pass1_data?.pre_revenue_analysis || data.pre_revenue_analysis;
+  const investmentReadinessBreakdown = data.investment_readiness_breakdown || data.pass1_data?.investment_readiness_breakdown;
+
   // Filtered metrics (no concentration, must have valid p50)
   const displayMetrics = metrics
     .filter((m: any) => { const code = (m.metricCode || m.metric_code || '').toLowerCase(); return !code.includes('concentration'); })
@@ -675,11 +692,11 @@ export default function BenchmarkingClientDashboard({
 
   const NAV_ITEMS = [
     { id: 'overview', label: 'Overview', icon: BarChart3, section: 'overview' },
-    { id: 'metrics', label: 'Metrics', icon: Activity, section: 'analysis' },
+    { id: 'metrics', label: isPreRevenue ? 'Targets' : 'Metrics', icon: Activity, section: 'analysis' },
     { id: 'position', label: 'Position', icon: Target, section: 'analysis' },
     { id: 'hidden', label: 'Hidden Value', icon: Gem, section: 'analysis' },
     { id: 'value', label: 'Valuation', icon: PoundSterling, section: 'value' },
-    { id: 'exit', label: 'Exit Ready', icon: Shield, section: 'value' },
+    { id: 'exit', label: isPreRevenue ? 'Investment Ready' : 'Exit Ready', icon: Shield, section: 'value' },
     { id: 'scenarios', label: 'Scenarios', icon: CalendarClock, section: 'action' },
     { id: 'services', label: 'Services', icon: Zap, section: 'action' },
     { id: 'path', label: 'Your Path', icon: Rocket, section: 'action' },
@@ -808,6 +825,16 @@ export default function BenchmarkingClientDashboard({
 
       // ─── METRICS ─────────────────────────────────────────────────────────
       case 'metrics':
+        if (isPreRevenue && preRevenueAnalysis?.metricTargets) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <KeyMetricsAsTargetsSection
+                metricTargets={preRevenueAnalysis.metricTargets}
+                targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+              />
+            </div>
+          );
+        }
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <RevealCard style={{ ...glass({ padding: 24 }), display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -1218,6 +1245,13 @@ export default function BenchmarkingClientDashboard({
 
       // ─── VALUATION ───────────────────────────────────────────────────────
       case 'value': {
+        if (isPreRevenue && preRevenueAnalysis) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <ForwardValueBridgeSection preRevenueAnalysis={preRevenueAnalysis} businessStage={businessStage} />
+            </div>
+          );
+        }
         if (!valueAnalysis) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Value analysis not available for this engagement.</p></RevealCard>;
         const { baseline, suppressors, currentMarketValue, valueGap, pathToValue, enhancers } = valueAnalysis;
         // Prefer enhanced_suppressors (granular items) over value_analysis.suppressors (often a single rolled-up item).
@@ -1492,27 +1526,35 @@ export default function BenchmarkingClientDashboard({
         );
       }
 
-      // ─── EXIT READINESS ──────────────────────────────────────────────────
+      // ─── EXIT / INVESTMENT READINESS ─────────────────────────────────────
       case 'exit': {
-        if (!exitBreakdown) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Exit readiness data not available.</p></RevealCard>;
-        const score = exitBreakdown.totalScore;
+        if (isPreRevenue && investmentReadinessBreakdown && investmentReadinessBreakdown.components && !investmentReadinessBreakdown.totalScore) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <InvestmentReadinessSection breakdown={investmentReadinessBreakdown} />
+            </div>
+          );
+        }
+        const effectiveBreakdown = isPreRevenue && investmentReadinessBreakdown ? investmentReadinessBreakdown : exitBreakdown;
+        if (!effectiveBreakdown) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>{isPreRevenue ? 'Investment readiness' : 'Exit readiness'} data not available.</p></RevealCard>;
+        const score = effectiveBreakdown.totalScore;
         const scoreColor = score >= 65 ? C.emerald : score >= 50 ? C.amber : score >= 35 ? C.orange : C.red;
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Exit readiness hero */}
+            {/* Exit/Investment readiness hero */}
             <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '36px 40px', border: 'none', boxShadow: SHADOW.lg }}>
               <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
-                <ProgressRing score={score} size={180} strokeWidth={14} color={scoreColor} ringLabel="Exit Score" />
+                <ProgressRing score={score} size={180} strokeWidth={14} color={scoreColor} ringLabel={isPreRevenue ? 'Invest Score' : 'Exit Score'} />
                 <div style={{ flex: 1, minWidth: 200 }}>
-                  <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>Exit Readiness</h2>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 14 }}>How prepared is your business for a sale or transition?</p>
-                  <span style={{ fontSize: 13, fontWeight: 700, padding: '6px 18px', borderRadius: 20, background: `${scoreColor}25`, color: scoreColor, ...mono }}>{exitBreakdown.levelLabel}</span>
+                  <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>{isPreRevenue ? 'Investment Readiness' : 'Exit Readiness'}</h2>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 14 }}>{isPreRevenue ? 'How prepared is your business for investment?' : 'How prepared is your business for a sale or transition?'}</p>
+                  <span style={{ fontSize: 13, fontWeight: 700, padding: '6px 18px', borderRadius: 20, background: `${scoreColor}25`, color: scoreColor, ...mono }}>{effectiveBreakdown.levelLabel}</span>
                   <div style={{ marginTop: 16, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(score / exitBreakdown.maxScore) * 100}%`, background: scoreColor, borderRadius: 3, transition: `width 1.2s ${EASE.spring}` }} />
+                    <div style={{ height: '100%', width: `${(score / effectiveBreakdown.maxScore) * 100}%`, background: scoreColor, borderRadius: 3, transition: `width 1.2s ${EASE.spring}` }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 9, color: 'rgba(255,255,255,0.4)', ...mono }}>
-                    <span>Not Ready</span><span>Needs Work</span><span>Progressing</span><span>Credibly Ready</span><span>Exit Ready</span>
+                    <span>Not Ready</span><span>Needs Work</span><span>Progressing</span><span>Credibly Ready</span><span>{isPreRevenue ? 'Invest Ready' : 'Exit Ready'}</span>
                   </div>
                 </div>
               </div>
@@ -1522,10 +1564,10 @@ export default function BenchmarkingClientDashboard({
             <RevealCard delay={100} style={{ ...glass({ padding: 24 }) }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Score Breakdown</h3>
-                <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{score} / {exitBreakdown.maxScore} total</span>
+                <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{score} / {effectiveBreakdown.maxScore} total</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {exitBreakdown.components.map((comp: { id: string; name: string; currentScore: number; targetScore: number; maxScore: number; gap?: string }) => {
+                {effectiveBreakdown.components.map((comp: { id: string; name: string; currentScore: number; targetScore: number; maxScore: number; gap?: string }) => {
                   const compColor = comp.currentScore >= comp.targetScore ? C.emerald : comp.currentScore >= comp.maxScore * 0.5 ? C.amber : C.red;
                   const pctFilled = (comp.currentScore / comp.maxScore) * 100;
                   return (
@@ -1550,14 +1592,14 @@ export default function BenchmarkingClientDashboard({
             </RevealCard>
 
             {/* Path to 70 */}
-            {score < 70 && exitBreakdown.pathTo70 && (
+            {score < 70 && effectiveBreakdown.pathTo70 && (
               <RevealCard delay={200} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                   <Target style={{ width: 18, height: 18, color: C.emerald }} />
-                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Path to Credibly Exit Ready (70/100)</h3>
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>{isPreRevenue ? 'Path to Investment Ready (70/100)' : 'Path to Credibly Exit Ready (70/100)'}</h3>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                  {exitBreakdown.pathTo70.actions.map((action: string, i: number) => (
+                  {effectiveBreakdown.pathTo70.actions.map((action: string, i: number) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', borderRadius: 8, background: `${C.emerald}05` }}>
                       <div style={{ width: 22, height: 22, borderRadius: 11, background: `${C.emerald}15`, color: C.emerald, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
                       <span style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.5 }}>{action}</span>
@@ -1566,8 +1608,8 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                   {[
-                    { icon: Clock, val: exitBreakdown.pathTo70.timeframe, sub: 'Timeline' },
-                    { icon: Wallet, val: fmt(exitBreakdown.pathTo70.investment), sub: 'Investment' },
+                    { icon: Clock, val: effectiveBreakdown.pathTo70.timeframe, sub: 'Timeline' },
+                    { icon: Wallet, val: fmt(effectiveBreakdown.pathTo70.investment), sub: 'Investment' },
                     { icon: TrendingUp, val: fmt(realisticRecovery), sub: 'Value Unlocked' },
                   ].map((s, i) => (
                     <div key={i} style={{ textAlign: 'center', padding: '12px', borderRadius: 10, background: `${C.emerald}06` }}>
@@ -1578,7 +1620,7 @@ export default function BenchmarkingClientDashboard({
                   ))}
                 </div>
                 <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.5 }}>
-                  Value unlocked: {fmt(totalWaterfallGap)} trapped value × {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery = {fmt(realisticRecovery)}, over {exitBreakdown.pathTo70.timeframe}. The {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% factor reflects that buyers need to see structural changes embedded before giving full credit.
+                  Value unlocked: {fmt(totalWaterfallGap)} trapped value × {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery = {fmt(realisticRecovery)}, over {effectiveBreakdown.pathTo70.timeframe}. The {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% factor reflects that buyers need to see structural changes embedded before giving full credit.
                 </p>
                 {(() => {
                   const invSucc = enhancedSuppressors.find((x) => x.code === 'SUCCESSION')?.pathToFix?.investment;
@@ -1591,7 +1633,7 @@ export default function BenchmarkingClientDashboard({
                   if (parts.length === 0) {
                     return (
                       <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 1.5 }}>
-                        Investment ({fmt(exitBreakdown.pathTo70.investment)}) is a rounded aggregate of remediation costs on the path to exit-ready.
+                        Investment ({fmt(effectiveBreakdown.pathTo70.investment)}) is a rounded aggregate of remediation costs on the path to {isPreRevenue ? 'investment-ready' : 'exit-ready'}.
                       </p>
                     );
                   }
@@ -1609,6 +1651,16 @@ export default function BenchmarkingClientDashboard({
 
       // ─── SCENARIOS ───────────────────────────────────────────────────────
       case 'scenarios': {
+        if (isPreRevenue && preRevenueAnalysis?.scenarios) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <PreRevenueScenariosSection
+                scenarios={preRevenueAnalysis.scenarios}
+                targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+              />
+            </div>
+          );
+        }
         if (!baselineMetrics) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Scenario data requires baseline financial metrics.</p></RevealCard>;
         const revenue = baselineMetrics.revenue;
         const currentGM = baselineMetrics.grossMargin || 0;
