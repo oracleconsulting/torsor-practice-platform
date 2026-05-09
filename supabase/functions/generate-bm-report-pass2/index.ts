@@ -950,7 +950,6 @@ serve(async (req) => {
         llm_tokens_used: (report.llm_tokens_used || 0) + tokensUsed,
         llm_cost: (report.llm_cost || 0) + cost,
         generation_time_ms: (report.generation_time_ms || 0) + generationTime,
-        ai_audit_violations: violations.length > 0 ? violations : null,
       })
       .eq('engagement_id', engagementId);
     
