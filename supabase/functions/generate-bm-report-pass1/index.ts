@@ -2012,7 +2012,7 @@ function calculatePreRevenueValueAnalysis(
   const vcMethodBackSolve = {
     targetExitValuation: targetExitVal,
     exitHorizonYears,
-    requiredArrAtExit: forecastYear3Rev || undefined,
+    requiredArrAtExit,
     impliedExitMultiple: exitMultiple,
     investorIrr: irr,
     expectedDilutionToExit: safeDilution,
@@ -2720,6 +2720,10 @@ function calculatePreRevenueValueAnalysis(
     versusOwnerStated,
     forwardSuppressors,
     milestonePath,
+    pillLabels: milestonePath.slice(0, 4).map(m => {
+      const words = m.description.split(/\s+/).slice(0, 5);
+      return words.join(' ').replace(/[.,;:]$/, '');
+    }),
     investmentReadiness,
     metricTargets,
     caveats,
@@ -6302,18 +6306,24 @@ serve(async (req) => {
     if (hvaByEngagement) {
       hvaData = hvaByEngagement;
     } else {
-      // Fall back to client_id (HVA assessments are client-level)
+      // Fall back to client_id (HVA assessments are client-level, not engagement-level)
       const clientId = engagement?.client_id;
       if (clientId) {
-        const { data: hvaByClient } = await supabaseClient
+        console.log('[BM Pass 1] HVA: trying client_assessments by client_id:', clientId);
+        const { data: hvaByClient, error: hvaClientErr } = await supabaseClient
           .from('client_assessments')
-          .select('responses, value_analysis_data')
+          .select('*')
           .eq('client_id', clientId)
           .eq('assessment_type', 'part3')
           .maybeSingle();
+        if (hvaClientErr) {
+          console.warn('[BM Pass 1] HVA client_assessments query error:', hvaClientErr.message, hvaClientErr.code);
+        }
         if (hvaByClient) {
           hvaData = hvaByClient;
-          console.log('[BM Pass 1] HVA Part 3 found via client_id fallback');
+          console.log('[BM Pass 1] HVA Part 3 found via client_id fallback, fields:', Object.keys(hvaByClient.responses || {}).length);
+        } else {
+          console.log('[BM Pass 1] HVA: no rows in client_assessments for client_id:', clientId);
         }
       }
     }
