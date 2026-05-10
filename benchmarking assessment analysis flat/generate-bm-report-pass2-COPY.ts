@@ -13,7 +13,7 @@ const corsHeaders = {
 // Updates report with status 'generated'
 // =============================================================================
 
-function buildPass2Prompt(pass1Data: any): string {
+function buildPass2Prompt(pass1Data: any, allowlistEntries: string[] = []): string {
   const quotes = pass1Data.clientQuotes || {};
   const overall = pass1Data.overallPosition || {};
   const strengths = Array.isArray(pass1Data.topStrengths) ? pass1Data.topStrengths : [];
@@ -436,6 +436,14 @@ GOOD: "You're leaving £47,000 on the table. Here's why."
 BAD: "Not only does this represent a significant opportunity, but it also positions you for sustainable growth."
 GOOD: "Fix this and you add £47,000/year. That's the gap."
 
+ENTITY NAMING CONSTRAINT (STRICT):
+You may name only entities from this approved list. Any entity NOT on this list must be replaced by a generic descriptor.
+
+APPROVED ENTITIES:
+${allowlistEntries.length > 0 ? allowlistEntries.map((e: string) => `  - ${e}`).join('\n') : '  (no entities allowlisted)'}
+
+Do not name companies from training data unless they appear above.
+
 ═══════════════════════════════════════════════════════════════════════════════
 REQUIRED ELEMENTS
 ═══════════════════════════════════════════════════════════════════════════════
@@ -458,7 +466,7 @@ Return ONLY valid JSON.
 `;
 }
 
-function buildPreRevenuePass2Prompt(pass1Data: any): string {
+function buildPreRevenuePass2Prompt(pass1Data: any, allowlistEntries: string[] = []): string {
   const preRevenue = pass1Data.pre_revenue_analysis || {};
   const signals = pass1Data.pre_revenue_signals || {};
   const quotes = pass1Data.clientQuotes || {};
@@ -688,6 +696,14 @@ You MUST also return a separate top-level key:
 
 The twoPathsNarrative MUST use real numbers from the analysis above (defensible pre-money, IR score, pipeline, milestone path). Do not use placeholder brackets in the output.
 
+ENTITY NAMING CONSTRAINT (STRICT):
+You may name only entities from this approved list. Any entity NOT on this list must be replaced by a generic descriptor.
+
+APPROVED ENTITIES:
+${allowlistEntries.length > 0 ? allowlistEntries.map((e: string) => `  - ${e}`).join('\n') : '  (no entities allowlisted)'}
+
+Do not name companies from training data unless they appear above.
+
 ═══════════════════════════════════════════════════════════════════════════════
 REQUIRED ELEMENTS
 ═══════════════════════════════════════════════════════════════════════════════
@@ -808,94 +824,79 @@ function auditNarrative(text: string): { violations: string[]; cleanText: string
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SECTION: ENTITY HALLUCINATION DETECTION (Patch 07)
+// SECTION: ENTITY DETECTION (Patch 08d — replaces Patch 07 Section 2)
+// The allowlist is built by the integrity pass and stored on bm_reports.entity_allowlist.
+// Pass 2 reads it, injects it into the prompt, and post-validates output.
+// No mutation of narrative text — detection and reprompt only.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SAFE_ENTITY_ALLOWLIST = new Set([
-  'FCA', 'HMRC', 'PRA', 'ICO', 'NCSC', 'GDPR', 'AML', 'KYC', 'CTF', 'SOC',
-  'ISO', 'PCI', 'DSS', 'HIPAA', 'EIS', 'SEIS', 'VCT', 'EMI', 'CSOP',
-  'Companies House', 'HMT', 'BEIS', 'BVCA', 'TechUK', 'Innovate UK',
-  'Series A', 'Series B', 'Series C', 'Pre-Seed', 'Seed',
-  'RPGCC', 'Torsor', 'UK', 'US', 'EU', 'London', 'Manchester', 'Edinburgh',
-  'Damodaran', 'NYU', 'BDO', 'PCPI', 'Beauhurst', 'Pitchbook', 'Crunchbase',
-  'Dealroom', 'SaaS Capital', 'Bessemer', 'First Page Sage',
-  'Bill Payne', 'Dave Berkus', 'Bill Sahlman', 'Harvard',
-  'Skillcast', 'Themis', 'ComplyAdvantage', 'Onfido', 'Featurespace',
-  'VinciWorks', 'Datox', 'Entrust', 'Visa', 'Robot Mascot',
-  'NRR', 'ARR', 'CAC', 'LTV', 'MRR', 'EBITDA', 'SDE', 'NFI', 'GRF',
-  'CTO', 'CFO', 'COO', 'CEO', 'NED', 'MD',
-  'P25', 'P50', 'P75', 'P90',
+const PROPER_NOUN_STOP_WORDS_PASS2 = new Set([
+  'The','This','That','These','Those','There','Their','They','Them',
+  'What','When','Where','Which','While','Who','Whose','Why','How',
+  'From','With','Without','About','After','Before','Between','During',
+  'Through','Against','Among','Within','Above','Below','Across','Around',
+  'Each','Every','Some','Such','Both','Either','Neither','All','Any',
+  'One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
+  'First','Second','Third','Fourth','Fifth','Sixth','Last','Next',
+  'Year','Month','Week','Day','Today','Tomorrow','Yesterday',
+  'Yes','Yet','Still','Then','Than','Thus','Therefore',
+  'Annual','Revenue','Growth','Margin','Value','Investment','Investors',
+  'Business','Market','Industry','Current','Target','Readiness','Ready',
+  'Pipeline','Contract','Contracts','Enterprise','Platform','Compliance',
+  'Regulatory','Financial','Corporate','Defensible','Milestone','Advisory',
+  'Governance','Structuring','Forecast','Forecasts','Strategy','Strategic',
+  'Operations','Operational','Conservative','Stretch','Base','High','Low',
+  'Customer','Customers','Sales','Marketing','Team','Teams','Head','Heads',
+  'Success','Path','Paths','North','Star','Deep','Strong','Weak',
+  'Build','Building','Built','Move','Moving','Hit','Hitting',
+  'Lock','Locking','Position','Positioning','Prove','Proving',
+  'Without','Score','Scorecard','Berkus','Method',
 ]);
 
-function buildEntityAllowlist(pass1Data: any, contextNotes: any[]): Set<string> {
-  const allowlist = new Set(SAFE_ENTITY_ALLOWLIST);
-  // Add client name, company name, founder names from assessment
-  const responses = pass1Data?.assessmentResponses || {};
-  for (const val of Object.values(responses)) {
-    if (typeof val === 'string' && val.length > 2 && val.length < 100) {
-      // Add multi-word capitalized phrases
-      const names = String(val).match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g);
-      if (names) names.forEach(n => allowlist.add(n));
-    }
+function extractProperNounsForPass2(text: string): string[] {
+  if (!text || typeof text !== 'string') return [];
+  const candidates = new Set<string>();
+  for (const m of text.match(/\b[A-Z][A-Z0-9]{2,}\b/g) || []) candidates.add(m);
+  for (const m of text.match(/\b[A-Z][a-z]+(?:[A-Z][a-zA-Z]+)+\b/g) || []) candidates.add(m);
+  for (const m of text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g) || []) candidates.add(m);
+  for (const m of text.match(/\b[A-Z][a-z]{3,}\b/g) || []) {
+    if (!PROPER_NOUN_STOP_WORDS_PASS2.has(m)) candidates.add(m);
   }
-  // Add entities from context notes
-  for (const note of (contextNotes || [])) {
-    const noteText = note.note_content || note.content || '';
-    const names = String(noteText).match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g);
-    if (names) names.forEach(n => allowlist.add(n));
-  }
-  // Add from benchmark sources
-  const sources = pass1Data?.benchmark_appendix?.dataSources || [];
-  for (const src of sources) {
-    if (typeof src === 'string') allowlist.add(src);
-  }
-  // Add from comparable rounds
-  const comps = pass1Data?.pre_revenue_analysis?.comparableRoundsAnalysis?.rounds || [];
-  for (const c of comps) {
-    if (c.company) allowlist.add(c.company);
-  }
-  return allowlist;
+  return Array.from(candidates);
 }
 
-function detectHallucinatedEntities(text: string, allowlist: Set<string>): string[] {
-  // Extract capitalized multi-word phrases (potential proper nouns)
-  const candidates = text.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g) || [];
-  // Also single capitalized words that look like company names (>3 chars, not common English)
-  const commonWords = new Set(['The', 'This', 'That', 'These', 'Those', 'What', 'When', 'Where', 'Which', 'While', 'From', 'With', 'About', 'After', 'Before', 'Between', 'During', 'Through', 'Annual', 'Revenue', 'Growth', 'Margin', 'Value', 'Investment', 'Business', 'Market', 'Industry', 'Current', 'Target', 'Readiness', 'Pipeline', 'Contract', 'Enterprise', 'Platform', 'Compliance', 'Regulatory', 'Financial', 'Corporate', 'Defensible', 'Milestone', 'Advisory', 'Governance', 'Structuring', 'Forecast', 'Year']);
-  const singleCaps = (text.match(/\b[A-Z][a-z]{3,}\b/g) || []).filter(w => !commonWords.has(w));
-
-  const unmatched: string[] = [];
-  const seen = new Set<string>();
-
-  for (const candidate of [...candidates, ...singleCaps]) {
-    const trimmed = candidate.trim();
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    // Check against allowlist (exact match or substring)
-    const isAllowed = Array.from(allowlist).some(a =>
-      trimmed === a || trimmed.includes(a) || a.includes(trimmed)
-    );
-    if (!isAllowed && trimmed.length > 3) {
-      unmatched.push(trimmed);
-    }
+function isAllowedForPass2(candidate: string, allowlist: Set<string>): boolean {
+  if (allowlist.has(candidate)) return true;
+  for (const entry of allowlist) {
+    if (entry.length <= candidate.length) continue;
+    const wordRegex = new RegExp(`(^|\\s)${candidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`);
+    if (wordRegex.test(entry)) return true;
   }
-  return unmatched;
+  return false;
 }
 
-function replaceHallucinatedEntities(text: string, entities: string[]): string {
-  let result = text;
-  const genericReplacements = [
-    'comparable firms in the sector',
-    'established competitors',
-    'industry peers',
-    'similar companies',
-  ];
-  for (const entity of entities) {
-    const regex = new RegExp(entity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-    const replacement = genericReplacements[entities.indexOf(entity) % genericReplacements.length];
-    result = result.replace(regex, replacement);
+function detectEntityViolations(
+  narratives: Record<string, string | undefined>,
+  allowlist: Set<string>,
+  fieldsToCheck: string[]
+): { unmatched: Array<{ entity: string; field: string; sentence: string }>; totalCandidates: number } {
+  const unmatched: Array<{ entity: string; field: string; sentence: string }> = [];
+  let totalCandidates = 0;
+  for (const fieldKey of fieldsToCheck) {
+    const text = narratives[fieldKey];
+    if (!text || typeof text !== 'string') continue;
+    const sentences = text.split(/(?<=[.!?])\s+/);
+    for (const sentence of sentences) {
+      const candidates = extractProperNounsForPass2(sentence);
+      totalCandidates += candidates.length;
+      for (const c of candidates) {
+        if (!isAllowedForPass2(c, allowlist)) {
+          unmatched.push({ entity: c, field: fieldKey, sentence: sentence.trim() });
+        }
+      }
+    }
   }
-  return result;
+  return { unmatched, totalCandidates };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1089,6 +1090,11 @@ serve(async (req) => {
       pre_revenue_signals: preRevenueSignals,
     };
     
+    const allowlistPayload = report.entity_allowlist;
+    const entityAllowlistEntries: string[] = allowlistPayload?.entries || [];
+    const entityAllowlistSet = new Set<string>(entityAllowlistEntries);
+    console.log(`[BM Pass 2] Loaded entity allowlist: ${entityAllowlistEntries.length} entries`);
+
     // Log industry code for debugging
     console.log(`[BM Pass 2] Industry code: ${enrichedPass1Data.industry_code}`);
     
@@ -1110,8 +1116,8 @@ serve(async (req) => {
     }
     
     const prompt = isPreRevenue
-      ? buildPreRevenuePass2Prompt(enrichedPass1Data)
-      : buildPass2Prompt(enrichedPass1Data);
+      ? buildPreRevenuePass2Prompt(enrichedPass1Data, entityAllowlistEntries)
+      : buildPass2Prompt(enrichedPass1Data, entityAllowlistEntries);
     
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -1230,27 +1236,78 @@ serve(async (req) => {
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // ENTITY HALLUCINATION CHECK (Patch 07)
+    // ENTITY VIOLATION CHECK (Patch 08d — detection + reprompt, no mutation)
     // ═══════════════════════════════════════════════════════════════════
-    let entityHallucinationsCaught: string[] = [];
-    try {
-      const entityAllowlist = buildEntityAllowlist(enrichedPass1Data, enrichedPass1Data.contextNotes || []);
-      const allNarrativeForEntityCheck = narrativeKeys.map(k => narratives[k]).filter(Boolean).join(' ');
-      const hallucinated = detectHallucinatedEntities(allNarrativeForEntityCheck, entityAllowlist);
+    const narrativeFieldKeys = ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative'];
+    let entityViolations: Array<{ entity: string; field: string; sentence: string }> = [];
+    let repromptHistory: any[] = [];
 
-      if (hallucinated.length > 0) {
-        console.warn(`[BM Pass 2] Entity check: ${hallucinated.length} unmatched entities:`, hallucinated);
-        for (const key of narrativeKeys) {
-          if (narratives[key]) {
-            narratives[key] = replaceHallucinatedEntities(narratives[key], hallucinated);
+    if (entityAllowlistSet.size > 0) {
+      const initialDetection = detectEntityViolations(narratives, entityAllowlistSet, narrativeFieldKeys);
+      console.log(`[BM Pass 2] Entity check: ${initialDetection.unmatched.length} of ${initialDetection.totalCandidates} candidates unmatched`);
+      entityViolations = initialDetection.unmatched;
+
+      const MAX_REPROMPTS = 2;
+      let attempt = 0;
+      while (entityViolations.length > 0 && attempt < MAX_REPROMPTS) {
+        attempt++;
+        console.log(`[BM Pass 2] Reprompting (attempt ${attempt}/${MAX_REPROMPTS}) to fix ${entityViolations.length} entity violations`);
+
+        const violationDetail = entityViolations.map(v => `- "${v.entity}" in ${v.field}`).join('\n');
+        const repromptInstruction = `Your previous narrative contained unapproved entities:\n${violationDetail}\n\nRewrite ONLY the affected fields. Replace each unapproved entity with a generic descriptor. Return JSON with the rewritten fields.\n\nAPPROVED ENTITIES:\n${entityAllowlistEntries.map(e => `  - ${e}`).join('\n')}`;
+
+        try {
+          const repromptResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${openRouterKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'anthropic/claude-opus-4',
+              messages: [
+                { role: 'system', content: 'Rewrite report narratives to comply with entity-naming constraints. Return valid JSON.' },
+                { role: 'user', content: repromptInstruction + '\n\nORIGINAL:\n' + JSON.stringify(narratives, null, 2) },
+              ],
+              temperature: 0.1,
+              max_tokens: 4000,
+            }),
+          });
+
+          if (!repromptResponse.ok) { console.warn(`[BM Pass 2] Reprompt ${attempt} failed HTTP ${repromptResponse.status}`); break; }
+
+          const repromptResult = await repromptResponse.json();
+          const repromptTokens = repromptResult.usage?.total_tokens || 0;
+          let rewritten: any;
+          try {
+            const cleaned = (repromptResult.choices?.[0]?.message?.content || '').replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+            rewritten = JSON.parse(cleaned);
+          } catch { console.warn(`[BM Pass 2] Reprompt ${attempt} unparseable`); break; }
+
+          const fieldsRewritten: string[] = [];
+          for (const key of narrativeFieldKeys) {
+            if (typeof rewritten[key] === 'string' && rewritten[key] !== narratives[key]) {
+              narratives[key] = rewritten[key];
+              fieldsRewritten.push(key);
+            }
           }
-        }
-        entityHallucinationsCaught = hallucinated;
-      } else {
-        console.log('[BM Pass 2] Entity check: clean (0 unmatched entities)');
+
+          const postDetection = detectEntityViolations(narratives, entityAllowlistSet, narrativeFieldKeys);
+          repromptHistory.push({ attempt, violations_before: entityViolations.length, violations_after: postDetection.unmatched.length, fields_rewritten: fieldsRewritten, tokens_used: repromptTokens });
+          entityViolations = postDetection.unmatched;
+          if (entityViolations.length === 0) break;
+        } catch (err) { console.warn(`[BM Pass 2] Reprompt ${attempt} threw:`, err); break; }
       }
-    } catch (entityErr) {
-      console.warn('[BM Pass 2] Entity check failed (non-fatal):', entityErr);
+    } else {
+      console.warn('[BM Pass 2] No allowlist — skipping entity validation');
+    }
+
+    let narrativeQualityState: 'unverified' | 'clean' | 'requires_review' = 'unverified';
+    if (entityAllowlistSet.size === 0) {
+      narrativeQualityState = 'unverified';
+    } else if (entityViolations.length === 0) {
+      narrativeQualityState = 'clean';
+      console.log('[BM Pass 2] ✅ Narrative quality: clean');
+    } else {
+      narrativeQualityState = 'requires_review';
+      console.warn(`[BM Pass 2] ⚠ Narrative quality: requires_review — ${entityViolations.length} unresolved violations`);
     }
     
     const tokensUsed = result.usage?.total_tokens || 0;
@@ -1272,6 +1329,9 @@ serve(async (req) => {
       llm_tokens_used: (report.llm_tokens_used || 0) + tokensUsed,
       llm_cost: (report.llm_cost || 0) + cost,
       generation_time_ms: (report.generation_time_ms || 0) + generationTime,
+      entity_violations: entityViolations,
+      narrative_quality: narrativeQualityState,
+      reprompt_history: repromptHistory,
     };
 
     if (narratives.twoPathsNarrative) {
