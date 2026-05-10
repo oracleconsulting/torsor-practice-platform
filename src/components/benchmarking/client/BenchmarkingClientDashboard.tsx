@@ -910,7 +910,7 @@ export default function BenchmarkingClientDashboard({
             <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <KeyMetricsAsTargetsSection
                 metricTargets={preRevenueAnalysis.metricTargets}
-                targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+                targetExitValuation={data.pass1_data?.target_exit_valuation || data.target_exit_valuation || preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
               />
             </div>
           );
@@ -1013,7 +1013,7 @@ export default function BenchmarkingClientDashboard({
             {/* 2×2 narrative grid — responsive */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
               {[
-                { title: 'Where You Stand', content: positionNarrative, color: C.blue, icon: Target, highlight: `${getOrdinalSuffix(percentile)} percentile` },
+                { title: 'Where You Stand', content: positionNarrative, color: C.blue, icon: Target, highlight: isPreRevenue ? 'Pre-revenue · Year 0' : `${getOrdinalSuffix(percentile)} percentile` },
                 { title: 'Your Strengths', content: strengthNarrative, color: C.emerald, icon: CheckCircle },
                 { title: 'Performance Gaps', content: gapNarrative, color: C.red, icon: AlertTriangle, highlight: `${data.gap_count || gapMetrics.length} gaps identified` },
                 { title: 'The Opportunity', content: opportunityNarrative, color: C.purple, icon: Sparkles, highlight: `£${totalOpportunity.toLocaleString()} potential` },
@@ -1737,7 +1737,7 @@ export default function BenchmarkingClientDashboard({
             <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <PreRevenueScenariosSection
                 scenarios={preRevScenarios}
-                targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+                targetExitValuation={data.pass1_data?.target_exit_valuation || data.target_exit_valuation || preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
               />
             </div>
           );

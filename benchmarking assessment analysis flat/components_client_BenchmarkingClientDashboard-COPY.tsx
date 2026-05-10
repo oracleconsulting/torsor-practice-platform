@@ -110,6 +110,9 @@ interface BenchmarkAnalysis {
     pre_revenue_analysis?: any;
     investment_readiness_breakdown?: any;
     benchmark_appendix?: any;
+    pre_revenue_scenarios?: any[];
+    exit_horizon_years?: number;
+    target_exit_valuation?: number;
   };
   hva_data?: {
     competitive_moat?: string[];
@@ -129,6 +132,9 @@ interface BenchmarkAnalysis {
   pre_revenue_analysis?: any;
   investment_readiness_score?: number;
   investment_readiness_breakdown?: any;
+  two_paths_narrative?: TwoPathsNarrative;
+  scenarios?: any[];
+  target_exit_valuation?: number;
 }
 
 interface MetricComparison {
@@ -2202,17 +2208,35 @@ export default function BenchmarkingClientDashboard({
                   <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Two Connected Opportunities</h2>
                   <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, marginBottom: 24, maxWidth: '48ch', margin: '0 auto 24px' }}>Two different kinds of value — one adds to your annual profit, the other increases what the business is worth</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                    <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
-                      <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
-                      <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
-                    </div>
+                    {isPreRevenue && preRevenueAnalysis ? (
+                      <>
+                        <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                          <p style={{ fontSize: 28, fontWeight: 800, color: '#60A5FA', margin: 0, ...mono }}>{fmt(preRevenueAnalysis.defensiblePreMoney?.base || 0)}</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Defensible pre-money</p>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                          <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{preRevenueAnalysis.investmentReadiness?.score || data.investment_readiness_score || 0}/100</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Investment readiness</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                          <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                          <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                    {['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value'].map((step, i) => (
+                    {(isPreRevenue
+                      ? ['Build traction', 'Prove unit economics', 'De-risk the raise', 'Hit milestones']
+                      : ['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value']
+                    ).map((step, i) => (
                       <Fragment key={i}>
                         {i > 0 && <ArrowRight style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)' }} />}
                         <span style={{ padding: '4px 14px', borderRadius: 6, background: `rgba(255,255,255,0.12)`, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>{step}</span>
@@ -2220,7 +2244,10 @@ export default function BenchmarkingClientDashboard({
                     ))}
                   </div>
                   <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 20, maxWidth: '60ch', margin: '20px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
-                    The {fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The {fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.
+                    {isPreRevenue
+                      ? 'Defensible pre-money is what investors would pay today given current traction. Investment readiness measures how prepared you are for the raise.'
+                      : `The ${fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The ${fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.`
+                    }
                   </p>
                 </div>
               </RevealCard>
@@ -2525,7 +2552,10 @@ export default function BenchmarkingClientDashboard({
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h1 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{data.headline || 'Benchmarking Report'}</h1>
                 <p style={{ fontSize: 13, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {[clientName, `${getOrdinalSuffix(percentile)} percentile`, `£${totalOpportunity.toLocaleString()} opportunity`].filter(Boolean).join(' · ')}
+                  {isPreRevenue
+                    ? [clientName, `Pre-money: ${fmt(preRevenueAnalysis?.defensiblePreMoney?.base || 0)}`, `Investment Readiness: ${data.investment_readiness_score || preRevenueAnalysis?.investmentReadiness?.score || 0}/100`, `Gaps: ${data.gap_count || 0}`].filter(Boolean).join(' · ')
+                    : [clientName, `${getOrdinalSuffix(percentile)} percentile`, `£${totalOpportunity.toLocaleString()} opportunity`].filter(Boolean).join(' · ')
+                  }
                 </p>
               </div>
             </div>
