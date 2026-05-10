@@ -931,7 +931,37 @@ serve(async (req) => {
       content = content.trim();
     }
     
-    let narratives = JSON.parse(content);
+    let narratives: any;
+    try {
+      narratives = JSON.parse(content);
+    } catch (parseErr) {
+      console.warn('[BM Pass 2] JSON parse failed, attempting recovery...', (parseErr as Error).message);
+      // Try to recover truncated JSON by closing open braces/brackets
+      let recovered = content;
+      // Count unmatched braces
+      let braces = 0, brackets = 0, inString = false, escape = false;
+      for (const ch of recovered) {
+        if (escape) { escape = false; continue; }
+        if (ch === '\\') { escape = true; continue; }
+        if (ch === '"' && !escape) { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '{') braces++;
+        if (ch === '}') braces--;
+        if (ch === '[') brackets++;
+        if (ch === ']') brackets--;
+      }
+      // If we're inside a string, close it
+      if (inString) recovered += '"';
+      // Close any open brackets/braces
+      while (brackets > 0) { recovered += ']'; brackets--; }
+      while (braces > 0) { recovered += '}'; braces--; }
+      try {
+        narratives = JSON.parse(recovered);
+        console.log('[BM Pass 2] JSON recovery successful');
+      } catch {
+        throw new Error(`Pass 2 JSON parse failed even after recovery: ${(parseErr as Error).message}`);
+      }
+    }
     
     // Sanitise AI writing tells — replace em dashes with periods
     // Also remove any literal "undefined" that leaked from missing client quotes
