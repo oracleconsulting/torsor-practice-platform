@@ -2002,12 +2002,13 @@ function calculatePreRevenueValueAnalysis(
   }
 
   const exitMultiple = basis.multiple_mid ?? 6;
+  const requiredArrAtExit = exitMultiple > 0 ? targetExitVal / exitMultiple : undefined;
   const discountFactor = Math.pow(1 + irr, exitHorizonYears);
   const safeDilution = Math.min(Math.max(expectedDilution, 0.01), 0.99);
   const todayPostMoney = discountFactor > 0 ? targetExitVal / discountFactor / (1 - safeDilution) : 0;
   const todayPreMoney = Math.max(0, todayPostMoney - roundSize);
 
-  console.log('[Pre-Revenue Calculator] VC method: exit=', targetExitVal, 'post=', todayPostMoney, 'pre=', todayPreMoney);
+  console.log('[Pre-Revenue Calculator] VC method: exit=', targetExitVal, 'post=', todayPostMoney, 'pre=', todayPreMoney, 'requiredArrAtExit=', requiredArrAtExit);
 
   const vcMethodBackSolve = {
     targetExitValuation: targetExitVal,
