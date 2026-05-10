@@ -1142,24 +1142,44 @@ serve(async (req) => {
     const result = await response.json();
     let content = result.choices[0].message.content;
     
-    // Strip markdown code blocks if present (```json ... ```)
     content = content.trim();
-    if (content.startsWith('```')) {
-      // Remove opening ```json or ```
-      content = content.replace(/^```(?:json)?\n?/i, '');
-      // Remove closing ```
-      content = content.replace(/\n?```$/i, '');
-      content = content.trim();
+
+    // Robust JSON extraction (Patch 08d-hotfix)
+    function extractFirstJsonObject(text: string): string | null {
+      const startIdx = text.indexOf('{');
+      if (startIdx === -1) return null;
+      let depth = 0, inStr = false, esc = false;
+      for (let i = startIdx; i < text.length; i++) {
+        const ch = text[i];
+        if (esc) { esc = false; continue; }
+        if (ch === '\\') { esc = true; continue; }
+        if (ch === '"' && !esc) { inStr = !inStr; continue; }
+        if (inStr) continue;
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) return text.substring(startIdx, i + 1); }
+      }
+      return text.substring(startIdx);
     }
-    
+
     let narratives: any;
-    try {
-      narratives = JSON.parse(content);
-    } catch (parseErr) {
-      console.warn('[BM Pass 2] JSON parse failed, attempting recovery...', (parseErr as Error).message);
-      // Try to recover truncated JSON by closing open braces/brackets
+    let parseSucceeded = false;
+
+    // Attempt 1: direct parse
+    try { narratives = JSON.parse(content); parseSucceeded = true; console.log('[BM Pass 2] JSON parsed on first attempt'); } catch { /* fall through */ }
+
+    // Attempt 2: brace-matched extraction
+    if (!parseSucceeded) {
+      const extracted = extractFirstJsonObject(content);
+      if (extracted) {
+        try { narratives = JSON.parse(extracted); parseSucceeded = true; console.log('[BM Pass 2] JSON extracted via brace-matching'); }
+        catch { content = extracted; }
+      }
+    }
+
+    // Attempt 3: truncation recovery
+    if (!parseSucceeded) {
+      console.warn('[BM Pass 2] Attempting truncation recovery...');
       let recovered = content;
-      // Count unmatched braces
       let braces = 0, brackets = 0, inString = false, escape = false;
       for (const ch of recovered) {
         if (escape) { escape = false; continue; }
@@ -1171,16 +1191,14 @@ serve(async (req) => {
         if (ch === '[') brackets++;
         if (ch === ']') brackets--;
       }
-      // If we're inside a string, close it
       if (inString) recovered += '"';
-      // Close any open brackets/braces
       while (brackets > 0) { recovered += ']'; brackets--; }
       while (braces > 0) { recovered += '}'; braces--; }
-      try {
-        narratives = JSON.parse(recovered);
-        console.log('[BM Pass 2] JSON recovery successful');
-      } catch {
-        throw new Error(`Pass 2 JSON parse failed even after recovery: ${(parseErr as Error).message}`);
+      try { narratives = JSON.parse(recovered); parseSucceeded = true; console.log('[BM Pass 2] JSON recovered via truncation repair'); }
+      catch (finalErr) {
+        const preview = content.length > 600 ? content.substring(0, 300) + '\n...[truncated]...\n' + content.substring(content.length - 300) : content;
+        console.error('[BM Pass 2] All JSON recovery failed. Preview:\n' + preview);
+        throw new Error(`Pass 2 JSON parse failed after all recovery attempts: ${(finalErr as Error).message}`);
       }
     }
     
