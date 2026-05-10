@@ -823,14 +823,27 @@ export function BenchmarkingAdminView({
                   </div>
                 )}
                 
-                {activeTab === 'valuation' && data.value_analysis && (
+                {activeTab === 'valuation' && !isPreRevenue && data.value_analysis && (
                   <ValueAnalysisPanel
                     valueAnalysis={data.value_analysis}
                     clientName={clientName}
                   />
                 )}
+
+                {activeTab === 'valuation' && isPreRevenue && (
+                  <div className="text-center py-12 text-slate-500">
+                    <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">Pre-Revenue Valuation</p>
+                    <p className="text-sm mt-2">
+                      Pre-revenue valuation is shown on the client dashboard via the Forward Value Bridge, Investment Readiness, and Industry Targets sections.
+                    </p>
+                    <p className="text-xs mt-4 text-slate-400">
+                      Switch to Client View to see the pre-revenue valuation analysis
+                    </p>
+                  </div>
+                )}
                 
-                {activeTab === 'valuation' && !data.value_analysis && (
+                {activeTab === 'valuation' && !isPreRevenue && !data.value_analysis && (
                   <div className="text-center py-12 text-slate-500">
                     <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
                     <p className="font-medium">Valuation Analysis Not Available</p>

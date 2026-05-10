@@ -484,6 +484,8 @@ function buildPreRevenuePass2Prompt(pass1Data: any): string {
   return `
 You are writing the narrative sections of a Pre-Revenue Benchmarking report. Your job is to tell an INVESTMENT STORY, not list problems.
 
+${PRE_REVENUE_FRAMING_BLOCK}
+
 ═══════════════════════════════════════════════════════════════════════════════
 MANDATORY TONE ENFORCEMENT
 ═══════════════════════════════════════════════════════════════════════════════
@@ -703,14 +705,52 @@ Return ONLY valid JSON.
 `;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION: AI-LANGUAGE ENFORCEMENT (Patch 07)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const AI_LANGUAGE_REPLACEMENTS: Record<string, string> = {
+  'flying blind': 'without visibility',
+  'fantasy land': 'a long-horizon target',
+  'pie in the sky': 'aspirational',
+  'low-hanging fruit': 'immediate opportunity',
+  'moving the needle': 'meaningful impact',
+  'delve into': 'examine',
+  'delves into': 'examines',
+  'delving into': 'examining',
+  'navigate the complexities': 'work through',
+  'navigating the complexities': 'working through',
+  'unlock potential': 'realize value',
+  'unlocking potential': 'realizing value',
+  'paradigm shift': 'change',
+  'it\'s worth noting': '',
+  'it should be emphasized': '',
+  'as we move forward': '',
+  'in today\'s landscape': '',
+  'in the current landscape': '',
+  'best practices': 'established approaches',
+  'game changer': 'significant advantage',
+  'deep dive': 'detailed review',
+  'deep-dive': 'detailed review',
+  'ecosystem': 'market',
+  'synergies': 'efficiencies',
+  'leveraging': 'using',
+  'scalable solution': 'growth-ready approach',
+  '3am panic': 'concern',
+  'scared decisions': 'reactive decisions',
+  'running out of money': 'runway pressure',
+  'burn rate panic': 'cash management pressure',
+  'hit by a bus': 'key-person dependency',
+  'ticking bomb': 'time-sensitive issue',
+  'ticking time bomb': 'time-sensitive issue',
+};
+
+const CONTEXT_AWARE_SKIP: Record<string, string[]> = {
+  'leverage': ['ratio', 'operational', 'financial', 'debt'],
+  'robust': ['regression', 'statistical', 'model'],
+};
+
 const FORBIDDEN_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
-  { pattern: /3am panic/gi, label: '3am panic' },
-  { pattern: /scared decisions/gi, label: 'scared decisions' },
-  { pattern: /running out of money/gi, label: 'running out of money' },
-  { pattern: /burn rate panic/gi, label: 'burn rate panic' },
-  { pattern: /hit by a bus/gi, label: 'hit by a bus' },
-  { pattern: /flying blind/gi, label: 'flying blind' },
-  { pattern: /ticking bomb/gi, label: 'ticking bomb' },
   { pattern: /\u2014/g, label: 'em dash' },
   { pattern: /\u2013/g, label: 'en dash used as em dash' },
   { pattern: / — /g, label: 'spaced em dash' },
@@ -732,20 +772,165 @@ const FORBIDDEN_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /unlock potential/gi, label: 'unlock potential' },
 ];
 
+function applyReplacementMap(text: string): string {
+  let result = text;
+  // Em dash normalization first
+  result = result.replace(/\u2014/g, '. ').replace(/\u2013/g, '. ').replace(/ — /g, '. ');
+  // Phrase replacements (case-insensitive, preserve surrounding whitespace)
+  for (const [phrase, replacement] of Object.entries(AI_LANGUAGE_REPLACEMENTS)) {
+    const regex = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    result = result.replace(regex, replacement);
+  }
+  // Context-aware single-word replacements
+  for (const [word, skipContexts] of Object.entries(CONTEXT_AWARE_SKIP)) {
+    const wordRegex = new RegExp(`\\b${word}\\b`, 'gi');
+    result = result.replace(wordRegex, (match, offset) => {
+      const surrounding = result.slice(Math.max(0, offset - 30), offset + match.length + 30).toLowerCase();
+      if (skipContexts.some(ctx => surrounding.includes(ctx))) return match;
+      return word === 'leverage' ? 'use' : word === 'robust' ? 'strong' : match;
+    });
+  }
+  // Clean up double spaces and ". ." artifacts
+  result = result.replace(/\.\s*\./g, '.').replace(/\s{2,}/g, ' ').trim();
+  return result;
+}
+
 function auditNarrative(text: string): { violations: string[]; cleanText: string } {
+  const cleanText = applyReplacementMap(text);
   const violations: string[] = [];
-  let cleanText = text;
   for (const { pattern, label } of FORBIDDEN_PATTERNS) {
-    const matches = text.match(pattern);
+    const matches = cleanText.match(pattern);
     if (matches) {
       violations.push(`"${label}" found ${matches.length}x`);
-      if (label.includes('em dash') || label.includes('en dash')) {
-        cleanText = cleanText.replace(/\u2014/g, '. ').replace(/\u2013/g, '. ').replace(/ — /g, '. ');
-      }
     }
   }
   return { violations, cleanText };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SECTION: ENTITY HALLUCINATION DETECTION (Patch 07)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SAFE_ENTITY_ALLOWLIST = new Set([
+  'FCA', 'HMRC', 'PRA', 'ICO', 'NCSC', 'GDPR', 'AML', 'KYC', 'CTF', 'SOC',
+  'ISO', 'PCI', 'DSS', 'HIPAA', 'EIS', 'SEIS', 'VCT', 'EMI', 'CSOP',
+  'Companies House', 'HMT', 'BEIS', 'BVCA', 'TechUK', 'Innovate UK',
+  'Series A', 'Series B', 'Series C', 'Pre-Seed', 'Seed',
+  'RPGCC', 'Torsor', 'UK', 'US', 'EU', 'London', 'Manchester', 'Edinburgh',
+  'Damodaran', 'NYU', 'BDO', 'PCPI', 'Beauhurst', 'Pitchbook', 'Crunchbase',
+  'Dealroom', 'SaaS Capital', 'Bessemer', 'First Page Sage',
+  'Bill Payne', 'Dave Berkus', 'Bill Sahlman', 'Harvard',
+  'Skillcast', 'Themis', 'ComplyAdvantage', 'Onfido', 'Featurespace',
+  'VinciWorks', 'Datox', 'Entrust', 'Visa', 'Robot Mascot',
+  'NRR', 'ARR', 'CAC', 'LTV', 'MRR', 'EBITDA', 'SDE', 'NFI', 'GRF',
+  'CTO', 'CFO', 'COO', 'CEO', 'NED', 'MD',
+  'P25', 'P50', 'P75', 'P90',
+]);
+
+function buildEntityAllowlist(pass1Data: any, contextNotes: any[]): Set<string> {
+  const allowlist = new Set(SAFE_ENTITY_ALLOWLIST);
+  // Add client name, company name, founder names from assessment
+  const responses = pass1Data?.assessmentResponses || {};
+  for (const val of Object.values(responses)) {
+    if (typeof val === 'string' && val.length > 2 && val.length < 100) {
+      // Add multi-word capitalized phrases
+      const names = String(val).match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g);
+      if (names) names.forEach(n => allowlist.add(n));
+    }
+  }
+  // Add entities from context notes
+  for (const note of (contextNotes || [])) {
+    const noteText = note.note_content || note.content || '';
+    const names = String(noteText).match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g);
+    if (names) names.forEach(n => allowlist.add(n));
+  }
+  // Add from benchmark sources
+  const sources = pass1Data?.benchmark_appendix?.dataSources || [];
+  for (const src of sources) {
+    if (typeof src === 'string') allowlist.add(src);
+  }
+  // Add from comparable rounds
+  const comps = pass1Data?.pre_revenue_analysis?.comparableRoundsAnalysis?.rounds || [];
+  for (const c of comps) {
+    if (c.company) allowlist.add(c.company);
+  }
+  return allowlist;
+}
+
+function detectHallucinatedEntities(text: string, allowlist: Set<string>): string[] {
+  // Extract capitalized multi-word phrases (potential proper nouns)
+  const candidates = text.match(/[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+/g) || [];
+  // Also single capitalized words that look like company names (>3 chars, not common English)
+  const commonWords = new Set(['The', 'This', 'That', 'These', 'Those', 'What', 'When', 'Where', 'Which', 'While', 'From', 'With', 'About', 'After', 'Before', 'Between', 'During', 'Through', 'Annual', 'Revenue', 'Growth', 'Margin', 'Value', 'Investment', 'Business', 'Market', 'Industry', 'Current', 'Target', 'Readiness', 'Pipeline', 'Contract', 'Enterprise', 'Platform', 'Compliance', 'Regulatory', 'Financial', 'Corporate', 'Defensible', 'Milestone', 'Advisory', 'Governance', 'Structuring', 'Forecast', 'Year']);
+  const singleCaps = (text.match(/\b[A-Z][a-z]{3,}\b/g) || []).filter(w => !commonWords.has(w));
+
+  const unmatched: string[] = [];
+  const seen = new Set<string>();
+
+  for (const candidate of [...candidates, ...singleCaps]) {
+    const trimmed = candidate.trim();
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    // Check against allowlist (exact match or substring)
+    const isAllowed = Array.from(allowlist).some(a =>
+      trimmed === a || trimmed.includes(a) || a.includes(trimmed)
+    );
+    if (!isAllowed && trimmed.length > 3) {
+      unmatched.push(trimmed);
+    }
+  }
+  return unmatched;
+}
+
+function replaceHallucinatedEntities(text: string, entities: string[]): string {
+  let result = text;
+  const genericReplacements = [
+    'comparable firms in the sector',
+    'established competitors',
+    'industry peers',
+    'similar companies',
+  ];
+  for (const entity of entities) {
+    const regex = new RegExp(entity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+    const replacement = genericReplacements[entities.indexOf(entity) % genericReplacements.length];
+    result = result.replace(regex, replacement);
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PRE-REVENUE FRAMING BLOCK (injected into prompt for pre-revenue stages)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PRE_REVENUE_FRAMING_BLOCK = `
+PRE-REVENUE NARRATIVE FRAMING (MANDATORY)
+
+When writing about a pre-revenue engagement's valuation, follow these principles:
+
+1. THREE VALUATION LENSES, NO HIERARCHY
+   Berkus: factor-based today value, ceiling typically 2M GBP for UK regtech.
+   Scorecard: regional median adjusted by weighted factors, today value.
+   VC method back-solve: what equity must be worth TODAY to deliver target IRR by exit horizon.
+   These three are not competing for "the right answer." Each measures something different. Today's defensible pre-money is anchored by Berkus and Scorecard; the VC back-solve is the long-horizon ceiling that founders use to evidence trajectory.
+
+2. NEVER FRAME ANY METHOD AS "WRONG", "INFLATED", "FANTASY", OR "SPECULATIVE"
+   Each method has a specific role. The VC back-solve is large because it is a forward number; that is what it is supposed to do. Do not write phrases like "fantasy land", "pie in the sky", "wishful thinking", or "the real number is X."
+   Correct framing: "VC method back-solve at X shows what equity must be worth today to deliver Y% IRR to the Z exit in N years. Today's defensible range from Berkus and Scorecard is A-B."
+
+3. PRE-REVENUE COMPANIES DO NOT HAVE EBITDA
+   Do not reference EBITDA, EBITDA margin, revenue per employee, or any operating-mode metric as currently measurable. These are forward targets only.
+
+4. SUPPRESSORS ARE FORWARD-LOOKING, NOT VALUE-DESTROYING
+   For pre-revenue, suppressors represent investor discounts on what they will pay TODAY for an unproven business with these structural issues. They do not represent enterprise value being destroyed by current operations.
+   Correct: "Cap table complexity suppresses today's defensible pre-money by 5-15% until restructured."
+   Wrong: "Cap table complexity is destroying X of enterprise value annually."
+
+5. INVESTMENT READINESS IS THE KEY DIAGNOSTIC
+   For pre-revenue, the IR score is more actionable than valuation. Lead with it in the gap narrative.
+
+6. THE PIPELINE IS THE TRAJECTORY EVIDENCE
+   Reference signed contracts, LOIs, and qualified pipeline concretely. Do not say "you need traction." Say "two signed enterprise contracts at 100k+ ACV would unlock the base to stretch range."
+`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -1019,20 +1204,53 @@ serve(async (req) => {
     if (narratives.opportunityNarrative) narratives.opportunityNarrative = sanitiseNarrative(narratives.opportunityNarrative);
     if (narratives.headline) narratives.headline = sanitiseNarrative(narratives.headline);
     
-    // AI-language audit
-    const allNarrativeText = [
-      narratives.headline, narratives.executiveSummary, narratives.positionNarrative,
-      narratives.strengthNarrative, narratives.gapNarrative, narratives.opportunityNarrative
-    ].filter(Boolean).join(' ');
+    // ═══════════════════════════════════════════════════════════════════
+    // AI-LANGUAGE ENFORCEMENT LOOP (Patch 07)
+    // Pass 1: deterministic replacement map
+    // Pass 2: re-audit; if violations remain, flag for admin
+    // ═══════════════════════════════════════════════════════════════════
+    const narrativeKeys = ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative'] as const;
+    let narrativeQualityWarnings: string[] = [];
 
-    const { violations } = auditNarrative(allNarrativeText);
-    if (violations.length > 0) {
-      console.warn(`[BM Pass 2] AI-language audit violations (${violations.length}):`, violations);
-      for (const key of ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative']) {
-        if (narratives[key]) {
-          narratives[key] = narratives[key].replace(/\u2014/g, '. ').replace(/\u2013/g, '. ').replace(/ — /g, '. ');
-        }
+    // Pass 1: Apply replacement map to all narrative fields
+    for (const key of narrativeKeys) {
+      if (narratives[key]) {
+        narratives[key] = applyReplacementMap(narratives[key]);
       }
+    }
+
+    // Re-audit after replacements
+    const allCleanedText = narrativeKeys.map(k => narratives[k]).filter(Boolean).join(' ');
+    const { violations: remainingViolations } = auditNarrative(allCleanedText);
+    if (remainingViolations.length > 0) {
+      console.warn(`[BM Pass 2] Audit: ${remainingViolations.length} violations remain after replacement map:`, remainingViolations);
+      narrativeQualityWarnings = remainingViolations;
+    } else {
+      console.log('[BM Pass 2] Audit: clean (0 violations after replacement map)');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ENTITY HALLUCINATION CHECK (Patch 07)
+    // ═══════════════════════════════════════════════════════════════════
+    let entityHallucinationsCaught: string[] = [];
+    try {
+      const entityAllowlist = buildEntityAllowlist(enrichedPass1Data, enrichedPass1Data.contextNotes || []);
+      const allNarrativeForEntityCheck = narrativeKeys.map(k => narratives[k]).filter(Boolean).join(' ');
+      const hallucinated = detectHallucinatedEntities(allNarrativeForEntityCheck, entityAllowlist);
+
+      if (hallucinated.length > 0) {
+        console.warn(`[BM Pass 2] Entity check: ${hallucinated.length} unmatched entities:`, hallucinated);
+        for (const key of narrativeKeys) {
+          if (narratives[key]) {
+            narratives[key] = replaceHallucinatedEntities(narratives[key], hallucinated);
+          }
+        }
+        entityHallucinationsCaught = hallucinated;
+      } else {
+        console.log('[BM Pass 2] Entity check: clean (0 unmatched entities)');
+      }
+    } catch (entityErr) {
+      console.warn('[BM Pass 2] Entity check failed (non-fatal):', entityErr);
     }
     
     const tokensUsed = result.usage?.total_tokens || 0;
