@@ -883,6 +883,101 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ════════════════════════════════════════════════════════════════════════════
+// INTEGRITY MANIFEST INFRASTRUCTURE (Patch 08a)
+// ════════════════════════════════════════════════════════════════════════════
+
+type FieldCriticality = 'critical' | 'important' | 'optional';
+
+interface IntegrityEntry {
+  label: string;
+  source_path: string;
+  value: unknown;
+  is_default: boolean;
+  default_value: unknown | null;
+  criticality: FieldCriticality;
+  required_for: string[];
+}
+
+interface IntegrityManifest {
+  entries: IntegrityEntry[];
+  has_critical_gaps: boolean;
+  critical_gaps: string[];
+}
+
+function createManifest(): IntegrityManifest {
+  return { entries: [], has_critical_gaps: false, critical_gaps: [] };
+}
+
+function resolveWithIntegrity<T>(
+  manifest: IntegrityManifest,
+  label: string,
+  sourcePath: string,
+  rawValue: T | null | undefined,
+  defaultValue: T,
+  criticality: FieldCriticality,
+  requiredFor: string[] = []
+): T {
+  const isMissing = rawValue === null || rawValue === undefined ||
+    (typeof rawValue === 'number' && Number.isNaN(rawValue));
+  const resolved = isMissing ? defaultValue : rawValue;
+
+  manifest.entries.push({
+    label, source_path: sourcePath, value: resolved,
+    is_default: isMissing, default_value: isMissing ? defaultValue : null,
+    criticality, required_for: requiredFor,
+  });
+
+  if (isMissing && criticality === 'critical') {
+    manifest.has_critical_gaps = true;
+    if (!manifest.critical_gaps.includes(label)) manifest.critical_gaps.push(label);
+  }
+
+  return resolved as T;
+}
+
+interface NumericAnchor {
+  label: string;
+  value: number;
+  format: 'currency' | 'percent' | 'years' | 'months' | 'score' | 'count' | 'multiple';
+  tolerance: number;
+  source_path: string;
+}
+
+function buildNumericAnchors(engagement: any, pra: any): NumericAnchor[] {
+  const anchors: NumericAnchor[] = [];
+  const push = (a: NumericAnchor) => { if (typeof a.value === 'number' && !Number.isNaN(a.value)) anchors.push(a); };
+
+  if (engagement?.target_exit_valuation) push({ label: 'target_exit_valuation', value: engagement.target_exit_valuation, format: 'currency', tolerance: 0, source_path: 'engagement.target_exit_valuation' });
+  if (engagement?.exit_horizon_years) push({ label: 'exit_horizon_years', value: engagement.exit_horizon_years, format: 'years', tolerance: 0, source_path: 'engagement.exit_horizon_years' });
+
+  const vc = pra?.vcMethodBackSolve;
+  if (vc) {
+    if (vc.investorIrr) push({ label: 'investor_irr_pct', value: vc.investorIrr * 100, format: 'percent', tolerance: 0, source_path: 'vcMethodBackSolve.investorIrr' });
+    if (vc.todayPreMoneyImplied) push({ label: 'today_pre_money_implied', value: vc.todayPreMoneyImplied, format: 'currency', tolerance: 0.05, source_path: 'vcMethodBackSolve.todayPreMoneyImplied' });
+    if (vc.requiredArrAtExit) push({ label: 'required_arr_at_exit', value: vc.requiredArrAtExit, format: 'currency', tolerance: 0.05, source_path: 'vcMethodBackSolve.requiredArrAtExit' });
+    if (vc.impliedExitMultiple) push({ label: 'implied_exit_multiple', value: vc.impliedExitMultiple, format: 'multiple', tolerance: 0, source_path: 'vcMethodBackSolve.impliedExitMultiple' });
+  }
+
+  const berkus = pra?.berkusValuation;
+  if (berkus?.impliedPreMoney) push({ label: 'berkus_implied', value: berkus.impliedPreMoney, format: 'currency', tolerance: 0.05, source_path: 'berkusValuation.impliedPreMoney' });
+
+  const sc = pra?.scorecardValuation;
+  if (sc?.impliedPreMoney) push({ label: 'scorecard_implied', value: sc.impliedPreMoney, format: 'currency', tolerance: 0.05, source_path: 'scorecardValuation.impliedPreMoney' });
+
+  const def = pra?.defensiblePreMoney;
+  if (def) {
+    if (def.conservative) push({ label: 'defensible_conservative', value: def.conservative, format: 'currency', tolerance: 0.05, source_path: 'defensiblePreMoney.conservative' });
+    if (def.base) push({ label: 'defensible_base', value: def.base, format: 'currency', tolerance: 0.05, source_path: 'defensiblePreMoney.base' });
+    if (def.stretch) push({ label: 'defensible_stretch', value: def.stretch, format: 'currency', tolerance: 0.05, source_path: 'defensiblePreMoney.stretch' });
+  }
+
+  const ir = pra?.investmentReadiness;
+  if (ir?.score != null) push({ label: 'investment_readiness_score', value: ir.score, format: 'score', tolerance: 0, source_path: 'investmentReadiness.score' });
+
+  return anchors;
+}
+
 // =============================================================================
 // TYPE DEFINITIONS FOR FINANCIAL ANALYSIS
 // =============================================================================
@@ -1972,7 +2067,8 @@ function calculatePreRevenueValueAnalysis(
   berkusParams: any,
   vcParams: any,
   industryCode: string,
-  businessStage: string
+  businessStage: string,
+  manifest: IntegrityManifest
 ): { valueAnalysis: ValueAnalysis; preRevenueAnalysis: PreRevenueAnalysisResult } {
   console.log('[Pre-Revenue Calculator] Starting for industry:', industryCode, 'stage:', businessStage);
 
@@ -1981,7 +2077,7 @@ function calculatePreRevenueValueAnalysis(
   // ── VC Method back-solve ──────────────────────────────────────────────
   const irr = vcParams?.irr ?? (isEarlyRevenue ? 0.30 : 0.40);
   const expectedDilution = vcParams?.expected_dilution ?? 0.50;
-  const roundSize = signals.round_size_target || 500_000;
+  const roundSize = resolveWithIntegrity(manifest, 'round_size_target', 'signals.round_size_target', signals?.round_size_target, 500_000, 'critical', ['vc_back_solve', 'today_pre_money', 'dilution_waterfall']);
 
   const engagementTargetExit = engagement?.target_exit_valuation ?? null;
   const engagementHorizon = engagement?.exit_horizon_years ?? null;
@@ -1996,7 +2092,8 @@ function calculatePreRevenueValueAnalysis(
   } else {
     const forecastY3Rev = signals.forecast_year_3?.revenue || signals.forecast_year_3?.arr || 0;
     const forecastY2Rev = signals.forecast_year_2?.revenue || signals.forecast_year_2?.arr || 0;
-    targetExitVal = (forecastY3Rev || forecastY2Rev || 1_000_000) * (basis?.multiple_mid || 6);
+    const forecastBase = resolveWithIntegrity(manifest, 'forecast_revenue_for_exit', 'signals.forecast_year_3.revenue', forecastY3Rev || forecastY2Rev || null, 1_000_000, 'critical', ['target_exit_derivation']);
+    targetExitVal = forecastBase * (basis?.multiple_mid || 6);
     exitHorizonYears = 5;
     console.log(`[Pre-Revenue Calculator] VC method using forecast-derived exit: £${(targetExitVal/1e6).toFixed(1)}M`);
   }
@@ -2661,7 +2758,7 @@ function calculatePreRevenueValueAnalysis(
 
   // ── Metric targets for pre-revenue trajectory (from registry) ────────
   const metricTargets: any[] = [];
-  const targetExitValForMetrics = engagement.target_exit_valuation || 6000000;
+  const targetExitValForMetrics = resolveWithIntegrity(manifest, 'target_exit_for_metrics', 'engagement.target_exit_valuation', engagement?.target_exit_valuation, 6_000_000, 'critical', ['metric_target_valuation_impact']);
 
   // Use metric_set from the industry_valuation_basis row passed as `basis`
   const registryMetrics = (basis as any)?.metric_set || [];
@@ -5989,6 +6086,8 @@ serve(async (req) => {
     if (!engagementId) {
       throw new Error('engagementId is required');
     }
+
+    const manifest = createManifest();
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -6606,7 +6705,8 @@ serve(async (req) => {
           berkusFramework?.parameters || {},
           vcFramework?.parameters || {},
           industryCodeForPR,
-          businessStage
+          businessStage,
+          manifest
         );
 
         assessmentData.value_analysis = prResult.valueAnalysis;
@@ -6616,12 +6716,13 @@ serve(async (req) => {
 
         // Generate pre-revenue scenarios for the Scenarios tab
         const preRevScenarios: any[] = [];
+        const sigSafe = (signals || {}) as any;
         const targetExit = engagement.target_exit_valuation || 6000000;
-        const pipelineAcv = (signals || {} as any).pipeline_qualified_acv || 200000;
-        const yr1Arr = (signals || {} as any).forecast_year_1?.arr || (signals || {} as any).forecast_year_1?.revenue || (signals || {} as any).pipeline_qualified_acv || 100000;
+        const pipelineAcv = resolveWithIntegrity(manifest, 'pipeline_acv_scenarios', 'signals.pipeline_qualified_acv', sigSafe.pipeline_qualified_acv, 200_000, 'important', ['scenario_calculator']);
+        const yr1Arr = resolveWithIntegrity(manifest, 'yr1_arr_scenarios', 'signals.forecast_year_1.arr', sigSafe.forecast_year_1?.arr || sigSafe.forecast_year_1?.revenue || sigSafe.pipeline_qualified_acv || null, 100_000, 'critical', ['scenario_calculator']);
         const arrMultiple = basisRow?.multiple_mid || 5;
-        const founderOwnership = (signals || {} as any).founder_ownership_current_pct || 80;
-        const roundSize = (signals || {} as any).round_size_target || 500000;
+        const founderOwnership = resolveWithIntegrity(manifest, 'founder_ownership_scenarios', 'signals.founder_ownership_current_pct', sigSafe.founder_ownership_current_pct, 80, 'important', ['dilution_waterfall']);
+        const scenarioRoundSize = resolveWithIntegrity(manifest, 'round_size_scenarios', 'signals.round_size_target', sigSafe.round_size_target, 500_000, 'critical', ['scenario_calculator']);
         const exitHorizon = engagement.exit_horizon_years || 7;
 
         const defensible = prResult.preRevenueAnalysis.defensiblePreMoney;
@@ -6692,7 +6793,7 @@ serve(async (req) => {
         // 4. Dilution waterfall
         let ownership = founderOwnership;
         const rounds = [
-          { name: 'Current Round', size: roundSize, preMoney: defensible.base },
+          { name: 'Current Round', size: scenarioRoundSize, preMoney: defensible.base },
           { name: 'Series A', size: 3000000, preMoney: 12000000 },
           { name: 'Series B', size: 10000000, preMoney: 40000000 },
         ];
@@ -6724,7 +6825,7 @@ serve(async (req) => {
             scenarioName: `${horizon}-year exit horizon`,
             scenarioGroup: 'Time to Exit Sensitivity',
             inputs: { targetExit: exitTarget, horizon, irrTarget: `${(exitIrr * 100).toFixed(0)}%` },
-            outputs: { impliedPostMoney: Math.round(todayPost), impliedPreMoney: Math.round(todayPost - roundSize) },
+            outputs: { impliedPostMoney: Math.round(todayPost), impliedPreMoney: Math.round(todayPost - scenarioRoundSize) },
             valuationImpact: { current: defensible.base, projected: Math.round(todayPost), delta: Math.round(todayPost - defensible.base) },
             trajectoryImpact: buildTrajectoryImpact(Math.round(todayPost), `${horizon}-year exit horizon at ${(exitIrr * 100).toFixed(0)}% IRR target.`),
             summary: `Hitting your exit target in ${horizon} years implies a post-money of ${Math.round(todayPost / 1000)}k today.`,
@@ -6734,7 +6835,7 @@ serve(async (req) => {
 
         assessmentData._preRevenue_scenarios = preRevScenarios;
         assessmentData._preRevenue_scenario_meta = {
-          targetExitValuation: engagement.target_exit_valuation || 6000000,
+          targetExitValuation: resolveWithIntegrity(manifest, 'target_exit_scenario_meta', 'engagement.target_exit_valuation', engagement?.target_exit_valuation, 6_000_000, 'critical', ['scenario_meta']),
           exitHorizonYears: engagement.exit_horizon_years || 7,
           defensiblePreMoney: prResult.preRevenueAnalysis.defensiblePreMoney,
         };
@@ -7630,6 +7731,20 @@ When writing narratives:
       ];
     }
 
+    // Build numeric anchors from pre-revenue analysis
+    const numericAnchors = isPreRevenue && preRevenueAnalysis
+      ? buildNumericAnchors(engagement, preRevenueAnalysis)
+      : [];
+
+    const dataIntegrityState = manifest.has_critical_gaps ? 'incomplete' : 'complete';
+
+    console.log('[BM Pass 1] Integrity manifest:', {
+      totalEntries: manifest.entries.length,
+      criticalGaps: manifest.critical_gaps.length,
+      dataIntegrity: dataIntegrityState,
+      anchorCount: numericAnchors.length,
+    });
+
     // Save to database (including founder risk data if available)
     const reportData: any = {
       engagement_id: engagementId,
@@ -7698,6 +7813,8 @@ When writing narratives:
         exit_horizon_years: engagement.exit_horizon_years || null,
         target_exit_valuation: engagement.target_exit_valuation || null,
         benchmark_appendix: benchmarkAppendix,
+        data_integrity_manifest: manifest.entries.length > 0 ? manifest : undefined,
+        numeric_anchors: numericAnchors.length > 0 ? numericAnchors : undefined,
       },
       llm_model: 'gpt-4o-mini',
       llm_tokens_used: tokensUsed,
@@ -7730,6 +7847,9 @@ When writing narratives:
       exit_readiness_breakdown: assessmentData.exit_readiness_breakdown || null,
       // Note: surplus_cash_breakdown is stored in pass1_data only (no top-level column)
       two_paths_narrative: assessmentData.two_paths_narrative || null,
+      data_integrity_manifest: manifest.entries.length > 0 ? manifest : null,
+      numeric_anchors: numericAnchors.length > 0 ? numericAnchors : null,
+      data_integrity: dataIntegrityState,
     };
     
     // Add founder risk data if available
@@ -7937,6 +8057,17 @@ When writing narratives:
       .update({ status: 'pass1_complete' })
       .eq('id', engagementId);
     
+    if (isPreRevenue && manifest.has_critical_gaps) {
+      console.warn('[BM Pass 1] ⚠ Critical inputs missing — halting before Pass 2:', manifest.critical_gaps);
+      await supabaseClient.from('bm_engagements').update({ status: 'pass1_complete' }).eq('id', engagementId);
+      return new Response(JSON.stringify({
+        success: true, engagementId,
+        status: 'data_collection_incomplete',
+        critical_gaps: manifest.critical_gaps,
+        message: `Pass 1 complete but ${manifest.critical_gaps.length} critical input(s) missing: ${manifest.critical_gaps.join(', ')}. Pass 2 not auto-triggered.`,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     console.log('[BM Pass 1] ✅ Report saved to database. Now triggering Pass 2...');
     
     // Trigger Pass 2 - fire and forget (don't await completion)
