@@ -173,6 +173,7 @@ interface RecommendedService {
   totalValueAtStake?: number;
   source: string;
   priority: string;
+  serviceStatus?: string;
 }
 
 interface BenchmarkingClientDashboardProps {
@@ -605,14 +606,27 @@ export default function BenchmarkingClientDashboard({
   const recommendedServices = useMemo((): RecommendedService[] => {
     const dbRecommendations = Array.isArray(data.recommended_services) ? data.recommended_services : [];
     if (dbRecommendations.length > 0) {
-      return dbRecommendations.map((r: any): RecommendedService => ({
-        serviceCode: r.serviceCode || r.code, serviceName: r.serviceName || r.name, description: r.description || '',
-        headline: r.headline, priceFrom: r.priceFrom || r.price_from, priceTo: r.priceTo || r.price_to,
-        priceUnit: r.priceUnit || r.price_unit, priceRange: r.priceRange, category: r.category,
-        whyThisMatters: r.whyThisMatters || r.contextReason || r.description || '',
-        whatYouGet: toSafeArray(r.whatYouGet || r.deliverables), expectedOutcome: r.expectedOutcome || '',
-        timeToValue: r.timeToValue || r.timeframe || '4-6 weeks', addressesIssues: Array.isArray(r.addressesIssues) ? r.addressesIssues : [],
-        totalValueAtStake: r.totalValueAtStake, source: r.source || 'opportunity', priority: r.priority || 'secondary',
+      return dbRecommendations
+        .sort((a: any, b: any) => (a.display_order || a.displayOrder || 99) - (b.display_order || b.displayOrder || 99))
+        .map((r: any): RecommendedService => ({
+        serviceCode: r.serviceCode || r.service_code || r.code,
+        serviceName: r.service_name || r.serviceName || r.name,
+        description: r.fit_rationale || r.description || '',
+        headline: r.headline,
+        priceFrom: r.priceFrom || r.price_from,
+        priceTo: r.priceTo || r.price_to,
+        priceUnit: r.priceUnit || r.price_unit,
+        priceRange: r.priceRange || r.price_range,
+        category: r.category,
+        whyThisMatters: r.fit_rationale || r.whyThisMatters || r.contextReason || r.description || '',
+        whatYouGet: toSafeArray(r.whatYouGet || r.what_you_get || r.deliverables),
+        expectedOutcome: r.expectedOutcome || r.expected_outcome || '',
+        timeToValue: r.timeToValue || r.time_to_value || r.timeframe || '4-6 weeks',
+        addressesIssues: Array.isArray(r.addressesIssues) ? r.addressesIssues : Array.isArray(r.addresses_issues) ? r.addresses_issues : [],
+        totalValueAtStake: r.combined_impact_value_pounds || r.totalValueAtStake || r.total_value_at_stake,
+        source: r.source || 'opportunity',
+        priority: r.priority_label || r.priority || 'secondary',
+        serviceStatus: r.service_status || r.serviceStatus,
       }));
     }
     const opportunities = Array.isArray(data.opportunities) ? data.opportunities : [];
@@ -2109,6 +2123,7 @@ export default function BenchmarkingClientDashboard({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{svc.serviceName}</p>
                           {isPrimary && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: C.blue, color: '#fff', ...mono }}>PRIORITY</span>}
+                          {svc.serviceStatus && <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: `${C.emerald}12`, color: C.emerald, border: `1px solid ${C.emerald}20`, ...mono }}>{svc.serviceStatus.replace(/_/g, ' ').toUpperCase()}</span>}
                         </div>
                         <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>{svc.headline || svc.description}</p>
                       </div>
@@ -2208,17 +2223,35 @@ export default function BenchmarkingClientDashboard({
                   <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 8 }}>Two Connected Opportunities</h2>
                   <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, marginBottom: 24, maxWidth: '48ch', margin: '0 auto 24px' }}>Two different kinds of value — one adds to your annual profit, the other increases what the business is worth</p>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                    <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
-                      <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
-                      <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
-                      <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
-                    </div>
+                    {isPreRevenue && preRevenueAnalysis ? (
+                      <>
+                        <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                          <p style={{ fontSize: 28, fontWeight: 800, color: '#60A5FA', margin: 0, ...mono }}>{fmt(preRevenueAnalysis.defensiblePreMoney?.base || 0)}</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Defensible pre-money</p>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                          <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{preRevenueAnalysis.investmentReadiness?.score || data.investment_readiness_score || 0}/100</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Investment readiness</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                          <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                          <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12 }}>
-                    {['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value'].map((step, i) => (
+                    {(isPreRevenue
+                      ? ['Build traction', 'Prove unit economics', 'De-risk the raise', 'Hit milestones']
+                      : ['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value']
+                    ).map((step, i) => (
                       <Fragment key={i}>
                         {i > 0 && <ArrowRight style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)' }} />}
                         <span style={{ padding: '4px 14px', borderRadius: 6, background: `rgba(255,255,255,0.12)`, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>{step}</span>
@@ -2226,7 +2259,10 @@ export default function BenchmarkingClientDashboard({
                     ))}
                   </div>
                   <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 20, maxWidth: '60ch', margin: '20px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
-                    The {fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The {fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.
+                    {isPreRevenue
+                      ? 'Defensible pre-money is what investors would pay today given current traction. Investment readiness measures how prepared you are for the raise.'
+                      : `The ${fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The ${fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.`
+                    }
                   </p>
                 </div>
               </RevealCard>
@@ -2320,14 +2356,29 @@ export default function BenchmarkingClientDashboard({
               <div style={{ position: 'relative', zIndex: 1 }}>
                 <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 16 }}>{twoPathsNarrative.headline}</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-                  <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
-                    <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
-                  </div>
-                  <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
-                    <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
-                    <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
-                  </div>
+                  {isPreRevenue && twoPathsNarrative?.trackOne ? (
+                    <>
+                      <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        <p style={{ fontSize: 28, fontWeight: 800, color: '#60A5FA', margin: 0, ...mono }}>{twoPathsNarrative.trackOne.anchorMetric || 'Trajectory'}</p>
+                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{twoPathsNarrative.trackOne.label}</p>
+                      </div>
+                      <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{twoPathsNarrative.trackTwo.anchorMetric || 'Readiness'}</p>
+                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{twoPathsNarrative.trackTwo.label}</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        <p style={{ fontSize: 28, fontWeight: 800, color: C.emeraldLight, margin: 0, ...mono }}>{fmt(marginOpp)}</p>
+                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Annual profit improvement</p>
+                      </div>
+                      <div style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '18px 24px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.15)' }}>
+                        <p style={{ fontSize: 28, fontWeight: 800, color: '#FBBF24', margin: 0, ...mono }}>{fmt(valueGapMid)}</p>
+                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>Trapped enterprise value</p>
+                      </div>
+                    </>
+                  )}
                 </div>
                 {/* Connection flow */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20, fontSize: 12 }}>
@@ -2340,7 +2391,10 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14, lineHeight: 1.7 }}>{twoPathsNarrative.explanation}</p>
                 <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, marginTop: 16, maxWidth: '60ch', margin: '16px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
-                  The {fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The {fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.
+                  {isPreRevenue && twoPathsNarrative.bottomLine
+                    ? twoPathsNarrative.bottomLine
+                    : `The ${fmt(marginOpp)} adds to your bottom line every year — it's the gap between your current net margin and the top quartile. The ${fmt(valueGapMid)} is different: it's a one-time increase in what a buyer would pay, unlocked by fixing the structural discounts that currently suppress your valuation.`
+                  }
                 </p>
               </div>
             </RevealCard>
@@ -2400,6 +2454,48 @@ export default function BenchmarkingClientDashboard({
 
       // ─── VISION ──────────────────────────────────────────────────────────
       case 'vision': {
+        if (isPreRevenue && preRevenueAnalysis) {
+          const defensible = preRevenueAnalysis.defensiblePreMoney || {};
+          const irScore = preRevenueAnalysis.investmentReadiness?.score || data.investment_readiness_score || 0;
+          const targetExit = data.pass1_data?.target_exit_valuation || 0;
+          const exitYears = data.pass1_data?.exit_horizon_years || 7;
+          const bottomLine = twoPathsNarrative?.bottomLine || '';
+
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #162340 40%, #1E293B 100%)', padding: '48px 40px', textAlign: 'center', border: 'none', boxShadow: SHADOW.lg }}>
+                <DotGrid opacity={0.05} /><NoiseOverlay opacity={0.15} />
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
+                    <Rocket style={{ width: 16, height: 16, color: C.emeraldLight }} />
+                    <span style={{ fontSize: 12, letterSpacing: '0.15em', color: C.emeraldLight, textTransform: 'uppercase', fontWeight: 600, ...mono }}>Your Position: Summed Up</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 16 }}>
+                    {[
+                      { val: fmt(defensible.base || 0), sub: 'Defensible pre-money (base)', bg: `${C.blue}20` },
+                      { val: `${irScore}/100`, sub: 'Investment readiness', bg: `${C.emerald}20` },
+                      { val: fmt(targetExit), sub: `Target exit (year ${exitYears})`, bg: `${C.amber}20` },
+                    ].map((s, i) => (
+                      <div key={i} style={{ background: s.bg, borderRadius: 16, padding: '22px 36px', border: '1px solid rgba(255,255,255,0.15)', minWidth: 160, backdropFilter: 'blur(8px)' }}>
+                        <p style={{ fontSize: 32, fontWeight: 800, color: '#fff', margin: 0, ...mono }}>{s.val}</p>
+                        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>{s.sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 11, marginTop: 16, maxWidth: '60ch', margin: '16px auto 0', lineHeight: 1.6, fontStyle: 'italic' }}>
+                    Defensible pre-money is what investors would pay today given current readiness. Investment readiness measures preparation for the raise. Target exit is the long-term North Star.
+                  </p>
+                </div>
+              </RevealCard>
+              {bottomLine && (
+                <RevealCard delay={100} style={{ ...glass({ padding: '24px 28px' }), borderLeft: `4px solid ${C.emerald}` }}>
+                  <p style={{ fontSize: 16, lineHeight: 1.8, color: C.text, margin: 0 }}>{bottomLine}</p>
+                </RevealCard>
+              )}
+            </div>
+          );
+        }
+
         const closingSummary = (() => {
           const parts: string[] = [];
           if (baselineMetrics?.revenue) parts.push(`You're a £${(baselineMetrics.revenue / 1000000).toFixed(1)}M business`);
@@ -2531,7 +2627,10 @@ export default function BenchmarkingClientDashboard({
               <div style={{ minWidth: 0, flex: 1 }}>
                 <h1 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{data.headline || 'Benchmarking Report'}</h1>
                 <p style={{ fontSize: 13, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {[clientName, `${getOrdinalSuffix(percentile)} percentile`, `£${totalOpportunity.toLocaleString()} opportunity`].filter(Boolean).join(' · ')}
+                  {isPreRevenue
+                    ? [clientName, `Pre-money: ${fmt(preRevenueAnalysis?.defensiblePreMoney?.base || 0)}`, `Investment Readiness: ${data.investment_readiness_score || preRevenueAnalysis?.investmentReadiness?.score || 0}/100`, `Gaps: ${data.gap_count || 0}`].filter(Boolean).join(' · ')
+                    : [clientName, `${getOrdinalSuffix(percentile)} percentile`, `£${totalOpportunity.toLocaleString()} opportunity`].filter(Boolean).join(' · ')
+                  }
                 </p>
               </div>
             </div>
