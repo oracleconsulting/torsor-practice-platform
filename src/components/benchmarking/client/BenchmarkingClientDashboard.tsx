@@ -759,7 +759,64 @@ export default function BenchmarkingClientDashboard({
     switch (activeSection) {
 
       // ─── OVERVIEW ────────────────────────────────────────────────────────
-      case 'overview':
+      case 'overview': {
+        if (isPreRevenue && preRevenueAnalysis) {
+          const defensible = preRevenueAnalysis.defensiblePreMoney || {};
+          const irScore = preRevenueAnalysis.investmentReadiness?.score || 0;
+          const exitTarget = data.pass1_data?.business_stage === 'pre_revenue'
+            ? (data.pass1_data?.target_exit_valuation || data.target_exit_valuation || preRevenueAnalysis.vcMethodBackSolve?.targetExitValuation || 0)
+            : 0;
+
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Pre-revenue hero */}
+              <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 40%, #1e3a5f 100%)', padding: '48px 40px', border: 'none', boxShadow: SHADOW.lg }}>
+                <DotGrid opacity={0.05} /><NoiseOverlay opacity={0.15} />
+                <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                  <p style={{ fontSize: 11, letterSpacing: '0.15em', color: '#60A5FA', textTransform: 'uppercase', fontWeight: 600, marginBottom: 16, ...mono }}>Pre-Revenue Benchmarking</p>
+                  <h1 style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginBottom: 8 }}>{data.headline || 'Benchmarking Analysis'}</h1>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 32, maxWidth: '60ch', margin: '0 auto 32px' }}>
+                    Year 0 of {data.pass1_data?.exit_horizon_years || 7}-year journey to {fmt(exitTarget)} target
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 24 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, ...mono }}>Defensible Pre-Money</p>
+                      <p style={{ fontSize: 32, fontWeight: 800, color: '#60A5FA', margin: '0 0 4px', ...mono }}>{fmt(defensible.base || 0)}</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{fmt(defensible.conservative || 0)} – {fmt(defensible.stretch || 0)} range</p>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, ...mono }}>Investment Readiness</p>
+                      <p style={{ fontSize: 32, fontWeight: 800, color: irScore >= 65 ? '#10B981' : irScore >= 40 ? '#F59E0B' : '#EF4444', margin: '0 0 4px', ...mono }}>{irScore}/100</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{irScore >= 65 ? 'Investment Ready' : irScore >= 40 ? 'Needs Preparation' : 'Not Ready'}</p>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, ...mono }}>Readiness Gaps</p>
+                      <p style={{ fontSize: 32, fontWeight: 800, color: '#FBBF24', margin: '0 0 4px', ...mono }}>{data.gap_count || 0}</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>of 5 components below target</p>
+                    </div>
+                  </div>
+                </div>
+              </RevealCard>
+
+              {/* Executive Summary */}
+              {data.executive_summary && (
+                <RevealCard delay={100} style={{ ...glass({ padding: 24 }) }}>
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Executive Summary</h3>
+                  <div style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{data.executive_summary}</div>
+                </RevealCard>
+              )}
+
+              {/* Headline narrative */}
+              {data.position_narrative && (
+                <RevealCard delay={200} style={{ ...glass({ padding: 24 }) }}>
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Position</h3>
+                  <div style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{data.position_narrative}</div>
+                </RevealCard>
+              )}
+            </div>
+          );
+        }
+        // Operating-business overview continues below
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Cinematic hero */}
@@ -822,6 +879,7 @@ export default function BenchmarkingClientDashboard({
             </RevealCard>
           </div>
         );
+      }
 
       // ─── METRICS ─────────────────────────────────────────────────────────
       case 'metrics':
@@ -1651,11 +1709,12 @@ export default function BenchmarkingClientDashboard({
 
       // ─── SCENARIOS ───────────────────────────────────────────────────────
       case 'scenarios': {
-        if (isPreRevenue && preRevenueAnalysis?.scenarios) {
+        const preRevScenarios = preRevenueAnalysis?.scenarios || data.scenarios || data.pass1_data?.pre_revenue_scenarios;
+        if (isPreRevenue && preRevScenarios?.length) {
           return (
             <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <PreRevenueScenariosSection
-                scenarios={preRevenueAnalysis.scenarios}
+                scenarios={preRevScenarios}
                 targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
               />
             </div>
