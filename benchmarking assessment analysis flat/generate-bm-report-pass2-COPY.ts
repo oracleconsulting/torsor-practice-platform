@@ -611,12 +611,28 @@ ${hva.founder_prior_exits ? `- Prior exits: Yes` : ''}
 ` : ''}
 
 ═══════════════════════════════════════════════════════════════════════════════
+HEADLINE CONSTRUCTION (MANDATORY — DO NOT DEVIATE)
+═══════════════════════════════════════════════════════════════════════════════
+
+Target exit: £${Math.round((pass1Data.target_exit_valuation || 0) / 1000000)}M
+Exit horizon: ${pass1Data.exit_horizon_years || 7} years
+Required ARR at exit: £${Math.round((pass1Data.target_exit_valuation || 0) / 10000000)}M (at 10x multiple)
+Primary blocker: identify the highest-severity must_address_now opportunity
+Current round: £${Math.round((pass1Data.pre_revenue_analysis?.defensiblePreMoney?.base || 0) / 1000000)}M
+
+Your headline MUST follow this template exactly:
+"£{target_exit_in_M}M target exit by year {horizon} requires £{required_arr_in_M}M ARR; {primary_blocker_description} blocks the £{round_in_M}M raise today."
+
+DO NOT substitute year-3 or near-term VC method valuations for the target exit figure.
+The engagement target_exit_valuation IS the North Star.
+
+═══════════════════════════════════════════════════════════════════════════════
 YOUR OUTPUT
 ═══════════════════════════════════════════════════════════════════════════════
 
 Return JSON:
 {
-  "headline": "Under 25 words. Target exit value, required ARR path, and the key forward suppressor blocking it.",
+  "headline": "Under 25 words. MUST use the target exit value (£${Math.round((pass1Data.target_exit_valuation || 0) / 1000000)}M), required ARR (£${Math.round((pass1Data.target_exit_valuation || 0) / 10000000)}M), and the key forward suppressor. Follow the headline template above.",
 
   "executiveSummary": "3 paragraphs. Open with the defensible pre-money range (conservative/base/stretch) and investment readiness score. Describe the pipeline status and forecast credibility. Close with the single biggest risk to the raise.",
 

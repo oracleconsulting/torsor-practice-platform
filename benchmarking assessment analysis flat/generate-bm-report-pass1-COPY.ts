@@ -6577,6 +6577,22 @@ serve(async (req) => {
         const roundSize = (signals || {} as any).round_size_target || 500000;
         const exitHorizon = engagement.exit_horizon_years || 7;
 
+        const defensible = prResult.preRevenueAnalysis.defensiblePreMoney;
+        const buildTrajectoryImpact = (projectedVal: number, scenarioNote: string) => {
+          const baseVal = defensible.base || 0;
+          const stretchVal = defensible.stretch || 0;
+          const gap = stretchVal - baseVal;
+          const gapPct = gap > 0 ? Math.min(100, Math.max(0, (projectedVal - baseVal) / gap * 100)) : 0;
+          const tierMovement = projectedVal > stretchVal ? 'unlocks_stretch' :
+                               projectedVal > baseVal ? 'toward_stretch' :
+                               projectedVal > (defensible.conservative || 0) ? 'unlocks_base' : 'below_conservative';
+          return {
+            tierMovement,
+            milestoneInterpretation: `Confirms trajectory toward target ARR. ${scenarioNote}`,
+            gapClosed: `${Math.round(gapPct)}% of the gap between base (${formatEnhancedCurrency(baseVal)}) and stretch (${formatEnhancedCurrency(stretchVal)})`,
+          };
+        };
+
         // 1. Pipeline conversion
         for (const rate of [0.30, 0.50, 0.70]) {
           const achievedArr = pipelineAcv * rate;
@@ -6585,7 +6601,8 @@ serve(async (req) => {
             scenarioName: 'Pipeline Conversion',
             inputs: { conversionRate: `${(rate * 100).toFixed(0)}%`, pipelineAcv },
             outputs: { achievedArr, impliedValuation: val },
-            valuationImpact: { current: prResult.preRevenueAnalysis.defensiblePreMoney.base, projected: val, delta: val - prResult.preRevenueAnalysis.defensiblePreMoney.base },
+            valuationImpact: { current: defensible.base, projected: val, delta: val - defensible.base },
+            trajectoryImpact: buildTrajectoryImpact(val, `${(rate * 100).toFixed(0)}% pipeline conversion drives this valuation tier.`),
             summary: `At ${(rate * 100).toFixed(0)}% conversion of your pipeline, you achieve ${Math.round(achievedArr / 1000)}k ARR, valued at ${Math.round(val / 1000)}k.`,
             methodology: 'Pipeline ACV × conversion rate × ARR multiple for early-revenue stage'
           });
@@ -6600,6 +6617,7 @@ serve(async (req) => {
             inputs: { contractTermYears: term, baseMultiple: arrMultiple },
             outputs: { adjustedMultiple: Math.min(adjustedMultiple, arrMultiple * 2), impliedValuation: val },
             valuationImpact: { current: yr1Arr * arrMultiple, projected: val, delta: val - yr1Arr * arrMultiple },
+            trajectoryImpact: buildTrajectoryImpact(val, `${term}-year contracts strengthen revenue visibility.`),
             summary: `${term}-year contracts command a ${Math.min(adjustedMultiple, arrMultiple * 2).toFixed(1)}x multiple vs ${arrMultiple}x for annual.`,
             methodology: 'Multi-year contracts add ~0.15x per additional year to ARR multiple'
           });
@@ -6614,6 +6632,7 @@ serve(async (req) => {
             inputs: { nrrPct: `${(nrr * 100).toFixed(0)}%`, startingArr: yr1Arr, years: 5 },
             outputs: { compoundedArr: Math.round(compounded), impliedValuation: Math.round(val) },
             valuationImpact: { current: yr1Arr * arrMultiple, projected: Math.round(val), delta: Math.round(val - yr1Arr * arrMultiple) },
+            trajectoryImpact: buildTrajectoryImpact(Math.round(val), `${(nrr * 100).toFixed(0)}% NRR compounds ARR over 5 years.`),
             summary: `At ${(nrr * 100).toFixed(0)}% NRR, your ${Math.round(yr1Arr / 1000)}k ARR compounds to ${Math.round(compounded / 1000)}k over 5 years.`,
             methodology: 'ARR × NRR^years, valued at stage-appropriate ARR multiple'
           });
@@ -6622,7 +6641,7 @@ serve(async (req) => {
         // 4. Dilution waterfall
         let ownership = founderOwnership;
         const rounds = [
-          { name: 'Current Round', size: roundSize, preMoney: prResult.preRevenueAnalysis.defensiblePreMoney.base },
+          { name: 'Current Round', size: roundSize, preMoney: defensible.base },
           { name: 'Series A', size: 3000000, preMoney: 12000000 },
           { name: 'Series B', size: 10000000, preMoney: 40000000 },
         ];
@@ -6638,6 +6657,7 @@ serve(async (req) => {
           inputs: { startingOwnership: founderOwnership, rounds: rounds.map(r => r.name).join(', ') },
           outputs: { finalOwnership: Math.round(ownership * 100) / 100, steps: dilutionSteps },
           valuationImpact: { current: founderOwnership, projected: Math.round(ownership * 100) / 100, delta: Math.round((ownership - founderOwnership / 100) * 100) / 100 },
+          trajectoryImpact: buildTrajectoryImpact(defensible.base, `Dilution waterfall shows ownership path across ${rounds.length} rounds.`),
           summary: `After ${rounds.length} rounds, founder ownership goes from ${founderOwnership}% to ${(ownership).toFixed(1)}%.`,
           methodology: 'Iterative dilution: ownership × (pre-money / post-money) per round'
         });
@@ -6651,13 +6671,19 @@ serve(async (req) => {
             scenarioName: 'Time to Exit Sensitivity',
             inputs: { targetExit, horizon, irrTarget: `${(irr * 100).toFixed(0)}%` },
             outputs: { impliedPostMoney: Math.round(todayPost), impliedPreMoney: Math.round(todayPost - roundSize) },
-            valuationImpact: { current: prResult.preRevenueAnalysis.defensiblePreMoney.base, projected: Math.round(todayPost), delta: Math.round(todayPost - prResult.preRevenueAnalysis.defensiblePreMoney.base) },
+            valuationImpact: { current: defensible.base, projected: Math.round(todayPost), delta: Math.round(todayPost - defensible.base) },
+            trajectoryImpact: buildTrajectoryImpact(Math.round(todayPost), `${horizon}-year exit horizon at 35% IRR target.`),
             summary: `Hitting your exit target in ${horizon} years implies a post-money of ${Math.round(todayPost / 1000)}k today.`,
             methodology: 'VC method back-solve: exit / (1+IRR)^horizon / (1-dilution)'
           });
         }
 
         assessmentData._preRevenue_scenarios = preRevScenarios;
+        assessmentData._preRevenue_scenario_meta = {
+          targetExitValuation: engagement.target_exit_valuation || 6000000,
+          exitHorizonYears: engagement.exit_horizon_years || 7,
+          defensiblePreMoney: prResult.preRevenueAnalysis.defensiblePreMoney,
+        };
 
         // Suppress operating-business fields that don't apply to pre-revenue
         assessmentData.enhanced_suppressors = null;
@@ -7523,6 +7549,7 @@ When writing narratives:
           investment_readiness_score: investmentReadinessScore,
           investment_readiness_breakdown: investmentReadinessBreakdown,
           pre_revenue_scenarios: assessmentData._preRevenue_scenarios || [],
+          pre_revenue_scenario_meta: assessmentData._preRevenue_scenario_meta || null,
         } : {}),
         exit_horizon_years: engagement.exit_horizon_years || null,
         target_exit_valuation: engagement.target_exit_valuation || null,
@@ -7559,7 +7586,6 @@ When writing narratives:
       exit_readiness_breakdown: assessmentData.exit_readiness_breakdown || null,
       // Note: surplus_cash_breakdown is stored in pass1_data only (no top-level column)
       two_paths_narrative: assessmentData.two_paths_narrative || null,
-      benchmark_appendix: benchmarkAppendix,
     };
     
     // Add founder risk data if available
