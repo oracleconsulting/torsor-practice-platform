@@ -1980,16 +1980,28 @@ function calculatePreRevenueValueAnalysis(
 
   // ── VC Method back-solve ──────────────────────────────────────────────
   const irr = vcParams?.irr ?? (isEarlyRevenue ? 0.30 : 0.40);
-  const exitHorizonYears = vcParams?.exit_horizon_years ?? 5;
   const expectedDilution = vcParams?.expected_dilution ?? 0.50;
   const roundSize = signals.round_size_target || 500_000;
 
-  const forecastYear3Rev = signals.forecast_year_3?.revenue || signals.forecast_year_3?.arr || 0;
-  const forecastYear2Rev = signals.forecast_year_2?.revenue || signals.forecast_year_2?.arr || 0;
-  const exitRevEstimate = forecastYear3Rev || forecastYear2Rev || 1_000_000;
+  const engagementTargetExit = engagement?.target_exit_valuation ?? null;
+  const engagementHorizon = engagement?.exit_horizon_years ?? null;
+
+  let targetExitVal: number;
+  let exitHorizonYears: number;
+
+  if (engagementTargetExit && engagementHorizon) {
+    targetExitVal = engagementTargetExit;
+    exitHorizonYears = engagementHorizon;
+    console.log(`[Pre-Revenue Calculator] VC method using founder-stated exit: £${(targetExitVal/1e6).toFixed(1)}M over ${exitHorizonYears} years`);
+  } else {
+    const forecastY3Rev = signals.forecast_year_3?.revenue || signals.forecast_year_3?.arr || 0;
+    const forecastY2Rev = signals.forecast_year_2?.revenue || signals.forecast_year_2?.arr || 0;
+    targetExitVal = (forecastY3Rev || forecastY2Rev || 1_000_000) * (basis?.multiple_mid || 6);
+    exitHorizonYears = 5;
+    console.log(`[Pre-Revenue Calculator] VC method using forecast-derived exit: £${(targetExitVal/1e6).toFixed(1)}M`);
+  }
 
   const exitMultiple = basis.multiple_mid ?? 6;
-  const targetExitVal = exitRevEstimate * exitMultiple;
   const discountFactor = Math.pow(1 + irr, exitHorizonYears);
   const safeDilution = Math.min(Math.max(expectedDilution, 0.01), 0.99);
   const todayPostMoney = discountFactor > 0 ? targetExitVal / discountFactor / (1 - safeDilution) : 0;
@@ -2646,53 +2658,45 @@ function calculatePreRevenueValueAnalysis(
     },
   ];
 
-  // ── Metric targets for pre-revenue trajectory ─────────────────────────
+  // ── Metric targets for pre-revenue trajectory (from registry) ────────
   const metricTargets: any[] = [];
   const targetExitValForMetrics = engagement.target_exit_valuation || 6000000;
-  const exitMultipleForMetrics = basis?.multiple_mid || 10;
 
-  const PRE_REV_METRICS = [
-    { code: 'arr', name: 'Annual Recurring Revenue', category: 'valuation_defining', unit: '£',
-      p25: 500000, p50: 1000000, p75: 2500000, targetByYear: 3,
-      whyThisMatters: 'ARR is the primary valuation driver for SaaS businesses. Hitting P75 commands premium multiples.' },
-    { code: 'nrr', name: 'Net Revenue Retention', category: 'valuation_defining', unit: '%',
-      p25: 100, p50: 110, p75: 120, targetByYear: 3,
-      whyThisMatters: 'NRR above 110% shows expansion revenue outpaces churn — the strongest signal of product-market fit for investors.' },
-    { code: 'gross_margin', name: 'Gross Margin', category: 'operational', unit: '%',
-      p25: 60, p50: 70, p75: 78, targetByYear: 2,
-      whyThisMatters: 'Gross margin above 70% confirms SaaS-grade unit economics and scalable delivery model.' },
-    { code: 'rule_of_40', name: 'Rule of 40', category: 'valuation_defining', unit: '%',
-      p25: 20, p50: 30, p75: 40, targetByYear: 4,
-      whyThisMatters: 'Growth rate + margin above 40 is the benchmark PE/VC use to separate premium from average SaaS.' },
-    { code: 'cac_payback', name: 'CAC Payback Period', category: 'operational', unit: 'months',
-      p25: 30, p50: 18, p75: 12, targetByYear: 3,
-      whyThisMatters: 'CAC payback under 18 months shows capital-efficient growth — critical for fundraising credibility.' },
-    { code: 'contract_length', name: 'Average Contract Length', category: 'investor_readiness', unit: 'years',
-      p25: 1, p50: 2, p75: 3, targetByYear: 2,
-      whyThisMatters: 'Multi-year contracts add 1-2x to ARR multiple and dramatically improve revenue predictability.' },
-  ];
+  // Use metric_set from the industry_valuation_basis row passed as `basis`
+  const registryMetrics = (basis as any)?.metric_set || [];
 
-  for (const m of PRE_REV_METRICS) {
-    const impactDelta = (m.p75 - m.p50) / m.p50;
-    const valuationImpactAtP75 = Math.round(targetExitValForMetrics * impactDelta * 0.1);
+  if (registryMetrics.length === 0) {
+    console.warn('[Pre-Revenue Calculator] No metric_set found in registry — skipping metric target generation');
+  }
+
+  for (const m of registryMetrics) {
+    const isHigherBetter = m.higherIsBetter !== false;
+    const p50 = m.p50;
+    const p75 = m.p75;
+    if (p50 == null || p75 == null) continue;
+
+    const rawDelta = (p75 - p50) / Math.abs(p50 || 1);
+    const impactDelta = isHigherBetter ? rawDelta : -rawDelta;
+    const valuationImpactAtP75 = Math.round(targetExitValForMetrics * Math.abs(impactDelta) * 0.1);
+
     metricTargets.push({
       metricCode: m.code,
       metricName: m.name,
       metricCategory: m.category,
-      p25: m.p25, p50: m.p50, p75: m.p75,
+      p25: m.p25, p50, p75,
       unit: m.unit,
-      targetValue: m.p75,
+      targetValue: p75,
       targetByYear: m.targetByYear,
       currentValue: undefined,
       currentValueDisplay: 'Pre-revenue',
       status: 'not_engaged' as const,
       valuationImpactAtP75,
-      valuationImpactRationale: `Moving from P50 to P75 on ${m.name} drives ~${(impactDelta * 100).toFixed(0)}% valuation uplift at exit`,
+      valuationImpactRationale: `Moving from P50 to P75 on ${m.name} drives ~${(Math.abs(impactDelta) * 100).toFixed(0)}% valuation uplift at exit`,
       whyThisMatters: m.whyThisMatters,
     });
   }
 
-  console.log('[Pre-Revenue Calculator] Generated', metricTargets.length, 'metric targets');
+  console.log('[Pre-Revenue Calculator] Generated', metricTargets.length, 'metric targets from registry');
 
   // ── Caveats ───────────────────────────────────────────────────────────
   const caveats: string[] = [
@@ -6609,7 +6613,8 @@ serve(async (req) => {
           const achievedArr = pipelineAcv * rate;
           const val = achievedArr * arrMultiple;
           preRevScenarios.push({
-            scenarioName: 'Pipeline Conversion',
+            scenarioName: `Pipeline at ${(rate * 100).toFixed(0)}% conversion`,
+            scenarioGroup: 'Pipeline Conversion',
             inputs: { conversionRate: `${(rate * 100).toFixed(0)}%`, pipelineAcv },
             outputs: { achievedArr, impliedValuation: val },
             valuationImpact: { current: defensible.base, projected: val, delta: val - defensible.base },
@@ -6624,7 +6629,8 @@ serve(async (req) => {
           const adjustedMultiple = arrMultiple * (1 + (term - 1) * 0.15);
           const val = yr1Arr * Math.min(adjustedMultiple, arrMultiple * 2);
           preRevScenarios.push({
-            scenarioName: 'Contract Term Impact',
+            scenarioName: `${term}-year contracts`,
+            scenarioGroup: 'Contract Term Impact',
             inputs: { contractTermYears: term, baseMultiple: arrMultiple },
             outputs: { adjustedMultiple: Math.min(adjustedMultiple, arrMultiple * 2), impliedValuation: val },
             valuationImpact: { current: yr1Arr * arrMultiple, projected: val, delta: val - yr1Arr * arrMultiple },
@@ -6639,7 +6645,8 @@ serve(async (req) => {
           const compounded = yr1Arr * Math.pow(nrr, 4);
           const val = compounded * arrMultiple;
           preRevScenarios.push({
-            scenarioName: 'NRR Compounding',
+            scenarioName: `NRR ${(nrr * 100).toFixed(0)}% over 5 years`,
+            scenarioGroup: 'NRR Compounding',
             inputs: { nrrPct: `${(nrr * 100).toFixed(0)}%`, startingArr: yr1Arr, years: 5 },
             outputs: { compoundedArr: Math.round(compounded), impliedValuation: Math.round(val) },
             valuationImpact: { current: yr1Arr * arrMultiple, projected: Math.round(val), delta: Math.round(val - yr1Arr * arrMultiple) },
@@ -6665,6 +6672,7 @@ serve(async (req) => {
         }
         preRevScenarios.push({
           scenarioName: 'Dilution Waterfall',
+          scenarioGroup: 'Dilution',
           inputs: { startingOwnership: founderOwnership, rounds: rounds.map(r => r.name).join(', ') },
           outputs: { finalOwnership: Math.round(ownership * 100) / 100, steps: dilutionSteps },
           valuationImpact: { current: founderOwnership, projected: Math.round(ownership * 100) / 100, delta: Math.round((ownership - founderOwnership / 100) * 100) / 100 },
@@ -6679,7 +6687,8 @@ serve(async (req) => {
           const dilution = 0.50;
           const todayPost = targetExit / Math.pow(1 + irr, horizon) / (1 - dilution);
           preRevScenarios.push({
-            scenarioName: 'Time to Exit Sensitivity',
+            scenarioName: `${horizon}-year exit horizon`,
+            scenarioGroup: 'Time to Exit Sensitivity',
             inputs: { targetExit, horizon, irrTarget: `${(irr * 100).toFixed(0)}%` },
             outputs: { impliedPostMoney: Math.round(todayPost), impliedPreMoney: Math.round(todayPost - roundSize) },
             valuationImpact: { current: defensible.base, projected: Math.round(todayPost), delta: Math.round(todayPost - defensible.base) },

@@ -450,9 +450,30 @@ export function BenchmarkingAdminView({
   const revPerEmployeeMetric = metrics.find((m) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
   const revPerEmployee = revPerEmployeeMetric?.clientValue || clientData.revenuePerEmployee || 0;
   
-  // Use admin opening statement from data if available, otherwise generate a default
-  const defaultOpeningStatement = `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${revPerEmployee.toLocaleString()} places you at the ${getOrdinalSuffix(data.overall_percentile || 0)} percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
-  const openingStatement = data.admin_opening_statement || defaultOpeningStatement;
+  // Use admin opening statement from data if available, otherwise generate a stage-aware default
+  const buildPreRevenueDefaultOpening = (): string => {
+    const pra = pass1Data?.pre_revenue_analysis ?? {} as any;
+    const base = pra?.defensiblePreMoney?.base;
+    const ir = data?.investment_readiness_score ?? pra?.investmentReadiness?.score;
+    const baseStr = base ? `£${(base / 1e6).toFixed(2)}M` : 'TBC';
+    const irStr = ir != null ? `${ir}/100` : 'TBC';
+    return `Walking through the benchmarking analysis. Defensible pre-money sits at ${baseStr}, investment readiness scores ${irStr}. We will work through what is driving each, what would lift them, and what we can help ship in the next 90 days.`;
+  };
+
+  const operatingDefaultOpening = `Walking through the analysis with you. The data we have lets us identify key opportunities; we will surface what is missing as we go.`;
+
+  const defaultOpeningStatement = isPreRevenue
+    ? buildPreRevenueDefaultOpening()
+    : `Based on our benchmarking analysis, we've identified a £${parseFloat(data.total_annual_opportunity || '0').toLocaleString()} annual opportunity. Your revenue per employee of £${revPerEmployee.toLocaleString()} places you at the ${getOrdinalSuffix(data.overall_percentile || 0)} percentile - meaning ${100 - (data.overall_percentile || 0)}% of comparable firms are generating more revenue per head. Let me walk you through what we've found and what it means for your business.`;
+  const openingStatement = (() => {
+    const llmOpening = data.admin_opening_statement;
+    if (!llmOpening) return defaultOpeningStatement;
+    const lower = llmOpening.toLowerCase();
+    if (lower.includes('we lack sufficient data') || lower.includes('insufficient data')) {
+      return isPreRevenue ? buildPreRevenueDefaultOpening() : operatingDefaultOpening;
+    }
+    return llmOpening;
+  })();
 
   return (
     <div className="min-h-screen bg-slate-100">

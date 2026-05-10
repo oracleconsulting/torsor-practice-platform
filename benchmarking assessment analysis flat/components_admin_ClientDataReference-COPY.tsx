@@ -476,8 +476,8 @@ export function ClientDataReference({
         </div>
       )}
       
-      {/* Founder Risk */}
-      {founderRiskScore !== undefined && (
+      {/* Founder Risk (operating only — pre-revenue captures this in IR) */}
+      {!isPreRevenue && founderRiskScore !== undefined && (
         <div className="pt-3 border-t border-slate-200">
           <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Founder Risk</p>
           <div className="flex items-center justify-between">

@@ -467,6 +467,13 @@ function buildPreRevenuePass2Prompt(pass1Data: any): string {
   const irScore = preRevenue.investmentReadiness || {};
   const metricTargets = preRevenue.metricTargets || [];
 
+  const roundSize = signals.round_size_target
+    || preRevenue.vcMethodBackSolve?.roundSize
+    || null;
+  const roundPhrase = roundSize
+    ? (roundSize >= 1000000 ? `£${(roundSize / 1000000).toFixed(2)}M` : `£${Math.round(roundSize / 1000)}k`)
+    : 'TBC';
+
   const valuationLenses = [
     preRevenue.vcMethodBackSolve ? `VC Method: £${((preRevenue.vcMethodBackSolve.todayPreMoneyImplied || 0) / 1e6).toFixed(2)}M` : null,
     preRevenue.scorecardValuation ? `Scorecard: £${((preRevenue.scorecardValuation.impliedPreMoney || 0) / 1e6).toFixed(2)}M` : null,
@@ -618,11 +625,15 @@ Target exit: £${Math.round((pass1Data.target_exit_valuation || 0) / 1000000)}M
 Exit horizon: ${pass1Data.exit_horizon_years || 7} years
 Required ARR at exit: £${Math.round((pass1Data.target_exit_valuation || 0) / 10000000)}M (at 10x multiple)
 Primary blocker: identify the highest-severity must_address_now opportunity
-Current round: £${Math.round((pass1Data.pre_revenue_analysis?.defensiblePreMoney?.base || 0) / 1000000)}M
+Round size founder is raising: ${roundPhrase}
+Defensible pre-money (base case): £${((pass1Data.pre_revenue_analysis?.defensiblePreMoney?.base || 0) / 1000000).toFixed(2)}M
+Founder-stated pre-money (if any): ${pass1Data.pre_revenue_signals?.round_pre_money_target ? '£' + (pass1Data.pre_revenue_signals.round_pre_money_target / 1000000).toFixed(2) + 'M' : 'not stated'}
 
-Your headline MUST follow this template exactly:
-"£{target_exit_in_M}M target exit by year {horizon} requires £{required_arr_in_M}M ARR; {primary_blocker_description} blocks the £{round_in_M}M raise today."
+Your headline MUST follow this template:
+"£{target_exit_in_M}M target exit by year {horizon} requires £{required_arr_in_M}M ARR; {primary_blocker} blocks the ${roundPhrase} raise today."
 
+The "raise" is the cash the founder is asking from investors (round_size_target), NOT the company valuation (defensible pre-money).
+DO NOT substitute the defensible pre-money for the round size.
 DO NOT substitute year-3 or near-term VC method valuations for the target exit figure.
 The engagement target_exit_valuation IS the North Star.
 
@@ -845,6 +856,24 @@ serve(async (req) => {
       console.log('[BM Pass 2] Could not fetch assessment responses:', err);
     }
     
+    // Fetch pre-revenue signals (round_size_target, round_pre_money_target) for headline accuracy
+    let preRevenueSignals: Record<string, unknown> | null = null;
+    if (isPreRevenue) {
+      try {
+        const { data: signals } = await supabaseClient
+          .from('bm_pre_revenue_signals')
+          .select('round_size_target, round_pre_money_target')
+          .eq('engagement_id', engagementId)
+          .maybeSingle();
+        preRevenueSignals = signals;
+        if (signals) {
+          console.log(`[BM Pass 2] Loaded pre-revenue signals: round_size=${signals.round_size_target}, pre_money=${signals.round_pre_money_target}`);
+        }
+      } catch (sigErr) {
+        console.warn('[BM Pass 2] Could not fetch pre-revenue signals (continuing without):', sigErr);
+      }
+    }
+
     // Build and send prompt
     console.log('[BM Pass 2] Calling Opus for narrative generation...');
     const startTime = Date.now();
@@ -872,6 +901,7 @@ serve(async (req) => {
       utilisation_rate: pass1Base?.utilisation_rate,
       hva: hvaData,
       assessmentResponses,
+      pre_revenue_signals: preRevenueSignals,
     };
     
     // Log industry code for debugging
