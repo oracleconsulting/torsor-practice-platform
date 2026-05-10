@@ -7559,7 +7559,6 @@ When writing narratives:
       exit_readiness_breakdown: assessmentData.exit_readiness_breakdown || null,
       // Note: surplus_cash_breakdown is stored in pass1_data only (no top-level column)
       two_paths_narrative: assessmentData.two_paths_narrative || null,
-      benchmark_appendix: benchmarkAppendix,
     };
     
     // Add founder risk data if available
