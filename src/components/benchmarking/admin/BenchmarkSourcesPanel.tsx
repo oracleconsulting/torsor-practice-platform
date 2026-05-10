@@ -595,17 +595,3 @@ function extractDomain(url: string): string {
   }
 }
 
-function formatValue(value: number, metricCode: string): string {
-  if (!value && value !== 0) return 'N/A';
-  
-  if (metricCode?.includes('margin') || metricCode?.includes('rate') || metricCode?.includes('utilisation') || metricCode?.includes('concentration') || metricCode?.includes('growth')) {
-    return `${value}%`;
-  }
-  if (metricCode?.includes('days')) {
-    return `${value} days`;
-  }
-  if (metricCode?.includes('revenue') || metricCode?.includes('hourly')) {
-    return `£${value.toLocaleString()}`;
-  }
-  return String(value);
-}

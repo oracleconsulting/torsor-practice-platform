@@ -25,7 +25,8 @@ const STATUS_CONFIG: Record<string, { bg: string; border: string; text: string; 
   skipped: { bg: '#f9fafb', border: '#d1d5db', text: '#6b7280', icon: SkipForward },
 };
 
-export function PreRevenueDataCollectionPanel({ engagementId, gaps, onRefresh }: PreRevenueDataCollectionPanelProps) {
+export function PreRevenueDataCollectionPanel({ engagementId, gaps: _gaps, onRefresh }: PreRevenueDataCollectionPanelProps) {
+  void _gaps;
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
