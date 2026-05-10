@@ -604,6 +604,31 @@ serve(async (req) => {
       registry_violations: registrySourceViolations.length,
     });
 
+    if (newEngagementStatus === 'integrity_pass_complete') {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL');
+      const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      if (supabaseUrl && serviceRoleKey) {
+        const pass2Url = `${supabaseUrl}/functions/v1/generate-bm-report-pass2`;
+        console.log(`[BM Integrity Pass] Triggering Pass 2 at: ${pass2Url}`);
+        try {
+          const pass2Response = await fetch(pass2Url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
+            body: JSON.stringify({ engagementId }),
+          });
+          if (!pass2Response.ok) {
+            console.error('[BM Integrity Pass] Pass 2 trigger failed:', pass2Response.status);
+          } else {
+            console.log('[BM Integrity Pass] ✅ Pass 2 triggered successfully');
+          }
+        } catch (pass2Err) {
+          console.error('[BM Integrity Pass] Failed to trigger Pass 2:', pass2Err);
+        }
+      }
+    } else {
+      console.warn('[BM Integrity Pass] Engagement at integrity_review_required — Pass 2 NOT triggered');
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

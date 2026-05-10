@@ -6,6 +6,30 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+async function fetchSafeComparables(supabase: any, industryCode: string, businessStage: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase
+      .from('industry_safe_comparables')
+      .select('company_name')
+      .eq('is_active', true)
+      .eq('industry_code', industryCode)
+      .or(`business_stage.eq.${businessStage},business_stage.eq.all`);
+    if (error || !data) return [];
+    return data.map((r: any) => r.company_name).filter((n: any) => typeof n === 'string');
+  } catch (err) {
+    console.warn('[Benchmark Search] Could not fetch safe comparables:', err);
+    return [];
+  }
+}
+
+const PERPLEXITY_STATIC_SAFE = [
+  'FCA', 'PRA', 'HMRC', 'ICO', 'NCSC', 'Companies House', 'BVCA',
+  'AML', 'CTF', 'KYC', 'KYB', 'GDPR', 'SEIS', 'EIS', 'AMLD6', 'FATF',
+  'UK', 'US', 'EU', 'EEA', 'London',
+  'Beauhurst', 'PitchBook', 'Crunchbase', 'FinTech Global', 'BusinessCloud',
+  'RegTech100', 'SaaS Capital', 'ONS', 'Innovate UK',
+];
+
 // =============================================================================
 // FETCH INDUSTRY BENCHMARKS
 // =============================================================================
@@ -108,7 +132,7 @@ async function getMetricSet(
 /**
  * Build the search prompt for Perplexity
  */
-function buildSearchPrompt(query: BenchmarkQuery, metrics?: any[]): string {
+function buildSearchPrompt(query: BenchmarkQuery, metrics?: any[], safeComparables: string[] = []): string {
   const sizeContext = query.revenueBand 
     ? `with annual revenue ${formatRevenueBand(query.revenueBand)}` 
     : '';
@@ -152,6 +176,14 @@ CRITICAL REQUIREMENTS:
 - If data is from different regions, note this
 - Be specific about business size ranges if the benchmarks vary by company size
 - If you cannot find reliable data for a metric, say so rather than guess
+
+ENTITY NAMING CONSTRAINT (STRICT):
+The "marketContext" field may name SPECIFIC COMPANIES only from this approved list:
+${safeComparables.length > 0 ? safeComparables.map(c => `- ${c}`).join('\n') : '(no curated comparables — do not name any specific companies)'}
+
+You may also name regulators and data sources from: ${PERPLEXITY_STATIC_SAFE.join(', ')}
+
+If you want to reference a company NOT on these lists, use generic descriptors instead ("comparable firms", "established competitors", "industry peers").
 
 Respond in this exact JSON format:
 {
@@ -247,13 +279,14 @@ async function checkCache(
 async function performLiveSearch(
   query: BenchmarkQuery,
   openRouterKey: string,
-  registryMetrics?: any[]
+  registryMetrics?: any[],
+  safeComparables: string[] = []
 ): Promise<SearchResult> {
   const startTime = Date.now();
   
   console.log(`[Benchmark Search] Calling Perplexity Sonar Pro for ${query.industryName}...`);
   
-  const prompt = buildSearchPrompt(query, registryMetrics);
+  const prompt = buildSearchPrompt(query, registryMetrics, safeComparables);
   
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -611,8 +644,12 @@ serve(async (req) => {
       throw new Error('OPENROUTER_API_KEY not configured');
     }
 
+    // Load safe comparables for entity grounding
+    const safeComparables = await fetchSafeComparables(supabase, query.industryCode, query.businessStage || 'all');
+    console.log(`[Benchmark Search] Loaded ${safeComparables.length} safe comparables`);
+
     // Perform live search
-    const searchResult = await performLiveSearch(query, openRouterKey, metrics);
+    const searchResult = await performLiveSearch(query, openRouterKey, metrics, safeComparables);
 
     // Save results if successful
     let saveResult = { updated: 0, created: 0 };

@@ -8068,40 +8068,38 @@ When writing narratives:
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    console.log('[BM Pass 1] ✅ Report saved to database. Now triggering Pass 2...');
-    
-    // Trigger Pass 2 - fire and forget (don't await completion)
-    // IMPORTANT: Must trigger BEFORE returning response, setTimeout is unreliable in edge functions
+    console.log('[BM Pass 1] ✅ Report saved to database. Now triggering Integrity Pass (1.5)...');
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
+
     if (!supabaseUrl || !serviceRoleKey) {
-      console.error('[BM Pass 1] ❌ Missing SUPABASE_URL or SERVICE_ROLE_KEY - cannot trigger Pass 2!');
+      console.error('[BM Pass 1] Missing SUPABASE_URL or SERVICE_ROLE_KEY — cannot trigger Integrity Pass!');
     } else {
-      // Fire-and-forget: Start the request but don't wait for response
-      // This ensures the request is sent before the function returns
-      const pass2Url = `${supabaseUrl}/functions/v1/generate-bm-report-pass2`;
-      console.log(`[BM Pass 1] Calling Pass 2 at: ${pass2Url}`);
-      
+      const integrityUrl = `${supabaseUrl}/functions/v1/generate-bm-integrity-pass`;
+      console.log(`[BM Pass 1] Calling Integrity Pass at: ${integrityUrl}`);
+
       try {
-        const pass2Response = await fetch(pass2Url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${serviceRoleKey}`
-            },
-            body: JSON.stringify({ engagementId })
+        const integrityResponse = await fetch(integrityUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
+          body: JSON.stringify({ engagementId }),
+        });
+
+        if (!integrityResponse.ok) {
+          const errorText = await integrityResponse.text();
+          console.error('[BM Pass 1] Integrity Pass trigger failed:', integrityResponse.status, errorText);
+        } else {
+          const integrityResult = await integrityResponse.json();
+          console.log('[BM Pass 1] ✅ Integrity Pass triggered successfully:', {
+            status: integrityResult.status,
+            allowlist_size: integrityResult.allowlist_size,
+            review_required: integrityResult.review_required,
           });
-          
-          if (!pass2Response.ok) {
-            const errorText = await pass2Response.text();
-          console.error('[BM Pass 1] ❌ Pass 2 trigger failed:', pass2Response.status, errorText);
-          } else {
-          console.log('[BM Pass 1] ✅ Pass 2 triggered successfully (response received)');
-          }
-      } catch (pass2Err) {
-        console.error('[BM Pass 1] ❌ Failed to trigger Pass 2:', pass2Err);
         }
+      } catch (integrityErr) {
+        console.error('[BM Pass 1] Failed to trigger Integrity Pass:', integrityErr);
+      }
     }
     
     return new Response(
