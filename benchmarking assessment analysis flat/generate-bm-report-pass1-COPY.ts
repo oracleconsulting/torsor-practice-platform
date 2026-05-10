@@ -6290,12 +6290,33 @@ serve(async (req) => {
     };
     
     // Get HVA data first (needed for enrichment)
-    const { data: hvaData } = await supabaseClient
-      .from('client_assessments')
-      .select('responses, value_analysis_data')
-      .eq('client_id', engagement.client_id)
+    // Try by engagement_id first (newer pattern via bm_assessment_responses)
+    let hvaData: any = null;
+    const { data: hvaByEngagement } = await supabaseClient
+      .from('bm_assessment_responses')
+      .select('*')
+      .eq('engagement_id', engagementId)
       .eq('assessment_type', 'part3')
       .maybeSingle();
+
+    if (hvaByEngagement) {
+      hvaData = hvaByEngagement;
+    } else {
+      // Fall back to client_id (HVA assessments are client-level)
+      const clientId = engagement?.client_id;
+      if (clientId) {
+        const { data: hvaByClient } = await supabaseClient
+          .from('client_assessments')
+          .select('responses, value_analysis_data')
+          .eq('client_id', clientId)
+          .eq('assessment_type', 'part3')
+          .maybeSingle();
+        if (hvaByClient) {
+          hvaData = hvaByClient;
+          console.log('[BM Pass 1] HVA Part 3 found via client_id fallback');
+        }
+      }
+    }
     
     // =========================================================================
     // CRITICAL FIX: If no HVA Part 3 data, infer from assessment responses
@@ -6586,7 +6607,7 @@ serve(async (req) => {
         const preRevScenarios: any[] = [];
         const targetExit = engagement.target_exit_valuation || 6000000;
         const pipelineAcv = (signals || {} as any).pipeline_qualified_acv || 200000;
-        const yr1Arr = (signals || {} as any).forecast_year_1?.arr || pipelineAcv * 0.5;
+        const yr1Arr = (signals || {} as any).forecast_year_1?.arr || (signals || {} as any).forecast_year_1?.revenue || (signals || {} as any).pipeline_qualified_acv || 100000;
         const arrMultiple = basisRow?.multiple_mid || 5;
         const founderOwnership = (signals || {} as any).founder_ownership_current_pct || 80;
         const roundSize = (signals || {} as any).round_size_target || 500000;
@@ -6641,17 +6662,18 @@ serve(async (req) => {
         }
 
         // 3. NRR compounding
+        const nrrYears = Math.min(engagement.exit_horizon_years || 5, 5);
         for (const nrr of [1.00, 1.10, 1.20]) {
-          const compounded = yr1Arr * Math.pow(nrr, 4);
+          const compounded = yr1Arr * Math.pow(nrr, nrrYears);
           const val = compounded * arrMultiple;
           preRevScenarios.push({
-            scenarioName: `NRR ${(nrr * 100).toFixed(0)}% over 5 years`,
+            scenarioName: `NRR ${(nrr * 100).toFixed(0)}% over ${nrrYears} years`,
             scenarioGroup: 'NRR Compounding',
-            inputs: { nrrPct: `${(nrr * 100).toFixed(0)}%`, startingArr: yr1Arr, years: 5 },
+            inputs: { nrrPct: `${(nrr * 100).toFixed(0)}%`, startingArr: yr1Arr, years: nrrYears },
             outputs: { compoundedArr: Math.round(compounded), impliedValuation: Math.round(val) },
             valuationImpact: { current: yr1Arr * arrMultiple, projected: Math.round(val), delta: Math.round(val - yr1Arr * arrMultiple) },
-            trajectoryImpact: buildTrajectoryImpact(Math.round(val), `${(nrr * 100).toFixed(0)}% NRR compounds ARR over 5 years.`),
-            summary: `At ${(nrr * 100).toFixed(0)}% NRR, your ${Math.round(yr1Arr / 1000)}k ARR compounds to ${Math.round(compounded / 1000)}k over 5 years.`,
+            trajectoryImpact: buildTrajectoryImpact(Math.round(val), `${(nrr * 100).toFixed(0)}% NRR compounds ARR over ${nrrYears} years.`),
+            summary: `At ${(nrr * 100).toFixed(0)}% NRR, your ${Math.round(yr1Arr / 1000)}k ARR compounds to ${Math.round(compounded / 1000)}k over ${nrrYears} years.`,
             methodology: 'ARR × NRR^years, valued at stage-appropriate ARR multiple'
           });
         }
@@ -6682,17 +6704,18 @@ serve(async (req) => {
         });
 
         // 5. Time-to-exit sensitivity
+        const exitIrr = businessStage === 'pre_revenue' ? 0.40 : 0.30;
+        const exitTarget = engagement.target_exit_valuation || targetExit;
         for (const horizon of [5, 7, 9]) {
-          const irr = 0.35;
           const dilution = 0.50;
-          const todayPost = targetExit / Math.pow(1 + irr, horizon) / (1 - dilution);
+          const todayPost = exitTarget / Math.pow(1 + exitIrr, horizon) / (1 - dilution);
           preRevScenarios.push({
             scenarioName: `${horizon}-year exit horizon`,
             scenarioGroup: 'Time to Exit Sensitivity',
-            inputs: { targetExit, horizon, irrTarget: `${(irr * 100).toFixed(0)}%` },
+            inputs: { targetExit: exitTarget, horizon, irrTarget: `${(exitIrr * 100).toFixed(0)}%` },
             outputs: { impliedPostMoney: Math.round(todayPost), impliedPreMoney: Math.round(todayPost - roundSize) },
             valuationImpact: { current: defensible.base, projected: Math.round(todayPost), delta: Math.round(todayPost - defensible.base) },
-            trajectoryImpact: buildTrajectoryImpact(Math.round(todayPost), `${horizon}-year exit horizon at 35% IRR target.`),
+            trajectoryImpact: buildTrajectoryImpact(Math.round(todayPost), `${horizon}-year exit horizon at ${(exitIrr * 100).toFixed(0)}% IRR target.`),
             summary: `Hitting your exit target in ${horizon} years implies a post-money of ${Math.round(todayPost / 1000)}k today.`,
             methodology: 'VC method back-solve: exit / (1+IRR)^horizon / (1-dilution)'
           });
@@ -7247,66 +7270,68 @@ When writing narratives:
     // ====================================================================
     // The LLM generates these non-deterministically. Calculate from actual
     // metric data to ensure stability across regenerations.
-    if (pass1Data.metricsComparison && pass1Data.metricsComparison.length > 0) {
-      const primaryMetrics = pass1Data.metricsComparison.filter((m: any) => {
-        const code = (m.metricCode || m.metric_code || '').toLowerCase();
-        // Only count primary financial metrics, not supplementary ones
-        return (
-          !code.includes('concentration') &&
-          !code.includes('recurring') &&
-          !code.includes('project_margin') &&
-          !code.includes('hourly_rate')
-        );
-      });
-
-      if (primaryMetrics.length > 0) {
-        // Calculate weighted average percentile
-        const avgPercentile = Math.round(
-          primaryMetrics.reduce((sum: number, m: any) => sum + (m.percentile || 50), 0) / primaryMetrics.length
-        );
-
-        // Classify strengths vs gaps
-        // Rule: pct >= 75 = strength
-        //        pct >= 50 AND no material impact = strength
-        //        else = gap
-        let strengths = 0;
-        let gaps = 0;
-        for (const m of primaryMetrics) {
-          const pct = m.percentile || 50;
-          const impact = Math.abs(m.annualImpact || m.annual_impact || m._originalAnnualImpact || 0);
-          if (pct >= 75) {
-            strengths++;
-          } else if (pct >= 50 && impact < 10000) {
-            strengths++;
-          } else {
-            gaps++;
-          }
-        }
-
-        // Round percentile to nearest 5 for cleaner display
-        const roundedPercentile = Math.round(avgPercentile / 5) * 5;
-
-        const llmPercentile = pass1Data.overallPosition?.percentile;
-        const llmStrengths = pass1Data.overallPosition?.strengthCount;
-        const llmGaps = pass1Data.overallPosition?.gapCount;
-
-        if (
-          llmPercentile !== roundedPercentile ||
-          llmStrengths !== strengths ||
-          llmGaps !== gaps
-        ) {
-          console.log(
-            `[Pass 1] Deterministic override: percentile ${llmPercentile}->${roundedPercentile}, strengths ${llmStrengths}->${strengths}, gaps ${llmGaps}->${gaps}`
+    if (!isPreRevenue) {
+      // Operating: apply deterministic override as before
+      if (pass1Data.metricsComparison && pass1Data.metricsComparison.length > 0) {
+        const primaryMetrics = pass1Data.metricsComparison.filter((m: any) => {
+          const code = (m.metricCode || m.metric_code || '').toLowerCase();
+          return (
+            !code.includes('concentration') &&
+            !code.includes('recurring') &&
+            !code.includes('project_margin') &&
+            !code.includes('hourly_rate')
           );
-        }
+        });
 
-        if (!pass1Data.overallPosition) pass1Data.overallPosition = {};
-        pass1Data.overallPosition._llmPercentile = llmPercentile;
-        pass1Data.overallPosition._llmStrengthCount = llmStrengths;
-        pass1Data.overallPosition._llmGapCount = llmGaps;
-        pass1Data.overallPosition.percentile = roundedPercentile;
-        pass1Data.overallPosition.strengthCount = strengths;
-        pass1Data.overallPosition.gapCount = gaps;
+        if (primaryMetrics.length > 0) {
+          const avgPercentile = Math.round(
+            primaryMetrics.reduce((sum: number, m: any) => sum + (m.percentile || 50), 0) / primaryMetrics.length
+          );
+
+          let strengths = 0;
+          let gaps = 0;
+          for (const m of primaryMetrics) {
+            const pct = m.percentile || 50;
+            const impact = Math.abs(m.annualImpact || m.annual_impact || m._originalAnnualImpact || 0);
+            if (pct >= 75) {
+              strengths++;
+            } else if (pct >= 50 && impact < 10000) {
+              strengths++;
+            } else {
+              gaps++;
+            }
+          }
+
+          const roundedPercentile = Math.round(avgPercentile / 5) * 5;
+
+          const llmPercentile = pass1Data.overallPosition?.percentile;
+          const llmStrengths = pass1Data.overallPosition?.strengthCount;
+          const llmGaps = pass1Data.overallPosition?.gapCount;
+
+          if (
+            llmPercentile !== roundedPercentile ||
+            llmStrengths !== strengths ||
+            llmGaps !== gaps
+          ) {
+            console.log(
+              `[Pass 1] Deterministic override (operating): percentile ${llmPercentile}->${roundedPercentile}, strengths ${llmStrengths}->${strengths}, gaps ${llmGaps}->${gaps}`
+            );
+          }
+
+          if (!pass1Data.overallPosition) pass1Data.overallPosition = {};
+          pass1Data.overallPosition._llmPercentile = llmPercentile;
+          pass1Data.overallPosition._llmStrengthCount = llmStrengths;
+          pass1Data.overallPosition._llmGapCount = llmGaps;
+          pass1Data.overallPosition.percentile = roundedPercentile;
+          pass1Data.overallPosition.strengthCount = strengths;
+          pass1Data.overallPosition.gapCount = gaps;
+        }
+      }
+    } else {
+      // Pre-revenue: percentile is meaningless. Keep null. gap_count set by IR calculator.
+      console.log(`[Pass 1] Skipping deterministic override (${businessStage}): pre-revenue has no percentile`);
+      if (pass1Data.overallPosition) {
+        pass1Data.overallPosition.percentile = null;
       }
     }
 
@@ -7715,8 +7740,9 @@ When writing narratives:
       reportData.investment_readiness_score = investmentReadinessScore;
       reportData.investment_readiness_breakdown = investmentReadinessBreakdown;
 
-      // Suppress operating-business fields that don't apply to pre-revenue
-      reportData.value_analysis = null;
+      // For pre-revenue: write the pre-revenue-adapted ValueAnalysis to the top-level column
+      // so admin panels that read data.value_analysis still render
+      reportData.value_analysis = assessmentData.value_analysis || null;
       reportData.value_suppressors = null;
       reportData.enhanced_suppressors = null;
       reportData.exit_readiness_breakdown = null;
