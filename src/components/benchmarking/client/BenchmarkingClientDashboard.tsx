@@ -110,6 +110,9 @@ interface BenchmarkAnalysis {
     pre_revenue_analysis?: any;
     investment_readiness_breakdown?: any;
     benchmark_appendix?: any;
+    pre_revenue_scenarios?: any[];
+    exit_horizon_years?: number;
+    target_exit_valuation?: number;
   };
   hva_data?: {
     competitive_moat?: string[];
@@ -129,6 +132,9 @@ interface BenchmarkAnalysis {
   pre_revenue_analysis?: any;
   investment_readiness_score?: number;
   investment_readiness_breakdown?: any;
+  two_paths_narrative?: TwoPathsNarrative;
+  scenarios?: any[];
+  target_exit_valuation?: number;
 }
 
 interface MetricComparison {
