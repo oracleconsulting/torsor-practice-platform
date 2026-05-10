@@ -33,6 +33,7 @@ import { ForwardValueBridgeSection } from './ForwardValueBridgeSection';
 import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
 import { InvestmentReadinessSection } from './InvestmentReadinessSection';
 import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
+import { BenchmarkAppendix } from '../BenchmarkAppendix';
 
 // ─── Types (FROZEN — matches BenchmarkingClientReport exactly) ────────────
 
@@ -108,6 +109,7 @@ interface BenchmarkAnalysis {
     business_stage?: string;
     pre_revenue_analysis?: any;
     investment_readiness_breakdown?: any;
+    benchmark_appendix?: any;
   };
   hva_data?: {
     competitive_moat?: string[];
@@ -659,7 +661,7 @@ export default function BenchmarkingClientDashboard({
   const alignedPotentialValue = (valueAnalysis?.currentMarketValue?.mid ?? 0) + realisticRecovery;
   const exitBreakdown = data.exit_readiness_breakdown ?? data.pass1_data?.exit_readiness_breakdown;
   const opportunitySynthesis = safeJsonParse<{ quickWins?: string[]; watchOuts?: string[]; topPriority?: string; clientHealth?: string } | null>(data.opportunity_synthesis as string, null);
-  const twoPathsNarrative = data.pass1_data?.two_paths_narrative || 
+  const twoPathsNarrative = data.two_paths_narrative || data.pass1_data?.two_paths_narrative || 
     safeJsonParse<any>(data.pass1_data as any, {})?.two_paths_narrative || null;
   const surplusCashBreakdown = data.pass1_data?.surplus_cash_breakdown;
 
@@ -2323,7 +2325,7 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 {/* Connection flow */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20, fontSize: 12 }}>
-                  {['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value'].map((step, i) => (
+                  {(twoPathsNarrative.milestonePillLabels || ['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value']).map((step: string, i: number) => (
                     <Fragment key={i}>
                       {i > 0 && <ArrowRight style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)' }} />}
                       <span style={{ padding: '4px 14px', borderRadius: 6, background: `rgba(255,255,255,0.12)`, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>{step}</span>
@@ -2355,7 +2357,7 @@ export default function BenchmarkingClientDashboard({
                 ))}
               </div>
               <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)', textAlign: 'center' }}>
-                <p style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.6 }}>{twoPathsNarrative.bottomLine}</p>
+                <p style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.6 }}>{twoPathsNarrative.bottomLine || 'The path forward is about protecting what you have built and unlocking what is already there.'}</p>
               </div>
             </RevealCard>
 
@@ -2534,6 +2536,11 @@ export default function BenchmarkingClientDashboard({
           <div key={activeSection} style={{ animation: 'fadeIn 0.4s ease' }}>
             {renderSection()}
           </div>
+          {data.pass1_data?.benchmark_appendix && (
+            <div style={{ marginTop: 20 }}>
+              <BenchmarkAppendix appendix={data.pass1_data.benchmark_appendix} />
+            </div>
+          )}
         </div>
       </div>
     </div>

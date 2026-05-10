@@ -66,6 +66,61 @@ interface Task {
   dependsOn?: string;
 }
 
+interface PreRevenueQuestion {
+  question: string;
+  purpose: string;
+  followUp: string;
+  templateVars?: Record<string, string>;
+}
+
+interface PreRevenueSection {
+  title: string;
+  questions: PreRevenueQuestion[];
+}
+
+const PRE_REVENUE_SECTIONS: PreRevenueSection[] = [
+  {
+    title: 'Exit and Trajectory',
+    questions: [
+      { question: 'What is your target exit valuation and by when?', purpose: 'Anchor the entire conversation around their ambition', followUp: 'And what equity percentage do you want to retain at exit?', templateVars: { target: '{target}' } },
+      { question: 'What does the headcount plan look like over the next 18 months?', purpose: 'Understand burn vs runway', followUp: 'Are any of those hires revenue-generating roles?', templateVars: { headcount: '{headcount}' } },
+      { question: 'What equity retention are you targeting post next round?', purpose: 'Dilution sensitivity', followUp: 'Have you modelled the dilution impact of your current cap table on future rounds?', templateVars: { equity: '{equity}' } },
+    ],
+  },
+  {
+    title: 'Metrics as Targets',
+    questions: [
+      { question: 'What NRR are you targeting and how are you measuring it?', purpose: 'Net retention drives valuation multiples', followUp: 'What expansion mechanisms exist in your current contracts?', templateVars: { nrr: '{nrr}' } },
+      { question: 'What gross margin are you targeting at scale?', purpose: 'Unit economics credibility', followUp: 'What is the biggest cost drag on gross margin right now?', templateVars: { margin: '{margin}' } },
+      { question: 'How many multi-year contracts do you have vs month-to-month?', purpose: 'Revenue quality & predictability', followUp: 'What would it take to shift more customers onto annual or multi-year terms?', templateVars: { contracts: '{contracts}' } },
+    ],
+  },
+  {
+    title: 'Pipeline and Conversion',
+    questions: [
+      { question: 'How many LOIs or near-close deals do you have in pipeline?', purpose: 'Pipeline quality signals revenue trajectory', followUp: 'What is the typical close timeline from first meeting to signed contract?', templateVars: { pipeline: '{pipeline}' } },
+      { question: 'What happened with your near-misses and why did they not close?', purpose: 'Understand conversion blockers', followUp: 'Are those objections product-related, pricing, or trust/credibility?', templateVars: {} },
+      { question: 'Where is the next wave of pipeline coming from?', purpose: 'Growth sustainability', followUp: 'Is that inbound, outbound, or partnership-driven?', templateVars: {} },
+    ],
+  },
+  {
+    title: 'Structure and Tax',
+    questions: [
+      { question: 'Do you have any FICs or dormant entities in the group?', purpose: 'Identify structural complexity', followUp: 'Are those serving a purpose or legacy from earlier arrangements?', templateVars: {} },
+      { question: 'Where is your IP located — same entity as trading?', purpose: 'IP location affects tax efficiency and acquisition structure', followUp: 'Has anyone reviewed the IP ownership for investment structuring?', templateVars: {} },
+      { question: 'Are you using EIS/SEIS for current investors?', purpose: 'Investor incentive compliance', followUp: 'Has the compliance been maintained — share classes, purpose tests?', templateVars: { round: '{round}' } },
+    ],
+  },
+  {
+    title: 'Governance and Cap Table',
+    questions: [
+      { question: 'What does your cap table look like post-close of this round?', purpose: 'Clean cap table is investable', followUp: 'Any dead equity, departed founders still on register, or complex option pools?', templateVars: { round: '{round}' } },
+      { question: 'Do you have voting rights aligned with economic rights?', purpose: 'Governance simplicity', followUp: 'Are there any drag-along or tag-along provisions already in the articles?', templateVars: {} },
+      { question: 'Do you have or plan to appoint a NED or advisory board?', purpose: 'Governance maturity signal', followUp: 'What expertise gaps would an ideal NED fill for your next stage?', templateVars: {} },
+    ],
+  },
+];
+
 interface ConversationScriptProps {
   openingStatement: string;
   talkingPoints: TalkingPoint[];
@@ -74,6 +129,8 @@ interface ConversationScriptProps {
   nextSteps?: NextStep[];
   tasks?: Task[];
   closingScript?: string;
+  businessStage?: string;
+  signalsData?: Record<string, string>;
 }
 
 export function ConversationScript({
@@ -83,7 +140,9 @@ export function ConversationScript({
   dataCollectionScript = [],
   nextSteps = [],
   tasks = [],
-  closingScript
+  closingScript,
+  businessStage,
+  signalsData,
 }: ConversationScriptProps) {
   const [checkedPoints, setCheckedPoints] = useState<Set<number>>(new Set());
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
@@ -132,6 +191,90 @@ export function ConversationScript({
     medium: { bg: 'bg-blue-50', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-700' },
     low: { bg: 'bg-slate-50', border: 'border-slate-200', badge: 'bg-slate-100 text-slate-700' }
   };
+
+  const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+
+  const interpolateVars = (text: string): string => {
+    if (!signalsData) return text;
+    return text.replace(/\{(\w+)\}/g, (match, key) => signalsData[key] || match);
+  };
+
+  if (isPreRevenue) {
+    return (
+      <div className="space-y-6">
+        {/* Opening Statement */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <MessageSquare className="w-5 h-5 text-blue-600 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-blue-900 mb-1">Opening Statement</p>
+                <p className="text-blue-800 italic">"{interpolateVars(openingStatement)}"</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Pre-revenue discovery sections */}
+        {PRE_REVENUE_SECTIONS.map((section, si) => (
+          <div key={si}>
+            <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+              <Target className="w-4 h-4 text-purple-600" />
+              {section.title}
+            </h3>
+            <div className="space-y-2">
+              {section.questions.map((q, qi) => {
+                const globalIdx = si * 10 + qi;
+                const isExpanded = expandedQuestions.has(globalIdx);
+                return (
+                  <div key={qi} className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => toggleQuestion(globalIdx)}
+                      className="w-full p-4 flex items-start gap-3 text-left hover:bg-slate-50"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-5 h-5 text-slate-400 mt-0.5" />
+                      ) : (
+                        <ChevronRight className="w-5 h-5 text-slate-400 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <HelpCircle className="w-4 h-4 text-purple-500" />
+                          <span className="text-sm text-slate-500">{q.purpose}</span>
+                        </div>
+                        <p className="text-slate-800 font-medium mt-1">"{interpolateVars(q.question)}"</p>
+                      </div>
+                    </button>
+                    {isExpanded && (
+                      <div className="px-4 pb-4 ml-8 space-y-3 border-t border-slate-100 pt-3">
+                        <div>
+                          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Follow-up</p>
+                          <p className="text-slate-700 italic">"{interpolateVars(q.followUp)}"</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Closing Script */}
+        {closingScript && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-emerald-900 mb-1">Closing Script</p>
+                <p className="text-emerald-800 italic">"{closingScript}"</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -41,6 +41,7 @@ export function EngagementSetupPanel({
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
   const [stage, setStage] = useState(currentStage || currentData?.business_stage || 'operating');
   const [exitHorizon, setExitHorizon] = useState<number | ''>(currentData?.exit_horizon_years ?? '');
@@ -98,6 +99,8 @@ export function EngagementSetupPanel({
 
       if (err) throw err;
 
+      setSaved(true);
+      setTimeout(() => setSaved(false), 4000);
       setEditing(false);
       onSave?.();
 
@@ -165,6 +168,12 @@ export function EngagementSetupPanel({
         <Settings style={{ width: 18, height: 18, color: '#6366f1' }} />
         <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1e293b', margin: 0 }}>Engagement Setup</h3>
       </div>
+
+      {saved && (
+        <div style={{ padding: '10px 14px', marginBottom: 16, borderRadius: 8, background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#15803d', fontSize: 13, fontWeight: 600 }}>
+          Saved. Business stage set to {STAGES.find(s => s.value === stage)?.label || stage}.
+        </div>
+      )}
 
       {error && (
         <div style={{ padding: '10px 14px', marginBottom: 16, borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 13 }}>

@@ -28,6 +28,7 @@ import { EnhancedSuppressorCard } from '../EnhancedSuppressorCard';
 import { ExitReadinessBreakdown } from '../ExitReadinessBreakdown';
 import { TwoPathsSection } from '../TwoPathsSection';
 import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
+import { BenchmarkAppendix } from '../BenchmarkAppendix';
 import { InvestmentReadinessSection } from './InvestmentReadinessSection';
 import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
 import type { 
@@ -134,6 +135,7 @@ interface BenchmarkAnalysis {
     business_stage?: string;
     pre_revenue_analysis?: any;
     investment_readiness_breakdown?: any;
+    benchmark_appendix?: any;
   };
   // Pre-revenue fields (top-level)
   business_stage?: string;
@@ -1005,6 +1007,12 @@ export function BenchmarkingClientReport({
                 </span>
               )}
             </div>
+          </div>
+        )}
+
+        {data.pass1_data?.benchmark_appendix && (
+          <div style={{ marginTop: 20 }}>
+            <BenchmarkAppendix appendix={data.pass1_data.benchmark_appendix} />
           </div>
         )}
       </div>

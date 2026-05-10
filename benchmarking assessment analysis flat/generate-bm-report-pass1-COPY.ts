@@ -6567,8 +6567,119 @@ serve(async (req) => {
         investmentReadinessScore = prResult.preRevenueAnalysis.investmentReadiness.score;
         investmentReadinessBreakdown = prResult.preRevenueAnalysis.investmentReadiness;
 
+        // Generate pre-revenue scenarios for the Scenarios tab
+        const preRevScenarios: any[] = [];
+        const targetExit = engagement.target_exit_valuation || 6000000;
+        const pipelineAcv = (signals || {} as any).pipeline_qualified_acv || 200000;
+        const yr1Arr = (signals || {} as any).forecast_year_1?.arr || pipelineAcv * 0.5;
+        const arrMultiple = basisRow?.multiple_mid || 5;
+        const founderOwnership = (signals || {} as any).founder_ownership_current_pct || 80;
+        const roundSize = (signals || {} as any).round_size_target || 500000;
+        const exitHorizon = engagement.exit_horizon_years || 7;
+
+        // 1. Pipeline conversion
+        for (const rate of [0.30, 0.50, 0.70]) {
+          const achievedArr = pipelineAcv * rate;
+          const val = achievedArr * arrMultiple;
+          preRevScenarios.push({
+            scenarioName: 'Pipeline Conversion',
+            inputs: { conversionRate: `${(rate * 100).toFixed(0)}%`, pipelineAcv },
+            outputs: { achievedArr, impliedValuation: val },
+            valuationImpact: { current: prResult.preRevenueAnalysis.defensiblePreMoney.base, projected: val, delta: val - prResult.preRevenueAnalysis.defensiblePreMoney.base },
+            summary: `At ${(rate * 100).toFixed(0)}% conversion of your pipeline, you achieve ${Math.round(achievedArr / 1000)}k ARR, valued at ${Math.round(val / 1000)}k.`,
+            methodology: 'Pipeline ACV × conversion rate × ARR multiple for early-revenue stage'
+          });
+        }
+
+        // 2. Contract term impact
+        for (const term of [1, 3, 5]) {
+          const adjustedMultiple = arrMultiple * (1 + (term - 1) * 0.15);
+          const val = yr1Arr * Math.min(adjustedMultiple, arrMultiple * 2);
+          preRevScenarios.push({
+            scenarioName: 'Contract Term Impact',
+            inputs: { contractTermYears: term, baseMultiple: arrMultiple },
+            outputs: { adjustedMultiple: Math.min(adjustedMultiple, arrMultiple * 2), impliedValuation: val },
+            valuationImpact: { current: yr1Arr * arrMultiple, projected: val, delta: val - yr1Arr * arrMultiple },
+            summary: `${term}-year contracts command a ${Math.min(adjustedMultiple, arrMultiple * 2).toFixed(1)}x multiple vs ${arrMultiple}x for annual.`,
+            methodology: 'Multi-year contracts add ~0.15x per additional year to ARR multiple'
+          });
+        }
+
+        // 3. NRR compounding
+        for (const nrr of [1.00, 1.10, 1.20]) {
+          const compounded = yr1Arr * Math.pow(nrr, 4);
+          const val = compounded * arrMultiple;
+          preRevScenarios.push({
+            scenarioName: 'NRR Compounding',
+            inputs: { nrrPct: `${(nrr * 100).toFixed(0)}%`, startingArr: yr1Arr, years: 5 },
+            outputs: { compoundedArr: Math.round(compounded), impliedValuation: Math.round(val) },
+            valuationImpact: { current: yr1Arr * arrMultiple, projected: Math.round(val), delta: Math.round(val - yr1Arr * arrMultiple) },
+            summary: `At ${(nrr * 100).toFixed(0)}% NRR, your ${Math.round(yr1Arr / 1000)}k ARR compounds to ${Math.round(compounded / 1000)}k over 5 years.`,
+            methodology: 'ARR × NRR^years, valued at stage-appropriate ARR multiple'
+          });
+        }
+
+        // 4. Dilution waterfall
+        let ownership = founderOwnership;
+        const rounds = [
+          { name: 'Current Round', size: roundSize, preMoney: prResult.preRevenueAnalysis.defensiblePreMoney.base },
+          { name: 'Series A', size: 3000000, preMoney: 12000000 },
+          { name: 'Series B', size: 10000000, preMoney: 40000000 },
+        ];
+        const dilutionSteps: any[] = [];
+        for (const r of rounds) {
+          const postMoney = r.preMoney + r.size;
+          const dilution = r.size / postMoney;
+          ownership = ownership * (1 - dilution);
+          dilutionSteps.push({ round: r.name, ownershipAfter: Math.round(ownership * 100) / 100, dilutionPct: Math.round(dilution * 10000) / 100 });
+        }
+        preRevScenarios.push({
+          scenarioName: 'Dilution Waterfall',
+          inputs: { startingOwnership: founderOwnership, rounds: rounds.map(r => r.name).join(', ') },
+          outputs: { finalOwnership: Math.round(ownership * 100) / 100, steps: dilutionSteps },
+          valuationImpact: { current: founderOwnership, projected: Math.round(ownership * 100) / 100, delta: Math.round((ownership - founderOwnership / 100) * 100) / 100 },
+          summary: `After ${rounds.length} rounds, founder ownership goes from ${founderOwnership}% to ${(ownership).toFixed(1)}%.`,
+          methodology: 'Iterative dilution: ownership × (pre-money / post-money) per round'
+        });
+
+        // 5. Time-to-exit sensitivity
+        for (const horizon of [5, 7, 9]) {
+          const irr = 0.35;
+          const dilution = 0.50;
+          const todayPost = targetExit / Math.pow(1 + irr, horizon) / (1 - dilution);
+          preRevScenarios.push({
+            scenarioName: 'Time to Exit Sensitivity',
+            inputs: { targetExit, horizon, irrTarget: `${(irr * 100).toFixed(0)}%` },
+            outputs: { impliedPostMoney: Math.round(todayPost), impliedPreMoney: Math.round(todayPost - roundSize) },
+            valuationImpact: { current: prResult.preRevenueAnalysis.defensiblePreMoney.base, projected: Math.round(todayPost), delta: Math.round(todayPost - prResult.preRevenueAnalysis.defensiblePreMoney.base) },
+            summary: `Hitting your exit target in ${horizon} years implies a post-money of ${Math.round(todayPost / 1000)}k today.`,
+            methodology: 'VC method back-solve: exit / (1+IRR)^horizon / (1-dilution)'
+          });
+        }
+
+        assessmentData._preRevenue_scenarios = preRevScenarios;
+
+        // Suppress operating-business fields that don't apply to pre-revenue
+        assessmentData.enhanced_suppressors = null;
+        assessmentData.exit_readiness_breakdown = null;
+        assessmentData.two_paths_narrative = null;
+
+        // Derive gap_count from IR components scoring below 60% of max
+        const irComponents = prResult.preRevenueAnalysis.investmentReadiness.components || {};
+        const weakComponentCount = Object.values(irComponents).filter(
+          (c: any) => c.max > 0 && (c.score / c.max) < 0.6
+        ).length;
+        assessmentData._preRevenue_gap_count = weakComponentCount;
+
+        // Derive strength_count from IR components scoring above 60% of max
+        const strongComponentCount = Object.values(irComponents).filter(
+          (c: any) => c.max > 0 && (c.score / c.max) >= 0.6
+        ).length;
+        assessmentData._preRevenue_strength_count = strongComponentCount;
+
         console.log('[Pre-Revenue Calculator] Valuation complete. Base pre-money:', prResult.preRevenueAnalysis.defensiblePreMoney.base);
         console.log('[Pre-Revenue Calculator] Investment readiness:', investmentReadinessScore, '/', 100, '-', prResult.preRevenueAnalysis.investmentReadiness.verdict);
+        console.log('[Pre-Revenue Calculator] Gaps:', weakComponentCount, 'Strengths:', strongComponentCount);
       } catch (prError) {
         console.error('[Pre-Revenue Calculator] Error (continuing with standard valuation):', prError);
       }
@@ -7269,6 +7380,86 @@ When writing narratives:
         breakdownScore >= 70 ? 'ready' : breakdownScore >= 40 ? 'needs_work' : 'not_ready';
     }
     
+    // Build methodology appendix for all stages
+    const benchmarkAppendix: any = {
+      generatedAt: new Date().toISOString(),
+      stage: businessStage,
+      industryCode: finalIndustryCode,
+      methodology: {
+        summary: '',
+        valuationMethod: '',
+        benchmarkSource: '',
+      },
+      comparableTransactions: [],
+      dataSources: [],
+      limitations: [],
+      confidenceNotes: [],
+    };
+
+    if (isPreRevenue && preRevenueAnalysis) {
+      benchmarkAppendix.methodology.summary = `Pre-revenue valuation triangulated using four methods: VC Method back-solve, Scorecard (Bill Payne), Berkus Method, and Comparable Rounds analysis.`;
+      benchmarkAppendix.methodology.valuationMethod = preRevenueAnalysis.industryBasis?.primary_method || 'Berkus_Scorecard';
+      benchmarkAppendix.methodology.benchmarkSource = 'Industry valuation basis registry + valuation frameworks';
+
+      if (preRevenueAnalysis.comparableRoundsAnalysis?.rounds) {
+        benchmarkAppendix.comparableTransactions = preRevenueAnalysis.comparableRoundsAnalysis.rounds.map((r: any) => ({
+          company: r.company,
+          stage: r.stage,
+          year: r.year,
+          amountGbp: r.amountGbp,
+          preMoneyGbp: r.preMoneyGbp,
+          relevanceNote: r.relevanceNote,
+        }));
+      }
+
+      benchmarkAppendix.dataSources = preRevenueAnalysis.industryBasis?.sources || [];
+      benchmarkAppendix.limitations = preRevenueAnalysis.caveats || [];
+      benchmarkAppendix.confidenceNotes = [
+        `Confidence level: ${preRevenueAnalysis.industryBasis?.confidence_level || 'moderate'}`,
+        `Data year: ${preRevenueAnalysis.industryBasis?.data_year || new Date().getFullYear()}`,
+        `UK discount vs US: ${((preRevenueAnalysis.industryBasis?.uk_discount_vs_us || 0.25) * 100).toFixed(0)}%`,
+      ];
+
+      benchmarkAppendix.valuationLenses = {
+        vcMethod: {
+          impliedPreMoney: preRevenueAnalysis.vcMethodBackSolve?.todayPreMoneyImplied,
+          methodology: preRevenueAnalysis.vcMethodBackSolve?.methodology,
+        },
+        scorecard: {
+          impliedPreMoney: preRevenueAnalysis.scorecardValuation?.impliedPreMoney,
+          weightedFactor: preRevenueAnalysis.scorecardValuation?.weightedFactor,
+        },
+        berkus: {
+          impliedPreMoney: preRevenueAnalysis.berkusValuation?.impliedPreMoney,
+        },
+        defensibleRange: preRevenueAnalysis.defensiblePreMoney,
+      };
+    } else {
+      const va = assessmentData.value_analysis;
+      benchmarkAppendix.methodology.summary = `Operating-business valuation using ${va?.baseline?.method || 'EBITDA'} multiple methodology with industry benchmarks.`;
+      benchmarkAppendix.methodology.valuationMethod = va?.baseline?.method || 'EBITDA';
+      benchmarkAppendix.methodology.benchmarkSource = 'Industry benchmark database + Companies House filings';
+
+      benchmarkAppendix.dataSources = [
+        'Damodaran NYU EBITDA multiples database',
+        'BDO Private Company Price Index (PCPI)',
+        'Companies House filed accounts',
+        'Dealsuite UK&I deal data',
+        ...(assessmentData.data_sources || []),
+      ];
+
+      benchmarkAppendix.limitations = [
+        'Private company valuation involves inherent uncertainty',
+        'Industry multiples based on available market data; individual business factors may warrant adjustment',
+        'Financial data sourced from filed accounts which may be up to 12 months old',
+      ];
+
+      benchmarkAppendix.confidenceNotes = [
+        `Industry: ${finalIndustryCode}`,
+        `Benchmark data as of: ${new Date().toISOString().split('T')[0]}`,
+      ];
+    }
+
     // Save to database (including founder risk data if available)
     const reportData: any = {
       engagement_id: engagementId,
@@ -7331,7 +7522,11 @@ When writing narratives:
           pre_revenue_analysis: preRevenueAnalysis,
           investment_readiness_score: investmentReadinessScore,
           investment_readiness_breakdown: investmentReadinessBreakdown,
+          pre_revenue_scenarios: assessmentData._preRevenue_scenarios || [],
         } : {}),
+        exit_horizon_years: engagement.exit_horizon_years || null,
+        target_exit_valuation: engagement.target_exit_valuation || null,
+        benchmark_appendix: benchmarkAppendix,
       },
       llm_model: 'gpt-4o-mini',
       llm_tokens_used: tokensUsed,
@@ -7364,6 +7559,7 @@ When writing narratives:
       exit_readiness_breakdown: assessmentData.exit_readiness_breakdown || null,
       // Note: surplus_cash_breakdown is stored in pass1_data only (no top-level column)
       two_paths_narrative: assessmentData.two_paths_narrative || null,
+      benchmark_appendix: benchmarkAppendix,
     };
     
     // Add founder risk data if available
@@ -7384,7 +7580,26 @@ When writing narratives:
       reportData.pre_revenue_analysis = preRevenueAnalysis;
       reportData.investment_readiness_score = investmentReadinessScore;
       reportData.investment_readiness_breakdown = investmentReadinessBreakdown;
-      console.log('[BM Pass 1] Added pre-revenue analysis to report');
+
+      // Suppress operating-business fields that don't apply to pre-revenue
+      reportData.value_analysis = null;
+      reportData.value_suppressors = null;
+      reportData.enhanced_suppressors = null;
+      reportData.exit_readiness_breakdown = null;
+      reportData.total_value_discount = null;
+      reportData.discounted_multiple = null;
+      reportData.total_annual_opportunity = null;
+
+      // Write pre-revenue scenarios
+      if (assessmentData._preRevenue_scenarios) {
+        reportData.scenarios = assessmentData._preRevenue_scenarios;
+      }
+
+      // Override gap/strength counts from IR breakdown
+      reportData.gap_count = assessmentData._preRevenue_gap_count ?? 0;
+      reportData.strength_count = assessmentData._preRevenue_strength_count ?? 0;
+
+      console.log('[BM Pass 1] Pre-revenue: suppressed operating fields, gap_count=', reportData.gap_count, 'strength_count=', reportData.strength_count);
     }
     
     const { data: report, error: saveError } = await supabaseClient

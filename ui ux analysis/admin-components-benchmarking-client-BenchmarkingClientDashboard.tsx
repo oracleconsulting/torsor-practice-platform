@@ -29,6 +29,11 @@ import type {
   TwoPathsNarrative,
   SurplusCashData
 } from '../../../types/opportunity-calculations';
+import { ForwardValueBridgeSection } from './ForwardValueBridgeSection';
+import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
+import { InvestmentReadinessSection } from './InvestmentReadinessSection';
+import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
+import { BenchmarkAppendix } from '../BenchmarkAppendix';
 
 // ─── Types (FROZEN — matches BenchmarkingClientReport exactly) ────────────
 
@@ -101,6 +106,10 @@ interface BenchmarkAnalysis {
     exit_readiness_breakdown?: ExitReadinessScore;
     surplus_cash_breakdown?: SurplusCashData;
     two_paths_narrative?: TwoPathsNarrative;
+    business_stage?: string;
+    pre_revenue_analysis?: any;
+    investment_readiness_breakdown?: any;
+    benchmark_appendix?: any;
   };
   hva_data?: {
     competitive_moat?: string[];
@@ -116,6 +125,10 @@ interface BenchmarkAnalysis {
   recommended_services?: any[];
   not_recommended_services?: any[];
   client_preferences?: any;
+  business_stage?: string;
+  pre_revenue_analysis?: any;
+  investment_readiness_score?: number;
+  investment_readiness_breakdown?: any;
 }
 
 interface MetricComparison {
@@ -648,9 +661,15 @@ export default function BenchmarkingClientDashboard({
   const alignedPotentialValue = (valueAnalysis?.currentMarketValue?.mid ?? 0) + realisticRecovery;
   const exitBreakdown = data.exit_readiness_breakdown ?? data.pass1_data?.exit_readiness_breakdown;
   const opportunitySynthesis = safeJsonParse<{ quickWins?: string[]; watchOuts?: string[]; topPriority?: string; clientHealth?: string } | null>(data.opportunity_synthesis as string, null);
-  const twoPathsNarrative = data.pass1_data?.two_paths_narrative || 
+  const twoPathsNarrative = data.two_paths_narrative || data.pass1_data?.two_paths_narrative || 
     safeJsonParse<any>(data.pass1_data as any, {})?.two_paths_narrative || null;
   const surplusCashBreakdown = data.pass1_data?.surplus_cash_breakdown;
+
+  // Pre-revenue detection
+  const businessStage = data.pass1_data?.business_stage || data.business_stage || 'operating';
+  const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+  const preRevenueAnalysis = data.pass1_data?.pre_revenue_analysis || data.pre_revenue_analysis;
+  const investmentReadinessBreakdown = data.investment_readiness_breakdown || data.pass1_data?.investment_readiness_breakdown;
 
   // Filtered metrics (no concentration, must have valid p50)
   const displayMetrics = metrics
@@ -675,11 +694,11 @@ export default function BenchmarkingClientDashboard({
 
   const NAV_ITEMS = [
     { id: 'overview', label: 'Overview', icon: BarChart3, section: 'overview' },
-    { id: 'metrics', label: 'Metrics', icon: Activity, section: 'analysis' },
+    { id: 'metrics', label: isPreRevenue ? 'Targets' : 'Metrics', icon: Activity, section: 'analysis' },
     { id: 'position', label: 'Position', icon: Target, section: 'analysis' },
     { id: 'hidden', label: 'Hidden Value', icon: Gem, section: 'analysis' },
     { id: 'value', label: 'Valuation', icon: PoundSterling, section: 'value' },
-    { id: 'exit', label: 'Exit Ready', icon: Shield, section: 'value' },
+    { id: 'exit', label: isPreRevenue ? 'Investment Ready' : 'Exit Ready', icon: Shield, section: 'value' },
     { id: 'scenarios', label: 'Scenarios', icon: CalendarClock, section: 'action' },
     { id: 'services', label: 'Services', icon: Zap, section: 'action' },
     { id: 'path', label: 'Your Path', icon: Rocket, section: 'action' },
@@ -742,7 +761,64 @@ export default function BenchmarkingClientDashboard({
     switch (activeSection) {
 
       // ─── OVERVIEW ────────────────────────────────────────────────────────
-      case 'overview':
+      case 'overview': {
+        if (isPreRevenue && preRevenueAnalysis) {
+          const defensible = preRevenueAnalysis.defensiblePreMoney || {};
+          const irScore = preRevenueAnalysis.investmentReadiness?.score || 0;
+          const exitTarget = data.pass1_data?.business_stage === 'pre_revenue'
+            ? (data.pass1_data?.target_exit_valuation || data.target_exit_valuation || preRevenueAnalysis.vcMethodBackSolve?.targetExitValuation || 0)
+            : 0;
+
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {/* Pre-revenue hero */}
+              <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 40%, #1e3a5f 100%)', padding: '48px 40px', border: 'none', boxShadow: SHADOW.lg }}>
+                <DotGrid opacity={0.05} /><NoiseOverlay opacity={0.15} />
+                <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+                  <p style={{ fontSize: 11, letterSpacing: '0.15em', color: '#60A5FA', textTransform: 'uppercase', fontWeight: 600, marginBottom: 16, ...mono }}>Pre-Revenue Benchmarking</p>
+                  <h1 style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginBottom: 8 }}>{data.headline || 'Benchmarking Analysis'}</h1>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 32, maxWidth: '60ch', margin: '0 auto 32px' }}>
+                    Year 0 of {data.pass1_data?.exit_horizon_years || 7}-year journey to {fmt(exitTarget)} target
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, marginBottom: 24 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, ...mono }}>Defensible Pre-Money</p>
+                      <p style={{ fontSize: 32, fontWeight: 800, color: '#60A5FA', margin: '0 0 4px', ...mono }}>{fmt(defensible.base || 0)}</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{fmt(defensible.conservative || 0)} – {fmt(defensible.stretch || 0)} range</p>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, ...mono }}>Investment Readiness</p>
+                      <p style={{ fontSize: 32, fontWeight: 800, color: irScore >= 65 ? '#10B981' : irScore >= 40 ? '#F59E0B' : '#EF4444', margin: '0 0 4px', ...mono }}>{irScore}/100</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{irScore >= 65 ? 'Investment Ready' : irScore >= 40 ? 'Needs Preparation' : 'Not Ready'}</p>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, ...mono }}>Readiness Gaps</p>
+                      <p style={{ fontSize: 32, fontWeight: 800, color: '#FBBF24', margin: '0 0 4px', ...mono }}>{data.gap_count || 0}</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>of 5 components below target</p>
+                    </div>
+                  </div>
+                </div>
+              </RevealCard>
+
+              {/* Executive Summary */}
+              {data.executive_summary && (
+                <RevealCard delay={100} style={{ ...glass({ padding: 24 }) }}>
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Executive Summary</h3>
+                  <div style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{data.executive_summary}</div>
+                </RevealCard>
+              )}
+
+              {/* Headline narrative */}
+              {data.position_narrative && (
+                <RevealCard delay={200} style={{ ...glass({ padding: 24 }) }}>
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Position</h3>
+                  <div style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{data.position_narrative}</div>
+                </RevealCard>
+              )}
+            </div>
+          );
+        }
+        // Operating-business overview continues below
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 24 }}>
             {/* Cinematic hero */}
@@ -805,9 +881,20 @@ export default function BenchmarkingClientDashboard({
             </RevealCard>
           </div>
         );
+      }
 
       // ─── METRICS ─────────────────────────────────────────────────────────
       case 'metrics':
+        if (isPreRevenue && preRevenueAnalysis?.metricTargets) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <KeyMetricsAsTargetsSection
+                metricTargets={preRevenueAnalysis.metricTargets}
+                targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+              />
+            </div>
+          );
+        }
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <RevealCard style={{ ...glass({ padding: 24 }), display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
@@ -1218,6 +1305,13 @@ export default function BenchmarkingClientDashboard({
 
       // ─── VALUATION ───────────────────────────────────────────────────────
       case 'value': {
+        if (isPreRevenue && preRevenueAnalysis) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <ForwardValueBridgeSection preRevenueAnalysis={preRevenueAnalysis} businessStage={businessStage} />
+            </div>
+          );
+        }
         if (!valueAnalysis) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Value analysis not available for this engagement.</p></RevealCard>;
         const { baseline, suppressors, currentMarketValue, valueGap, pathToValue, enhancers } = valueAnalysis;
         // Prefer enhanced_suppressors (granular items) over value_analysis.suppressors (often a single rolled-up item).
@@ -1492,27 +1586,35 @@ export default function BenchmarkingClientDashboard({
         );
       }
 
-      // ─── EXIT READINESS ──────────────────────────────────────────────────
+      // ─── EXIT / INVESTMENT READINESS ─────────────────────────────────────
       case 'exit': {
-        if (!exitBreakdown) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Exit readiness data not available.</p></RevealCard>;
-        const score = exitBreakdown.totalScore;
+        if (isPreRevenue && investmentReadinessBreakdown && investmentReadinessBreakdown.components && !investmentReadinessBreakdown.totalScore) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <InvestmentReadinessSection breakdown={investmentReadinessBreakdown} />
+            </div>
+          );
+        }
+        const effectiveBreakdown = isPreRevenue && investmentReadinessBreakdown ? investmentReadinessBreakdown : exitBreakdown;
+        if (!effectiveBreakdown) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>{isPreRevenue ? 'Investment readiness' : 'Exit readiness'} data not available.</p></RevealCard>;
+        const score = effectiveBreakdown.totalScore;
         const scoreColor = score >= 65 ? C.emerald : score >= 50 ? C.amber : score >= 35 ? C.orange : C.red;
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Exit readiness hero */}
+            {/* Exit/Investment readiness hero */}
             <RevealCard style={{ borderRadius: 20, overflow: 'hidden', position: 'relative', background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)', padding: '36px 40px', border: 'none', boxShadow: SHADOW.lg }}>
               <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 40, flexWrap: 'wrap' }}>
-                <ProgressRing score={score} size={180} strokeWidth={14} color={scoreColor} ringLabel="Exit Score" />
+                <ProgressRing score={score} size={180} strokeWidth={14} color={scoreColor} ringLabel={isPreRevenue ? 'Invest Score' : 'Exit Score'} />
                 <div style={{ flex: 1, minWidth: 200 }}>
-                  <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>Exit Readiness</h2>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 14 }}>How prepared is your business for a sale or transition?</p>
-                  <span style={{ fontSize: 13, fontWeight: 700, padding: '6px 18px', borderRadius: 20, background: `${scoreColor}25`, color: scoreColor, ...mono }}>{exitBreakdown.levelLabel}</span>
+                  <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>{isPreRevenue ? 'Investment Readiness' : 'Exit Readiness'}</h2>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 14 }}>{isPreRevenue ? 'How prepared is your business for investment?' : 'How prepared is your business for a sale or transition?'}</p>
+                  <span style={{ fontSize: 13, fontWeight: 700, padding: '6px 18px', borderRadius: 20, background: `${scoreColor}25`, color: scoreColor, ...mono }}>{effectiveBreakdown.levelLabel}</span>
                   <div style={{ marginTop: 16, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(score / exitBreakdown.maxScore) * 100}%`, background: scoreColor, borderRadius: 3, transition: `width 1.2s ${EASE.spring}` }} />
+                    <div style={{ height: '100%', width: `${(score / effectiveBreakdown.maxScore) * 100}%`, background: scoreColor, borderRadius: 3, transition: `width 1.2s ${EASE.spring}` }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 9, color: 'rgba(255,255,255,0.4)', ...mono }}>
-                    <span>Not Ready</span><span>Needs Work</span><span>Progressing</span><span>Credibly Ready</span><span>Exit Ready</span>
+                    <span>Not Ready</span><span>Needs Work</span><span>Progressing</span><span>Credibly Ready</span><span>{isPreRevenue ? 'Invest Ready' : 'Exit Ready'}</span>
                   </div>
                 </div>
               </div>
@@ -1522,10 +1624,10 @@ export default function BenchmarkingClientDashboard({
             <RevealCard delay={100} style={{ ...glass({ padding: 24 }) }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Score Breakdown</h3>
-                <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{score} / {exitBreakdown.maxScore} total</span>
+                <span style={{ fontSize: 12, color: C.textMuted, ...mono }}>{score} / {effectiveBreakdown.maxScore} total</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {exitBreakdown.components.map((comp: { id: string; name: string; currentScore: number; targetScore: number; maxScore: number; gap?: string }) => {
+                {effectiveBreakdown.components.map((comp: { id: string; name: string; currentScore: number; targetScore: number; maxScore: number; gap?: string }) => {
                   const compColor = comp.currentScore >= comp.targetScore ? C.emerald : comp.currentScore >= comp.maxScore * 0.5 ? C.amber : C.red;
                   const pctFilled = (comp.currentScore / comp.maxScore) * 100;
                   return (
@@ -1550,14 +1652,14 @@ export default function BenchmarkingClientDashboard({
             </RevealCard>
 
             {/* Path to 70 */}
-            {score < 70 && exitBreakdown.pathTo70 && (
+            {score < 70 && effectiveBreakdown.pathTo70 && (
               <RevealCard delay={200} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                   <Target style={{ width: 18, height: 18, color: C.emerald }} />
-                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Path to Credibly Exit Ready (70/100)</h3>
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>{isPreRevenue ? 'Path to Investment Ready (70/100)' : 'Path to Credibly Exit Ready (70/100)'}</h3>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                  {exitBreakdown.pathTo70.actions.map((action: string, i: number) => (
+                  {effectiveBreakdown.pathTo70.actions.map((action: string, i: number) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 12px', borderRadius: 8, background: `${C.emerald}05` }}>
                       <div style={{ width: 22, height: 22, borderRadius: 11, background: `${C.emerald}15`, color: C.emerald, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
                       <span style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.5 }}>{action}</span>
@@ -1566,8 +1668,8 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                   {[
-                    { icon: Clock, val: exitBreakdown.pathTo70.timeframe, sub: 'Timeline' },
-                    { icon: Wallet, val: fmt(exitBreakdown.pathTo70.investment), sub: 'Investment' },
+                    { icon: Clock, val: effectiveBreakdown.pathTo70.timeframe, sub: 'Timeline' },
+                    { icon: Wallet, val: fmt(effectiveBreakdown.pathTo70.investment), sub: 'Investment' },
                     { icon: TrendingUp, val: fmt(realisticRecovery), sub: 'Value Unlocked' },
                   ].map((s, i) => (
                     <div key={i} style={{ textAlign: 'center', padding: '12px', borderRadius: 10, background: `${C.emerald}06` }}>
@@ -1578,7 +1680,7 @@ export default function BenchmarkingClientDashboard({
                   ))}
                 </div>
                 <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.5 }}>
-                  Value unlocked: {fmt(totalWaterfallGap)} trapped value × {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery = {fmt(realisticRecovery)}, over {exitBreakdown.pathTo70.timeframe}. The {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% factor reflects that buyers need to see structural changes embedded before giving full credit.
+                  Value unlocked: {fmt(totalWaterfallGap)} trapped value × {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% realistic recovery = {fmt(realisticRecovery)}, over {effectiveBreakdown.pathTo70.timeframe}. The {(REALISTIC_RECOVERY_RATE * 100).toFixed(0)}% factor reflects that buyers need to see structural changes embedded before giving full credit.
                 </p>
                 {(() => {
                   const invSucc = enhancedSuppressors.find((x) => x.code === 'SUCCESSION')?.pathToFix?.investment;
@@ -1591,7 +1693,7 @@ export default function BenchmarkingClientDashboard({
                   if (parts.length === 0) {
                     return (
                       <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 8, lineHeight: 1.5 }}>
-                        Investment ({fmt(exitBreakdown.pathTo70.investment)}) is a rounded aggregate of remediation costs on the path to exit-ready.
+                        Investment ({fmt(effectiveBreakdown.pathTo70.investment)}) is a rounded aggregate of remediation costs on the path to {isPreRevenue ? 'investment-ready' : 'exit-ready'}.
                       </p>
                     );
                   }
@@ -1609,6 +1711,17 @@ export default function BenchmarkingClientDashboard({
 
       // ─── SCENARIOS ───────────────────────────────────────────────────────
       case 'scenarios': {
+        const preRevScenarios = preRevenueAnalysis?.scenarios || data.scenarios || data.pass1_data?.pre_revenue_scenarios;
+        if (isPreRevenue && preRevScenarios?.length) {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <PreRevenueScenariosSection
+                scenarios={preRevScenarios}
+                targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+              />
+            </div>
+          );
+        }
         if (!baselineMetrics) return <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}><p style={{ color: C.textMuted }}>Scenario data requires baseline financial metrics.</p></RevealCard>;
         const revenue = baselineMetrics.revenue;
         const currentGM = baselineMetrics.grossMargin || 0;
@@ -2212,7 +2325,7 @@ export default function BenchmarkingClientDashboard({
                 </div>
                 {/* Connection flow */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 20, fontSize: 12 }}>
-                  {['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value'].map((step, i) => (
+                  {(twoPathsNarrative.milestonePillLabels || ['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value']).map((step: string, i: number) => (
                     <Fragment key={i}>
                       {i > 0 && <ArrowRight style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.4)' }} />}
                       <span style={{ padding: '4px 14px', borderRadius: 6, background: `rgba(255,255,255,0.12)`, color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.15)' }}>{step}</span>
@@ -2244,7 +2357,7 @@ export default function BenchmarkingClientDashboard({
                 ))}
               </div>
               <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid rgba(0,0,0,0.06)', textAlign: 'center' }}>
-                <p style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.6 }}>{twoPathsNarrative.bottomLine}</p>
+                <p style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.6 }}>{twoPathsNarrative.bottomLine || 'The path forward is about protecting what you have built and unlocking what is already there.'}</p>
               </div>
             </RevealCard>
 
@@ -2423,6 +2536,11 @@ export default function BenchmarkingClientDashboard({
           <div key={activeSection} style={{ animation: 'fadeIn 0.4s ease' }}>
             {renderSection()}
           </div>
+          {data.pass1_data?.benchmark_appendix && (
+            <div style={{ marginTop: 20 }}>
+              <BenchmarkAppendix appendix={data.pass1_data.benchmark_appendix} />
+            </div>
+          )}
         </div>
       </div>
     </div>

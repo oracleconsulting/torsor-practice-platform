@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { ArrowRight, Calendar } from 'lucide-react';
 import type { TwoPathsNarrative } from '../../types/opportunity-calculations';
 
@@ -39,13 +40,17 @@ export function TwoPathsSection({ marginOpportunity, valueGap, ownerName, narrat
       
       {/* Connection flow */}
       <div className="flex items-center justify-center gap-2 my-6 text-sm flex-wrap">
-        <span className="bg-emerald-500/20 px-3 py-1 rounded border border-emerald-500/30">Better margins</span>
-        <ArrowRight className="w-4 h-4 text-blue-300" />
-        <span className="bg-blue-500/20 px-3 py-1 rounded border border-blue-500/30">Fund diversification</span>
-        <ArrowRight className="w-4 h-4 text-blue-300" />
-        <span className="bg-purple-500/20 px-3 py-1 rounded border border-purple-500/30">Reduce risk</span>
-        <ArrowRight className="w-4 h-4 text-blue-300" />
-        <span className="bg-amber-500/20 px-3 py-1 rounded border border-amber-500/30">Unlock value</span>
+        {(narrative.milestonePillLabels || ['Better margins', 'Fund diversification', 'Reduce risk', 'Unlock value']).map((step, i) => (
+          <Fragment key={i}>
+            {i > 0 && <ArrowRight className="w-4 h-4 text-blue-300" />}
+            <span className={`px-3 py-1 rounded border ${
+              i === 0 ? 'bg-emerald-500/20 border-emerald-500/30' :
+              i === 1 ? 'bg-blue-500/20 border-blue-500/30' :
+              i === 2 ? 'bg-purple-500/20 border-purple-500/30' :
+              'bg-amber-500/20 border-amber-500/30'
+            }`}>{step}</span>
+          </Fragment>
+        ))}
       </div>
       
       <p className="text-blue-100 mb-6">{narrative.explanation}</p>
@@ -88,7 +93,7 @@ export function TwoPathsSection({ marginOpportunity, valueGap, ownerName, narrat
       {/* Bottom line */}
       <div className="mt-6 pt-6 border-t border-white/10">
         <p className="text-lg font-medium text-center text-blue-100">
-          {narrative.bottomLine}
+          {narrative.bottomLine || 'The path forward is about protecting what you have built and unlocking what is already there.'}
         </p>
       </div>
     </div>

@@ -200,6 +200,21 @@ export interface SurplusCashData {
 export interface TwoPathsNarrative {
   headline: string;
   explanation: string;
+  trackOne?: {
+    label: string;
+    framing: string;
+    anchorMetric: string;
+    subMetrics: string[];
+    valuationImpact: string;
+  };
+  trackTwo?: {
+    label: string;
+    framing: string;
+    anchorMetric: string;
+    subMetrics: string[];
+    valuationImpact: string;
+  };
+  milestonePillLabels?: string[];
   ownerJourney: {
     year1: string;
     year2: string;

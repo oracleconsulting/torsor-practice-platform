@@ -621,12 +621,58 @@ async function generatePreRevenueOpportunities(
 
   console.log(`[Pass 3 Pre-Revenue] Stored ${opportunities.length} pre-revenue opportunities`);
 
-  // Update report metadata
+  // Build recommended_services from created opportunities
+  const { data: createdOpps } = await supabase
+    .from('client_opportunities')
+    .select('*, services:recommended_service_id(id, code, name, category)')
+    .eq('engagement_id', engagementId)
+    .order('display_order', { ascending: true });
+
+  const recommendedServices: any[] = [];
+  const serviceMap = new Map<string, any>();
+
+  for (const opp of (createdOpps || [])) {
+    const serviceId = opp.recommended_service_id;
+    const serviceName = opp.services?.name || opp.title;
+    const serviceCode = opp.services?.code || opp.opportunity_code;
+
+    if (!serviceName) continue;
+
+    const key = serviceId || serviceName;
+    if (!serviceMap.has(key)) {
+      serviceMap.set(key, {
+        service_id: serviceId,
+        service_name: serviceName,
+        code: serviceCode,
+        service_status: serviceId ? 'catalogued' : 'concept_not_yet_in_catalogue',
+        category: opp.services?.category || opp.category || 'advisory',
+        fit_rationale: opp.talking_point || opp.data_evidence || '',
+        linked_opportunities: [],
+        combined_impact_value_pounds: 0,
+        priority_label: opp.priority === 'must_address_now' ? 'Address immediately'
+          : opp.priority === 'next_3_months' ? 'Address in next 3 months'
+          : 'Address in next 12 months',
+        display_order: recommendedServices.length + 1,
+      });
+    }
+    const entry = serviceMap.get(key);
+    entry.linked_opportunities.push(opp.title);
+    entry.combined_impact_value_pounds += (opp.financial_impact_amount || 0);
+  }
+
+  for (const svc of serviceMap.values()) {
+    recommendedServices.push(svc);
+  }
+
+  console.log('[Pass 3 Pre-Revenue] Built recommended_services:', recommendedServices.length, 'services');
+
+  // Update report metadata including recommended_services
   await supabase
     .from('bm_reports')
     .update({
       opportunity_assessment: `Pre-revenue opportunity analysis: ${opportunities.filter(o => o.priority === 'must_address_now').length} strategic foundations, ${opportunities.filter(o => o.priority === 'next_3_months').length} investor readiness, ${opportunities.filter(o => o.priority === 'next_12_months').length} growth levers.`,
       opportunities_generated_at: new Date().toISOString(),
+      recommended_services: recommendedServices,
     })
     .eq('engagement_id', engagementId);
 

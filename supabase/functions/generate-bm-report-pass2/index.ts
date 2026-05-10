@@ -629,6 +629,36 @@ Return JSON:
   "opportunityNarrative": "2 paragraphs. Path to exit, milestone-by-milestone with valuation step-ups at each stage. Reference the metric targets and what hitting P75 would mean for valuation. Paint the investment thesis clearly."
 }
 
+You MUST also return a separate top-level key:
+
+"twoPathsNarrative": {
+  "headline": "Two parallel tracks toward the £[target] target",
+  "explanation": "A short paragraph explaining that trajectory engineering (hitting the ARR metrics that drive multiples) and investment readiness (cap table, governance, IP, data room) are parallel workstreams that compound each other.",
+  "trackOne": {
+    "label": "Trajectory engineering",
+    "framing": "What investors reward",
+    "anchorMetric": "£[arr]M ARR by year [N]",
+    "subMetrics": ["NRR > 110%", "CAC payback < 18 months", "Pipeline 3x cover"],
+    "valuationImpact": "Each £100k contracted ARR adds £[X]M at [multiple]x"
+  },
+  "trackTwo": {
+    "label": "Investment readiness",
+    "framing": "What unlocks the current round",
+    "anchorMetric": "Investment readiness [score]+/100",
+    "subMetrics": ["EIS advance assurance", "Clean cap table", "Board governance"],
+    "valuationImpact": "Moving from [current] to 65+ IR score removes [X]% investor discount"
+  },
+  "milestonePillLabels": ["Lock in target", "Investment readiness", "Cap table cleaned", "Multi-year contracts"],
+  "ownerJourney": {
+    "year1": "What the founder focuses on in year 1 — specific to their data",
+    "year2": "What year 2 looks like with milestones hit",
+    "year3": "The exit or fundraise position by year 3"
+  },
+  "bottomLine": "One sentence that summarises the path forward, specific to their situation."
+}
+
+The twoPathsNarrative MUST use real numbers from the analysis above (defensible pre-money, IR score, pipeline, milestone path). Do not use placeholder brackets in the output.
+
 ═══════════════════════════════════════════════════════════════════════════════
 REQUIRED ELEMENTS
 ═══════════════════════════════════════════════════════════════════════════════
@@ -936,21 +966,28 @@ serve(async (req) => {
     console.log('[BM Pass 2] Narrative generation complete. Tokens:', tokensUsed, 'Cost: £', cost.toFixed(4));
     
     // Update report with narratives
+    const updatePayload: Record<string, any> = {
+      headline: narratives.headline,
+      executive_summary: narratives.executiveSummary,
+      position_narrative: narratives.positionNarrative,
+      strength_narrative: narratives.strengthNarrative,
+      gap_narrative: narratives.gapNarrative,
+      opportunity_narrative: narratives.opportunityNarrative,
+      status: 'generated',
+      llm_model: report.llm_model + ' + claude-opus-4',
+      llm_tokens_used: (report.llm_tokens_used || 0) + tokensUsed,
+      llm_cost: (report.llm_cost || 0) + cost,
+      generation_time_ms: (report.generation_time_ms || 0) + generationTime,
+    };
+
+    if (narratives.twoPathsNarrative) {
+      updatePayload.two_paths_narrative = narratives.twoPathsNarrative;
+      console.log('[BM Pass 2] Including twoPathsNarrative in report update');
+    }
+
     const { error: updateError } = await supabaseClient
       .from('bm_reports')
-      .update({
-        headline: narratives.headline,
-        executive_summary: narratives.executiveSummary,
-        position_narrative: narratives.positionNarrative,
-        strength_narrative: narratives.strengthNarrative,
-        gap_narrative: narratives.gapNarrative,
-        opportunity_narrative: narratives.opportunityNarrative,
-        status: 'generated',
-        llm_model: report.llm_model + ' + claude-opus-4',
-        llm_tokens_used: (report.llm_tokens_used || 0) + tokensUsed,
-        llm_cost: (report.llm_cost || 0) + cost,
-        generation_time_ms: (report.generation_time_ms || 0) + generationTime,
-      })
+      .update(updatePayload)
       .eq('engagement_id', engagementId);
     
     if (updateError) {
