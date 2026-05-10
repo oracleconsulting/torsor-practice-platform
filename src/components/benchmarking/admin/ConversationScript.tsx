@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '../../../lib/supabase';
 import { 
   MessageSquare, 
   Copy, 
@@ -130,6 +131,9 @@ interface ConversationScriptProps {
   tasks?: Task[];
   closingScript?: string;
   businessStage?: string;
+  industryCode?: string;
+  preRevenueAnalysis?: { defensiblePreMoney?: { base?: number } };
+  investmentReadinessScore?: number | null;
   signalsData?: Record<string, string>;
 }
 
@@ -142,12 +146,16 @@ export function ConversationScript({
   tasks = [],
   closingScript,
   businessStage,
+  industryCode,
+  preRevenueAnalysis,
+  investmentReadinessScore,
   signalsData,
 }: ConversationScriptProps) {
   const [checkedPoints, setCheckedPoints] = useState<Set<number>>(new Set());
   const [expandedQuestions, setExpandedQuestions] = useState<Set<number>>(new Set());
   const [expandedDataCollection, setExpandedDataCollection] = useState<Set<number>>(new Set());
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [registryScripts, setRegistryScripts] = useState<any[] | null>(null);
   
   const togglePoint = (index: number) => {
     const newChecked = new Set(checkedPoints);
@@ -194,12 +202,39 @@ export function ConversationScript({
 
   const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
 
+  useEffect(() => {
+    if (!isPreRevenue) return;
+    const fetchScripts = async () => {
+      const { data } = await supabase
+        .from('bm_discovery_scripts')
+        .select('*')
+        .or(`industry_code.eq.${industryCode},is_default.eq.true`)
+        .eq('business_stage', businessStage || 'pre_revenue')
+        .eq('is_current', true)
+        .order('section_order', { ascending: true });
+
+      if (data?.length) {
+        const industrySpecific = data.filter((s: any) => s.industry_code === industryCode);
+        const defaults = data.filter((s: any) => s.is_default);
+        setRegistryScripts(industrySpecific.length > 0 ? industrySpecific : defaults);
+      }
+    };
+    fetchScripts();
+  }, [isPreRevenue, industryCode, businessStage]);
+
   const interpolateVars = (text: string): string => {
     if (!signalsData) return text;
     return text.replace(/\{(\w+)\}/g, (match, key) => signalsData[key] || match);
   };
 
+  const defaultOperatingOpening = openingStatement;
+  const effectiveOpening = openingStatement || (isPreRevenue
+    ? `Today we're walking you through the benchmarking work against your stated exit target. Your defensible pre-money sits at £${(preRevenueAnalysis?.defensiblePreMoney?.base || 0).toLocaleString()} given current evidence. Your investment readiness score is ${investmentReadinessScore || 'TBC'}/100. We'll work through what's driving that, what lifts it, and what we can help ship in the next 90 days.`
+    : defaultOperatingOpening);
+
   if (isPreRevenue) {
+    const sectionsToRender = registryScripts || PRE_REVENUE_SECTIONS;
+
     return (
       <div className="space-y-6">
         {/* Opening Statement */}
@@ -209,14 +244,14 @@ export function ConversationScript({
               <MessageSquare className="w-5 h-5 text-blue-600 mt-0.5" />
               <div>
                 <p className="text-sm font-medium text-blue-900 mb-1">Opening Statement</p>
-                <p className="text-blue-800 italic">"{interpolateVars(openingStatement)}"</p>
+                <p className="text-blue-800 italic">"{interpolateVars(effectiveOpening)}"</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Pre-revenue discovery sections */}
-        {PRE_REVENUE_SECTIONS.map((section, si) => (
+        {sectionsToRender.map((section: any, si: number) => (
           <div key={si}>
             <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
               <Target className="w-4 h-4 text-purple-600" />
