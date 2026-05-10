@@ -59,7 +59,7 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
   const [activeIdx, setActiveIdx] = useState(0);
   const activeScenario = scenarios[activeIdx] || scenarios[0];
 
-  if (!scenarios.length) return null;
+  if (!scenarios?.length) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -122,14 +122,47 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
             <div style={{ padding: '16px 18px', borderRadius: 12, background: `${C.emerald}04`, border: `1px solid ${C.emerald}12` }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: C.emerald, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10, ...mono }}>Outputs</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                {Object.entries(activeScenario.outputs).map(([key, val]) => (
-                  <div key={key}>
-                    <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{key.replace(/_/g, ' ')}</p>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, ...mono }}>
-                      {typeof val === 'number' ? (val >= 1000 ? fmt(val) : val.toLocaleString()) : val}
-                    </p>
-                  </div>
-                ))}
+                {Object.entries(activeScenario.outputs).map(([key, val]) => {
+                  if (Array.isArray(val)) {
+                    if (!val.length) return null;
+                    const columns = Object.keys(val[0]);
+                    return (
+                      <div key={key} style={{ marginBottom: 10, gridColumn: '1 / -1' }}>
+                        <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</p>
+                        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr>{columns.map(col => <th key={col} style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid rgba(0,0,0,0.1)', fontSize: 10, color: C.textMuted, textTransform: 'capitalize' }}>{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}</tr>
+                          </thead>
+                          <tbody>
+                            {val.map((row: any, idx: number) => (
+                              <tr key={idx}>{columns.map(col => {
+                                const cell = row[col];
+                                const isPct = col.toLowerCase().includes('pct') || col.toLowerCase().includes('ownership');
+                                return <td key={col} style={{ padding: '4px 8px', borderBottom: '1px solid rgba(0,0,0,0.05)', fontSize: 12 }}>{typeof cell === 'number' ? (isPct ? `${cell.toFixed(1)}%` : cell.toLocaleString()) : String(cell)}</td>;
+                              })}</tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  }
+                  if (typeof val === 'object' && val !== null) {
+                    return (
+                      <div key={key} style={{ marginBottom: 6 }}>
+                        <p style={{ fontSize: 11, color: C.textMuted }}>{key.replace(/_/g, ' ')}</p>
+                        <p style={{ fontSize: 13, color: C.text }}>{JSON.stringify(val)}</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={key}>
+                      <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{key.replace(/_/g, ' ')}</p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, ...mono }}>
+                        {typeof val === 'number' ? (Math.abs(val) >= 1000 ? fmt(val) : val.toLocaleString()) : String(val)}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 

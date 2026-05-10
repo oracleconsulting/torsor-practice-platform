@@ -61,6 +61,28 @@ const VERDICT_CONFIG: Record<string, { label: string; color: string; bg: string 
   not_ready: { label: 'Not Ready', color: C.red, bg: `${C.red}15` },
 };
 
+function rankActionsByShortfall(
+  components: Record<string, { score: number; max: number; gaps: string[] }>
+): string[] {
+  const sorted = Object.entries(components)
+    .map(([name, c]) => ({
+      name,
+      shortfall: c.max > 0 ? (c.max - c.score) / c.max : 0,
+      gaps: c.gaps || [],
+    }))
+    .sort((a, b) => b.shortfall - a.shortfall);
+
+  const ranked: string[] = [];
+  let depth = 0;
+  while (ranked.length < 5 && depth < 10) {
+    for (const c of sorted) {
+      if (c.gaps[depth] && ranked.length < 5) ranked.push(c.gaps[depth]);
+    }
+    depth++;
+  }
+  return ranked;
+}
+
 export function InvestmentReadinessSection({ breakdown }: InvestmentReadinessSectionProps) {
   const { score, verdict, components, overallGaps, overallStrengths } = breakdown;
   const verdictCfg = VERDICT_CONFIG[verdict] || VERDICT_CONFIG.needs_preparation;
@@ -156,22 +178,26 @@ export function InvestmentReadinessSection({ breakdown }: InvestmentReadinessSec
       )}
 
       {/* Path to Investment Ready */}
-      {score < 65 && overallGaps.length > 0 && (
-        <div style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.purple}` }}>
-          <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Path to Investment Ready (65+)</h3>
-          <p style={{ color: C.textSecondary, fontSize: 13, marginBottom: 14 }}>Top actions to close the gap</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {overallGaps.slice(0, 3).map((gap, i) => (
-              <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ width: 24, height: 24, borderRadius: 12, background: `linear-gradient(135deg, ${C.purple}, ${C.blue})`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
-                  {i + 1}
+      {score < 65 && overallGaps.length > 0 && (() => {
+        const rankedGaps = rankActionsByShortfall(components);
+        const displayGaps = rankedGaps.length > 0 ? rankedGaps : overallGaps.slice(0, 5);
+        return (
+          <div style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.purple}` }}>
+            <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Path to Investment Ready (65+)</h3>
+            <p style={{ color: C.textSecondary, fontSize: 13, marginBottom: 14 }}>Top actions to close the gap</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {displayGaps.map((gap, i) => (
+                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  <div style={{ width: 24, height: 24, borderRadius: 12, background: `linear-gradient(135deg, ${C.purple}, ${C.blue})`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                    {i + 1}
+                  </div>
+                  <p style={{ fontSize: 13, color: C.textSecondary, margin: 0, lineHeight: 1.6 }}>{gap}</p>
                 </div>
-                <p style={{ fontSize: 13, color: C.textSecondary, margin: 0, lineHeight: 1.6 }}>{gap}</p>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
