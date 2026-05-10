@@ -23,10 +23,24 @@ interface BenchmarkMetric {
   p25: number;
   p50: number;
   p75: number;
+  unit?: string;
   source?: string;
   sourceUrl?: string;
   confidence?: number;
   lastUpdated?: string;
+}
+
+function formatMetricValue(value: number | null | undefined, unit?: string): string {
+  if (value == null) return '—';
+  switch (unit) {
+    case 'currency': return `£${value.toLocaleString()}`;
+    case 'percent': return `${value}%`;
+    case 'months': return `${value} mo`;
+    case 'years': return `${value} yr`;
+    case 'days': return `${value} days`;
+    case 'ratio': return value.toFixed(2);
+    default: return value.toLocaleString();
+  }
 }
 
 interface DetailedSource {
@@ -70,6 +84,19 @@ interface BenchmarkSourcesPanelProps {
   dataAsOf?: string;
   onRefreshBenchmarks?: () => void;
   isRefreshing?: boolean;
+  valuationBasis?: {
+    methodology_note?: string;
+    primary_method?: string;
+    secondary_method?: string;
+    multiple_low?: number;
+    multiple_mid?: number;
+    multiple_high?: number;
+    pre_money_anchor_low?: number;
+    pre_money_anchor_mid?: number;
+    pre_money_anchor_high?: number;
+    sources?: string[];
+    confidence_level?: string;
+  };
 }
 
 export function BenchmarkSourcesPanel({
@@ -80,7 +107,8 @@ export function BenchmarkSourcesPanel({
   industryCode,
   dataAsOf,
   onRefreshBenchmarks,
-  isRefreshing = false
+  isRefreshing = false,
+  valuationBasis
 }: BenchmarkSourcesPanelProps) {
   const [expandedSection, setExpandedSection] = useState<'metrics' | 'sources' | 'methodology' | null>('metrics');
   
@@ -231,15 +259,15 @@ export function BenchmarkSourcesPanel({
                         <div className="flex items-center gap-3 text-sm">
                           <div className="text-slate-500">
                             <span className="text-xs uppercase tracking-wide">P25</span>
-                            <p className="font-medium">{formatValue(metric.p25, metric.metricCode)}</p>
+                            <p className="font-medium">{formatMetricValue(metric.p25, metric.unit || 'number')}</p>
                           </div>
                           <div className="text-slate-700 bg-blue-50 px-2 py-1 rounded">
                             <span className="text-xs uppercase tracking-wide text-blue-600">Median</span>
-                            <p className="font-bold">{formatValue(metric.p50, metric.metricCode)}</p>
+                            <p className="font-bold">{formatMetricValue(metric.p50, metric.unit || 'number')}</p>
                           </div>
                           <div className="text-slate-500">
                             <span className="text-xs uppercase tracking-wide">P75</span>
-                            <p className="font-medium">{formatValue(metric.p75, metric.metricCode)}</p>
+                            <p className="font-medium">{formatMetricValue(metric.p75, metric.unit || 'number')}</p>
                           </div>
                         </div>
                         {(metric.confidence || detailedMetric?.confidence) && (
@@ -354,30 +382,96 @@ export function BenchmarkSourcesPanel({
         
         {expandedSection === 'methodology' && (
           <div className="p-4 space-y-4">
-            {/* How we source data */}
-            <div>
-              <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2 mb-2">
-                <Shield className="w-4 h-4 text-blue-600" />
-                How We Source Data
-              </h4>
-              <p className="text-sm text-slate-600">
-                We combine multiple authoritative sources to provide accurate industry benchmarks:
-              </p>
-              <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                <li className="flex items-start gap-2">
-                  <Building2 className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                  <span><strong>Government data</strong> - ONS, Companies House, HMRC statistics</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <FileText className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                  <span><strong>Industry reports</strong> - SPI Research, Deltek Clarity, IBISWorld</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Globe className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                  <span><strong>Live research</strong> - Real-time data via Perplexity AI search</span>
-                </li>
-              </ul>
-            </div>
+            {/* Valuation Basis (when present) */}
+            {valuationBasis ? (
+              <>
+                <div>
+                  <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2 mb-2">
+                    <Shield className="w-4 h-4 text-blue-600" />
+                    Valuation Methodology
+                  </h4>
+                  <div className="space-y-2 text-sm text-slate-600">
+                    {valuationBasis.primary_method && (
+                      <p><strong>Primary:</strong> {valuationBasis.primary_method}</p>
+                    )}
+                    {valuationBasis.secondary_method && (
+                      <p><strong>Secondary:</strong> {valuationBasis.secondary_method}</p>
+                    )}
+                  </div>
+                </div>
+
+                {(valuationBasis.multiple_low != null || valuationBasis.pre_money_anchor_low != null) && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    {valuationBasis.multiple_low != null && (
+                      <p className="text-sm text-blue-800">
+                        <strong>Multiple range:</strong>{' '}
+                        {valuationBasis.multiple_low}x – {valuationBasis.multiple_mid ?? '?'}x – {valuationBasis.multiple_high ?? '?'}x
+                      </p>
+                    )}
+                    {valuationBasis.pre_money_anchor_low != null && (
+                      <p className="text-sm text-blue-800 mt-1">
+                        <strong>Pre-money anchor:</strong>{' '}
+                        £{(valuationBasis.pre_money_anchor_low / 1_000_000).toFixed(1)}M – £{((valuationBasis.pre_money_anchor_mid ?? 0) / 1_000_000).toFixed(1)}M – £{((valuationBasis.pre_money_anchor_high ?? 0) / 1_000_000).toFixed(1)}M
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {valuationBasis.methodology_note && (
+                  <div className="bg-slate-50 rounded-lg p-3">
+                    <p className="text-sm text-slate-700">{valuationBasis.methodology_note}</p>
+                  </div>
+                )}
+
+                {valuationBasis.sources && valuationBasis.sources.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium text-slate-700 mb-1">Sources</h4>
+                    <ul className="list-disc list-inside text-sm text-slate-600 space-y-0.5">
+                      {valuationBasis.sources.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {valuationBasis.confidence_level && (
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    valuationBasis.confidence_level === 'high' ? 'bg-emerald-100 text-emerald-700' :
+                    valuationBasis.confidence_level === 'medium' ? 'bg-amber-100 text-amber-700' :
+                    'bg-slate-100 text-slate-600'
+                  }`}>
+                    Confidence: {valuationBasis.confidence_level}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Generic methodology block */}
+                <div>
+                  <h4 className="text-sm font-medium text-slate-700 flex items-center gap-2 mb-2">
+                    <Shield className="w-4 h-4 text-blue-600" />
+                    How We Source Data
+                  </h4>
+                  <p className="text-sm text-slate-600">
+                    We combine multiple authoritative sources to provide accurate industry benchmarks:
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                    <li className="flex items-start gap-2">
+                      <Building2 className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                      <span><strong>Government data</strong> - ONS, Companies House, HMRC statistics</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <FileText className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                      <span><strong>Industry reports</strong> - SPI Research, Deltek Clarity, IBISWorld</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <Globe className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                      <span><strong>Live research</strong> - Real-time data via Perplexity AI search</span>
+                    </li>
+                  </ul>
+                </div>
+              </>
+            )}
             
             {/* Data quality notes if available */}
             {detailedSources?.dataQualityNotes && (

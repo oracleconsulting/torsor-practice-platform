@@ -9,7 +9,15 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   RefreshCcw,
-  PiggyBank
+  PiggyBank,
+  Rocket,
+  Banknote,
+  Gauge,
+  ShieldCheck,
+  FolderOpen,
+  Clock,
+  FlaskConical,
+  UserCheck
 } from 'lucide-react';
 
 interface BalanceSheet {
@@ -59,12 +67,28 @@ interface ClientDataReferenceProps {
   founderRiskLevel?: string;
   valuationImpact?: string;
   dataGaps?: string[];
-  // New balance sheet & trend props
   balanceSheet?: BalanceSheet | null;
   financialTrends?: TrendAnalysis[] | null;
   investmentSignals?: InvestmentSignals | null;
   cashMonths?: number | null;
   surplusCash?: SurplusCashAnalysis | null;
+  businessStage?: string;
+  preRevenueSignals?: {
+    pipeline_qualified_acv?: number;
+    pipeline_signed_loi_count?: number;
+    pipeline_evidence_strength?: string;
+    team_size_current?: number;
+    current_runway_months?: number;
+    monthly_burn?: number;
+    capital_raised_to_date?: number;
+    round_size_target?: number;
+    round_lead_investor_status?: string;
+    cap_table_complexity?: string;
+    data_room_completeness_pct?: number;
+  };
+  defensiblePreMoney?: number;
+  investmentReadinessScore?: number;
+  pendingDataRequests?: Array<{ field: string; label: string }>;
 }
 
 export function ClientDataReference({
@@ -83,57 +107,207 @@ export function ClientDataReference({
   financialTrends,
   investmentSignals,
   cashMonths,
-  surplusCash
+  surplusCash,
+  businessStage,
+  preRevenueSignals,
+  defensiblePreMoney,
+  investmentReadinessScore,
+  pendingDataRequests
 }: ClientDataReferenceProps) {
+  const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+
   return (
     <div className="bg-slate-50 rounded-lg p-4 space-y-4">
       <h3 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
         Quick Reference
       </h3>
       
-      {/* Company Info */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500 flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5" />
-            Revenue
-          </span>
-          <span className="font-semibold text-slate-800">
-            £{revenue.toLocaleString()}
-          </span>
+      {isPreRevenue && preRevenueSignals ? (
+        <div className="space-y-2">
+          {preRevenueSignals.pipeline_qualified_acv != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <Rocket className="w-3.5 h-3.5" />
+                Pipeline (qualified ACV)
+              </span>
+              <span className="font-semibold text-slate-800">
+                £{preRevenueSignals.pipeline_qualified_acv.toLocaleString()}
+              </span>
+            </div>
+          )}
+          {preRevenueSignals.pipeline_signed_loi_count != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5" />
+                Signed LOIs
+              </span>
+              <span className="font-semibold text-slate-800">{preRevenueSignals.pipeline_signed_loi_count}</span>
+            </div>
+          )}
+          {preRevenueSignals.pipeline_evidence_strength && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <FlaskConical className="w-3.5 h-3.5" />
+                Evidence strength
+              </span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+                preRevenueSignals.pipeline_evidence_strength === 'strong' ? 'bg-emerald-100 text-emerald-700' :
+                preRevenueSignals.pipeline_evidence_strength === 'moderate' ? 'bg-amber-100 text-amber-700' :
+                'bg-slate-200 text-slate-600'
+              }`}>
+                {preRevenueSignals.pipeline_evidence_strength}
+              </span>
+            </div>
+          )}
+          {preRevenueSignals.team_size_current != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" />
+                Team size
+              </span>
+              <span className="font-semibold text-slate-800">{preRevenueSignals.team_size_current}</span>
+            </div>
+          )}
+          {preRevenueSignals.current_runway_months != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                Runway
+              </span>
+              <span className="font-semibold text-slate-800">
+                {preRevenueSignals.current_runway_months} mo
+                {preRevenueSignals.monthly_burn != null && (
+                  <span className="text-slate-400 font-normal text-xs ml-1">
+                    at £{preRevenueSignals.monthly_burn.toLocaleString()}/mo
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+          {preRevenueSignals.round_size_target != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <Banknote className="w-3.5 h-3.5" />
+                Round target
+              </span>
+              <span className="font-semibold text-slate-800">
+                £{preRevenueSignals.round_size_target.toLocaleString()}
+              </span>
+            </div>
+          )}
+          {preRevenueSignals.round_lead_investor_status && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <UserCheck className="w-3.5 h-3.5" />
+                Lead investor
+              </span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+                preRevenueSignals.round_lead_investor_status === 'confirmed' ? 'bg-emerald-100 text-emerald-700' :
+                preRevenueSignals.round_lead_investor_status === 'in_discussions' ? 'bg-blue-100 text-blue-700' :
+                'bg-slate-200 text-slate-600'
+              }`}>
+                {preRevenueSignals.round_lead_investor_status.replace(/_/g, ' ')}
+              </span>
+            </div>
+          )}
+          {preRevenueSignals.cap_table_complexity && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Cap table
+              </span>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-bold ${
+                preRevenueSignals.cap_table_complexity === 'clean' ? 'bg-emerald-100 text-emerald-700' :
+                preRevenueSignals.cap_table_complexity === 'moderate' ? 'bg-amber-100 text-amber-700' :
+                'bg-rose-100 text-rose-700'
+              }`}>
+                {preRevenueSignals.cap_table_complexity}
+              </span>
+            </div>
+          )}
+          {preRevenueSignals.data_room_completeness_pct != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500 flex items-center gap-1.5">
+                <FolderOpen className="w-3.5 h-3.5" />
+                Data room
+              </span>
+              <span className="font-semibold text-slate-800">{preRevenueSignals.data_room_completeness_pct}% complete</span>
+            </div>
+          )}
+
+          <div className="pt-2 border-t border-slate-200 space-y-2">
+            {defensiblePreMoney != null && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500 flex items-center gap-1.5">
+                  <Banknote className="w-3.5 h-3.5" />
+                  Defensible pre-money
+                </span>
+                <span className="font-semibold text-blue-700">
+                  £{(defensiblePreMoney / 1_000_000).toFixed(1)}M
+                </span>
+              </div>
+            )}
+            {investmentReadinessScore != null && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-500 flex items-center gap-1.5">
+                  <Gauge className="w-3.5 h-3.5" />
+                  Investment readiness
+                </span>
+                <span className={`font-semibold ${
+                  investmentReadinessScore >= 70 ? 'text-emerald-600' :
+                  investmentReadinessScore >= 40 ? 'text-amber-600' : 'text-rose-600'
+                }`}>
+                  {investmentReadinessScore}/100
+                </span>
+              </div>
+            )}
+          </div>
         </div>
-        
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500 flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5" />
-            Employees
-          </span>
-          <span className="font-semibold text-slate-800">{employees}</span>
+      ) : (
+        /* Operating stage company info */
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5" />
+              Revenue
+            </span>
+            <span className="font-semibold text-slate-800">
+              £{revenue.toLocaleString()}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500 flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5" />
+              Employees
+            </span>
+            <span className="font-semibold text-slate-800">{employees}</span>
+          </div>
+          
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500 flex items-center gap-1.5">
+              <TrendingUp className="w-3.5 h-3.5" />
+              Rev/Employee
+            </span>
+            <span className="font-semibold text-slate-800">
+              £{revenuePerEmployee.toLocaleString()}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-slate-500 flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5" />
+              Percentile
+            </span>
+            <span className={`font-semibold ${
+              percentile >= 50 ? 'text-emerald-600' : 
+              percentile >= 25 ? 'text-amber-600' : 'text-rose-600'
+            }`}>
+              {percentile}th
+            </span>
+          </div>
         </div>
-        
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500 flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5" />
-            Rev/Employee
-          </span>
-          <span className="font-semibold text-slate-800">
-            £{revenuePerEmployee.toLocaleString()}
-          </span>
-        </div>
-        
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500 flex items-center gap-1.5">
-            <Target className="w-3.5 h-3.5" />
-            Percentile
-          </span>
-          <span className={`font-semibold ${
-            percentile >= 50 ? 'text-emerald-600' : 
-            percentile >= 25 ? 'text-amber-600' : 'text-rose-600'
-          }`}>
-            {percentile}th
-          </span>
-        </div>
-      </div>
+      )}
       
       {/* Industry */}
       <div className="pt-3 border-t border-slate-200">
@@ -345,6 +519,20 @@ export function ClientDataReference({
               </span>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Pending Data Requests (any stage) */}
+      {pendingDataRequests && pendingDataRequests.length > 0 && (
+        <div style={{ paddingTop: 12, borderTop: '1px solid #fbbf24', marginTop: 12 }}>
+          <p style={{ fontSize: 11, color: '#92400e', fontWeight: 600, marginBottom: 8 }}>
+            PENDING CLIENT DATA ({pendingDataRequests.length})
+          </p>
+          {pendingDataRequests.map(r => (
+            <p key={r.field} style={{ fontSize: 12, color: '#b45309', marginBottom: 4 }}>
+              • {r.label}
+            </p>
+          ))}
         </div>
       )}
     </div>

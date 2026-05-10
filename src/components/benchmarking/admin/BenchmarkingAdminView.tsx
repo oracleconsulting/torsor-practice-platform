@@ -114,6 +114,8 @@ interface BenchmarkAnalysis {
   } | null;
   // Business valuation analysis
   value_analysis?: ValueAnalysis | null;
+  // Pre-revenue scoring
+  investment_readiness_score?: number;
   // Context Intelligence fields (from Pass 3)
   opportunities?: any[];
   recommended_services?: any[];
@@ -225,6 +227,10 @@ interface Pass1Data {
   classification?: {
     industryName?: string;
     industryConfidence?: number;
+  };
+  pre_revenue_analysis?: {
+    defensiblePreMoney?: { base?: number };
+    investmentReadiness?: { score?: number };
   };
 }
 
@@ -531,6 +537,11 @@ export function BenchmarkingAdminView({
               gapCount={data.gap_count || 0}
               strengthCount={data.strength_count || 0}
               riskLevel={(founderRisk?.level as 'low' | 'medium' | 'high' | 'critical') || (pass1Data?.founderRiskLevel as 'low' | 'medium' | 'high' | 'critical') || 'medium'}
+              businessStage={businessStage}
+              defensiblePreMoney={pass1Data?.pre_revenue_analysis?.defensiblePreMoney?.base}
+              investmentReadinessScore={data?.investment_readiness_score || pass1Data?.pre_revenue_analysis?.investmentReadiness?.score}
+              readinessGapCount={data?.gap_count}
+              exitHorizonYears={exitHorizonYears}
             />
           </div>
         </div>
@@ -923,6 +934,7 @@ export function BenchmarkingAdminView({
                       p25: m.p25,
                       p50: m.p50,
                       p75: m.p75,
+                      unit: m.unit,
                       source: m.source,
                       sourceUrl: m.sourceUrl,
                       confidence: m.confidence
@@ -932,6 +944,7 @@ export function BenchmarkingAdminView({
                     industryName={industryMapping?.name || 'Unknown Industry'}
                     industryCode={industryMapping?.code || data.industry_code || ''}
                     dataAsOf={data.benchmark_data_as_of}
+                    valuationBasis={valuationBasis}
                   />
                 )}
                 
@@ -963,6 +976,11 @@ export function BenchmarkingAdminView({
               investmentSignals={data.investment_signals}
               cashMonths={data.cash_months}
               surplusCash={data.surplus_cash}
+              businessStage={businessStage}
+              preRevenueSignals={preRevenueSignals}
+              defensiblePreMoney={pass1Data?.pre_revenue_analysis?.defensiblePreMoney?.base}
+              investmentReadinessScore={data?.investment_readiness_score}
+              pendingDataRequests={pendingDataRequests}
             />
             
             {/* Recommendations Summary */}
