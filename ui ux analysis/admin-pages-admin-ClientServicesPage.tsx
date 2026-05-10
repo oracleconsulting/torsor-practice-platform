@@ -12439,6 +12439,33 @@ function BenchmarkingClientModal({
     }
   };
 
+  // Handle Pass 2 only (narratives) — preserves Pass 1 financial data, re-generates narratives
+  const handleRegeneratePass2Only = async () => {
+    if (!canRun('benchmarking')) {
+      alert('You do not have permission to run Benchmarking actions.');
+      return;
+    }
+    if (!engagement) return;
+    if (!confirm('Re-run narrative generation (Pass 2) only? Pass 1 data will be preserved.')) return;
+
+    setGenerating(true);
+    try {
+      console.log('[Benchmarking] Triggering Pass 2 only for:', engagement.id);
+      const { data: result, error } = await supabase.functions.invoke('generate-bm-report-pass2', {
+        body: { engagementId: engagement.id }
+      });
+
+      if (error) throw error;
+      console.log('[Benchmarking] Pass 2 result:', result);
+      await fetchData();
+    } catch (error: any) {
+      console.error('[Benchmarking] Error regenerating Pass 2:', error);
+      alert(`Pass 2 error: ${error.message || 'Unknown error'}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   // Handle Pass 3 only (opportunities & services) — preserves Pass 1/2 financial data
   const handleRegeneratePass3Only = async () => {
     if (!canRun('benchmarking')) {
@@ -13024,23 +13051,28 @@ function BenchmarkingClientModal({
                             </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                            onClick={handleRegeneratePass2Only}
+                          disabled={generating}
+                            className="px-3 py-1.5 rounded-lg flex items-center gap-1.5 border border-purple-400 bg-purple-50 text-purple-700 hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-xs"
+                        >
+                          {generating ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Running...</span></>
+                          ) : (
+                            <><RefreshCw className="w-3.5 h-3.5" /><span>Re-run Narratives (Pass 2)</span></>
+                          )}
+                          </button>
                         <button
                             onClick={handleRegeneratePass3Only}
                           disabled={generating}
-                            className="px-4 py-2 rounded-lg flex items-center gap-2 border border-blue-500 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed font-semibold text-sm"
+                            className="px-3 py-1.5 rounded-lg flex items-center gap-1.5 border border-blue-400 bg-blue-50 text-blue-700 hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-xs"
                         >
                           {generating ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>Running...</span>
-                            </>
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Running...</span></>
                           ) : (
-                            <>
-                              <RefreshCw className="w-4 h-4" />
-                                <span>Re-run Opportunities (Pass 3)</span>
-                              </>
-                            )}
+                            <><RefreshCw className="w-3.5 h-3.5" /><span>Re-run Opportunities (Pass 3)</span></>
+                          )}
                           </button>
                           <button
                             onClick={async () => {

@@ -44,6 +44,24 @@ serve(async (req) => {
     const clientData = await gatherAllClientData(supabase, engagementId);
     console.log(`[Pass 3] Gathered data for client: ${clientData.clientName}`);
 
+    // 1b. Check for pre-revenue / early-revenue branch
+    const { data: engagementForStage } = await supabase
+      .from('bm_engagements')
+      .select('business_stage')
+      .eq('id', engagementId)
+      .single();
+
+    const isPreRevenue = engagementForStage?.business_stage === 'pre_revenue' || engagementForStage?.business_stage === 'early_revenue';
+
+    if (isPreRevenue) {
+      console.log(`[Pass 3] Pre-revenue path: business_stage=${engagementForStage?.business_stage}`);
+      const report = clientData.pass1Data;
+      const result = await generatePreRevenueOpportunities(supabase, engagementId, clientData.clientId, report);
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // 2. Get active service catalogue
     const { data: services } = await supabase
       .from('services')
@@ -359,6 +377,310 @@ function extractSuggestedServices(content: string): string[] {
   }
   
   return suggestions;
+}
+
+// ============================================================================
+// PRE-REVENUE OPPORTUNITY GENERATION
+// ============================================================================
+
+const PRE_REVENUE_SERVICE_MAP: Record<string, string> = {
+  'lock_in_target': 'three_goal_framework',
+  'fic_holdco': 'family_investment_company',
+  'forecast_model': 'fractional_cfo',
+  'cap_table_cleanup': 'cap_table_seis_eis',
+  'investor_pack': 'investor_pack_preparation',
+  'loi_conversion': 'fractional_coo',
+  'founder_ip_docs': 'founder_ip_documentation_programme',
+  'contract_templates': 'fractional_cfo',
+  'customer_success_ops': 'fractional_coo',
+  'board_neds': 'board_governance_setup',
+};
+
+async function generatePreRevenueOpportunities(
+  supabase: any,
+  engagementId: string,
+  clientId: string,
+  pass1Data: any,
+): Promise<{ success: boolean; opportunityCount: number; model: string }> {
+  console.log('[Pass 3 Pre-Revenue] Generating pre-revenue opportunities');
+
+  const isValidUUID = clientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId);
+  const safeClientId = isValidUUID ? clientId : null;
+
+  if (!safeClientId) {
+    console.warn('[Pass 3 Pre-Revenue] No valid client_id, skipping opportunity storage');
+    return { success: false, opportunityCount: 0, model: 'pre_revenue_template' };
+  }
+
+  // Delete existing opportunities
+  const { error: deleteError, count: deletedCount } = await supabase
+    .from('client_opportunities')
+    .delete()
+    .eq('engagement_id', engagementId)
+    .select('id', { count: 'exact' });
+
+  if (deleteError) {
+    console.error(`[Pass 3 Pre-Revenue] Delete failed: ${deleteError.message}`);
+  } else {
+    console.log(`[Pass 3 Pre-Revenue] Deleted ${deletedCount || 0} existing opportunities`);
+  }
+
+  const preRevAnalysis = pass1Data?.pre_revenue_analysis || pass1Data || {};
+  const defensible = preRevAnalysis.defensiblePreMoney || {};
+  const irScore = preRevAnalysis.investmentReadiness || {};
+
+  const opportunities = [
+    // Tier 1: Strategic Foundations (must_address_now)
+    {
+      code: 'lock_in_target',
+      title: 'Lock in target exit valuation and metric trajectory',
+      category: 'valuation',
+      severity: 'critical',
+      priority: 'must_address_now',
+      priorityRationale: 'Without a locked exit target, all downstream analysis (milestones, metric targets, suppressor remediation) lacks an anchor.',
+      dataEvidence: `Defensible pre-money range: £${((defensible.conservative || 0) / 1e6).toFixed(2)}M - £${((defensible.stretch || 0) / 1e6).toFixed(2)}M. IR score: ${irScore.score || 0}/100.`,
+      talkingPoint: 'Before anything else, you need a locked exit target. Every investor conversation starts with "what does success look like?"',
+      questionToAsk: 'Have you stress-tested your exit valuation against what the market will actually pay for businesses at your stage?',
+      financialImpactType: 'valuation_uplift',
+      financialImpactAmount: (defensible.stretch || 0) - (defensible.base || 0),
+    },
+    {
+      code: 'fic_holdco',
+      title: 'Holdco / Family Investment Company structuring',
+      category: 'structuring',
+      severity: 'high',
+      priority: 'must_address_now',
+      priorityRationale: 'Tax-efficient structuring must be in place before a funding round closes. Retrospective restructuring is costly and complex.',
+      dataEvidence: 'Pre-revenue stage requires clean corporate structure for investor due diligence.',
+      talkingPoint: 'Getting your holding structure right before the round saves significant tax on exit. It is much harder to restructure after investment.',
+      questionToAsk: 'Is the operating company held directly or through a holding structure? Have you taken advice on FIC or holdco for founder shares?',
+      financialImpactType: 'tax_efficiency',
+      financialImpactAmount: Math.round((defensible.base || 0) * 0.05),
+    },
+    {
+      code: 'forecast_model',
+      title: 'Build forecast model with documented assumptions',
+      category: 'financial_planning',
+      severity: 'critical',
+      priority: 'must_address_now',
+      priorityRationale: 'Investors will stress-test your numbers. A bottom-up model with documented assumptions is table stakes for any serious conversation.',
+      dataEvidence: `Forecast credibility component: ${irScore.components?.forecast_credibility?.score || 0}/${irScore.components?.forecast_credibility?.max || 15}. Gaps: ${(irScore.components?.forecast_credibility?.gaps || []).join('; ') || 'None identified'}.`,
+      talkingPoint: 'A credible 3-year model is not optional for fundraising. Investors will pull it apart; better they find solid foundations than guesswork.',
+      questionToAsk: 'Can you walk me through the assumptions behind your Year 1 revenue forecast? What conversion rates are you using?',
+      financialImpactType: 'valuation_protection',
+      financialImpactAmount: Math.round((defensible.base || 0) * 0.15),
+    },
+    {
+      code: 'cap_table_cleanup',
+      title: 'Cap table cleanup + EIS/SEIS advance assurance',
+      category: 'structuring',
+      severity: 'high',
+      priority: 'must_address_now',
+      priorityRationale: 'EIS/SEIS eligibility dramatically expands your investor pool. Advance assurance takes 4-8 weeks from HMRC.',
+      dataEvidence: `Cap table & governance: ${irScore.components?.cap_table_governance?.score || 0}/${irScore.components?.cap_table_governance?.max || 20}. Gaps: ${(irScore.components?.cap_table_governance?.gaps || []).join('; ') || 'None identified'}.`,
+      talkingPoint: 'Angel investors expect EIS relief. Without advance assurance, you are closing your round to a fraction of the market.',
+      questionToAsk: 'Do you have SEIS/EIS advance assurance? How many share classes are currently on the cap table?',
+      financialImpactType: 'investor_access',
+      financialImpactAmount: Math.round((defensible.base || 0) * 0.10),
+    },
+
+    // Tier 2: Investor Readiness (next_3_months)
+    {
+      code: 'investor_pack',
+      title: 'Investor pack with market evidence and comparables',
+      category: 'investor_readiness',
+      severity: 'high',
+      priority: 'next_3_months',
+      priorityRationale: 'Once foundations are in place, you need a compelling investor pack that tells the story with data.',
+      dataEvidence: `Data room completeness: ${irScore.components?.data_room_ip?.score || 0}/${irScore.components?.data_room_ip?.max || 15}.`,
+      talkingPoint: 'The best founders don\'t just pitch a vision. They show market evidence, competitive analysis, and a clear "why now" story.',
+      questionToAsk: 'What does your current investor deck look like? Do you have market sizing evidence or comparable transaction data?',
+      financialImpactType: 'fundraising_efficiency',
+      financialImpactAmount: Math.round((defensible.base || 0) * 0.08),
+    },
+    {
+      code: 'loi_conversion',
+      title: 'Convert verbal LOIs to signed contracts',
+      category: 'revenue_acceleration',
+      severity: 'high',
+      priority: 'next_3_months',
+      priorityRationale: 'Signed contracts are the single biggest de-risk signal for investors. Verbal commitments carry minimal weight.',
+      dataEvidence: `Pipeline quality: ${irScore.components?.pipeline_quality?.score || 0}/${irScore.components?.pipeline_quality?.max || 25}. Gaps: ${(irScore.components?.pipeline_quality?.gaps || []).join('; ') || 'None identified'}.`,
+      talkingPoint: 'Every verbal commitment that converts to a signed contract steps up your valuation. Two signed LOIs can shift you from base to stretch case.',
+      questionToAsk: 'Which of your verbal commitments is closest to signing? What is blocking the conversion?',
+      financialImpactType: 'valuation_uplift',
+      financialImpactAmount: (defensible.stretch || 0) - (defensible.base || 0),
+    },
+    {
+      code: 'founder_ip_docs',
+      title: 'Founder IP documentation programme',
+      category: 'ip_protection',
+      severity: 'medium',
+      priority: 'next_3_months',
+      priorityRationale: 'IP assignment and protection must be provably clean before due diligence. This takes 2-3 months to complete properly.',
+      dataEvidence: `Data room & IP: ${irScore.components?.data_room_ip?.score || 0}/${irScore.components?.data_room_ip?.max || 15}. Gaps: ${(irScore.components?.data_room_ip?.gaps || []).join('; ') || 'None identified'}.`,
+      talkingPoint: 'Investors will check IP ownership on day one of due diligence. If the IP is not clearly assigned to the company, it will stall or kill the deal.',
+      questionToAsk: 'Is all IP formally assigned to the operating company? Do you have invention assignment agreements with all developers?',
+      financialImpactType: 'valuation_protection',
+      financialImpactAmount: Math.round((defensible.base || 0) * 0.10),
+    },
+
+    // Tier 3: Growth Levers (next_12_months)
+    {
+      code: 'contract_templates',
+      title: 'Multi-year contract templates + NRR design',
+      category: 'revenue_quality',
+      severity: 'medium',
+      priority: 'next_12_months',
+      priorityRationale: 'Multi-year contracts and expansion revenue design add 1-2x to your ARR multiple at exit.',
+      dataEvidence: 'Pre-revenue businesses that design for NRR >110% from the start command premium multiples.',
+      talkingPoint: 'Building multi-year contracts and expansion pricing into your first customers sets the trajectory for everything that follows.',
+      questionToAsk: 'Are you planning annual or multi-year contracts? Have you designed your pricing to allow account expansion?',
+      financialImpactType: 'multiple_expansion',
+      financialImpactAmount: Math.round((defensible.base || 0) * 0.20),
+    },
+    {
+      code: 'customer_success_ops',
+      title: 'Customer success operations setup',
+      category: 'operational',
+      severity: 'medium',
+      priority: 'next_12_months',
+      priorityRationale: 'Retention and expansion from early customers is the strongest signal of product-market fit. Build the infrastructure before you scale.',
+      dataEvidence: `Team & hires: ${irScore.components?.team_hires?.score || 0}/${irScore.components?.team_hires?.max || 25}.`,
+      talkingPoint: 'Your first 10 customers will define your NRR trajectory. Getting onboarding and success right from day one pays compound returns.',
+      questionToAsk: 'Who will own customer success? Do you have an onboarding playbook for your first enterprise customers?',
+      financialImpactType: 'retention_value',
+      financialImpactAmount: Math.round((defensible.base || 0) * 0.12),
+    },
+    {
+      code: 'board_neds',
+      title: 'Board / NED appointment for governance and credibility',
+      category: 'governance',
+      severity: 'medium',
+      priority: 'next_12_months',
+      priorityRationale: 'Independent board members signal maturity to investors. Series A investors expect formal governance.',
+      dataEvidence: `Cap table & governance: ${irScore.components?.cap_table_governance?.score || 0}/${irScore.components?.cap_table_governance?.max || 20}.`,
+      talkingPoint: 'A strong NED adds credibility, opens doors, and signals to investors that you are building a business, not running a project.',
+      questionToAsk: 'Do you have any non-executive directors or formal advisors? What skills gap would a NED fill?',
+      financialImpactType: 'governance_premium',
+      financialImpactAmount: Math.round((defensible.base || 0) * 0.05),
+    },
+  ];
+
+  // Store each opportunity
+  for (let index = 0; index < opportunities.length; index++) {
+    const opp = opportunities[index];
+    const serviceCode = PRE_REVENUE_SERVICE_MAP[opp.code];
+    let serviceId: string | null = null;
+
+    if (serviceCode) {
+      const { data: svc } = await supabase
+        .from('services')
+        .select('id, times_recommended')
+        .eq('code', serviceCode)
+        .single();
+
+      if (svc) {
+        serviceId = svc.id;
+        await supabase
+          .from('services')
+          .update({
+            times_recommended: (svc.times_recommended || 0) + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', svc.id);
+      }
+    }
+
+    const { error: oppError } = await supabase
+      .from('client_opportunities')
+      .insert({
+        engagement_id: engagementId,
+        client_id: safeClientId,
+        opportunity_code: opp.code,
+        title: opp.title,
+        category: opp.category,
+        severity: opp.severity,
+        priority: opp.priority,
+        priority_rationale: opp.priorityRationale,
+        display_order: index,
+        data_evidence: opp.dataEvidence,
+        financial_impact_type: opp.financialImpactType,
+        financial_impact_amount: opp.financialImpactAmount,
+        recommended_service_id: serviceId,
+        talking_point: opp.talkingPoint,
+        question_to_ask: opp.questionToAsk,
+        llm_model: 'pre_revenue_template',
+        generated_at: new Date().toISOString(),
+      });
+
+    if (oppError) {
+      console.error(`[Pass 3 Pre-Revenue] Failed to store ${opp.code}: ${oppError.message}`);
+    }
+  }
+
+  console.log(`[Pass 3 Pre-Revenue] Stored ${opportunities.length} pre-revenue opportunities`);
+
+  // Build recommended_services from created opportunities
+  const { data: createdOpps } = await supabase
+    .from('client_opportunities')
+    .select('*, services:recommended_service_id(id, code, name, category)')
+    .eq('engagement_id', engagementId)
+    .order('display_order', { ascending: true });
+
+  const recommendedServices: any[] = [];
+  const serviceMap = new Map<string, any>();
+
+  for (const opp of (createdOpps || [])) {
+    const serviceId = opp.recommended_service_id;
+    const serviceName = opp.services?.name || opp.title;
+    const serviceCode = opp.services?.code || opp.opportunity_code;
+
+    if (!serviceName) continue;
+
+    const key = serviceId || serviceName;
+    if (!serviceMap.has(key)) {
+      serviceMap.set(key, {
+        service_id: serviceId,
+        service_name: serviceName,
+        code: serviceCode,
+        service_status: serviceId ? 'catalogued' : 'concept_not_yet_in_catalogue',
+        category: opp.services?.category || opp.category || 'advisory',
+        fit_rationale: opp.talking_point || opp.data_evidence || '',
+        linked_opportunities: [],
+        combined_impact_value_pounds: 0,
+        priority_label: opp.priority === 'must_address_now' ? 'Address immediately'
+          : opp.priority === 'next_3_months' ? 'Address in next 3 months'
+          : 'Address in next 12 months',
+        display_order: recommendedServices.length + 1,
+      });
+    }
+    const entry = serviceMap.get(key);
+    entry.linked_opportunities.push(opp.title);
+    entry.combined_impact_value_pounds += (opp.financial_impact_amount || 0);
+  }
+
+  for (const svc of serviceMap.values()) {
+    recommendedServices.push(svc);
+  }
+
+  console.log('[Pass 3 Pre-Revenue] Built recommended_services:', recommendedServices.length, 'services');
+
+  // Update report metadata including recommended_services
+  await supabase
+    .from('bm_reports')
+    .update({
+      opportunity_assessment: `Pre-revenue opportunity analysis: ${opportunities.filter(o => o.priority === 'must_address_now').length} strategic foundations, ${opportunities.filter(o => o.priority === 'next_3_months').length} investor readiness, ${opportunities.filter(o => o.priority === 'next_12_months').length} growth levers.`,
+      opportunities_generated_at: new Date().toISOString(),
+      recommended_services: recommendedServices,
+    })
+    .eq('engagement_id', engagementId);
+
+  return {
+    success: true,
+    opportunityCount: opportunities.length,
+    model: 'pre_revenue_template',
+  };
 }
 
 async function gatherAllClientData(supabase: any, engagementId: string): Promise<ClientData> {

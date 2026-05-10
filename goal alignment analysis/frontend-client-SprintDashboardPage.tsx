@@ -136,15 +136,32 @@ function getCurrentWeekFromTasks(tasks: any[]): number {
 
 function computeWeekGating(
   weeks: any[],
-  dbTasks: any[]
+  dbTasks: any[],
+  pulseWeeks?: Set<number>,
+  sprintStartDate?: string | null,
 ): {
   activeWeek: number;
   resolvedWeeks: number[];
   lockedWeeks: number[];
   isWeekResolved: (weekNum: number) => boolean;
   isWeekLocked: (weekNum: number) => boolean;
+  /** Weeks where tasks are done but pulse is missing */
+  needsPulse: (weekNum: number) => boolean;
+  /**
+   * True when the calendar has reached this week's start date AND the previous
+   * week is fully resolved. Drives whether tasks for this week can be marked
+   * in_progress / completed. Weeks before activeWeek are always actionable.
+   * If `sprintStartDate` is null, every visible week is actionable (legacy).
+   */
+  isWeekActionable: (weekNum: number) => boolean;
+  /**
+   * Returns the calendar date this week first becomes actionable (i.e. tasks
+   * can be marked done). Null if `sprintStartDate` is not set yet.
+   */
+  weekStartDate: (weekNum: number) => Date | null;
 } {
   const resolvedWeeks: number[] = [];
+  const tasksDoneWeeks: number[] = [];
 
   for (let i = 0; i < (weeks?.length || 0); i++) {
     const week = weeks[i];
@@ -152,15 +169,21 @@ function computeWeekGating(
     const generatedTasks = week?.tasks || [];
     const weekDbTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
 
-    const allResolved =
+    const allTasksDone =
       generatedTasks.length > 0 &&
       generatedTasks.every((gt: any) => {
         const dbTask = weekDbTasks.find((t: any) => t.title === gt.title);
         return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
       });
 
-    if (allResolved) {
-      resolvedWeeks.push(weekNum);
+    if (allTasksDone) {
+      tasksDoneWeeks.push(weekNum);
+      const hasPulse = !pulseWeeks || pulseWeeks.has(weekNum);
+      if (hasPulse) {
+        resolvedWeeks.push(weekNum);
+      } else {
+        break;
+      }
     } else {
       break;
     }
@@ -175,13 +198,66 @@ function computeWeekGating(
     (w) => w > activeWeek && !resolvedWeeks.includes(w)
   );
 
+  // Compute week start dates. Each week begins exactly 7 days after the previous,
+  // anchored on the chosen sprint_start_date.
+  const weekStartDate = (weekNum: number): Date | null => {
+    if (!sprintStartDate) return null;
+    const start = new Date(sprintStartDate);
+    if (Number.isNaN(start.getTime())) return null;
+    const d = new Date(start);
+    d.setDate(d.getDate() + (weekNum - 1) * 7);
+    return d;
+  };
+
+  const isWeekActionable = (weekNum: number): boolean => {
+    // Resolved weeks stay actionable so the client can edit/skip retroactively.
+    if (resolvedWeeks.includes(weekNum)) return true;
+    // Without a chosen start date, behave as before — any visible week is actionable.
+    if (!sprintStartDate) return true;
+    const startDate = weekStartDate(weekNum);
+    if (!startDate) return true;
+    const now = new Date();
+    return now.getTime() >= startDate.getTime();
+  };
+
   return {
     activeWeek,
     resolvedWeeks,
     lockedWeeks,
     isWeekResolved: (w) => resolvedWeeks.includes(w),
     isWeekLocked: (w) => lockedWeeks.includes(w),
+    needsPulse: (w) => tasksDoneWeeks.includes(w) && !resolvedWeeks.includes(w),
+    isWeekActionable,
+    weekStartDate,
   };
+}
+
+/**
+ * Highest week number where every generated task has a matching DB task in
+ * completed/skipped status. Used as the target week for the Life Pulse so it
+ * gets saved against the week the client is closing out — NOT the next week
+ * they haven't started yet. Defaults to 1 when no week is fully done.
+ */
+function getPulseTargetWeek(weeks: any[], dbTasks: any[]): number {
+  let lastDoneWeek = 0;
+  for (let i = 0; i < (weeks?.length || 0); i++) {
+    const week = weeks[i];
+    const weekNum = i + 1;
+    const generatedTasks = week?.tasks || [];
+    const weekDbTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
+    const allDone =
+      generatedTasks.length > 0 &&
+      generatedTasks.every((gt: any) => {
+        const dbTask = weekDbTasks.find((t: any) => t.title === gt.title);
+        return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
+      });
+    if (allDone) {
+      lastDoneWeek = weekNum;
+    } else {
+      break;
+    }
+  }
+  return lastDoneWeek > 0 ? lastDoneWeek : 1;
 }
 
 // ============================================================================
@@ -318,6 +394,7 @@ function TaskCard({
   status,
   dbTask,
   isLife,
+  isActionable = true,
   onStatusChange,
   onSkip,
   clientId,
@@ -329,6 +406,12 @@ function TaskCard({
   status: string;
   dbTask: any;
   isLife: boolean;
+  /**
+   * When false, the task circle is disabled and "Didn't do this" is hidden.
+   * Used for weeks that are visible (preview) but haven't been reached on the
+   * calendar yet — clients can read ahead but can't action items early.
+   */
+  isActionable?: boolean;
   onStatusChange: (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed', task?: any) => void;
   onSkip?: (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }) => void;
   clientId?: string;
@@ -369,6 +452,7 @@ function TaskCard({
 
   const handleClick = async () => {
     if (status === 'skipped') return;
+    if (!isActionable) return;
     const nextStatus =
       status === 'pending' ? 'in_progress' : status === 'in_progress' ? 'completed' : 'pending';
 
@@ -412,11 +496,13 @@ function TaskCard({
   };
 
   return (
-    <div className={`p-4 rounded-lg border ${cardClass}`}>
+    <div className={`p-4 rounded-lg border ${cardClass} ${!isActionable ? 'opacity-70' : ''}`}>
       <div className="flex items-start gap-3">
         <button
           onClick={handleClick}
-          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${buttonClass}`}
+          disabled={!isActionable}
+          title={!isActionable ? 'This week opens later — preview only for now' : undefined}
+          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${buttonClass} ${!isActionable ? 'cursor-not-allowed' : ''}`}
         >
           {status === 'completed' && <CheckCircle className="w-4 h-4" />}
           {status === 'in_progress' && <Play className="w-3 h-3 text-blue-500" />}
@@ -447,7 +533,7 @@ function TaskCard({
             </span>
           </div>
         </div>
-        {status !== 'completed' && status !== 'skipped' && onSkip && (
+        {status !== 'completed' && status !== 'skipped' && onSkip && isActionable && (
           <button
             type="button"
             onClick={(e) => {
@@ -491,6 +577,8 @@ function ThisWeekCard({
   isBehind,
   activeWeek,
   calendarWeek,
+  isActionable = true,
+  weekStartDate,
   onStartCatchUp,
   clientId,
   practiceId,
@@ -503,6 +591,10 @@ function ThisWeekCard({
   isBehind?: boolean;
   activeWeek?: number;
   calendarWeek?: number;
+  /** When false, this week is visible-only (preview). Tasks cannot be ticked. */
+  isActionable?: boolean;
+  /** Date this week becomes actionable (when isActionable=false). */
+  weekStartDate?: Date | null;
   onStartCatchUp?: () => void;
   clientId?: string;
   practiceId?: string;
@@ -530,7 +622,21 @@ function ThisWeekCard({
         )}
       </div>
 
-      {dbTasks.length === 0 && weekTasks.length > 0 && (
+      {!isActionable && (
+        <div className="mx-5 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-sm text-amber-900 font-medium mb-1">
+            Preview only — Week {weekNumber} opens
+            {weekStartDate
+              ? ` on ${weekStartDate.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}`
+              : ' soon'}
+          </p>
+          <p className="text-xs text-amber-800/80">
+            You're ahead of schedule. Read what's coming, plan your week — but tasks
+            will become tick-able only after the week begins, so the rhythm sticks.
+          </p>
+        </div>
+      )}
+      {isActionable && dbTasks.length === 0 && weekTasks.length > 0 && (
         <div className="mx-5 mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
           <p className="text-sm text-indigo-800 font-medium">
             Ready to start? Click any task below to begin your first week.
@@ -577,6 +683,7 @@ function ThisWeekCard({
                     status={status}
                     dbTask={dbTask}
                     isLife
+                    isActionable={isActionable}
                     onStatusChange={onTaskStatusChange}
                     onSkip={onSkip}
                     clientId={clientId}
@@ -610,6 +717,7 @@ function ThisWeekCard({
                     status={status}
                     dbTask={dbTask}
                     isLife={false}
+                    isActionable={isActionable}
                     onStatusChange={onTaskStatusChange}
                     onSkip={onSkip}
                     clientId={clientId}
@@ -945,6 +1053,8 @@ function AllWeeksAccordion({
           const totalCount = weekTaskList.length > 0 ? weekTaskList.length : weekTasks.length;
           const progress = totalCount > 0 ? Math.round(((completedCount + skippedCount) / totalCount) * 100) : 0;
           const isActive = openWeek === weekNum;
+          const isActionable = gating.isWeekActionable(weekNum);
+          const startDate = gating.weekStartDate(weekNum);
           const lifeTasks = weekTaskList.filter((t: any) => t.category?.startsWith?.('life_'));
           const businessTasks = weekTaskList.filter((t: any) => !t.category?.startsWith?.('life_'));
 
@@ -984,11 +1094,31 @@ function AllWeeksAccordion({
                   {isLocked && (
                     <span className="text-xs text-slate-400">Complete Week {gating.activeWeek} to unlock</span>
                   )}
+                  {!isLocked && !isActionable && startDate && (
+                    <span className="text-xs text-amber-600">
+                      Opens {startDate.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                    </span>
+                  )}
                   {isActive ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                 </div>
               </button>
               {isActive && !isLocked && (
                 <div className="px-4 pb-4">
+                  {!isActionable && startDate && (
+                    <div className="ml-16 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-sm text-amber-900">
+                        Preview only — Week {weekNum} opens on{' '}
+                        <strong>
+                          {startDate.toLocaleDateString(undefined, {
+                            weekday: 'long',
+                            day: 'numeric',
+                            month: 'long',
+                          })}
+                        </strong>
+                        . Read ahead and plan, but tasks become tickable on that date.
+                      </p>
+                    </div>
+                  )}
                   <div className="ml-16 space-y-2">
                     {lifeTasks.length > 0 && (
                       <>
@@ -1009,6 +1139,7 @@ function AllWeeksAccordion({
                               status={status}
                               dbTask={dbTask}
                               isLife
+                              isActionable={isActionable}
                               onStatusChange={onTaskStatusChange}
                               onSkip={onSkip}
                               clientId={clientId}
@@ -1031,6 +1162,7 @@ function AllWeeksAccordion({
                           status={status}
                           dbTask={dbTask}
                           isLife={false}
+                          isActionable={isActionable}
                           onStatusChange={onTaskStatusChange}
                           onSkip={onSkip}
                           clientId={clientId}
@@ -1084,6 +1216,7 @@ export default function SprintDashboardPage() {
   } | null>(null);
   const [catchUpMode, setCatchUpMode] = useState(false);
   const [sprintStartDate, setSprintStartDate] = useState<string | null>(null);
+  const [selectedStartDate, setSelectedStartDate] = useState<string | null>(null);
   const [sprintSummary, setSprintSummary] = useState<{ summary: any; analytics: any } | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [renewalState, setRenewalState] = useState<RenewalEligibility | null>(null);
@@ -1105,7 +1238,10 @@ export default function SprintDashboardPage() {
   const allWeeksResolved = completionState.isSprintComplete;
   const showSprintSummary = !!sprintSummaryFromRoadmap && allWeeksResolved;
 
-  const gating = computeWeekGating(weeks, tasks);
+  // Pulse should always be saved against the week the client is closing out
+  // (i.e. the highest week where every task has been completed or skipped) —
+  // not the next week the gating would otherwise advance to.
+  const pulseTargetWeek = getPulseTargetWeek(weeks, tasks);
   const {
     scores: lifeScores,
     currentScore: lifeScore,
@@ -1113,9 +1249,16 @@ export default function SprintDashboardPage() {
     categoryScores,
     submitPulse,
     hasPulseThisWeek,
+    hasPulseForWeek,
+    pulseWeeks,
     recalculateScore,
     loading: lifeLoading,
-  } = useLifeAlignment(currentSprintNumber, gating.activeWeek);
+  } = useLifeAlignment(currentSprintNumber, pulseTargetWeek);
+
+  // Compute gating WITH pulse data as a week-completion gate AND the chosen
+  // sprint start date as a calendar-time gate (next-week tasks become
+  // actionable only after 7 days have passed since the previous week began).
+  const gating = computeWeekGating(weeks, tasks, pulseWeeks, sprintStartDate);
 
   const calendarWeek = getCalendarWeek(sprintStartDate);
   const catchUpState = useCatchUpDetection(
@@ -1173,18 +1316,15 @@ export default function SprintDashboardPage() {
   useEffect(() => {
     async function fetchSprintStart() {
       if (!clientSession?.clientId) return;
-      const { data } = await supabase
-        .from('roadmap_stages')
-        .select('created_at, approved_at, published_at')
-        .eq('client_id', clientSession.clientId)
-        .in('stage_type', ['sprint_plan_part2', 'sprint_plan'])
-        .in('status', ['generated', 'approved', 'published'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (data) {
-        setSprintStartDate(data.published_at || data.approved_at || data.created_at);
+      // Priority 1: client-chosen sprint_start_date from enrollment
+      const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+      if (sl?.id) {
+        const { data: enrollment } = await supabase.from('client_service_lines').select('sprint_start_date').eq('client_id', clientSession.clientId).eq('service_line_id', sl.id).maybeSingle();
+        if (enrollment?.sprint_start_date) { setSprintStartDate(enrollment.sprint_start_date); return; }
       }
+      // Fallback: stage published/created date
+      const { data } = await supabase.from('roadmap_stages').select('created_at, approved_at, published_at').eq('client_id', clientSession.clientId).in('stage_type', ['sprint_plan_part2', 'sprint_plan']).in('status', ['published', 'approved']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (data) { setSprintStartDate(data.published_at || data.approved_at || data.created_at); }
     }
     fetchSprintStart();
   }, [clientSession?.clientId]);
@@ -1548,6 +1688,24 @@ export default function SprintDashboardPage() {
         />
       ) : (
         <div className="space-y-6">
+          {/* Sprint Start Date Selector — shown when sprint is published but no start date set */}
+          {!sprintStartDate && weeks.length > 0 && (
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-6">
+              <h3 className="font-semibold text-indigo-900 text-lg mb-2">When do you want to start?</h3>
+              <p className="text-sm text-indigo-700 mb-4">Your 12-week sprint is ready. Pick the Monday you want to begin — Week 1 tasks will unlock on that date.</p>
+              <div className="flex items-center gap-4">
+                <input type="date" value={selectedStartDate || (() => { const d = new Date(); const day = d.getDay(); d.setDate(d.getDate() + (day <= 1 ? (1 - day) : (8 - day))); return d.toISOString().split('T')[0]; })()} onChange={(e) => setSelectedStartDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className="border border-indigo-300 rounded-lg px-3 py-2 text-sm" />
+                <button onClick={async () => {
+                  const date = selectedStartDate || (() => { const d = new Date(); const day = d.getDay(); d.setDate(d.getDate() + (day <= 1 ? (1 - day) : (8 - day))); return d.toISOString().split('T')[0]; })();
+                  const { data: sl } = await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle();
+                  if (sl?.id && clientSession?.clientId) {
+                    await supabase.from('client_service_lines').update({ sprint_start_date: date }).eq('client_id', clientSession.clientId).eq('service_line_id', sl.id);
+                    setSprintStartDate(date);
+                  }
+                }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Start Sprint</button>
+              </div>
+            </div>
+          )}
           {showSprintSummary && (
             <SprintSummaryClientView
               summary={sprintSummaryFromRoadmap}
@@ -1594,28 +1752,74 @@ export default function SprintDashboardPage() {
               </span>
             </div>
           )}
-          {/* Life Alignment — before Tuesday Check-In */}
+          {/* Life Alignment overview */}
           {!isBehind && !completionState.isSprintComplete && (
-            <>
-              <LifeAlignmentCard
-                scores={lifeScores}
-                currentScore={lifeScore}
-                trend={lifeTrend}
-                categoryScores={categoryScores}
-              />
-              {!hasPulseThisWeek && (
-                <LifePulseCard
-                  sprintNumber={currentSprintNumber}
-                  weekNumber={gating.activeWeek}
-                  isCatchUp={isBehind}
-                  isSprintComplete={completionState.isSprintComplete}
-                  onSubmit={submitPulse}
-                  currentScore={lifeScore}
-                  loading={lifeLoading}
-                />
-              )}
-            </>
+            <LifeAlignmentCard
+              scores={lifeScores}
+              currentScore={lifeScore}
+              trend={lifeTrend}
+              categoryScores={categoryScores}
+            />
           )}
+          {/* Week Unlock Status — always visible: shows what's needed to unlock next week */}
+          {!completionState.isSprintComplete && gating.activeWeek <= 12 && (() => {
+            const activeWeek = gating.activeWeek;
+            const generatedTasksThisWeek = (weeks[activeWeek - 1]?.tasks ?? []) as Array<{ title: string }>;
+            const dbTasksThisWeek = tasks.filter((t: any) => t.week_number === activeWeek);
+            const totalTasksThisWeek = generatedTasksThisWeek.length;
+            const tasksDoneCount = generatedTasksThisWeek.filter((gt) => {
+              const dbTask = dbTasksThisWeek.find((t: any) => t.title === gt.title);
+              return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
+            }).length;
+            const allTasksDoneNow = totalTasksThisWeek > 0 && tasksDoneCount === totalTasksThisWeek;
+            const pulseSubmittedNow = pulseWeeks.has(activeWeek);
+            const nextWeek = Math.min(activeWeek + 1, 12);
+            const isLastWeek = activeWeek === 12;
+            const allComplete = allTasksDoneNow && pulseSubmittedNow;
+
+            return (
+              <div className={`rounded-xl border p-5 ${allComplete ? 'bg-emerald-50 border-emerald-200' : 'bg-indigo-50 border-indigo-200'}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className={`text-sm font-semibold ${allComplete ? 'text-emerald-800' : 'text-indigo-800'}`}>
+                    {allComplete
+                      ? (isLastWeek ? 'Week 12 complete — sprint finished' : `Week ${nextWeek} unlocked`)
+                      : (isLastWeek ? `Finish Week ${activeWeek} to complete the sprint` : `Unlock Week ${nextWeek}`)}
+                  </h3>
+                  <span className="text-xs text-slate-500">Week {activeWeek} of 12</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${allTasksDoneNow ? 'bg-emerald-500 text-white' : 'bg-white border-2 border-indigo-300 text-indigo-600'}`}>
+                      {allTasksDoneNow ? '✓' : '1'}
+                    </span>
+                    <span className={allTasksDoneNow ? 'text-emerald-800 line-through decoration-emerald-400' : 'text-slate-700'}>
+                      Complete all {totalTasksThisWeek} task{totalTasksThisWeek === 1 ? '' : 's'} for Week {activeWeek}
+                      {totalTasksThisWeek > 0 && (
+                        <span className="text-slate-500"> ({tasksDoneCount}/{totalTasksThisWeek})</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className={`flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold ${pulseSubmittedNow ? 'bg-emerald-500 text-white' : 'bg-white border-2 border-indigo-300 text-indigo-600'}`}>
+                      {pulseSubmittedNow ? '✓' : '2'}
+                    </span>
+                    <span className={pulseSubmittedNow ? 'text-emerald-800 line-through decoration-emerald-400' : 'text-slate-700'}>
+                      Submit your Life Pulse for Week {activeWeek}
+                    </span>
+                  </div>
+                </div>
+                {!allComplete && (
+                  <p className="text-xs text-slate-500 mt-3">
+                    {allTasksDoneNow && !pulseSubmittedNow
+                      ? 'All tasks done — submit your Life Pulse below to unlock the next week.'
+                      : !allTasksDoneNow && pulseSubmittedNow
+                      ? `Life Pulse submitted. Finish your ${totalTasksThisWeek - tasksDoneCount} remaining task${totalTasksThisWeek - tasksDoneCount === 1 ? '' : 's'} to unlock Week ${nextWeek}.`
+                      : `Tick off your tasks below and submit your Life Pulse to unlock Week ${nextWeek}.`}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {displayWeekData?.tuesdayCheckIn && !showSprintSummary && (
             <TuesdayCheckInCard
               checkInPrompt={displayWeekData.tuesdayCheckIn}
@@ -1635,6 +1839,8 @@ export default function SprintDashboardPage() {
               isBehind={isBehind}
               activeWeek={gating.activeWeek}
               calendarWeek={calendarWeek}
+              isActionable={gating.isWeekActionable(gating.activeWeek)}
+              weekStartDate={gating.weekStartDate(gating.activeWeek)}
               onStartCatchUp={() => setCatchUpMode(true)}
               clientId={clientSession?.clientId}
               practiceId={clientSession?.practiceId}
@@ -1653,6 +1859,32 @@ export default function SprintDashboardPage() {
             }}
             loading={checkInLoading}
           />
+          {/* End-of-week Life Pulse — appears after the week's tasks are all
+              completed or skipped, as the final gate to unlock the next week. */}
+          {gating.needsPulse(gating.activeWeek) && !completionState.isSprintComplete && !isBehind && (
+            <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-5 ring-2 ring-rose-300/40">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-bold">
+                  ✓
+                </span>
+                <p className="text-sm font-semibold text-rose-900">
+                  All tasks done — submit your Life Pulse to unlock Week {Math.min(gating.activeWeek + 1, 12)}
+                </p>
+              </div>
+              <p className="text-xs text-rose-700/80 mb-3">
+                30-second weekly check-in: rate how aligned the week felt, tap the life areas you tended to, and submit.
+              </p>
+              <LifePulseCard
+                sprintNumber={currentSprintNumber}
+                weekNumber={gating.activeWeek}
+                isCatchUp={false}
+                isSprintComplete={false}
+                onSubmit={submitPulse}
+                currentScore={lifeScore}
+                loading={lifeLoading}
+              />
+            </div>
+          )}
           {/* Sticky progress strip — stays visible when scrolling */}
           <div className="sticky top-0 z-20 -mx-4 lg:-mx-8 px-4 lg:px-8 py-3 bg-white/95 backdrop-blur-sm border-b border-slate-100">
             <ProgressStrip

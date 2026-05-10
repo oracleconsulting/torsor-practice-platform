@@ -13,6 +13,10 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
+import { validateGAContent } from '../_shared/ga-content-validator.ts';
+import { buildResearchContext } from '../_shared/ga-research-base.ts';
+import { recordLlmCostByClient } from '../_shared/llm-cost-logger.ts';
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
@@ -979,7 +983,8 @@ async function generateNarrativeSummary(
   valueGaps: any[],
   fitProfile: any,
   vision: any,
-  bmCrossRef?: any
+  bmCrossRef?: any,
+  clientId: string | null = null,
 ): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) {
@@ -1073,11 +1078,14 @@ RULES:
         max_tokens: 1500,
         temperature: 0.6,
         messages: [
-          { 
-            role: 'system', 
-            content: 'You surface financial truths that clients need to hear. Be direct but human. Return only valid JSON.'
+          {
+            role: 'system',
+            content: GA_SYSTEM_PROMPT,
           },
-          { role: 'user', content: prompt }
+          {
+            role: 'user',
+            content: prompt + buildResearchContext(['valuation', 'exit_readiness', 'working_hours', 'delegation']),
+          },
         ]
       })
     });
@@ -1089,13 +1097,50 @@ RULES:
 
     const data = await response.json();
     const content = data.choices[0].message.content;
+
+    // Cost tracking — silent on failure.
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      if (supabaseUrl && serviceKey && clientId) {
+        const sb = createClient(supabaseUrl, serviceKey);
+        await recordLlmCostByClient({
+          supabase: sb,
+          clientId,
+          operationType: 'value_analysis_generation',
+          sourceFunction: 'generate-value-analysis',
+          model: 'anthropic/claude-sonnet-4.5',
+          inputTokens: data?.usage?.prompt_tokens ?? 0,
+          outputTokens: data?.usage?.completion_tokens ?? 0,
+          serviceLineCode: '365_method',
+        });
+      }
+    } catch (_) { /* ignore */ }
+
     const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     const start = cleaned.indexOf('{');
     const end = cleaned.lastIndexOf('}');
-    
+
     if (start === -1 || end === -1) return null;
-    
-    return JSON.parse(cleaned.substring(start, end + 1));
+
+    let parsed = JSON.parse(cleaned.substring(start, end + 1));
+
+    // Tone validation: log violations and auto-fix em dashes before returning
+    const validation = validateGAContent(JSON.stringify(parsed));
+    if (!validation.passed) {
+      console.warn('[GA Validator] generate-value-analysis content violations:', validation.violations);
+      try {
+        const refixed = JSON.parse(validation.autoFixed);
+        if (JSON.stringify(refixed) !== JSON.stringify(parsed)) {
+          parsed = refixed;
+          console.log('[GA Validator] Auto-fixed em dashes in value analysis narrative');
+        }
+      } catch (fixErr) {
+        console.warn('[GA Validator] auto-fix re-parse failed, keeping original:', fixErr);
+      }
+    }
+
+    return parsed;
   } catch (error) {
     console.error('Narrative generation error:', error);
     return null;
@@ -4724,7 +4769,8 @@ serve(async (req) => {
         valueGaps,
         fitProfile,
         vision,
-        bmCrossReference
+        bmCrossReference,
+        clientId,
       );
 
       const valueAnalysis = {

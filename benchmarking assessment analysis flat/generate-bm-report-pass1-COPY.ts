@@ -2006,6 +2006,9 @@ function calculatePreRevenueValueAnalysis(
     expectedDilutionToExit: safeDilution,
     todayPostMoneyImplied: todayPostMoney,
     todayPreMoneyImplied: todayPreMoney,
+    rangeLow: Math.round(todayPreMoney * 0.75),
+    rangeHigh: Math.round(todayPreMoney * 1.25),
+    confidence: 'MODERATE' as const,
     methodology: `VC method back-solve: target exit £${(targetExitVal / 1e6).toFixed(1)}M at ${exitMultiple}x revenue, ${(irr * 100).toFixed(0)}% IRR over ${exitHorizonYears} years, ${(safeDilution * 100).toFixed(0)}% dilution to exit.`,
   };
 
@@ -2099,6 +2102,9 @@ function calculatePreRevenueValueAnalysis(
     regionalMedianPreMoney: ukRegionalMedian,
     weightedFactor,
     impliedPreMoney: scorecardImplied,
+    rangeLow: Math.round(scorecardImplied * 0.80),
+    rangeHigh: Math.round(scorecardImplied * 1.20),
+    confidence: 'MODERATE' as const,
     factorBreakdown: factorBreakdownScorecard,
   };
 
@@ -2150,6 +2156,9 @@ function calculatePreRevenueValueAnalysis(
 
   const berkusValuation = {
     impliedPreMoney: berkusTotal,
+    rangeLow: Math.round(berkusTotal * 0.70),
+    rangeHigh: Math.round(berkusTotal * 1.30),
+    confidence: 'INDICATIVE' as const,
     factorBreakdown: factorBreakdownBerkus,
   };
 
@@ -2195,6 +2204,7 @@ function calculatePreRevenueValueAnalysis(
   // ── Triangulate defensible pre-money ──────────────────────────────────
   const methodValues = [todayPreMoney, scorecardImplied, berkusTotal];
   if (compMedian !== null) methodValues.push(compMedian);
+  const methodCount = methodValues.filter(v => v > 0).length;
 
   const sorted = [...methodValues].filter(v => v > 0).sort((a, b) => a - b);
   const median = (arr: number[]): number => {
@@ -2233,6 +2243,7 @@ function calculatePreRevenueValueAnalysis(
     conservative,
     base,
     stretch,
+    triangulationConfidence: methodCount >= 3 ? 'MODERATE' : 'INDICATIVE',
     triggerForBaseToStretch: 'First £100k+ enterprise contract signed and pipeline exceeds £500k qualified ACV',
     triggerForStretchToSeriesA: '£500k+ contracted ARR, clear path to £1.5M ARR, and Series A lead term sheet in hand',
     rationale: `Triangulated from VC method (£${(todayPreMoney / 1e6).toFixed(2)}M), Scorecard (£${(scorecardImplied / 1e6).toFixed(2)}M), Berkus (£${(berkusTotal / 1e6).toFixed(2)}M)${compMedian !== null ? `, Comparable rounds (£${(compMedian / 1e6).toFixed(2)}M)` : ''}. ${basis.methodology_note || ''}`,
@@ -6710,6 +6721,74 @@ serve(async (req) => {
         console.error('[Pre-Revenue Calculator] Error (continuing with standard valuation):', prError);
       }
     }
+
+    // Detect pre-revenue data gaps from registry
+    let preRevenueDataGaps: any[] = [];
+    if (isPreRevenue) {
+      try {
+        const { data: ivbForGaps } = await supabaseClient
+          .from('industry_valuation_basis')
+          .select('client_collection_fields')
+          .eq('industry_code', assessmentData.industry_code || 'SAAS_REGTECH')
+          .eq('business_stage', businessStage)
+          .eq('is_current', true)
+          .maybeSingle();
+
+        const fields = ivbForGaps?.client_collection_fields || [];
+        if (fields.length > 0) {
+          const { data: engForGaps } = await supabaseClient
+            .from('bm_engagements')
+            .select('target_exit_valuation,exit_horizon_years,target_exit_method,exit_strategy')
+            .eq('id', engagementId)
+            .single();
+
+          const { data: sigForGaps } = await supabaseClient
+            .from('bm_pre_revenue_signals')
+            .select('*')
+            .eq('engagement_id', engagementId)
+            .maybeSingle();
+
+          for (const field of fields) {
+            if (!field.required) continue;
+            const source = field.source_table === 'bm_engagements' ? engForGaps : sigForGaps;
+            const value = source?.[field.field];
+            const isMissing = value === null || value === undefined || value === '' ||
+              (typeof value === 'object' && value !== null && Object.keys(value).length === 0);
+            if (isMissing) {
+              preRevenueDataGaps.push({
+                field: field.field,
+                label: field.label,
+                sourceTable: field.source_table,
+                type: field.type,
+                rationale: field.rationale,
+                drives: field.drives,
+                severity: 'high',
+              });
+            }
+          }
+          console.log(`[Pre-Revenue Calculator] Data gaps detected: ${preRevenueDataGaps.length} of ${fields.length} required fields missing`);
+        }
+      } catch (gapErr) {
+        console.warn('[Pre-Revenue Calculator] Gap detection failed (non-fatal):', gapErr);
+      }
+    }
+
+    if (isPreRevenue && preRevenueDataGaps.length > 0) {
+      for (const gap of preRevenueDataGaps) {
+        await supabaseClient.from('bm_client_data_requests').upsert({
+          engagement_id: engagementId,
+          field: gap.field,
+          source_table: gap.sourceTable,
+          label: gap.label,
+          type: gap.type,
+          rationale: gap.rationale,
+          status: 'pending',
+        }, { onConflict: 'engagement_id,field' }).then(({ error }: any) => {
+          if (error) console.warn(`[Gap] Failed to upsert request for ${gap.field}:`, error.message);
+        });
+      }
+      console.log(`[Pre-Revenue Calculator] Upserted ${preRevenueDataGaps.length} client data requests`);
+    }
     
     // Calculate employee band for benchmark lookup
     const employeeBand = calculateEmployeeBand(assessmentData._enriched_employee_count || assessmentData.employee_count || 0);
@@ -6741,6 +6820,7 @@ serve(async (req) => {
             industryName: industryNameForSearch,
             revenueBand: assessmentData.revenue_band,
             employeeBand: employeeBand,
+            businessStage: engagement.business_stage || 'operating',
             forceRefresh: false, // Let the function check cache freshness (30 days)
             triggeredBy: 'benchmarking_service',
             engagementId: engagementId
@@ -7460,6 +7540,25 @@ When writing narratives:
         },
         defensibleRange: preRevenueAnalysis.defensiblePreMoney,
       };
+
+      const { data: frameworks } = await supabaseClient
+        .from('industry_stage_frameworks')
+        .select('*, valuation_frameworks!inner(code, name, description, parameters, source)')
+        .eq('industry_code', finalIndustryCode)
+        .eq('business_stage', businessStage)
+        .order('display_order', { ascending: true });
+
+      if (frameworks?.length) {
+        benchmarkAppendix.frameworks = frameworks.map((f: any) => ({
+          code: f.framework_code,
+          name: f.valuation_frameworks?.name || f.framework_code,
+          description: f.valuation_frameworks?.description || '',
+          isPrimary: f.is_primary,
+          weight: f.weight,
+          source: f.valuation_frameworks?.source || '',
+        }));
+        console.log(`[Appendix] Loaded ${frameworks.length} frameworks from registry`);
+      }
     } else {
       const va = assessmentData.value_analysis;
       benchmarkAppendix.methodology.summary = `Operating-business valuation using ${va?.baseline?.method || 'EBITDA'} multiple methodology with industry benchmarks.`;
@@ -7626,6 +7725,11 @@ When writing narratives:
       reportData.strength_count = assessmentData._preRevenue_strength_count ?? 0;
 
       console.log('[BM Pass 1] Pre-revenue: suppressed operating fields, gap_count=', reportData.gap_count, 'strength_count=', reportData.strength_count);
+    }
+
+    if (isPreRevenue && preRevenueDataGaps.length > 0) {
+      reportData.pre_revenue_data_gaps = preRevenueDataGaps;
+      reportData.pass1_data.pre_revenue_data_gaps = preRevenueDataGaps;
     }
     
     const { data: report, error: saveError } = await supabaseClient

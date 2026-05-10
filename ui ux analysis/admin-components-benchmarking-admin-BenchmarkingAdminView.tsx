@@ -16,6 +16,7 @@ import { ExportAnalysisButton } from './ExportAnalysisButton';
 import { PDFExportEditor } from './PDFExportEditor';
 import { EngagementSetupPanel } from './EngagementSetupPanel';
 import { PreRevenueSignalsPanel } from './PreRevenueSignalsPanel';
+import { PreRevenueDataCollectionPanel } from './PreRevenueDataCollectionPanel';
 import { FileText, MessageSquare, AlertTriangle, ListTodo, ClipboardList, Database, Upload, Target, Sparkles, DollarSign, Share2, EyeOff, Loader2, Pin, Download, Settings } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import type { ValueAnalysis } from '../../../types/benchmarking';
@@ -113,6 +114,8 @@ interface BenchmarkAnalysis {
   } | null;
   // Business valuation analysis
   value_analysis?: ValueAnalysis | null;
+  // Pre-revenue scoring
+  investment_readiness_score?: number;
   // Context Intelligence fields (from Pass 3)
   opportunities?: any[];
   recommended_services?: any[];
@@ -212,9 +215,22 @@ interface Pass1Data {
   founderRiskScore?: number;
   valuationImpact?: string;
   dataGaps?: Array<{ metric: string }>;
+  pre_revenue_data_gaps?: Array<{
+    field: string;
+    label: string;
+    sourceTable: string;
+    type: string;
+    rationale: string;
+    drives?: string[];
+    severity: string;
+  }>;
   classification?: {
     industryName?: string;
     industryConfidence?: number;
+  };
+  pre_revenue_analysis?: {
+    defensiblePreMoney?: { base?: number };
+    investmentReadiness?: { score?: number };
   };
 }
 
@@ -258,7 +274,54 @@ export function BenchmarkingAdminView({
   }, [engagementId]);
 
   const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
-  
+
+  // Valuation basis for BenchmarkSourcesPanel methodology section
+  const [valuationBasis, setValuationBasis] = useState<any>(null);
+  useEffect(() => {
+    if (!businessStage || !data?.industry_code) return;
+    supabase
+      .from('industry_valuation_basis')
+      .select('*')
+      .eq('industry_code', data.industry_code)
+      .eq('business_stage', businessStage)
+      .eq('is_current', true)
+      .maybeSingle()
+      .then(({ data: vb }) => setValuationBasis(vb));
+  }, [businessStage, data?.industry_code]);
+
+  // Pre-revenue signals + pending data requests for ClientDataReference
+  const [preRevenueSignals, setPreRevenueSignals] = useState<any>(null);
+  const [pendingDataRequests, setPendingDataRequests] = useState<any[]>([]);
+  const [exitHorizonYears, setExitHorizonYears] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    if (!isPreRevenue || !engagementId) return;
+    supabase
+      .from('bm_pre_revenue_signals')
+      .select('*')
+      .eq('engagement_id', engagementId)
+      .maybeSingle()
+      .then(({ data }) => setPreRevenueSignals(data));
+    supabase
+      .from('bm_client_data_requests')
+      .select('field, label')
+      .eq('engagement_id', engagementId)
+      .in('status', ['pending', 'sent'])
+      .then(({ data }) => setPendingDataRequests(data || []));
+  }, [isPreRevenue, engagementId]);
+
+  useEffect(() => {
+    if (!engagementId) return;
+    supabase
+      .from('bm_engagements')
+      .select('exit_horizon_years')
+      .eq('id', engagementId)
+      .single()
+      .then(({ data: eng }) => {
+        if (eng?.exit_horizon_years) setExitHorizonYears(eng.exit_horizon_years);
+      });
+  }, [engagementId]);
+
   // PDF Export Editor
   const [showPdfEditor, setShowPdfEditor] = useState(false);
   const [selectedReportForExport, setSelectedReportForExport] = useState<any>(null);
@@ -474,6 +537,11 @@ export function BenchmarkingAdminView({
               gapCount={data.gap_count || 0}
               strengthCount={data.strength_count || 0}
               riskLevel={(founderRisk?.level as 'low' | 'medium' | 'high' | 'critical') || (pass1Data?.founderRiskLevel as 'low' | 'medium' | 'high' | 'critical') || 'medium'}
+              businessStage={businessStage}
+              defensiblePreMoney={pass1Data?.pre_revenue_analysis?.defensiblePreMoney?.base}
+              investmentReadinessScore={data?.investment_readiness_score || pass1Data?.pre_revenue_analysis?.investmentReadiness?.score}
+              readinessGapCount={data?.gap_count}
+              exitHorizonYears={exitHorizonYears}
             />
           </div>
         </div>
@@ -679,6 +747,10 @@ export function BenchmarkingAdminView({
                     nextSteps={nextSteps}
                     tasks={tasks}
                     closingScript={closingScript}
+                    businessStage={businessStage}
+                    industryCode={industryMapping?.code || data.industry_code}
+                    preRevenueAnalysis={data.value_analysis as any}
+                    investmentReadinessScore={(data.value_analysis as any)?.investmentReadinessScore}
                   />
                 )}
                 
@@ -760,12 +832,19 @@ export function BenchmarkingAdminView({
                 )}
                 
                 {activeTab === 'collect' && isPreRevenue && engagementId && (
-                  <PreRevenueSignalsPanel
-                    engagementId={engagementId}
-                    onSave={() => {
-                      console.log('Pre-revenue signals saved — regenerate analysis to incorporate');
-                    }}
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <PreRevenueDataCollectionPanel
+                      engagementId={engagementId as string}
+                      gaps={pass1Data?.pre_revenue_data_gaps as any}
+                      onRefresh={() => loadAccountsData()}
+                    />
+                    <PreRevenueSignalsPanel
+                      engagementId={engagementId as string}
+                      onSave={() => {
+                        console.log('Pre-revenue signals saved — regenerate analysis to incorporate');
+                      }}
+                    />
+                  </div>
                 )}
 
                 {activeTab === 'collect' && !isPreRevenue && (
@@ -855,6 +934,7 @@ export function BenchmarkingAdminView({
                       p25: m.p25,
                       p50: m.p50,
                       p75: m.p75,
+                      unit: m.unit,
                       source: m.source,
                       sourceUrl: m.sourceUrl,
                       confidence: m.confidence
@@ -864,6 +944,7 @@ export function BenchmarkingAdminView({
                     industryName={industryMapping?.name || 'Unknown Industry'}
                     industryCode={industryMapping?.code || data.industry_code || ''}
                     dataAsOf={data.benchmark_data_as_of}
+                    valuationBasis={valuationBasis}
                   />
                 )}
                 
@@ -895,6 +976,11 @@ export function BenchmarkingAdminView({
               investmentSignals={data.investment_signals}
               cashMonths={data.cash_months}
               surplusCash={data.surplus_cash}
+              businessStage={businessStage}
+              preRevenueSignals={preRevenueSignals}
+              defensiblePreMoney={pass1Data?.pre_revenue_analysis?.defensiblePreMoney?.base}
+              investmentReadinessScore={data?.investment_readiness_score}
+              pendingDataRequests={pendingDataRequests}
             />
             
             {/* Recommendations Summary */}

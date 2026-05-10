@@ -19,6 +19,7 @@ interface BenchmarkQuery {
   industryName: string;
   revenueBand?: string;
   employeeBand?: string;
+  businessStage?: string;
   forceRefresh?: boolean; // Skip cache check
   triggeredBy?: 'benchmarking_service' | 'scheduled_refresh' | 'manual' | 'other_service';
   engagementId?: string;
@@ -47,8 +48,8 @@ interface SearchResult {
   responseTimeMs: number;
 }
 
-// Standard benchmark metrics we want to collect
-const CORE_METRICS = [
+// Safety net for industries without registry rows
+const LEGACY_CORE_METRICS = [
   { code: 'revenue_per_employee', name: 'Revenue per Employee', unit: 'currency', higherIsBetter: true },
   { code: 'gross_margin', name: 'Gross Profit Margin', unit: 'percent', higherIsBetter: true },
   { code: 'net_margin', name: 'Net Profit Margin', unit: 'percent', higherIsBetter: true },
@@ -68,9 +69,46 @@ const CORE_METRICS = [
 ];
 
 /**
+ * Look up metric_set from the industry_valuation_basis registry.
+ * Falls back to the operating row, then to LEGACY_CORE_METRICS.
+ */
+async function getMetricSet(
+  supabase: any,
+  industryCode: string,
+  businessStage: string
+): Promise<any[]> {
+  const { data: exact } = await supabase
+    .from('industry_valuation_basis')
+    .select('metric_set')
+    .eq('industry_code', industryCode)
+    .eq('business_stage', businessStage)
+    .eq('is_current', true)
+    .maybeSingle();
+  if (exact?.metric_set?.length) {
+    console.log(`[Benchmarks] Using registry metric_set for ${industryCode}/${businessStage}: ${exact.metric_set.length} metrics`);
+    return exact.metric_set;
+  }
+
+  const { data: fallback } = await supabase
+    .from('industry_valuation_basis')
+    .select('metric_set')
+    .eq('industry_code', industryCode)
+    .eq('business_stage', 'operating')
+    .eq('is_current', true)
+    .maybeSingle();
+  if (fallback?.metric_set?.length) {
+    console.log(`[Benchmarks] Using operating fallback metric_set for ${industryCode}: ${fallback.metric_set.length} metrics`);
+    return fallback.metric_set;
+  }
+
+  console.log(`[Benchmarks] No registry metric_set found, using LEGACY_CORE_METRICS`);
+  return LEGACY_CORE_METRICS;
+}
+
+/**
  * Build the search prompt for Perplexity
  */
-function buildSearchPrompt(query: BenchmarkQuery): string {
+function buildSearchPrompt(query: BenchmarkQuery, metrics?: any[]): string {
   const sizeContext = query.revenueBand 
     ? `with annual revenue ${formatRevenueBand(query.revenueBand)}` 
     : '';
@@ -79,21 +117,27 @@ function buildSearchPrompt(query: BenchmarkQuery): string {
     ? `and ${formatEmployeeBand(query.employeeBand)} employees`
     : '';
 
+  const metricLines = metrics && metrics.length > 0
+    ? metrics.map((m: any, i: number) => 
+        `${i+1}. ${m.name} (${m.unit || 'number'})${m.perplexityHint ? ' — ' + m.perplexityHint : ''}`
+      ).join('\n')
+    : `1. Revenue per Employee (currency)
+2. Gross Profit Margin (percent)
+3. Net Profit Margin (percent)
+4. Operating/EBITDA Margins (percent)
+5. Revenue Growth (percent)
+6. Staff Turnover (percent)
+7. Debtor Days (days)
+8. Current Ratio (ratio)
+9. Utilisation Rate (percent)
+10. Client Concentration (percent)`;
+
   return `
 You are a financial analyst researching current UK industry benchmarks for ${query.industryName} businesses ${sizeContext} ${employeeContext}.
 
 Find the most recent and authoritative benchmark data for this industry. Focus on:
 
-1. **Revenue per Employee** - What is typical revenue per head for UK ${query.industryName} businesses?
-2. **Gross Profit Margin** - What gross margins are typical in this sector?
-3. **Net Profit Margin** - What net margins do businesses achieve?
-4. **Operating/EBITDA Margins** - Operating profitability benchmarks
-5. **Revenue Growth** - Annual growth rates for the sector
-6. **Staff Turnover** - Employee retention rates
-7. **Debtor Days** - How long do businesses take to collect payment?
-8. **Current Ratio** - Liquidity benchmarks
-9. **Utilisation Rate** (if applicable for service businesses) - Billable utilisation
-10. **Client Concentration** - Revenue concentration in top clients
+${metricLines}
 
 For each metric, provide:
 - 25th percentile (below average performers)
@@ -202,13 +246,14 @@ async function checkCache(
  */
 async function performLiveSearch(
   query: BenchmarkQuery,
-  openRouterKey: string
+  openRouterKey: string,
+  registryMetrics?: any[]
 ): Promise<SearchResult> {
   const startTime = Date.now();
   
   console.log(`[Benchmark Search] Calling Perplexity Sonar Pro for ${query.industryName}...`);
   
-  const prompt = buildSearchPrompt(query);
+  const prompt = buildSearchPrompt(query, registryMetrics);
   
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
@@ -335,10 +380,8 @@ async function performLiveSearch(
 function validateMetricValues(metric: any): boolean {
   const { metricCode, p25, p50, p75, p90, unit } = metric;
   
-  // Check for obviously wrong values
   if (unit === 'percent') {
     const values = [p25, p50, p75, p90].filter(v => v !== null && v !== undefined);
-    // Percentages should generally be 0-100 (allow some margin for growth rates)
     if (values.some(v => v < -50 || v > 200)) {
       console.warn(`[Benchmark Search] Suspicious percentage values for ${metricCode}`);
       return false;
@@ -347,30 +390,23 @@ function validateMetricValues(metric: any): boolean {
   
   if (unit === 'currency') {
     const values = [p25, p50, p75, p90].filter(v => v !== null && v !== undefined);
-    // Currency values should be positive (for most business metrics)
     if (values.some(v => v < 0)) {
       console.warn(`[Benchmark Search] Negative currency value for ${metricCode}`);
       return false;
     }
-    // Revenue per employee shouldn't be > £1M typically for SMEs
-    if (metricCode === 'revenue_per_employee' && values.some(v => v > 1000000)) {
-      console.warn(`[Benchmark Search] Suspiciously high revenue per employee: ${values}`);
+    if (values.some(v => v > 1e9)) {
+      console.warn(`[Benchmark Search] Suspiciously high currency value for ${metricCode}: ${values}`);
       return false;
     }
   }
   
   if (unit === 'days') {
     const values = [p25, p50, p75, p90].filter(v => v !== null && v !== undefined);
-    // Days should be reasonable (0-365)
     if (values.some(v => v < 0 || v > 365)) {
       console.warn(`[Benchmark Search] Suspicious days value for ${metricCode}`);
       return false;
     }
   }
-  
-  // Check percentile ordering (p25 <= p50 <= p75 <= p90 for most metrics)
-  // Note: For "lower is better" metrics like debtor_days, this is reversed
-  // We'll allow either ordering for now
   
   return true;
 }
@@ -400,7 +436,7 @@ async function saveBenchmarkData(
 
     // If metric doesn't exist, create it
     if (!metricDef) {
-      const coreMetric = CORE_METRICS.find(m => m.code === metric.metricCode);
+      const coreMetric = LEGACY_CORE_METRICS.find(m => m.code === metric.metricCode);
       await supabase.from('benchmark_metrics').insert({
         code: metric.metricCode,
         name: metric.metricName,
@@ -518,6 +554,7 @@ serve(async (req) => {
       industryName: body.industryName,
       revenueBand: body.revenueBand,
       employeeBand: body.employeeBand,
+      businessStage: body.businessStage,
       forceRefresh: body.forceRefresh || false,
       triggeredBy: body.triggeredBy || 'manual',
       engagementId: body.engagementId
@@ -532,7 +569,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log(`[Benchmark Search] Starting for ${query.industryName} (${query.industryCode})`);
+    const businessStage = query.businessStage || 'operating';
+    const metrics = await getMetricSet(supabase, query.industryCode, businessStage);
+
+    console.log(`[Benchmark Search] Starting for ${query.industryName} (${query.industryCode}), stage=${businessStage}, ${metrics.length} metrics`);
 
     // Check cache unless force refresh
     if (!query.forceRefresh) {
@@ -572,7 +612,7 @@ serve(async (req) => {
     }
 
     // Perform live search
-    const searchResult = await performLiveSearch(query, openRouterKey);
+    const searchResult = await performLiveSearch(query, openRouterKey, metrics);
 
     // Save results if successful
     let saveResult = { updated: 0, created: 0 };

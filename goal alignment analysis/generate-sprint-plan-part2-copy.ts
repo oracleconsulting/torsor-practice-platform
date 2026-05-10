@@ -11,6 +11,10 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
+import { validateGAContent } from '../_shared/ga-content-validator.ts';
+import { buildResearchContext } from '../_shared/ga-research-base.ts';
+import { recordLlmCostByClient } from '../_shared/llm-cost-logger.ts';
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
@@ -320,7 +324,7 @@ Action: Increase life tasks in low-scoring categories. Maintain high-scoring one
 
     console.log(`Generating weeks 7-12 for ${context.userName}...`);
 
-    const sprintPart2 = await generateSprintPart2(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + sprintCarryForward + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
+    const sprintPart2 = await generateSprintPart2(context, (enrichedContext?.promptContext || '') + advisorNotesBlock + lifeAlignmentBlock + sprintCarryForward + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''), clientId);
 
     // Enforce Life Design Thread — every week must have at least one life task
     if (Array.isArray(sprintPart2?.weeks)) {
@@ -499,7 +503,7 @@ function mergeSprints(part1: any, part2: any): any {
   };
 }
 
-async function generateSprintPart2(ctx: any, enrichmentBlock = ''): Promise<any> {
+async function generateSprintPart2(ctx: any, enrichmentBlock = '', clientId: string | null = null): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
   
@@ -530,21 +534,14 @@ async function generateSprintPart2(ctx: any, enrichmentBlock = ''): Promise<any>
         temperature: 0.5,
         response_format: { type: "json_object" },
         messages: [
-          { 
-            role: 'system', 
-            content: `You complete transformation journeys, not task lists.
-Weeks 7-12 build on weeks 1-6 progress. This is where the transformation becomes sustainable.
-Every week has a narrative—WHY it matters.
-Every task connects to their North Star.
-
-ANTI-AI-SLOP RULES:
-BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
-BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
-THE TEST: If it sounds corporate, rewrite it. Sound like a transformation story.
-
-British English only (organise, colour, £). Return ONLY valid JSON. Ensure all strings are properly escaped.`
+          {
+            role: 'system',
+            content: GA_SYSTEM_PROMPT,
           },
-          { role: 'user', content: prompt }
+          {
+            role: 'user',
+            content: prompt + buildResearchContext(['habit_formation', 'accountability', 'time_blocking', 'delegation', 'failure_tolerance']),
+          }
         ]
       }),
       signal: controller.signal
@@ -560,6 +557,26 @@ British English only (organise, colour, £). Return ONLY valid JSON. Ensure all 
 
     data = await response.json();
     console.log(`OpenRouter response received, content length: ${data.choices?.[0]?.message?.content?.length || 0} chars`);
+
+    // Cost tracking — silent on failure.
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+      if (supabaseUrl && serviceKey && clientId) {
+        const sb = createClient(supabaseUrl, serviceKey);
+        await recordLlmCostByClient({
+          supabase: sb,
+          clientId,
+          operationType: 'sprint_plan_generation',
+          sourceFunction: 'generate-sprint-plan-part2',
+          model: 'anthropic/claude-sonnet-4.5',
+          inputTokens: data?.usage?.prompt_tokens ?? 0,
+          outputTokens: data?.usage?.completion_tokens ?? 0,
+          serviceLineCode: '365_method',
+          metadata: { part: 'weeks_7_to_12' },
+        });
+      }
+    } catch (_) { /* ignore */ }
   } catch (fetchError: any) {
     clearTimeout(timeoutId);
     if (fetchError.name === 'AbortError') {
@@ -587,6 +604,22 @@ British English only (organise, colour, £). Return ONLY valid JSON. Ensure all 
     parsed = repairComplexJsonPart2(jsonString);
   }
   injectLifeTasksIfMissing(parsed, ctx?.lifeDesignProfile);
+
+  // Tone validation: log violations and auto-fix em dashes before persisting
+  const validation = validateGAContent(JSON.stringify(parsed));
+  if (!validation.passed) {
+    console.warn('[GA Validator] generate-sprint-plan-part2 content violations:', validation.violations);
+    try {
+      const refixed = JSON.parse(validation.autoFixed);
+      if (JSON.stringify(refixed) !== JSON.stringify(parsed)) {
+        parsed = refixed;
+        console.log('[GA Validator] Auto-fixed em dashes in sprint plan part 2');
+      }
+    } catch (fixErr) {
+      console.warn('[GA Validator] auto-fix re-parse failed, keeping original:', fixErr);
+    }
+  }
+
   return parsed;
 }
 
@@ -605,12 +638,12 @@ function injectLifeTasksIfMissing(generated: any, lifeDesignProfile: any) {
       title: recurring.commitment,
       description: `This is your life commitment. ${recurring.measurable || ''}`,
       category: `life_${recurring.category}`,
-      whyThisMatters: "You identified this as essential to the life you're building.",
+      whyThisMatters: "You said this matters. The business should make space for it.",
       timeEstimate: '1 hour',
-      deliverable: recurring.measurable || 'Honour this commitment.',
-      celebrationMoment: 'Notice how it feels to honour this commitment to yourself.'
+      deliverable: recurring.measurable || 'Block the time and protect it.',
+      celebrationMoment: 'Done. Keep going next week.'
     });
-    console.warn(`[Sprint Part 2] Week ${wNum} missing life task — injected from commitments`);
+    console.warn(`[Sprint Part 2] Week ${wNum} missing life task. Injected from commitments.`);
   }
 }
 

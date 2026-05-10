@@ -136,6 +136,9 @@ interface BenchmarkAnalysis {
     pre_revenue_analysis?: any;
     investment_readiness_breakdown?: any;
     benchmark_appendix?: any;
+    target_exit_valuation?: number;
+    exit_horizon_years?: number;
+    pre_revenue_scenarios?: any[];
   };
   // Pre-revenue fields (top-level)
   business_stage?: string;
@@ -755,7 +758,7 @@ export function BenchmarkingClientReport({
         {isPreRevenue && preRevenueAnalysis?.metricTargets ? (
           <KeyMetricsAsTargetsSection
             metricTargets={preRevenueAnalysis.metricTargets}
-            targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+            targetExitValuation={data.pass1_data?.target_exit_valuation || preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
           />
         ) : metrics.length > 0 && (
           <div>
@@ -921,7 +924,7 @@ export function BenchmarkingClientReport({
         {isPreRevenue && preRevenueAnalysis?.scenarios ? (
           <PreRevenueScenariosSection
             scenarios={preRevenueAnalysis.scenarios}
-            targetExitValuation={preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+            targetExitValuation={data.pass1_data?.target_exit_valuation || preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
           />
         ) : baselineMetrics && baselineMetrics.revenue > 0 ? (
           <ScenarioPlanningSection 

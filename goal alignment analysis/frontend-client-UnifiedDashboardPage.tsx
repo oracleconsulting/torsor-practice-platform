@@ -26,6 +26,7 @@ import {
   Briefcase,
   BarChart3,
   Users,
+  Sparkles,
 } from 'lucide-react';
 import { PageSkeleton, StatusBadge } from '@/components/ui';
 
@@ -112,6 +113,8 @@ export default function UnifiedDashboardPage() {
   const [gaSprintData, setGASprintData] = useState<{
     hasRoadmap: boolean;
     hasSprint: boolean;
+    /** True once the client has chosen their sprint start date OR completed any task. False = first-time experience. */
+    hasStarted: boolean;
     sprintNumber: number;
     activeWeek: number;
     totalWeeks: number;
@@ -365,10 +368,10 @@ export default function UnifiedDashboardPage() {
         try {
           const slId = gaServiceLineId ?? (await supabase.from('service_lines').select('id').eq('code', '365_method').maybeSingle()).data?.id;
           if (!slId) {
-            setGASprintData({ hasRoadmap: false, hasSprint: false, sprintNumber: 0, activeWeek: 0, totalWeeks: 12, completionRate: 0, completedTasks: 0, totalTasks: 0, isSprintComplete: false, hasLifeCheckPending: false, hasCatchUpNeeded: false, weeksBehind: 0, nextTaskTitle: null, sprintTheme: null });
+            setGASprintData({ hasRoadmap: false, hasSprint: false, hasStarted: false, sprintNumber: 0, activeWeek: 0, totalWeeks: 12, completionRate: 0, completedTasks: 0, totalTasks: 0, isSprintComplete: false, hasLifeCheckPending: false, hasCatchUpNeeded: false, weeksBehind: 0, nextTaskTitle: null, sprintTheme: null });
           } else {
           const [enrollRow, sprintStage] = await Promise.all([
-            supabase.from('client_service_lines').select('current_sprint_number, tier_name, renewal_status').eq('client_id', clientId).eq('service_line_id', slId).maybeSingle(),
+            supabase.from('client_service_lines').select('current_sprint_number, tier_name, renewal_status, sprint_start_date').eq('client_id', clientId).eq('service_line_id', slId).maybeSingle(),
             supabase.from('roadmap_stages').select('generated_content, approved_content, created_at').eq('client_id', clientId).eq('stage_type', 'sprint_plan_part2').eq('sprint_number', 1).order('version', { ascending: false }).limit(1).maybeSingle(),
           ]);
           let enrollment = enrollRow.data;
@@ -421,12 +424,16 @@ export default function UnifiedDashboardPage() {
               if (week.weekNumber === totalWeeks && allResolved) activeWeek = totalWeeks;
             }
 
-            const sprintStartDate = sprintContent.startDate || sprintStageCorrect.data?.created_at;
+            const sprintStartDate = enrollment?.sprint_start_date || null;
             let calendarWeek = activeWeek;
             if (sprintStartDate) {
               const start = new Date(sprintStartDate);
               const now = new Date();
-              calendarWeek = Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+              const diffWeeks = Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+              calendarWeek = diffWeeks < 1 ? 0 : Math.min(diffWeeks, 12);
+            } else {
+              // No start date set — don't calculate weeks behind from stage created_at
+              calendarWeek = activeWeek;
             }
 
             const isSprintComplete = resolvedWeeks === totalWeeks;
@@ -463,9 +470,11 @@ export default function UnifiedDashboardPage() {
               }
             }
 
+            const hasStarted = Boolean(sprintStartDate) || completedCount > 0;
             setGASprintData({
               hasRoadmap: true,
               hasSprint: true,
+              hasStarted,
               sprintNumber,
               activeWeek,
               totalWeeks,
@@ -490,6 +499,7 @@ export default function UnifiedDashboardPage() {
             setGASprintData({
               hasRoadmap: !!anyStage,
               hasSprint: false,
+              hasStarted: false,
               sprintNumber,
               activeWeek: 0,
               totalWeeks: 12,
@@ -621,7 +631,7 @@ export default function UnifiedDashboardPage() {
       if (gaSprintData?.hasRoadmap) return '/roadmap';
       if (!assessmentProgress?.part1 || assessmentProgress.part1.status !== 'completed') return '/assessment/part1';
       if (!assessmentProgress?.part2 || assessmentProgress.part2.status !== 'completed') return '/assessment/part2';
-      return '/assessments';
+      return '/roadmap';
     }
     if (code === 'hidden_value_audit') {
       return '/assessment/part3';
@@ -727,6 +737,9 @@ export default function UnifiedDashboardPage() {
         }
         if (gaSprintData.hasCatchUpNeeded) {
           return { label: `${gaSprintData.weeksBehind} Weeks Behind`, color: 'amber', icon: Clock };
+        }
+        if (!gaSprintData.hasStarted) {
+          return { label: 'Ready to begin', color: 'indigo', icon: Sparkles };
         }
         return {
           label: `Week ${gaSprintData.activeWeek} of ${gaSprintData.totalWeeks}`,
@@ -1041,7 +1054,24 @@ export default function UnifiedDashboardPage() {
                           </span>
                         </div>
                       )}
-                      {gaSprintData?.hasSprint && !gaSprintData.isSprintComplete && (
+                      {gaSprintData?.hasSprint && !gaSprintData.isSprintComplete && !gaSprintData.hasStarted && (
+                        <div className="mb-4 space-y-3">
+                          <div className="p-4 rounded-lg bg-gradient-to-br from-indigo-50 via-purple-50 to-rose-50 border border-indigo-200">
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <Sparkles className="w-4 h-4 text-indigo-600" />
+                              <span className="text-sm font-semibold text-indigo-900">Welcome to your Goal Alignment</span>
+                            </div>
+                            <p className="text-xs text-indigo-800/80 leading-relaxed">
+                              Your Sprint {gaSprintData.sprintNumber} plan is ready — {gaSprintData.totalTasks} small steps over 12 focused weeks.
+                              {gaSprintData.sprintTheme ? ` This sprint is about: ${gaSprintData.sprintTheme}.` : ''}
+                            </p>
+                            <p className="text-xs text-indigo-700 mt-2 font-medium">
+                              Tap below to walk through how it works and pick your start date.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {gaSprintData?.hasSprint && !gaSprintData.isSprintComplete && gaSprintData.hasStarted && (
                         <div className="mb-4 space-y-3">
                           <div>
                             <div className="flex items-center justify-between text-sm mb-1">
@@ -1141,6 +1171,8 @@ export default function UnifiedDashboardPage() {
                           <>Catch Up <ArrowRight className="w-4 h-4" /></>
                         ) : gaSprintData.isSprintComplete ? (
                           <>View Summary <ChevronRight className="w-4 h-4" /></>
+                        ) : !gaSprintData.hasStarted ? (
+                          <>Begin Goal Alignment <ArrowRight className="w-4 h-4" /></>
                         ) : (
                           <>Continue Sprint <ArrowRight className="w-4 h-4" /></>
                         )
@@ -1212,27 +1244,7 @@ export default function UnifiedDashboardPage() {
           )}
         </div>
 
-        {/* Quick Links */}
-        {(services.some(s => s.serviceCode === '365_method' || s.serviceCode === '365_alignment')) && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {gaSprintData?.hasSprint ? (
-              <>
-                <QuickLink to="/tasks" icon={Target} label="Sprint" />
-                <QuickLink to="/progress" icon={BarChart3} label="Progress" />
-                <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
-                <QuickLink to="/chat" icon="💬" label="Chat" />
-                <QuickLink to="/appointments" icon="📅" label="Book Call" />
-              </>
-            ) : (
-              <>
-                <QuickLink to="/assessments" icon={Target} label="Assessments" />
-                <QuickLink to="/roadmap" icon={TrendingUp} label="Roadmap" />
-                <QuickLink to="/chat" icon="💬" label="Chat" />
-                <QuickLink to="/appointments" icon="📅" label="Book Call" />
-              </>
-            )}
-          </div>
-        )}
+        {/* Quick Links removed — GA navigation is in the GA sidebar, accessed by clicking the GA card */}
 
         {/* Help Section */}
         <div className="bg-slate-50 rounded-xl border border-slate-200 p-6">

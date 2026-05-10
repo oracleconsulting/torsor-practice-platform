@@ -3,7 +3,10 @@ import {
   Target, 
   AlertTriangle, 
   CheckCircle,
-  Shield
+  Shield,
+  Banknote,
+  Gauge,
+  Clock
 } from 'lucide-react';
 
 interface QuickStatsBarProps {
@@ -12,6 +15,11 @@ interface QuickStatsBarProps {
   gapCount: number;
   strengthCount: number;
   riskLevel?: 'low' | 'medium' | 'high' | 'critical';
+  businessStage?: string;
+  defensiblePreMoney?: number;
+  investmentReadinessScore?: number;
+  readinessGapCount?: number;
+  exitHorizonYears?: number;
 }
 
 export function QuickStatsBar({
@@ -19,9 +27,16 @@ export function QuickStatsBar({
   percentile,
   gapCount,
   strengthCount,
-  riskLevel = 'medium'
+  riskLevel = 'medium',
+  businessStage,
+  defensiblePreMoney,
+  investmentReadinessScore,
+  readinessGapCount,
+  exitHorizonYears
 }: QuickStatsBarProps) {
   
+  const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+
   const riskConfig = {
     low: { label: 'LOW', color: 'emerald', bg: 'bg-emerald-100', text: 'text-emerald-700' },
     medium: { label: 'MEDIUM', color: 'amber', bg: 'bg-amber-100', text: 'text-amber-700' },
@@ -34,37 +49,74 @@ export function QuickStatsBar({
   return (
     <div className="bg-slate-800 text-white px-4 py-3 rounded-lg">
       <div className="flex items-center justify-between gap-4 text-sm flex-wrap">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-emerald-400" />
-          <span className="text-slate-400">Opportunity:</span>
-          <span className="font-bold text-emerald-400">£{totalOpportunity.toLocaleString()}</span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Target className="w-4 h-4 text-blue-400" />
-          <span className="text-slate-400">Percentile:</span>
-          <span className="font-bold">{percentile}th</span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-rose-400" />
-          <span className="text-slate-400">Gaps:</span>
-          <span className="font-bold text-rose-400">{gapCount}</span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <CheckCircle className="w-4 h-4 text-emerald-400" />
-          <span className="text-slate-400">Strengths:</span>
-          <span className="font-bold text-emerald-400">{strengthCount}</span>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4" />
-          <span className="text-slate-400">Founder Risk:</span>
-          <span className={`px-2 py-0.5 rounded text-xs font-bold ${risk.bg} ${risk.text}`}>
-            {risk.label}
-          </span>
-        </div>
+        {isPreRevenue ? (
+          <>
+            <div className="flex items-center gap-2">
+              <Banknote className="w-4 h-4 text-blue-400" />
+              <span className="text-slate-400">Pre-money:</span>
+              <span className="font-bold text-blue-400">
+                {defensiblePreMoney != null
+                  ? `£${(defensiblePreMoney / 1_000_000).toFixed(1)}M`
+                  : '—'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Gauge className="w-4 h-4 text-emerald-400" />
+              <span className="text-slate-400">IR:</span>
+              <span className="font-bold text-emerald-400">
+                {investmentReadinessScore != null ? `${investmentReadinessScore}/100` : '—'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-400" />
+              <span className="text-slate-400">Gaps:</span>
+              <span className="font-bold text-amber-400">{readinessGapCount ?? gapCount}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-violet-400" />
+              <span className="px-2 py-0.5 rounded text-xs font-bold bg-violet-900/60 text-violet-300 border border-violet-600">
+                Pre-revenue · Year 0{exitHorizonYears != null ? ` of ${exitHorizonYears}` : ''}
+              </span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-emerald-400" />
+              <span className="text-slate-400">Opportunity:</span>
+              <span className="font-bold text-emerald-400">£{totalOpportunity.toLocaleString()}</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-blue-400" />
+              <span className="text-slate-400">Percentile:</span>
+              <span className="font-bold">{percentile}th</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-rose-400" />
+              <span className="text-slate-400">Gaps:</span>
+              <span className="font-bold text-rose-400">{gapCount}</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-400" />
+              <span className="text-slate-400">Strengths:</span>
+              <span className="font-bold text-emerald-400">{strengthCount}</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              <span className="text-slate-400">Founder Risk:</span>
+              <span className={`px-2 py-0.5 rounded text-xs font-bold ${risk.bg} ${risk.text}`}>
+                {risk.label}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

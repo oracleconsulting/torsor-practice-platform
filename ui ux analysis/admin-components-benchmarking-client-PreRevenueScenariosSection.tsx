@@ -36,6 +36,7 @@ interface Scenario {
   inputs: Record<string, number | string>;
   outputs: Record<string, number | string>;
   valuationImpact?: { current: number; projected: number; delta: number };
+  trajectoryImpact?: { milestoneInterpretation: string; gapClosed?: string };
   summary: string;
   methodology: string;
 }
@@ -132,8 +133,16 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
               </div>
             </div>
 
-            {/* Valuation impact card */}
-            {activeScenario.valuationImpact && (
+            {/* Trajectory / Valuation impact card */}
+            {activeScenario.trajectoryImpact ? (
+              <div style={{ padding: '14px 18px', borderRadius: 10, background: `${C.blue}08`, border: `1px solid ${C.blue}15` }}>
+                <p style={{ fontSize: 11, color: C.blue, fontWeight: 600, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em', ...mono }}>Trajectory Impact</p>
+                <p style={{ fontSize: 13, color: C.text, lineHeight: 1.6, margin: 0 }}>{activeScenario.trajectoryImpact.milestoneInterpretation}</p>
+                {activeScenario.trajectoryImpact.gapClosed && (
+                  <p style={{ fontSize: 12, color: C.textMuted, marginTop: 4, margin: '4px 0 0' }}>{activeScenario.trajectoryImpact.gapClosed}</p>
+                )}
+              </div>
+            ) : activeScenario.valuationImpact ? (
               <div style={{ padding: '18px 20px', borderRadius: 14, background: `linear-gradient(135deg, ${C.navy}, #1E293B)`, color: '#fff' }}>
                 <p style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, ...mono }}>Valuation Impact</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
@@ -153,7 +162,7 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* Summary */}
             <div style={{ padding: '14px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.02)' }}>

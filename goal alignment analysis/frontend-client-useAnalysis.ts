@@ -183,6 +183,11 @@ export interface RoadmapData {
     valueGaps?: ValueGap[];
     riskRegister?: Risk[];
     totalOpportunity?: number;
+    pressurePoints?: { title?: string; items?: string[] };
+    clientMetrics?: { showExitReadiness?: boolean; exitReadinessScore?: number; exitReadinessLabel?: string; exitReadinessContext?: string };
+    narrativeSummary?: any;
+    actionHierarchy?: any;
+    scoreInterpretation?: string;
     businessValuation?: {
       asOfDate?: string;
       method?: string;

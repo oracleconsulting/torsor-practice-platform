@@ -9,6 +9,10 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
+import { validateGAContent } from '../_shared/ga-content-validator.ts';
+import { buildResearchContext } from '../_shared/ga-research-base.ts';
+import { recordLlmCostByClient } from '../_shared/llm-cost-logger.ts';
 
 // Inlined context enrichment (avoids "Module not found" when Dashboard deploys only index.ts).
 // Canonical: supabase/functions/_shared/context-enrichment.ts
@@ -244,7 +248,7 @@ serve(async (req) => {
     console.log(`Generating 6-month shift for ${context.userName}...`);
 
     // Generate shift (with optional enrichment + BM context)
-    const shift = await generateShift(context, (enrichedContext?.promptContext || '') + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''));
+    const shift = await generateShift(context, (enrichedContext?.promptContext || '') + (bmSummaryBlock ? '\n\n' + bmSummaryBlock : ''), clientId);
 
     const duration = Date.now() - startTime;
 
@@ -321,7 +325,7 @@ function buildShiftContext(part1: any, part2: any, client: any, vision: any, fit
 // SHIFT GENERATOR
 // ============================================================================
 
-async function generateShift(ctx: any, enrichmentBlock = ''): Promise<any> {
+async function generateShift(ctx: any, enrichmentBlock = '', clientId: string | null = null): Promise<any> {
   const openRouterKey = Deno.env.get('OPENROUTER_API_KEY');
   if (!openRouterKey) throw new Error('OPENROUTER_API_KEY not configured');
   
@@ -342,21 +346,14 @@ async function generateShift(ctx: any, enrichmentBlock = ''): Promise<any> {
       max_tokens: 4000,
       temperature: 0.6,
       messages: [
-        { 
-          role: 'system', 
-          content: `You create the bridge between where someone is now and their Year 1 milestone.
-This is not a project plan—it's the first chapter of their transformation.
-Parse THEIR "six_month_shifts" answer into concrete milestones. Don't invent things they didn't ask for.
-Use their exact words. Be specific to their situation.
-
-ANTI-AI-SLOP RULES:
-BANNED: Additionally, delve, crucial, pivotal, testament, underscores, showcases, fostering, tapestry, landscape, synergy, leverage, scalable, holistic, impactful, ecosystem
-BANNED STRUCTURES: "Not only X but also Y", "It's important to note", "In summary", rule of three lists, "-ing" phrase endings
-THE TEST: If it sounds corporate, rewrite it. Sound like a human advisor.
-
-British English only (organise, colour, £). Return ONLY valid JSON.`
+        {
+          role: 'system',
+          content: GA_SYSTEM_PROMPT,
         },
-        { role: 'user', content: fullPrompt }
+        {
+          role: 'user',
+          content: fullPrompt + buildResearchContext(['habit_formation', 'goal_setting', 'delegation', 'time_blocking']),
+        },
       ]
     })
   });
@@ -372,6 +369,25 @@ British English only (organise, colour, £). Return ONLY valid JSON.`
   const data = await response.json();
   const content = data.choices[0].message.content;
   console.log(`LLM response length: ${content.length} characters`);
+
+  // Cost tracking — silent on failure.
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (supabaseUrl && serviceKey && clientId) {
+      const sb = createClient(supabaseUrl, serviceKey);
+      await recordLlmCostByClient({
+        supabase: sb,
+        clientId,
+        operationType: 'shift_generation',
+        sourceFunction: 'generate-six-month-shift',
+        model: 'anthropic/claude-sonnet-4.5',
+        inputTokens: data?.usage?.prompt_tokens ?? 0,
+        outputTokens: data?.usage?.completion_tokens ?? 0,
+        serviceLineCode: '365_method',
+      });
+    }
+  } catch (_) { /* ignore */ }
   
   const cleaned = content.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   const start = cleaned.indexOf('{');
@@ -381,14 +397,32 @@ British English only (organise, colour, £). Return ONLY valid JSON.`
     throw new Error('Failed to parse shift JSON - no JSON object found');
   }
   
+  let parsed: any;
   try {
-  return JSON.parse(cleaned.substring(start, end + 1));
+    parsed = JSON.parse(cleaned.substring(start, end + 1));
   } catch (parseError) {
     console.error('JSON parse error, attempting repair...');
     let fixedJson = cleaned.substring(start, end + 1);
     fixedJson = fixedJson.replace(/,(\s*[}\]])/g, '$1');
-    return JSON.parse(fixedJson);
+    parsed = JSON.parse(fixedJson);
   }
+
+  // Tone validation: log violations and auto-fix em dashes before persisting
+  const validation = validateGAContent(JSON.stringify(parsed));
+  if (!validation.passed) {
+    console.warn('[GA Validator] generate-six-month-shift content violations:', validation.violations);
+    try {
+      const refixed = JSON.parse(validation.autoFixed);
+      if (JSON.stringify(refixed) !== JSON.stringify(parsed)) {
+        parsed = refixed;
+        console.log('[GA Validator] Auto-fixed em dashes in six-month shift');
+      }
+    } catch (fixErr) {
+      console.warn('[GA Validator] auto-fix re-parse failed, keeping original:', fixErr);
+    }
+  }
+
+  return parsed;
 }
 
 function buildShiftPrompt(ctx: any): string {
