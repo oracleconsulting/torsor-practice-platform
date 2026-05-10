@@ -6567,8 +6567,27 @@ serve(async (req) => {
         investmentReadinessScore = prResult.preRevenueAnalysis.investmentReadiness.score;
         investmentReadinessBreakdown = prResult.preRevenueAnalysis.investmentReadiness;
 
+        // Suppress operating-business fields that don't apply to pre-revenue
+        assessmentData.enhanced_suppressors = null;
+        assessmentData.exit_readiness_breakdown = null;
+        assessmentData.two_paths_narrative = null;
+
+        // Derive gap_count from IR components scoring below 60% of max
+        const irComponents = prResult.preRevenueAnalysis.investmentReadiness.components || {};
+        const weakComponentCount = Object.values(irComponents).filter(
+          (c: any) => c.max > 0 && (c.score / c.max) < 0.6
+        ).length;
+        assessmentData._preRevenue_gap_count = weakComponentCount;
+
+        // Derive strength_count from IR components scoring above 60% of max
+        const strongComponentCount = Object.values(irComponents).filter(
+          (c: any) => c.max > 0 && (c.score / c.max) >= 0.6
+        ).length;
+        assessmentData._preRevenue_strength_count = strongComponentCount;
+
         console.log('[Pre-Revenue Calculator] Valuation complete. Base pre-money:', prResult.preRevenueAnalysis.defensiblePreMoney.base);
         console.log('[Pre-Revenue Calculator] Investment readiness:', investmentReadinessScore, '/', 100, '-', prResult.preRevenueAnalysis.investmentReadiness.verdict);
+        console.log('[Pre-Revenue Calculator] Gaps:', weakComponentCount, 'Strengths:', strongComponentCount);
       } catch (prError) {
         console.error('[Pre-Revenue Calculator] Error (continuing with standard valuation):', prError);
       }
@@ -7384,7 +7403,21 @@ When writing narratives:
       reportData.pre_revenue_analysis = preRevenueAnalysis;
       reportData.investment_readiness_score = investmentReadinessScore;
       reportData.investment_readiness_breakdown = investmentReadinessBreakdown;
-      console.log('[BM Pass 1] Added pre-revenue analysis to report');
+
+      // Suppress operating-business fields that don't apply to pre-revenue
+      reportData.value_analysis = null;
+      reportData.value_suppressors = null;
+      reportData.enhanced_suppressors = null;
+      reportData.exit_readiness_breakdown = null;
+      reportData.total_value_discount = null;
+      reportData.discounted_multiple = null;
+      reportData.total_annual_opportunity = null;
+
+      // Override gap/strength counts from IR breakdown
+      reportData.gap_count = assessmentData._preRevenue_gap_count ?? 0;
+      reportData.strength_count = assessmentData._preRevenue_strength_count ?? 0;
+
+      console.log('[BM Pass 1] Pre-revenue: suppressed operating fields, gap_count=', reportData.gap_count, 'strength_count=', reportData.strength_count);
     }
     
     const { data: report, error: saveError } = await supabaseClient
