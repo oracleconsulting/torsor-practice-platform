@@ -10,7 +10,7 @@ const corsHeaders = {
 // PASS 2 NARRATIVE: Long-running narrative generation (Opus)
 // Invoked by the pass2 shim (fire-and-forget).
 // Reads pass1_data from bm_reports, writes compelling narratives,
-// updates report with status 'generated', triggers opportunity analysis.
+// sets engagement to narrative_generated, triggers pass2-validate (not Pass 3).
 // =============================================================================
 
 function buildPass2Prompt(pass1Data: any, allowlistEntries: string[] = []): string {
@@ -827,7 +827,7 @@ function auditNarrative(text: string): { violations: string[]; cleanText: string
 // SECTION: ENTITY DETECTION (Patch 08d — replaces Patch 07 Section 2)
 // The allowlist is built by the integrity pass and stored on bm_reports.entity_allowlist.
 // Pass 2 reads it, injects it into the prompt, and post-validates output.
-// No mutation of narrative text — detection and reprompt only.
+// Narrative: diagnostic detection only. Validator owns reprompt / terminal quality.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PROPER_NOUN_STOP_WORDS_PASS2 = new Set([
@@ -1234,7 +1234,6 @@ serve(async (req) => {
     // Pass 2: re-audit; if violations remain, flag for admin
     // ═══════════════════════════════════════════════════════════════════
     const narrativeKeys = ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative'] as const;
-    let narrativeQualityWarnings: string[] = [];
 
     // Pass 1: Apply replacement map to all narrative fields
     for (const key of narrativeKeys) {
@@ -1248,85 +1247,27 @@ serve(async (req) => {
     const { violations: remainingViolations } = auditNarrative(allCleanedText);
     if (remainingViolations.length > 0) {
       console.warn(`[BM Pass 2 Narrative] Audit: ${remainingViolations.length} violations remain after replacement map:`, remainingViolations);
-      narrativeQualityWarnings = remainingViolations;
     } else {
       console.log('[BM Pass 2 Narrative] Audit: clean (0 violations after replacement map)');
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // ENTITY VIOLATION CHECK (Patch 08d — detection + reprompt, no mutation)
+    // Entity check — diagnostic only. Narrative function does NOT reprompt.
+    // The validator function reads the narratives from bm_reports and runs
+    // the reprompt loop with the proper self-chaining architecture.
     // ═══════════════════════════════════════════════════════════════════
     const narrativeFieldKeys = ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative'];
-    let entityViolations: Array<{ entity: string; field: string; sentence: string }> = [];
-    let repromptHistory: any[] = [];
 
     if (entityAllowlistSet.size > 0) {
       const initialDetection = detectEntityViolations(narratives, entityAllowlistSet, narrativeFieldKeys);
-      console.log(`[BM Pass 2 Narrative] Entity check: ${initialDetection.unmatched.length} of ${initialDetection.totalCandidates} candidates unmatched`);
-      entityViolations = initialDetection.unmatched;
-
-      const MAX_REPROMPTS = 2;
-      let attempt = 0;
-      while (entityViolations.length > 0 && attempt < MAX_REPROMPTS) {
-        attempt++;
-        console.log(`[BM Pass 2 Narrative] Reprompting (attempt ${attempt}/${MAX_REPROMPTS}) to fix ${entityViolations.length} entity violations`);
-
-        const violationDetail = entityViolations.map(v => `- "${v.entity}" in ${v.field}`).join('\n');
-        const repromptInstruction = `Your previous narrative contained unapproved entities:\n${violationDetail}\n\nRewrite ONLY the affected fields. Replace each unapproved entity with a generic descriptor. Return JSON with the rewritten fields.\n\nAPPROVED ENTITIES:\n${entityAllowlistEntries.map(e => `  - ${e}`).join('\n')}`;
-
-        try {
-          const repromptResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${openRouterKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: 'anthropic/claude-opus-4',
-              messages: [
-                { role: 'system', content: 'Rewrite report narratives to comply with entity-naming constraints. Return valid JSON.' },
-                { role: 'user', content: repromptInstruction + '\n\nORIGINAL:\n' + JSON.stringify(narratives, null, 2) },
-              ],
-              temperature: 0.1,
-              max_tokens: 4000,
-            }),
-          });
-
-          if (!repromptResponse.ok) { console.warn(`[BM Pass 2 Narrative] Reprompt ${attempt} failed HTTP ${repromptResponse.status}`); break; }
-
-          const repromptResult = await repromptResponse.json();
-          const repromptTokens = repromptResult.usage?.total_tokens || 0;
-          let rewritten: any;
-          try {
-            const cleaned = (repromptResult.choices?.[0]?.message?.content || '').replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
-            rewritten = JSON.parse(cleaned);
-          } catch { console.warn(`[BM Pass 2 Narrative] Reprompt ${attempt} unparseable`); break; }
-
-          const fieldsRewritten: string[] = [];
-          for (const key of narrativeFieldKeys) {
-            if (typeof rewritten[key] === 'string' && rewritten[key] !== narratives[key]) {
-              narratives[key] = rewritten[key];
-              fieldsRewritten.push(key);
-            }
-          }
-
-          const postDetection = detectEntityViolations(narratives, entityAllowlistSet, narrativeFieldKeys);
-          repromptHistory.push({ attempt, violations_before: entityViolations.length, violations_after: postDetection.unmatched.length, fields_rewritten: fieldsRewritten, tokens_used: repromptTokens });
-          entityViolations = postDetection.unmatched;
-          if (entityViolations.length === 0) break;
-        } catch (err) { console.warn(`[BM Pass 2 Narrative] Reprompt ${attempt} threw:`, err); break; }
-      }
+      console.log(`[BM Pass 2 Narrative] Initial entity check: ${initialDetection.unmatched.length} of ${initialDetection.totalCandidates} candidates unmatched (validator will handle any reprompting)`);
     } else {
-      console.warn('[BM Pass 2 Narrative] No allowlist — skipping entity validation');
+      console.warn('[BM Pass 2 Narrative] No allowlist on report — validator will mark unverified');
     }
 
-    let narrativeQualityState: 'unverified' | 'clean' | 'requires_review' = 'unverified';
-    if (entityAllowlistSet.size === 0) {
-      narrativeQualityState = 'unverified';
-    } else if (entityViolations.length === 0) {
-      narrativeQualityState = 'clean';
-      console.log('[BM Pass 2 Narrative] ✅ Narrative quality: clean');
-    } else {
-      narrativeQualityState = 'requires_review';
-      console.warn(`[BM Pass 2 Narrative] ⚠ Narrative quality: requires_review — ${entityViolations.length} unresolved violations`);
-    }
+    // Narrative quality always starts as 'unverified'. The validator
+    // sets it to 'clean' or 'requires_review' based on its terminal state.
+    const narrativeQualityState: 'unverified' = 'unverified';
     
     const tokensUsed = result.usage?.total_tokens || 0;
     const cost = (tokensUsed / 1000) * 0.015; // Approximate cost for Opus 4
@@ -1334,7 +1275,10 @@ serve(async (req) => {
     
     console.log('[BM Pass 2 Narrative] Narrative generation complete. Tokens:', tokensUsed, 'Cost: £', cost.toFixed(4));
     
-    // Update report with narratives
+    // Update report with narratives. Narrative quality is 'unverified'; the
+    // validator function will set 'clean' or 'requires_review' as its terminal
+    // state. Engagement status stays at 'narrative_generated' until validator
+    // completes — see engagement status update below.
     const updatePayload: Record<string, any> = {
       headline: narratives.headline,
       executive_summary: narratives.executiveSummary,
@@ -1342,14 +1286,14 @@ serve(async (req) => {
       strength_narrative: narratives.strengthNarrative,
       gap_narrative: narratives.gapNarrative,
       opportunity_narrative: narratives.opportunityNarrative,
-      status: 'generated',
       llm_model: report.llm_model + ' + claude-opus-4',
       llm_tokens_used: (report.llm_tokens_used || 0) + tokensUsed,
       llm_cost: (report.llm_cost || 0) + cost,
       generation_time_ms: (report.generation_time_ms || 0) + generationTime,
-      entity_violations: entityViolations,
-      narrative_quality: narrativeQualityState,
-      reprompt_history: repromptHistory,
+      narrative_quality: narrativeQualityState,        // 'unverified'
+      reprompt_attempt_count: 0,                       // validator will increment
+      entity_violations: [],                           // validator will populate
+      reprompt_history: [],                            // validator will populate
     };
 
     if (narratives.twoPathsNarrative) {
@@ -1366,48 +1310,60 @@ serve(async (req) => {
       throw updateError;
     }
     
-    // Update engagement status
+    // Update engagement status to narrative_generated. The validator owns
+    // the next state transitions:
+    //   - clean         → status='generated', narrative_quality='clean', triggers Pass 3
+    //   - requires_review (cap reached) → status='generated', narrative_quality='requires_review', triggers Pass 3
+    //   - unverified (no allowlist) → status='generated', triggers Pass 3
     await supabaseClient
       .from('bm_engagements')
-      .update({ 
-        status: 'generated',
-        generated_at: new Date().toISOString()
-      })
+      .update({ status: 'narrative_generated' })
       .eq('id', engagementId);
-    
-    console.log('[BM Pass 2 Narrative] Report complete!');
-    
-    // Trigger opportunity analysis (async, don't wait)
+
+    console.log('[BM Pass 2 Narrative] ✅ Narratives written. Engagement status: narrative_generated');
+
+    // ─────────────────────────────────────────────────────────────────
+    // Trigger validator (fire-and-forget). The validator:
+    //   - Re-detects violations on the persisted narratives
+    //   - Reprompts once per invocation if violations found
+    //   - Self-chains up to MAX_REPROMPT_ATTEMPTS times
+    //   - Triggers Pass 3 (opportunities) on terminal state
+    // The narrative function does NOT trigger Pass 3 directly.
+    // ─────────────────────────────────────────────────────────────────
     try {
       const baseUrl = Deno.env.get('SUPABASE_URL');
       const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-      
-      // Fire and forget - opportunity analysis runs in background
-      fetch(`${baseUrl}/functions/v1/generate-bm-opportunities`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${serviceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ engagementId }),
-      }).then(() => {
-        console.log('[BM Pass 2 Narrative] Triggered opportunity analysis');
-      }).catch((err) => {
-        console.error('[BM Pass 2 Narrative] Failed to trigger opportunity analysis:', err);
-      });
+
+      if (!baseUrl || !serviceKey) {
+        console.error('[BM Pass 2 Narrative] ❌ Missing SUPABASE_URL or SERVICE_ROLE_KEY — cannot trigger validator');
+      } else {
+        const validateUrl = `${baseUrl}/functions/v1/generate-bm-report-pass2-validate`;
+        console.log(`[BM Pass 2 Narrative] Triggering validator at: ${validateUrl} (fire-and-forget)`);
+        fetch(validateUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ engagementId }),
+        }).catch((err) => {
+          console.error('[BM Pass 2 Narrative] ❌ Validator fire-and-forget rejected:', err);
+        });
+        console.log('[BM Pass 2 Narrative] ✅ Validator triggered. Status will advance via DB polling.');
+      }
     } catch (triggerErr) {
-      // Don't fail Pass 2 if opportunity trigger fails
-      console.error('[BM Pass 2 Narrative] Error triggering opportunity analysis:', triggerErr);
+      console.error('[BM Pass 2 Narrative] ❌ Failed to invoke validator:', triggerErr);
     }
-    
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         engagementId,
-        status: 'generated',
+        status: 'narrative_generated',
+        next: 'validator',
         tokensUsed,
         cost: `£${cost.toFixed(4)}`,
-        generationTimeMs: generationTime
+        generationTimeMs: generationTime,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
