@@ -631,13 +631,25 @@ ${hva.founder_prior_exits ? `- Prior exits: Yes` : ''}
 HEADLINE CONSTRUCTION (MANDATORY — DO NOT DEVIATE)
 ═══════════════════════════════════════════════════════════════════════════════
 
-Target exit: £${Math.round((pass1Data.target_exit_valuation || 0) / 1000000)}M
-Exit horizon: ${pass1Data.exit_horizon_years || 7} years
-Required ARR at exit: £${Math.round((pass1Data.target_exit_valuation || 0) / 10000000)}M (at 10x multiple)
+${(() => {
+  const vc = pass1Data.pre_revenue_analysis?.vcMethodBackSolve || {};
+  const targetExit = vc.targetExitValuation || pass1Data.target_exit_valuation || 0;
+  const horizon = vc.exitHorizonYears || pass1Data.exit_horizon_years || 7;
+  const requiredArr = vc.requiredArrAtExit || 0;
+  const exitMultiple = vc.impliedExitMultiple || 6;
+  const defensibleBase = pass1Data.pre_revenue_analysis?.defensiblePreMoney?.base || 0;
+  const founderStatedPreMoney = pass1Data.pre_revenue_signals?.round_pre_money_target;
+  const requiredArrPhrase = requiredArr >= 1_000_000_000
+    ? `£${(requiredArr / 1_000_000_000).toFixed(2)}B`
+    : `£${Math.round(requiredArr / 1_000_000)}M`;
+  return `Target exit: £${Math.round(targetExit / 1_000_000)}M
+Exit horizon: ${horizon} years
+Required ARR at exit: ${requiredArrPhrase} (at ${exitMultiple}x revenue multiple — calculator output, do not infer a different multiple)
 Primary blocker: identify the highest-severity must_address_now opportunity
 Round size founder is raising: ${roundPhrase}
-Defensible pre-money (base case): £${((pass1Data.pre_revenue_analysis?.defensiblePreMoney?.base || 0) / 1000000).toFixed(2)}M
-Founder-stated pre-money (if any): ${pass1Data.pre_revenue_signals?.round_pre_money_target ? '£' + (pass1Data.pre_revenue_signals.round_pre_money_target / 1000000).toFixed(2) + 'M' : 'not stated'}
+Defensible pre-money (base case): £${(defensibleBase / 1_000_000).toFixed(2)}M
+Founder-stated pre-money (if any): ${founderStatedPreMoney ? '£' + (founderStatedPreMoney / 1_000_000).toFixed(2) + 'M' : 'not stated'}`;
+})()}
 
 Your headline MUST follow this template:
 "£{target_exit_in_M}M target exit by year {horizon} requires £{required_arr_in_M}M ARR; {primary_blocker} blocks the ${roundPhrase} raise today."
@@ -653,7 +665,7 @@ YOUR OUTPUT
 
 Return JSON:
 {
-  "headline": "Under 25 words. MUST use the target exit value (£${Math.round((pass1Data.target_exit_valuation || 0) / 1000000)}M), required ARR (£${Math.round((pass1Data.target_exit_valuation || 0) / 10000000)}M), and the key forward suppressor. Follow the headline template above.",
+  "headline": "Under 25 words. MUST use the target exit value, the Required ARR at exit value shown in the HEADLINE CONSTRUCTION block above (do not recompute it), and the key forward suppressor. Follow the headline template above.",
 
   "executiveSummary": "3 paragraphs. Open with the defensible pre-money range (conservative/base/stretch) and investment readiness score. Describe the pipeline status and forecast credibility. Close with the single biggest risk to the raise.",
 
