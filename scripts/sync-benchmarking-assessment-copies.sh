@@ -39,7 +39,7 @@ done
 # --- Admin UI: src/components/benchmarking/admin/ ---
 for base in AccountsUploadPanel BenchmarkingAdminView BenchmarkSourcesPanel ClientDataReference ConversationScript DataCollectionPanel \
   EngagementSetupPanel ExportAnalysisButton FinancialDataReviewModal NextStepsPanel OpportunityDashboard OpportunityPanel \
-  PDFExportEditor PreRevenueSignalsPanel QuickStatsBar RiskFlagsPanel ServiceCreationModal ServicePathwayPanel \
+  PDFExportEditor PreRevenueDataCollectionPanel PreRevenueSignalsPanel QuickStatsBar RiskFlagsPanel ServiceCreationModal ServicePathwayPanel \
   ServiceSelectionPanel ValueAnalysisPanel; do
   f="$ROOT/src/components/benchmarking/admin/${base}.tsx"
   if [ -f "$f" ]; then
@@ -71,6 +71,7 @@ done
 
 # --- Edge functions (index.ts) ---
 for fn in generate-benchmarking-pdf generate-bm-opportunities generate-bm-report-pass1 generate-bm-report-pass2 \
+  generate-bm-report-pass2-narrative generate-bm-report-pass2-validate generate-bm-integrity-pass \
   regenerate-bm-report save-bm-supplementary-data fetch-industry-benchmarks; do
   f="$ROOT/supabase/functions/$fn/index.ts"
   if [ -f "$f" ]; then
@@ -103,7 +104,18 @@ for m in \
   20260207100000_bm_engagements_hva_status \
   20260208100000_bm_engagements_status_in_progress \
   20260411120000_bm_reports_rls_engagement_share \
-  20260508000001_pre_revenue_stage_aware_benchmarking; do
+  20260508000001_pre_revenue_stage_aware_benchmarking \
+  20260510000001_pre_revenue_service_catalogue \
+  20260510000002_benchmark_appendix \
+  20260510000003_metric_registry \
+  20260510000004_client_collection_fields \
+  20260510000005_bm_client_data_requests \
+  20260510000006_industry_stage_frameworks \
+  20260510000007_bm_discovery_scripts \
+  20260510000010_metric_set_complete \
+  20260510000020_industry_basis_client_collection_fields \
+  20260510000030_bm_integrity_foundation \
+  20260511000001_bm_prerev_services_catalogue; do
   if [ -f "$ROOT/supabase/migrations/${m}.sql" ]; then
     cp "$ROOT/supabase/migrations/${m}.sql" "$DEST/migrations_${m}-COPY.sql" && echo "  migrations_${m}-COPY.sql"
   fi

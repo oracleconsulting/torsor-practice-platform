@@ -429,6 +429,27 @@ async function generatePreRevenueOpportunities(
   const defensible = preRevAnalysis.defensiblePreMoney || {};
   const irScore = preRevAnalysis.investmentReadiness || {};
 
+  // Local helpers to source IR component values for evidence strings.
+  // Falls through to a sensible default phrase if a component is missing
+  // rather than emitting "undefined/undefined".
+  const components = (irScore.components || {}) as Record<string, { score?: number; max?: number; gaps?: string[] } | undefined>;
+  const componentScore = (key: string): string => {
+    const c = components[key];
+    if (!c || c.score === undefined || c.max === undefined) return 'data pending';
+    return `${c.score}/${c.max}`;
+  };
+  const componentGaps = (key: string): string => {
+    const c = components[key];
+    if (!c?.gaps || c.gaps.length === 0) return 'none flagged';
+    return c.gaps.join('; ');
+  };
+  const totalIrScore = (irScore.score !== undefined) ? `${irScore.score}/100` : 'not scored';
+  const defensibleRangeM = (
+    defensible.conservative !== undefined && defensible.stretch !== undefined
+  )
+    ? `£${(defensible.conservative / 1_000_000).toFixed(2)}M - £${(defensible.stretch / 1_000_000).toFixed(2)}M`
+    : 'pending defensible valuation';
+
   const opportunities = [
     // Tier 1: Strategic Foundations (must_address_now)
     {
@@ -438,7 +459,7 @@ async function generatePreRevenueOpportunities(
       severity: 'critical',
       priority: 'must_address_now',
       priorityRationale: 'Without a locked exit target, all downstream analysis (milestones, metric targets, suppressor remediation) lacks an anchor.',
-      dataEvidence: `Defensible pre-money range: {{defensiblePreMoney.conservative|currencyM}} - {{defensiblePreMoney.stretch|currencyM}}. IR score: {{investmentReadinessScore}}/100.`,
+      dataEvidence: `Defensible pre-money range: ${defensibleRangeM}. Investment readiness score: ${totalIrScore}.`,
       talkingPoint: 'Before anything else, you need a locked exit target. Every investor conversation starts with "what does success look like?"',
       questionToAsk: 'Have you stress-tested your exit valuation against what the market will actually pay for businesses at your stage?',
       financialImpactType: 'valuation_uplift',
@@ -464,7 +485,7 @@ async function generatePreRevenueOpportunities(
       severity: 'critical',
       priority: 'must_address_now',
       priorityRationale: 'Investors will stress-test your numbers. A bottom-up model with documented assumptions is table stakes for any serious conversation.',
-      dataEvidence: `Forecast credibility component: {{irComponents.forecast_credibility.score}}/{{irComponents.forecast_credibility.max}}. Gaps: {{irComponents.forecast_credibility.gaps}}.`,
+      dataEvidence: `Forecast credibility component: ${componentScore('forecast_credibility')}. Gaps: ${componentGaps('forecast_credibility')}.`,
       talkingPoint: 'A credible 3-year model is not optional for fundraising. Investors will pull it apart; better they find solid foundations than guesswork.',
       questionToAsk: 'Can you walk me through the assumptions behind your Year 1 revenue forecast? What conversion rates are you using?',
       financialImpactType: 'valuation_protection',
@@ -477,7 +498,7 @@ async function generatePreRevenueOpportunities(
       severity: 'high',
       priority: 'must_address_now',
       priorityRationale: 'EIS/SEIS eligibility dramatically expands your investor pool. Advance assurance takes 4-8 weeks from HMRC.',
-      dataEvidence: `Cap table & governance: {{irComponents.cap_table_governance.score}}/{{irComponents.cap_table_governance.max}}. Gaps: {{irComponents.cap_table_governance.gaps}}.`,
+      dataEvidence: `Cap table & governance: ${componentScore('cap_table_governance')}. Gaps: ${componentGaps('cap_table_governance')}.`,
       talkingPoint: 'Angel investors expect EIS relief. Without advance assurance, you are closing your round to a fraction of the market.',
       questionToAsk: 'Do you have SEIS/EIS advance assurance? How many share classes are currently on the cap table?',
       financialImpactType: 'investor_access',
@@ -492,7 +513,7 @@ async function generatePreRevenueOpportunities(
       severity: 'high',
       priority: 'next_3_months',
       priorityRationale: 'Once foundations are in place, you need a compelling investor pack that tells the story with data.',
-      dataEvidence: `Data room completeness: {{irComponents.data_room_ip.score}}/{{irComponents.data_room_ip.max}}.`,
+      dataEvidence: `Data room completeness: ${componentScore('data_room_ip')}.`,
       talkingPoint: 'The best founders don\'t just pitch a vision. They show market evidence, competitive analysis, and a clear "why now" story.',
       questionToAsk: 'What does your current investor deck look like? Do you have market sizing evidence or comparable transaction data?',
       financialImpactType: 'fundraising_efficiency',
@@ -505,7 +526,7 @@ async function generatePreRevenueOpportunities(
       severity: 'high',
       priority: 'next_3_months',
       priorityRationale: 'Signed contracts are the single biggest de-risk signal for investors. Verbal commitments carry minimal weight.',
-      dataEvidence: `Pipeline quality: {{irComponents.pipeline_quality.score}}/{{irComponents.pipeline_quality.max}}. Gaps: {{irComponents.pipeline_quality.gaps}}.`,
+      dataEvidence: `Pipeline quality: ${componentScore('pipeline_quality')}. Gaps: ${componentGaps('pipeline_quality')}.`,
       talkingPoint: 'Every verbal commitment that converts to a signed contract steps up your valuation. Two signed LOIs can shift you from base to stretch case.',
       questionToAsk: 'Which of your verbal commitments is closest to signing? What is blocking the conversion?',
       financialImpactType: 'valuation_uplift',
@@ -518,7 +539,7 @@ async function generatePreRevenueOpportunities(
       severity: 'medium',
       priority: 'next_3_months',
       priorityRationale: 'IP assignment and protection must be provably clean before due diligence. This takes 2-3 months to complete properly.',
-      dataEvidence: `Data room & IP: {{irComponents.data_room_ip.score}}/{{irComponents.data_room_ip.max}}. Gaps: {{irComponents.data_room_ip.gaps}}.`,
+      dataEvidence: `Data room & IP: ${componentScore('data_room_ip')}. Gaps: ${componentGaps('data_room_ip')}.`,
       talkingPoint: 'Investors will check IP ownership on day one of due diligence. If the IP is not clearly assigned to the company, it will stall or kill the deal.',
       questionToAsk: 'Is all IP formally assigned to the operating company? Do you have invention assignment agreements with all developers?',
       financialImpactType: 'valuation_protection',
@@ -546,7 +567,7 @@ async function generatePreRevenueOpportunities(
       severity: 'medium',
       priority: 'next_12_months',
       priorityRationale: 'Retention and expansion from early customers is the strongest signal of product-market fit. Build the infrastructure before you scale.',
-      dataEvidence: `Team & hires: {{irComponents.team_hires.score}}/{{irComponents.team_hires.max}}.`,
+      dataEvidence: `Team & hires: ${componentScore('team_hires')}.`,
       talkingPoint: 'Your first 10 customers will define your NRR trajectory. Getting onboarding and success right from day one pays compound returns.',
       questionToAsk: 'Who will own customer success? Do you have an onboarding playbook for your first enterprise customers?',
       financialImpactType: 'retention_value',
@@ -559,7 +580,7 @@ async function generatePreRevenueOpportunities(
       severity: 'medium',
       priority: 'next_12_months',
       priorityRationale: 'Independent board members signal maturity to investors. Series A investors expect formal governance.',
-      dataEvidence: `Cap table & governance: {{irComponents.cap_table_governance.score}}/{{irComponents.cap_table_governance.max}}.`,
+      dataEvidence: `Cap table & governance: ${componentScore('cap_table_governance')}.`,
       talkingPoint: 'A strong NED adds credibility, opens doors, and signals to investors that you are building a business, not running a project.',
       questionToAsk: 'Do you have any non-executive directors or formal advisors? What skills gap would a NED fill?',
       financialImpactType: 'governance_premium',
