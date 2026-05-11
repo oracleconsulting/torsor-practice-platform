@@ -55,15 +55,24 @@ const MAX_REPROMPT_ATTEMPTS = 3;
 // ────────────────────────────────────────────────────────────────────────────
 
 const PROPER_NOUN_STOP_WORDS = new Set<string>([
+  // determiners, pronouns, demonstratives
   'The','This','That','These','Those','There','Their','They','Them',
   'What','When','Where','Which','While','Who','Whose','Why','How',
+  // prepositions
   'From','With','Without','About','After','Before','Between','During',
   'Through','Against','Among','Within','Above','Below','Across','Around',
+  'Over','Under','Beyond','Beside','Behind','Beneath','Toward','Towards',
+  'Despite','Besides','Throughout','Upon','Unlike','Versus',
+  // quantifiers, ordinals, numerals
   'Each','Every','Some','Such','Both','Either','Neither','All','Any',
+  'Few','Many','Most','Several','None','Other','Others','Another','Same',
   'One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten',
-  'First','Second','Third','Fourth','Fifth','Sixth','Last','Next',
-  'Year','Month','Week','Day','Today','Tomorrow','Yesterday',
-  'Yes','Yet','Still','Then','Than','Thus','Therefore',
+  'First','Second','Third','Fourth','Fifth','Sixth','Last','Next','Final',
+  // temporal
+  'Year','Month','Week','Day','Today','Tomorrow','Yesterday','Now','Soon',
+  'Yes','Yet','Still','Then','Than','Thus','Therefore','However','Although',
+  'Once','Twice','Often','Always','Never','Sometimes','Usually','Currently',
+  // commercial nouns
   'Annual','Revenue','Growth','Margin','Value','Investment','Investors',
   'Business','Market','Industry','Current','Target','Readiness','Ready',
   'Pipeline','Contract','Contracts','Enterprise','Platform','Compliance',
@@ -72,20 +81,55 @@ const PROPER_NOUN_STOP_WORDS = new Set<string>([
   'Operations','Operational','Conservative','Stretch','Base','High','Low',
   'Customer','Customers','Sales','Marketing','Team','Teams','Head','Heads',
   'Success','Path','Paths','North','Star','Deep','Strong','Weak',
+  'Founder','Founders','Round','Rounds','Stage','Stages','Phase','Phases',
+  'Capital','Equity','Debt','Funding','Funded','Series','Seed',
+  'Quarter','Quarters','Half','Halves','Total','Subtotal','Combined',
+  // verbs as section openers
   'Build','Building','Built','Move','Moving','Hit','Hitting',
   'Lock','Locking','Position','Positioning','Prove','Proving',
-  'Score','Scorecard','Berkus','Method',
+  'Start','Starting','Began','Begin','Beginning','Started',
+  'Run','Running','Show','Showing','Shown','Make','Making','Made',
+  'Take','Taking','Took','Taken','Need','Needing','Needed',
+  'Focus','Focusing','Focused','Prioritise','Prioritised','Prioritising',
+  'Convert','Converting','Converted','Lead','Leading','Led','Drive','Driven',
+  'Ensure','Ensuring','Ensured','Avoid','Avoiding','Avoided',
+  'Address','Addressing','Addressed','Reduce','Reducing','Reduced',
+  'Continue','Continuing','Continued','Stop','Stopping','Stopped',
+  'Consider','Considering','Considered','Note','Noting','Noted',
+  // adjectives / adverbs
+  'Consistent','Consistently','Extended','Extensive','Critical','Crucial',
+  'Important','Significant','Material','Meaningful','Substantial','Notable',
+  'Recent','Recently','Early','Earlier','Late','Later','Mid','Middle',
+  'Specific','Specifically','General','Generally','Particular','Particularly',
+  'Strong','Stronger','Strongest','Weak','Weaker','Weakest','Better','Best',
+  'Common','Standard','Typical','Unusual','Normal','Abnormal','Healthy',
+  'Confidentiality','Privacy','Security','Risk','Risks','Liability','Liabilities',
+  'Tactical','Practical','Theoretical','Hypothetical',
+  // methodology terms
+  'Score','Scorecard','Berkus','Method','Methods','Methodology',
+  'Section','Chapter','Appendix','Exhibit','Table','Figure',
 ]);
 
-function extractProperNouns(text: string): string[] {
-  if (!text || typeof text !== 'string') return [];
+function extractProperNouns(sentence: string): string[] {
+  if (!sentence || typeof sentence !== 'string') return [];
   const candidates = new Set<string>();
-  for (const m of text.match(/\b[A-Z][A-Z0-9]{2,}\b/g) || []) candidates.add(m);
-  for (const m of text.match(/\b[A-Z][a-z]+(?:[A-Z][a-zA-Z]+)+\b/g) || []) candidates.add(m);
-  for (const m of text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g) || []) candidates.add(m);
-  for (const m of text.match(/\b[A-Z][a-z]{3,}\b/g) || []) {
-    if (!PROPER_NOUN_STOP_WORDS.has(m)) candidates.add(m);
+
+  // Sentence-start exemption: a plain capitalised English word at the very
+  // start of a sentence is grammar, not a name. Multi-word and all-caps
+  // remain flagged because those are reliable name signals.
+  const trimmed = sentence.trimStart();
+  const firstTokenMatch = trimmed.match(/^([A-Z][a-z]+)(?=\s|$|[.,;:!?])/);
+  const sentenceStartCandidate = firstTokenMatch ? firstTokenMatch[1] : null;
+
+  for (const m of sentence.match(/\b[A-Z][A-Z0-9]{2,}\b/g) || []) candidates.add(m);
+  for (const m of sentence.match(/\b[A-Z][a-z]+(?:[A-Z][a-zA-Z]+)+\b/g) || []) candidates.add(m);
+  for (const m of sentence.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\b/g) || []) candidates.add(m);
+  for (const m of sentence.match(/\b[A-Z][a-z]{3,}\b/g) || []) {
+    if (PROPER_NOUN_STOP_WORDS.has(m)) continue;
+    if (m === sentenceStartCandidate) continue;
+    candidates.add(m);
   }
+
   return Array.from(candidates);
 }
 
