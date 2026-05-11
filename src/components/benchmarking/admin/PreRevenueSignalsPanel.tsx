@@ -22,8 +22,35 @@ interface HirePlanItem {
   candidateStatus: string;
 }
 
+interface UseOfFundsItem {
+  category: string;
+  amount: number | '';
+  percentOfTotal: number | '';
+  notes: string;
+}
+
+interface PipelineDeal {
+  prospectName: string;
+  stage: string;
+  expectedAcv: number | '';
+  expectedCloseDate: string;
+  discountOffered: string;
+  notes: string;
+}
+
+interface InvestorCommitment {
+  investorName: string;
+  amount: number | '';
+  status: string;
+  role: string;
+  notes: string;
+}
+
 const emptyForecast = (): ForecastYear => ({ revenue: '', arr: '', ebitda: '', headcount: '', grossMargin: '' });
 const emptyHire = (): HirePlanItem => ({ role: '', timing: '', budget: '', candidateStatus: '' });
+const emptyUseOfFunds = (): UseOfFundsItem => ({ category: '', amount: '', percentOfTotal: '', notes: '' });
+const emptyPipelineDeal = (): PipelineDeal => ({ prospectName: '', stage: '', expectedAcv: '', expectedCloseDate: '', discountOffered: '', notes: '' });
+const emptyInvestorCommitment = (): InvestorCommitment => ({ investorName: '', amount: '', status: '', role: '', notes: '' });
 
 export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSignalsPanelProps) {
   const [loading, setLoading] = useState(true);
@@ -101,6 +128,13 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
   // Notes
   const [contextNotes, setContextNotes] = useState('');
 
+  // New raise-centric fields (patch B1)
+  const [useOfFunds, setUseOfFunds] = useState<UseOfFundsItem[]>([]);
+  const [pipelineDeals, setPipelineDeals] = useState<PipelineDeal[]>([]);
+  const [pricingStrategyNotes, setPricingStrategyNotes] = useState('');
+  const [incorporationStatus, setIncorporationStatus] = useState('');
+  const [investorCommitments, setInvestorCommitments] = useState<InvestorCommitment[]>([]);
+
   const parseForecast = (raw: any): ForecastYear => {
     if (!raw || typeof raw !== 'object') return emptyForecast();
     return {
@@ -173,6 +207,43 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
       setGovernanceNedsCount(data.governance_neds_count ?? '');
       setGovernanceAdvisorsCount(data.governance_advisors_count ?? '');
       setContextNotes(data.context_notes ?? '');
+
+      // New raise-centric fields (patch B1)
+      setUseOfFunds(
+        Array.isArray(data.use_of_funds)
+          ? data.use_of_funds.map((u: any) => ({
+              category: u.category ?? '',
+              amount: u.amount ?? '',
+              percentOfTotal: u.percent_of_total ?? u.percentOfTotal ?? '',
+              notes: u.notes ?? '',
+            }))
+          : []
+      );
+      setPipelineDeals(
+        Array.isArray(data.pipeline_deals)
+          ? data.pipeline_deals.map((d: any) => ({
+              prospectName: d.prospect_name ?? d.prospectName ?? '',
+              stage: d.stage ?? '',
+              expectedAcv: d.expected_acv ?? d.expectedAcv ?? '',
+              expectedCloseDate: d.expected_close_date ?? d.expectedCloseDate ?? '',
+              discountOffered: d.discount_offered ?? d.discountOffered ?? '',
+              notes: d.notes ?? '',
+            }))
+          : []
+      );
+      setPricingStrategyNotes(data.pricing_strategy_notes ?? '');
+      setIncorporationStatus(data.incorporation_status ?? '');
+      setInvestorCommitments(
+        Array.isArray(data.investor_commitments)
+          ? data.investor_commitments.map((i: any) => ({
+              investorName: i.investor_name ?? i.investorName ?? '',
+              amount: i.amount ?? '',
+              status: i.status ?? '',
+              role: i.role ?? '',
+              notes: i.notes ?? '',
+            }))
+          : []
+      );
     }
     setLoading(false);
   }, [engagementId]);
@@ -257,6 +328,44 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
         governance_neds_count: num(governanceNedsCount),
         governance_advisors_count: num(governanceAdvisorsCount),
         context_notes: contextNotes || null,
+
+        // New raise-centric fields (patch B1)
+        use_of_funds: useOfFunds.length > 0
+          ? useOfFunds
+              .filter(u => u.category)
+              .map(u => ({
+                category: u.category,
+                amount: num(u.amount),
+                percent_of_total: num(u.percentOfTotal),
+                notes: u.notes || null,
+              }))
+          : null,
+        pipeline_deals: pipelineDeals.length > 0
+          ? pipelineDeals
+              .filter(d => d.prospectName)
+              .map(d => ({
+                prospect_name: d.prospectName,
+                stage: d.stage || null,
+                expected_acv: num(d.expectedAcv),
+                expected_close_date: d.expectedCloseDate || null,
+                discount_offered: d.discountOffered || null,
+                notes: d.notes || null,
+              }))
+          : null,
+        pricing_strategy_notes: pricingStrategyNotes || null,
+        incorporation_status: incorporationStatus || null,
+        investor_commitments: investorCommitments.length > 0
+          ? investorCommitments
+              .filter(i => i.investorName)
+              .map(i => ({
+                investor_name: i.investorName,
+                amount: num(i.amount),
+                status: i.status || null,
+                role: i.role || null,
+                notes: i.notes || null,
+              }))
+          : null,
+
         updated_at: new Date().toISOString(),
       };
 
@@ -352,6 +461,60 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
               { value: 'active_discussions', label: 'Active Discussions' },
               { value: 'cold_outreach', label: 'Cold Outreach' },
             ]} />
+
+          {/* Per-deal pipeline breakdown — patch B1 */}
+          <div style={{ marginTop: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <label style={labelStyle}>Pipeline Deals (per-prospect detail)</label>
+              <button type="button" onClick={() => setPipelineDeals([...pipelineDeals, emptyPipelineDeal()])}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#8b5cf6', background: 'transparent', border: '1px solid #8b5cf6', borderRadius: 6, cursor: 'pointer' }}>
+                <Plus style={{ width: 12, height: 12 }} /> Add deal
+              </button>
+            </div>
+            {pipelineDeals.map((d, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, padding: 10, background: '#f8fafc', borderRadius: 6, marginBottom: 8, alignItems: 'start' }}>
+                <div style={{ gridColumn: '1 / 3' }}>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Prospect Name</label>
+                  <input value={d.prospectName} onChange={e => { const a = [...pipelineDeals]; a[i] = { ...d, prospectName: e.target.value }; setPipelineDeals(a); }} style={inputStyle} placeholder="e.g. Rawlinson & Hunter" />
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Stage</label>
+                  <select value={d.stage} onChange={e => { const a = [...pipelineDeals]; a[i] = { ...d, stage: e.target.value }; setPipelineDeals(a); }} style={inputStyle}>
+                    <option value="">—</option>
+                    <option value="signed_contract">Signed Contract</option>
+                    <option value="signed_loi">Signed LOI</option>
+                    <option value="verbal_commitment">Verbal Commitment</option>
+                    <option value="active_discussion">Active Discussion</option>
+                    <option value="cold_outreach">Cold Outreach</option>
+                  </select>
+                </div>
+                <button type="button" onClick={() => setPipelineDeals(pipelineDeals.filter((_, j) => j !== i))}
+                  style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 6, alignSelf: 'start' }}>
+                  <X style={{ width: 14, height: 14 }} />
+                </button>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Expected ACV</label>
+                  <input type="number" value={d.expectedAcv} onChange={e => { const a = [...pipelineDeals]; a[i] = { ...d, expectedAcv: e.target.value ? Number(e.target.value) : '' }; setPipelineDeals(a); }} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Expected Close</label>
+                  <input type="date" value={d.expectedCloseDate} onChange={e => { const a = [...pipelineDeals]; a[i] = { ...d, expectedCloseDate: e.target.value }; setPipelineDeals(a); }} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Discount Offered</label>
+                  <input value={d.discountOffered} onChange={e => { const a = [...pipelineDeals]; a[i] = { ...d, discountOffered: e.target.value }; setPipelineDeals(a); }} style={inputStyle} placeholder="e.g. 50% Y1 first-adopter" />
+                </div>
+                <div style={{ gridColumn: '1 / 5' }}>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Notes</label>
+                  <input value={d.notes} onChange={e => { const a = [...pipelineDeals]; a[i] = { ...d, notes: e.target.value }; setPipelineDeals(a); }} style={inputStyle} placeholder="Stakeholder, endorsement, blocker, etc." />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <TextareaField label="Pricing Strategy Notes" value={pricingStrategyNotes} onChange={setPricingStrategyNotes} placeholder="e.g. First-adopter tier: 50% Y1, 40% Y2, 30% Y3. Standard pricing represents ~60% saving vs incumbent providers." />
+          </div>
         </Fieldset>
 
         {/* ── Section 4: Round Structure ── */}
@@ -380,6 +543,93 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
               { value: 'none', label: 'None' },
             ]} />
           <Field label="Follow-on Milestones (comma-separated)" value={followOnMilestones} onChange={setFollowOnMilestones} placeholder="e.g. 50 logos, £1m ARR, Series A" />
+
+          {/* Use of Funds — patch B1 */}
+          <div style={{ marginTop: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <label style={labelStyle}>Use of Funds Breakdown</label>
+              <button type="button" onClick={() => setUseOfFunds([...useOfFunds, emptyUseOfFunds()])}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#8b5cf6', background: 'transparent', border: '1px solid #8b5cf6', borderRadius: 6, cursor: 'pointer' }}>
+                <Plus style={{ width: 12, height: 12 }} /> Add category
+              </button>
+            </div>
+            {useOfFunds.map((u, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 8, padding: 10, background: '#f8fafc', borderRadius: 6, marginBottom: 8, alignItems: 'start' }}>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Category</label>
+                  <input value={u.category} onChange={e => { const a = [...useOfFunds]; a[i] = { ...u, category: e.target.value }; setUseOfFunds(a); }} style={inputStyle} placeholder="e.g. Engineering hires" />
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Amount (£)</label>
+                  <input type="number" value={u.amount} onChange={e => { const a = [...useOfFunds]; a[i] = { ...u, amount: e.target.value ? Number(e.target.value) : '' }; setUseOfFunds(a); }} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>% of Total</label>
+                  <input type="number" value={u.percentOfTotal} onChange={e => { const a = [...useOfFunds]; a[i] = { ...u, percentOfTotal: e.target.value ? Number(e.target.value) : '' }; setUseOfFunds(a); }} style={inputStyle} />
+                </div>
+                <button type="button" onClick={() => setUseOfFunds(useOfFunds.filter((_, j) => j !== i))}
+                  style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 6, alignSelf: 'start' }}>
+                  <X style={{ width: 14, height: 14 }} />
+                </button>
+                <div style={{ gridColumn: '1 / 5' }}>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Notes</label>
+                  <input value={u.notes} onChange={e => { const a = [...useOfFunds]; a[i] = { ...u, notes: e.target.value }; setUseOfFunds(a); }} style={inputStyle} placeholder="What this funds, why this size" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Investor Commitments — patch B1 */}
+          <div style={{ marginTop: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <label style={labelStyle}>Investor Commitments (per-investor detail)</label>
+              <button type="button" onClick={() => setInvestorCommitments([...investorCommitments, emptyInvestorCommitment()])}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', fontSize: 12, fontWeight: 500, color: '#8b5cf6', background: 'transparent', border: '1px solid #8b5cf6', borderRadius: 6, cursor: 'pointer' }}>
+                <Plus style={{ width: 12, height: 12 }} /> Add investor
+              </button>
+            </div>
+            {investorCommitments.map((inv, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8, padding: 10, background: '#f8fafc', borderRadius: 6, marginBottom: 8, alignItems: 'start' }}>
+                <div style={{ gridColumn: '1 / 3' }}>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Investor Name</label>
+                  <input value={inv.investorName} onChange={e => { const a = [...investorCommitments]; a[i] = { ...inv, investorName: e.target.value }; setInvestorCommitments(a); }} style={inputStyle} placeholder="e.g. Mark Lewis" />
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Amount (£)</label>
+                  <input type="number" value={inv.amount} onChange={e => { const a = [...investorCommitments]; a[i] = { ...inv, amount: e.target.value ? Number(e.target.value) : '' }; setInvestorCommitments(a); }} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Status</label>
+                  <select value={inv.status} onChange={e => { const a = [...investorCommitments]; a[i] = { ...inv, status: e.target.value }; setInvestorCommitments(a); }} style={inputStyle}>
+                    <option value="">—</option>
+                    <option value="signed_termsheet">Signed Termsheet</option>
+                    <option value="soft_circled">Soft Circled</option>
+                    <option value="in_discussion">In Discussion</option>
+                    <option value="searching">Searching</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+                <button type="button" onClick={() => setInvestorCommitments(investorCommitments.filter((_, j) => j !== i))}
+                  style={{ background: 'transparent', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 6, alignSelf: 'start' }}>
+                  <X style={{ width: 14, height: 14 }} />
+                </button>
+                <div>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Role</label>
+                  <select value={inv.role} onChange={e => { const a = [...investorCommitments]; a[i] = { ...inv, role: e.target.value }; setInvestorCommitments(a); }} style={inputStyle}>
+                    <option value="">—</option>
+                    <option value="lead">Lead</option>
+                    <option value="co_lead">Co-lead</option>
+                    <option value="follower">Follower</option>
+                    <option value="passive">Passive</option>
+                  </select>
+                </div>
+                <div style={{ gridColumn: '2 / 5' }}>
+                  <label style={{ ...labelStyle, fontSize: 11 }}>Notes</label>
+                  <input value={inv.notes} onChange={e => { const a = [...investorCommitments]; a[i] = { ...inv, notes: e.target.value }; setInvestorCommitments(a); }} style={inputStyle} placeholder="Relationship, blockers, momentum" />
+                </div>
+              </div>
+            ))}
+          </div>
         </Fieldset>
 
         {/* ── Section 5: Cap Table ── */}
@@ -447,7 +697,19 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
 
         {/* ── Section 7: IP & Structure ── */}
         <Fieldset legend="IP & Structure">
-          <Field label="IP Holding Entity" value={ipHoldingEntity} onChange={setIpHoldingEntity} placeholder="e.g. Acme IP Ltd" />
+          {/* Incorporation status — patch B1 — sits above the structural detail fields */}
+          <div style={{ marginBottom: 14 }}>
+            <SelectField label="Incorporation Status" value={incorporationStatus} onChange={setIncorporationStatus}
+              options={[
+                { value: 'pre_incorporation', label: 'Pre-incorporation (not yet filed)' },
+                { value: 'basic_incorporated', label: 'Basic incorporated (Companies House done, no holdco yet)' },
+                { value: 'restructure_in_progress', label: 'Restructure in progress (IP/holdco/shares being arranged)' },
+                { value: 'fully_structured', label: 'Fully structured (clean, IP assigned, holdco in place)' },
+              ]} />
+          </div>
+          <div style={gridTwo}>
+            <Field label="IP Holding Entity" value={ipHoldingEntity} onChange={setIpHoldingEntity} placeholder="e.g. Acme IP Ltd" />
+          </div>
           <div style={{ marginTop: 8 }}>
             <label style={labelStyle}>IP Protection Status</label>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
