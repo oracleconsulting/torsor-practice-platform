@@ -8079,26 +8079,19 @@ When writing narratives:
       const integrityUrl = `${supabaseUrl}/functions/v1/generate-bm-integrity-pass`;
       console.log(`[BM Pass 1] Calling Integrity Pass at: ${integrityUrl}`);
 
+      // Fire-and-forget — do not await. The full chain (Integrity + Pass 2 + Pass 3)
+      // exceeds the 150s edge function IDLE_TIMEOUT. Status flows through the DB.
       try {
-        const integrityResponse = await fetch(integrityUrl, {
+        fetch(integrityUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${serviceRoleKey}` },
           body: JSON.stringify({ engagementId }),
+        }).catch(triggerErr => {
+          console.error('[BM Pass 1] ❌ Integrity Pass fire-and-forget rejected:', triggerErr);
         });
-
-        if (!integrityResponse.ok) {
-          const errorText = await integrityResponse.text();
-          console.error('[BM Pass 1] Integrity Pass trigger failed:', integrityResponse.status, errorText);
-        } else {
-          const integrityResult = await integrityResponse.json();
-          console.log('[BM Pass 1] ✅ Integrity Pass triggered successfully:', {
-            status: integrityResult.status,
-            allowlist_size: integrityResult.allowlist_size,
-            review_required: integrityResult.review_required,
-          });
-        }
-      } catch (integrityErr) {
-        console.error('[BM Pass 1] Failed to trigger Integrity Pass:', integrityErr);
+        console.log('[BM Pass 1] ✅ Integrity Pass triggered (fire-and-forget). Status will update via DB polling.');
+      } catch (triggerErr) {
+        console.error('[BM Pass 1] ❌ Failed to invoke Integrity Pass fetch:', triggerErr);
       }
     }
     
