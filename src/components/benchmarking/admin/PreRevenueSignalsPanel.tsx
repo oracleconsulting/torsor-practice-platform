@@ -837,11 +837,11 @@ function SelectField({ label, value, onChange, options }: { label: string; value
   );
 }
 
-function TextareaField({ label, value, onChange, rows = 3 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
+function TextareaField({ label, value, onChange, rows = 3, placeholder }: { label: string; value: string; onChange: (v: string) => void; rows?: number; placeholder?: string }) {
   return (
     <div>
       <label style={labelStyle}>{label}</label>
-      <textarea value={value} onChange={e => onChange(e.target.value)} rows={rows}
+      <textarea value={value} onChange={e => onChange(e.target.value)} rows={rows} placeholder={placeholder}
         style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
     </div>
   );
