@@ -312,6 +312,7 @@ serve(async (req) => {
       strengthNarrative: report.strength_narrative || '',
       gapNarrative: report.gap_narrative || '',
       opportunityNarrative: report.opportunity_narrative || '',
+      raiseNarrative: report.raise_narrative || '',
     };
 
     const narrativeFieldKeys = Object.keys(narratives);
@@ -503,6 +504,7 @@ ${JSON.stringify(narratives, null, 2)}
     if (fieldsRewritten.includes('strengthNarrative')) writePayload.strength_narrative = narratives.strengthNarrative;
     if (fieldsRewritten.includes('gapNarrative')) writePayload.gap_narrative = narratives.gapNarrative;
     if (fieldsRewritten.includes('opportunityNarrative')) writePayload.opportunity_narrative = narratives.opportunityNarrative;
+    if (fieldsRewritten.includes('raiseNarrative')) writePayload.raise_narrative = narratives.raiseNarrative;
 
     const { error: updateErr } = await supabase
       .from('bm_reports')

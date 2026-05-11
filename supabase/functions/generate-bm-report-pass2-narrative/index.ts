@@ -494,6 +494,8 @@ You are writing the narrative sections of a Pre-Revenue Benchmarking report. You
 
 ${PRE_REVENUE_FRAMING_BLOCK}
 
+${PRE_REVENUE_RAISE_FRAMING_BLOCK}
+
 ═══════════════════════════════════════════════════════════════════════════════
 MANDATORY TONE ENFORCEMENT
 ═══════════════════════════════════════════════════════════════════════════════
@@ -668,6 +670,8 @@ Return JSON:
   "headline": "Under 25 words. MUST use the target exit value, the Required ARR at exit value shown in the HEADLINE CONSTRUCTION block above (do not recompute it), and the key forward suppressor. Follow the headline template above.",
 
   "executiveSummary": "3 paragraphs. Open with the defensible pre-money range (conservative/base/stretch) and investment readiness score. Describe the pipeline status and forecast credibility. Close with the single biggest risk to the raise.",
+
+  "raiseNarrative": "4 paragraphs covering THE CURRENT RAISE specifically (this field is governed by the PRE-REVENUE RAISE FRAMING block above — read it carefully). Paragraph 1: raise status (cash, runway, committed, lead). Paragraph 2: use of funds breakdown with specific £ figures per category. Paragraph 3: named pipeline deals (use pipeline_deals[] data; fall back to aggregates only if empty). Paragraph 4: short — closes with the mandatory bridge sentence linking this round to the exit. Distinguish round_pre_money_target (founder's stated ask) from defensiblePreMoney.base (analytically defensible) the first time both appear. Incorporation status: one sentence max. Pricing strategy: one sentence max, folded into the pipeline paragraph.",
 
   "positionNarrative": "2 paragraphs. All four valuation lenses used (VC method, Scorecard, Berkus, comparable rounds if available). Defensible pre-money vs founder ask. Explain the methodology honestly, cite specific £ figures from each lens.",
 
@@ -997,6 +1001,67 @@ When writing about a pre-revenue engagement's valuation, follow these principles
    Reference signed contracts, LOIs, and qualified pipeline concretely. Do not say "you need traction." Say "two signed enterprise contracts at 100k+ ACV would unlock the base to stretch range."
 `;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PRE-REVENUE RAISE FRAMING BLOCK (patch B2)
+// Sibling of PRE_REVENUE_FRAMING_BLOCK. The first block governs valuation
+// correctness; this block governs the raise-centric arc that drives the new
+// raiseNarrative field. Both injected together for pre-revenue engagements.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PRE_REVENUE_RAISE_FRAMING_BLOCK = `
+PRE-REVENUE RAISE FRAMING (MANDATORY — applies specifically to raiseNarrative)
+
+The raiseNarrative field tells the story of the CURRENT raise. The audience is a founder making decisions this quarter, not next decade. The exit goal is the terminal anchor, not the headline. Follow these principles:
+
+1. THE IMMEDIATE AUDIENCE IS INVESTORS AT THIS ROUND
+   Write to a founder preparing for a £X raise in the next 3-6 months. Cash, runway, and committed-to-date are the leading facts. The £750M exit (or whatever target_exit_valuation holds) is the terminal anchor — referenced once as the bridge sentence at the end, never as the opening.
+
+2. NAME THE TWO DIFFERENT NUMBERS EXPLICITLY
+   Two pre-money figures will appear in your data and they mean different things:
+   - "round_pre_money_target" in the pre-revenue signals = the founder's STATED ASK to investors.
+   - "defensiblePreMoney.base" in pre-revenue analysis = the analytically DEFENSIBLE figure today, built from Berkus, Scorecard, and VC method back-solve.
+   The first time both are cited in the narrative, the text must distinguish them. Example: "The £3M pre-money you're asking is within the £2.41M-£6M defensible range, anchored at £3.37M on the base case."
+   Never present them as if they are the same figure. Never substitute one for the other.
+
+3. RAISE STATUS PARAGRAPH FORMAT
+   Open the raise narrative with a paragraph that covers, in this order:
+   a) Cash position: current cash, monthly burn, runway implied.
+   b) Round size: total ask, committed-to-date, gap to close.
+   c) Lead position: lead investor named if any (only if in allowlist), their committed amount and status, plus any soft-circled co-investors.
+   d) Closing target date if set.
+   Example shape: "You're sitting on £X with monthly burn at £Y, implying Z months of runway. The round is £A targeted; £B is soft-circled, with [Lead Name] leading at £C verbally committed. Three follower investors are in discussion through that introduction, leaving roughly £D still to close by [date]."
+
+4. USE-OF-FUNDS PARAGRAPH FORMAT
+   Second paragraph covers how the round will be deployed. Each line items the category and amount. Do not say "hires and product"; say the specific categories and £ figures the advisor has captured.
+   Example shape: "The £500k breaks down as £180k engineering, £100k UK BD, £120k product, £60k content, £40k finance and admin. Roughly a third on people, a third on product, a third on go-to-market and overhead."
+
+5. PIPELINE PARAGRAPH FORMAT (REQUIRES pipeline_deals DATA)
+   Third paragraph names the deals, not the counts. Each named deal must be on the entity allowlist (or referenced as "an existing client" / "a former employer" / "a Caribbean regulator" — generic descriptors are fine).
+   Pull from pipeline_deals[]: prospect_name, stage, expected_acv, discount_offered, notes. If pipeline_deals is empty, fall back to the aggregate fields (pipeline_qualified_acv, pipeline_signed_loi_count, pipeline_verbal_count) and acknowledge the absence of per-deal detail.
+   Example shape: "Three deals carry the trajectory. [Named A] is closest at £30k with a verbal commitment, close target this month; [Named B], the founder's former employer, is in active discussion; [Named C] is in slower active discussion through senior compliance endorsement. The first two together would lift the pipeline from aggregate count to signed revenue."
+
+6. THE BRIDGE SENTENCE (MANDATORY CLOSING)
+   Close the raiseNarrative with exactly one sentence that links this round to the exit. The structure is: "This [£X] round buys [primary milestone the round funds]; that milestone supports the [next round or revenue threshold]; the [next round / threshold] is the trajectory toward the [£target_exit_in_M]M exit underpinning this engagement."
+   The bridge sentence is non-negotiable. It is what makes the raise narrative complete rather than freestanding.
+
+7. INCORPORATION STATUS GETS A SINGLE SENTENCE
+   If incorporation_status is not 'fully_structured', acknowledge it briefly in the raise paragraph or use-of-funds paragraph. One sentence maximum. Example: "Companies House basic incorporation is done; the IP HoldCo restructure runs in parallel to the raise close." Do not turn it into a paragraph; that is the suppressor narrative's job.
+
+8. PRICING STRATEGY GETS NO MORE THAN ONE SENTENCE
+   If pricing_strategy_notes contains content, fold it into the pipeline paragraph as context for why discounts on early ACVs exist. Do not give it its own paragraph.
+
+LENGTH: 4 paragraphs total. Tight. Each paragraph 3-5 sentences.
+
+TONE: Same as the rest of the narrative — practitioner-direct, contractions natural, numbers land like punches, no AI-language tells. The standing AI-language audit applies to this field too.
+
+WHAT NOT TO INCLUDE IN raiseNarrative (these belong in other fields):
+- The three-lenses valuation methodology (that's positionNarrative).
+- The forward suppressors with discount percentages (that's gapNarrative).
+- The milestone path with valuation step-ups (that's opportunityNarrative).
+- Forecast credibility evidence (that's strengthNarrative).
+The raiseNarrative is specifically about the present-tense decision: closing this round.
+`;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -1291,13 +1356,14 @@ serve(async (req) => {
     if (narratives.gapNarrative) narratives.gapNarrative = sanitiseNarrative(narratives.gapNarrative);
     if (narratives.opportunityNarrative) narratives.opportunityNarrative = sanitiseNarrative(narratives.opportunityNarrative);
     if (narratives.headline) narratives.headline = sanitiseNarrative(narratives.headline);
+    if (narratives.raiseNarrative) narratives.raiseNarrative = sanitiseNarrative(narratives.raiseNarrative);
     
     // ═══════════════════════════════════════════════════════════════════
     // AI-LANGUAGE ENFORCEMENT LOOP (Patch 07)
     // Pass 1: deterministic replacement map
     // Pass 2: re-audit; if violations remain, flag for admin
     // ═══════════════════════════════════════════════════════════════════
-    const narrativeKeys = ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative'] as const;
+    const narrativeKeys = ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative', 'raiseNarrative'] as const;
 
     // Pass 1: Apply replacement map to all narrative fields
     for (const key of narrativeKeys) {
@@ -1320,7 +1386,7 @@ serve(async (req) => {
     // The validator function reads the narratives from bm_reports and runs
     // the reprompt loop with the proper self-chaining architecture.
     // ═══════════════════════════════════════════════════════════════════
-    const narrativeFieldKeys = ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative'];
+    const narrativeFieldKeys = ['headline', 'executiveSummary', 'positionNarrative', 'strengthNarrative', 'gapNarrative', 'opportunityNarrative', 'raiseNarrative'];
 
     if (entityAllowlistSet.size > 0) {
       const initialDetection = detectEntityViolations(narratives, entityAllowlistSet, narrativeFieldKeys);
@@ -1350,6 +1416,7 @@ serve(async (req) => {
       strength_narrative: narratives.strengthNarrative,
       gap_narrative: narratives.gapNarrative,
       opportunity_narrative: narratives.opportunityNarrative,
+      raise_narrative: narratives.raiseNarrative ?? null,
       llm_model: report.llm_model + ' + claude-opus-4',
       llm_tokens_used: (report.llm_tokens_used || 0) + tokensUsed,
       llm_cost: (report.llm_cost || 0) + cost,
