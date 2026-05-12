@@ -999,6 +999,27 @@ When writing about a pre-revenue engagement's valuation, follow these principles
 
 6. THE PIPELINE IS THE TRAJECTORY EVIDENCE
    Reference signed contracts, LOIs, and qualified pipeline concretely. Do not say "you need traction." Say "two signed enterprise contracts at 100k+ ACV would unlock the base to stretch range."
+
+7. QUOTE NUMERICAL VALUES VERBATIM, NEVER PARAPHRASE OR RECOMPUTE
+   Every numerical value in the structured Pass 1 data — IRR, median, percentile, percentage, currency amount, month count, multiple, score — is to be quoted exactly as supplied. Do not round it. Do not restate it in different units. Do not recompute it. Do not approximate it.
+   If vcMethodBackSolve.investorIrr is 0.4, the narrative says "40% IRR" and never "45% IRR" or "approximately 40%".
+   If scorecardValuation.regionalMedianPreMoney is 3500000, the narrative says "£3.5M regional median" and never "£2.5M" or "£3M regional median".
+   If a calculation appears to require synthesis (e.g. "the gap between £3M ask and £3.37M base case is £372k"), use only figures that exist in the data and verify the arithmetic is correct. The structured data always contains the answer — find it (versusOwnerStated.gapToBaseCase = -372500) and quote it. Never recompute under time pressure.
+   This principle applies to EVERY narrative field. It is not optional.
+
+8. NEVER INVENT SPECIFICS TO FILL A NULL OR EMPTY FIELD
+   If a field is NULL, missing, empty, or contains only generic placeholder text, you MUST acknowledge the absence rather than generate plausible-looking content to fill the gap.
+   Where structured data is missing:
+   - Do not invent £ figures, percentages, dates, counts, names, statuses, or breakdowns.
+   - Do not pattern-match against examples in this prompt to generate content.
+   - Do not interpolate from adjacent data points to fabricate intermediate ones.
+   - Do not state a number that "feels right" given the context.
+   Correct fallback patterns:
+   - "The use-of-funds breakdown is pending client input." (when use_of_funds is NULL)
+   - "Specific deal-level detail is pending; aggregate pipeline stands at £X qualified ACV across N prospects." (when pipeline_deals is NULL but aggregates exist)
+   - "Investor commitments to date are not yet documented in the system." (when investor_commitments is NULL)
+   - "Incorporation status is in progress; specifics pending client confirmation." (when incorporation_status is NULL)
+   Acknowledging an absent figure is always better than inventing one. The advisor reviewing this report can fill in the missing data; they cannot un-fabricate a number that has already been written into a narrative the client may quote externally.
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1060,6 +1081,28 @@ WHAT NOT TO INCLUDE IN raiseNarrative (these belong in other fields):
 - The milestone path with valuation step-ups (that's opportunityNarrative).
 - Forecast credibility evidence (that's strengthNarrative).
 The raiseNarrative is specifically about the present-tense decision: closing this round.
+
+9. RAISE-FIELD-SPECIFIC NULL HANDLING
+   The raiseNarrative is the field where NULL-fill pressure is highest, because the prompt structurally invites you to write four paragraphs about raise content. If the structured raise data is sparse, the narrative MUST be correspondingly sparse — not padded with invented specifics.
+   Field-by-field NULL behaviour:
+   - use_of_funds is NULL → say "The £X round will fund [categories from the founder's statement if available, else 'priorities the founder has outlined']. A line-item breakdown is pending and will be confirmed before investor materials are finalised." Do not invent percentages or £ figures per category.
+   - pipeline_deals is NULL → fall back to pipeline_qualified_acv, pipeline_signed_loi_count, pipeline_verbal_count if present. State counts and aggregate ACV only. Do not name specific prospects unless they appear in client_context_notes AND in the entity allowlist.
+   - investor_commitments is NULL AND round_committed_to_date is NULL → say "Nothing is formally committed yet; the round is in the lead-finding phase." Do not invent a soft-circled amount or a named investor.
+   - investor_commitments is NULL BUT round_committed_to_date has a value → state the scalar only. Do not invent investor names or per-investor amounts to compose to the total.
+   - pricing_strategy_notes is NULL → omit the pricing discount sentence entirely. Do not generate generic "early pricing shows flexibility" filler.
+   - incorporation_status is NULL → omit the incorporation sentence entirely. Do not state "Companies House basic incorporation is done" or any other status unless it is in client_context_notes verbatim.
+   - current_runway_months and monthly_burn are NULL → say "Cash position and burn rate are pending client confirmation." Do not invent a runway figure.
+   When in doubt, write fewer words. A short, defensible raiseNarrative is always preferable to a longer one containing invented numbers.
+
+10. THE BRIDGE SENTENCE MUST CITE ONLY REAL FIGURES
+    The bridge sentence template "This [£X] round buys [primary milestone]; that milestone supports the [next round or revenue threshold]; the [next round / threshold] is the trajectory toward the [£target_exit_in_M]M exit" must be populated with only figures that exist in the structured data.
+    Specifically:
+    - "£X" is round_size_target (verbatim).
+    - "primary milestone" must come from milestonePath[0] or milestonePath[1] (the immediate next milestones). Use the description field of those milestone objects.
+    - "next round or revenue threshold" must be either a documented next-stage funding round (if a value appears in the data — e.g. a forecast Series A figure) OR the contracted-ARR threshold from milestonePath[2] or milestonePath[3]. Do NOT invent a Series A round size if it does not appear in the data.
+    - "£target_exit_in_M" is target_exit_valuation (verbatim).
+    If the data does not contain a Series A or next-round target figure, the bridge sentence MUST use the contracted-ARR milestone instead. Example with no Series A figure: "This £500k round buys the first signed enterprise contract at £100k+ ACV; reaching £500k contracted ARR opens the £4.69M valuation step; the trajectory continues toward the £750M exit underpinning this engagement."
+    Inventing a Series A round size (e.g. "£2M Series A") because it sounds plausible is a fabrication and is not permitted.
 `;
 
 serve(async (req) => {
