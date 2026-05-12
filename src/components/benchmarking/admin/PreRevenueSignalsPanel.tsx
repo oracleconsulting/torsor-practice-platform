@@ -1,3 +1,7 @@
+/**
+ * Pre-revenue signals admin form — live bundle path:
+ * `BenchmarkingAdminView.tsx` imports `./PreRevenueSignalsPanel` (this file).
+ */
 import { useState, useEffect, useCallback } from 'react';
 import { Save, Loader2, Plus, X, Rocket } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
@@ -115,6 +119,13 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
   const [corporateStructureClean, setCorporateStructureClean] = useState(false);
   const [ipMigrationRequired, setIpMigrationRequired] = useState(false);
   const [ipMigrationNotes, setIpMigrationNotes] = useState('');
+  const [incorporationStatus, setIncorporationStatus] = useState('');
+
+  // B1 raise-context fields
+  const [useOfFunds, setUseOfFunds] = useState<UseOfFundsItem[]>([]);
+  const [pipelineDeals, setPipelineDeals] = useState<PipelineDeal[]>([]);
+  const [investorCommitments, setInvestorCommitments] = useState<InvestorCommitment[]>([]);
+  const [pricingStrategyNotes, setPricingStrategyNotes] = useState('');
 
   // Data Room
   const [dataRoomCompletenessPct, setDataRoomCompletenessPct] = useState<number>(0);
@@ -127,13 +138,6 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
 
   // Notes
   const [contextNotes, setContextNotes] = useState('');
-
-  // New raise-centric fields (patch B1)
-  const [useOfFunds, setUseOfFunds] = useState<UseOfFundsItem[]>([]);
-  const [pipelineDeals, setPipelineDeals] = useState<PipelineDeal[]>([]);
-  const [pricingStrategyNotes, setPricingStrategyNotes] = useState('');
-  const [incorporationStatus, setIncorporationStatus] = useState('');
-  const [investorCommitments, setInvestorCommitments] = useState<InvestorCommitment[]>([]);
 
   const parseForecast = (raw: any): ForecastYear => {
     if (!raw || typeof raw !== 'object') return emptyForecast();
@@ -201,14 +205,7 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
       setCorporateStructureClean(data.corporate_structure_clean ?? false);
       setIpMigrationRequired(data.ip_migration_required ?? false);
       setIpMigrationNotes(data.ip_migration_notes ?? '');
-      setDataRoomCompletenessPct(data.data_room_completeness_pct ?? 0);
-      setDataRoomGaps(Array.isArray(data.data_room_gaps) ? data.data_room_gaps.join(', ') : '');
-      setGovernanceBoardStatus(data.governance_board_status ?? '');
-      setGovernanceNedsCount(data.governance_neds_count ?? '');
-      setGovernanceAdvisorsCount(data.governance_advisors_count ?? '');
-      setContextNotes(data.context_notes ?? '');
-
-      // New raise-centric fields (patch B1)
+      setIncorporationStatus(data.incorporation_status ?? '');
       setUseOfFunds(
         Array.isArray(data.use_of_funds)
           ? data.use_of_funds.map((u: any) => ({
@@ -231,8 +228,6 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
             }))
           : []
       );
-      setPricingStrategyNotes(data.pricing_strategy_notes ?? '');
-      setIncorporationStatus(data.incorporation_status ?? '');
       setInvestorCommitments(
         Array.isArray(data.investor_commitments)
           ? data.investor_commitments.map((i: any) => ({
@@ -244,6 +239,13 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
             }))
           : []
       );
+      setPricingStrategyNotes(data.pricing_strategy_notes ?? '');
+      setDataRoomCompletenessPct(data.data_room_completeness_pct ?? 0);
+      setDataRoomGaps(Array.isArray(data.data_room_gaps) ? data.data_room_gaps.join(', ') : '');
+      setGovernanceBoardStatus(data.governance_board_status ?? '');
+      setGovernanceNedsCount(data.governance_neds_count ?? '');
+      setGovernanceAdvisorsCount(data.governance_advisors_count ?? '');
+      setContextNotes(data.context_notes ?? '');
     }
     setLoading(false);
   }, [engagementId]);
@@ -322,14 +324,7 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
         corporate_structure_clean: corporateStructureClean,
         ip_migration_required: ipMigrationRequired,
         ip_migration_notes: ipMigrationNotes || null,
-        data_room_completeness_pct: dataRoomCompletenessPct,
-        data_room_gaps: csvToArray(dataRoomGaps),
-        governance_board_status: governanceBoardStatus || null,
-        governance_neds_count: num(governanceNedsCount),
-        governance_advisors_count: num(governanceAdvisorsCount),
-        context_notes: contextNotes || null,
-
-        // New raise-centric fields (patch B1)
+        incorporation_status: incorporationStatus || null,
         use_of_funds: useOfFunds.length > 0
           ? useOfFunds
               .filter(u => u.category)
@@ -352,8 +347,6 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
                 notes: d.notes || null,
               }))
           : null,
-        pricing_strategy_notes: pricingStrategyNotes || null,
-        incorporation_status: incorporationStatus || null,
         investor_commitments: investorCommitments.length > 0
           ? investorCommitments
               .filter(i => i.investorName)
@@ -365,6 +358,13 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
                 notes: i.notes || null,
               }))
           : null,
+        pricing_strategy_notes: pricingStrategyNotes || null,
+        data_room_completeness_pct: dataRoomCompletenessPct,
+        data_room_gaps: csvToArray(dataRoomGaps),
+        governance_board_status: governanceBoardStatus || null,
+        governance_neds_count: num(governanceNedsCount),
+        governance_advisors_count: num(governanceAdvisorsCount),
+        context_notes: contextNotes || null,
 
         updated_at: new Date().toISOString(),
       };
@@ -602,11 +602,13 @@ export function PreRevenueSignalsPanel({ engagementId, onSave }: PreRevenueSigna
                   <label style={{ ...labelStyle, fontSize: 11 }}>Status</label>
                   <select value={inv.status} onChange={e => { const a = [...investorCommitments]; a[i] = { ...inv, status: e.target.value }; setInvestorCommitments(a); }} style={inputStyle}>
                     <option value="">—</option>
-                    <option value="signed_termsheet">Signed Termsheet</option>
-                    <option value="soft_circled">Soft Circled</option>
-                    <option value="in_discussion">In Discussion</option>
-                    <option value="searching">Searching</option>
-                    <option value="none">None</option>
+                    <option value="searching">searching</option>
+                    <option value="soft_circled">soft_circled</option>
+                    <option value="committed_verbal">committed_verbal</option>
+                    <option value="committed_signed">committed_signed</option>
+                    <option value="signed_termsheet">signed_termsheet</option>
+                    <option value="in_discussion">in_discussion</option>
+                    <option value="none">none</option>
                   </select>
                 </div>
                 <button type="button" onClick={() => setInvestorCommitments(investorCommitments.filter((_, j) => j !== i))}
