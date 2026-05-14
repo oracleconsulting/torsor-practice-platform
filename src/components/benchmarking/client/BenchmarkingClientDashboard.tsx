@@ -2296,8 +2296,35 @@ export default function BenchmarkingClientDashboard({
                 </RevealCard>
               )}
 
-              {/* Potential value card */}
-              {potentialVal > 0 && (
+              {/* Potential value card — branched on pre-revenue */}
+              {isPreRevenue && Array.isArray(preRevenueAnalysis?.milestonePath) && preRevenueAnalysis.milestonePath.length > 0 ? (() => {
+                const milestones = preRevenueAnalysis.milestonePath;
+                const first = milestones[0];
+                const last = milestones[milestones.length - 1];
+                const fromVal = first?.valuationStepUp?.from
+                  ?? preRevenueAnalysis?.defensiblePreMoney?.base
+                  ?? 0;
+                const toVal = last?.valuationStepUp?.to ?? 0;
+                const uplift = toVal - fromVal;
+                if (uplift <= 0) return null;
+                return (
+                  <RevealCard delay={200} style={{ ...glass({ padding: '20px 24px' }), borderTop: `3px solid ${C.emerald}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                      <div>
+                        <p style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 2 }}>If you hit the milestone path:</p>
+                        <p style={{ fontSize: 12, color: C.textMuted }}>Pre-money: {fmt(fromVal)} today → {fmt(toVal)} at Series A</p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontSize: 24, fontWeight: 800, color: C.emerald, margin: 0, ...mono }}>+{fmt(uplift)}</p>
+                        <p style={{ fontSize: 11, color: C.emerald }}>pre-money step-up</p>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.5 }}>
+                      Each milestone (first signed enterprise contract → £500k ARR → £1.5M ARR → Series A ready) corresponds to a defensible valuation step-up. The numbers reflect comparable-round evidence in UK regtech at each stage.
+                    </p>
+                  </RevealCard>
+                );
+              })() : (potentialVal > 0 && !isPreRevenue && (
                 <RevealCard delay={200} style={{ ...glass({ padding: '20px 24px' }), borderTop: `3px solid ${C.emerald}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
@@ -2313,7 +2340,7 @@ export default function BenchmarkingClientDashboard({
                     This is separate from the {fmt(marginOpp)}/yr margin opportunity — that adds to profit annually, this increases what the business is worth at point of sale.
                   </p>
                 </RevealCard>
-              )}
+              ))}
 
               {/* Quick Wins (opportunity_synthesis) */}
               {(() => {
