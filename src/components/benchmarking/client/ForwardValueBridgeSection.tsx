@@ -176,7 +176,15 @@ export function ForwardValueBridgeSection({ preRevenueAnalysis, businessStage }:
                     </span>
                   </div>
                   {sup.evidence && <p style={{ fontSize: 12, color: C.textSecondary, lineHeight: 1.6, marginBottom: 8 }}>{sup.evidence}</p>}
-                  {sup.methodology && <p style={{ fontSize: 11, color: C.textMuted, fontStyle: 'italic' }}>{sup.methodology}</p>}
+                  {sup.methodology && typeof sup.methodology === 'string' && (
+                    <p style={{ fontSize: 11, color: C.textMuted, fontStyle: 'italic' }}>{sup.methodology}</p>
+                  )}
+                  {sup.methodology && typeof sup.methodology === 'object' && sup.methodology.calibrationNote && (
+                    <p style={{ fontSize: 11, color: C.textMuted, fontStyle: 'italic' }}>{sup.methodology.calibrationNote}</p>
+                  )}
+                  {sup.methodology && typeof sup.methodology === 'object' && sup.methodology.limitationsNote && (
+                    <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 4, opacity: 0.7 }}>{sup.methodology.limitationsNote}</p>
+                  )}
                 </div>
               );
             })}
