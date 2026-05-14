@@ -1086,7 +1086,12 @@ export default function BenchmarkingClientDashboard({
                                 Proportional share of the £{heroTotal.toLocaleString()} annual margin opportunity, allocated by estimated contribution to the net margin gap.
                               </p>
                             )}
-                            {annualVal === 0 && totalWaterfallGap > 0 && (
+                            {annualVal === 0 && isPreRevenue && (
+                              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', margin: '6px 0 0', lineHeight: 1.5 }}>
+                                This action supports the pre-revenue milestone path. Each milestone (first signed enterprise contract → £500k ARR → £1.5M ARR → Series A) corresponds to a defensible valuation step-up.
+                              </p>
+                            )}
+                            {annualVal === 0 && !isPreRevenue && totalWaterfallGap > 0 && (
                               <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', margin: '6px 0 0', lineHeight: 1.5 }}>
                                 This recommendation addresses trapped enterprise value (part of the {fmt(totalWaterfallGap)} structural gap) rather than annual profit — it improves what a buyer would pay for the business.
                               </p>
