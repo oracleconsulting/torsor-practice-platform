@@ -689,6 +689,16 @@ export default function BenchmarkingClientDashboard({
   const businessStage = data.pass1_data?.business_stage || data.business_stage || 'operating';
   const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
   const preRevenueAnalysis = data.pass1_data?.pre_revenue_analysis || data.pre_revenue_analysis;
+
+  // Pre-revenue: sum of valuation uplifts at P75 across metric targets
+  // Used for "The Opportunity" pill on Position tab when there's no current ARR
+  const preRevenueValuationUplift = useMemo(() => {
+    if (!preRevenueAnalysis?.metricTargets || !Array.isArray(preRevenueAnalysis.metricTargets)) return 0;
+    return preRevenueAnalysis.metricTargets.reduce((sum: number, m: any) => {
+      const uplift = Number(m?.valuationImpactAtP75 ?? 0);
+      return sum + (isFinite(uplift) ? uplift : 0);
+    }, 0);
+  }, [preRevenueAnalysis]);
   const investmentReadinessBreakdown = data.investment_readiness_breakdown || data.pass1_data?.investment_readiness_breakdown;
 
   // Filtered metrics (no concentration, must have valid p50)
@@ -1016,7 +1026,11 @@ export default function BenchmarkingClientDashboard({
                 { title: 'Where You Stand', content: positionNarrative, color: C.blue, icon: Target, highlight: isPreRevenue ? 'Pre-revenue · Year 0' : `${getOrdinalSuffix(percentile)} percentile` },
                 { title: 'Your Strengths', content: strengthNarrative, color: C.emerald, icon: CheckCircle },
                 { title: 'Performance Gaps', content: gapNarrative, color: C.red, icon: AlertTriangle, highlight: `${data.gap_count || gapMetrics.length} gaps identified` },
-                { title: 'The Opportunity', content: opportunityNarrative, color: C.purple, icon: Sparkles, highlight: `£${totalOpportunity.toLocaleString()} potential` },
+                { title: 'The Opportunity', content: opportunityNarrative, color: C.purple, icon: Sparkles, highlight: isPreRevenue
+                    ? (preRevenueValuationUplift > 0
+                        ? `+£${(preRevenueValuationUplift / 1_000_000).toFixed(1)}M at P75`
+                        : 'Path to step-up')
+                    : `£${totalOpportunity.toLocaleString()} potential` },
               ].map((section, i) => {
                 const Icon = section.icon;
                 return (
