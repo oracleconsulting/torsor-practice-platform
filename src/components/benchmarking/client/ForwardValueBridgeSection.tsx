@@ -112,10 +112,10 @@ export function ForwardValueBridgeSection({ preRevenueAnalysis, businessStage }:
         <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Valuation Lenses</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
           {[
-            { name: 'VC Method (Back-Solve)', value: fmt(vcMethodBackSolve.todayPreMoneyImplied), note: vcMethodBackSolve.methodology },
-            { name: 'Scorecard Method', value: fmt(scorecardValuation.impliedPreMoney), note: 'Weighted factor vs regional median' },
+            { name: 'Scorecard Method', value: fmt(scorecardValuation.impliedPreMoney), note: 'Weighted factor vs UK regional median' },
             { name: 'Berkus Method', value: fmt(berkusValuation.impliedPreMoney), note: 'Factor-based early-stage ceiling' },
             ...(comparableRoundsAnalysis ? [{ name: 'Comparable Rounds', value: fmt(comparableRoundsAnalysis.impliedRange.mid), note: `Range: ${fmt(comparableRoundsAnalysis.impliedRange.low)} – ${fmt(comparableRoundsAnalysis.impliedRange.high)}` }] : []),
+            { name: 'VC Method (target consistency check)', value: fmt(vcMethodBackSolve.todayPreMoneyImplied), note: vcMethodBackSolve.methodology },
           ].map((lens, i) => (
             <div key={i} style={{ padding: '16px 18px', borderRadius: 12, background: `${C.blue}06`, border: `1px solid ${C.blue}12` }}>
               <p style={{ fontSize: 12, fontWeight: 600, color: C.textSecondary, marginBottom: 6 }}>{lens.name}</p>
@@ -124,6 +124,9 @@ export function ForwardValueBridgeSection({ preRevenueAnalysis, businessStage }:
             </div>
           ))}
         </div>
+        <p style={{ fontSize: 11, color: C.textMuted, marginTop: 12, lineHeight: 1.6, fontStyle: 'italic' }}>
+          The first three lenses are alternative pre-money triangulations. The VC Method back-solve is a different exercise — it answers "what would today's pre-money need to be for today's shareholders to retain the target exit return at 40% IRR after dilution to exit". It's a consistency check on the £750M target, not a competing valuation. The wide gap is expected: a single round structure with 50% dilution implies a much higher today-value than three rounds with cumulative ~80% dilution would. See the milestone path below for the realistic trajectory.
+        </p>
       </div>
 
       {/* 3. vs Owner Stated (if applicable) */}
