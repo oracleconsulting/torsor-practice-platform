@@ -29,7 +29,13 @@ const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
   ...extra,
 });
 
-const fmt = (v: number) => v >= 1000000 ? '£' + (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? '£' + Math.round(v / 1000) + 'k' : '£' + v;
+const fmt = (v: number) => {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1000000) return sign + '£' + (abs / 1000000).toFixed(1) + 'M';
+  if (abs >= 1000) return sign + '£' + Math.round(abs / 1000) + 'k';
+  return sign + '£' + abs;
+};
 
 interface Scenario {
   scenarioName: string;

@@ -46,7 +46,13 @@ const SHADOW = {
 const mono: React.CSSProperties = { fontFamily: "'JetBrains Mono', monospace" };
 const label: React.CSSProperties = { fontSize: 11, color: C.textMuted, textTransform: 'uppercase' as const, letterSpacing: '0.08em', fontWeight: 600, ...mono };
 
-const fmt = (v: number) => v >= 1000000 ? '£' + (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? '£' + Math.round(v / 1000) + 'k' : '£' + v;
+const fmt = (v: number) => {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1000000) return sign + '£' + (abs / 1000000).toFixed(1) + 'M';
+  if (abs >= 1000) return sign + '£' + Math.round(abs / 1000) + 'k';
+  return sign + '£' + abs;
+};
 
 const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
   background: 'rgba(255, 255, 255, 0.97)',
