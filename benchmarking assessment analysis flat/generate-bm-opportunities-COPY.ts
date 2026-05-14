@@ -450,6 +450,17 @@ async function generatePreRevenueOpportunities(
     ? `£${(defensible.conservative / 1_000_000).toFixed(2)}M - £${(defensible.stretch / 1_000_000).toFixed(2)}M`
     : 'pending defensible valuation';
 
+  // Impact attribution: each opportunity declares either a defensible £ figure
+  // (mode: 'quantitative') with confidence + calculation, OR a qualitative
+  // summary of the long-term benefit (mode: 'qualitative') where reducing to a
+  // single £ today would be misleading. This honours the schema columns
+  // financial_impact_confidence + impact_calculation, which were previously
+  // unused, and adds impact_mode + qualitative_impact_summary (migration
+  // 20260512000001).
+  const baseM = ((defensible.base || 0) / 1_000_000).toFixed(2);
+  const stretchM = ((defensible.stretch || 0) / 1_000_000).toFixed(2);
+  const stretchMinusBase = (defensible.stretch || 0) - (defensible.base || 0);
+
   const opportunities = [
     // Tier 1: Strategic Foundations (must_address_now)
     {
@@ -462,8 +473,11 @@ async function generatePreRevenueOpportunities(
       dataEvidence: `Defensible pre-money range: ${defensibleRangeM}. Investment readiness score: ${totalIrScore}.`,
       talkingPoint: 'Before anything else, you need a locked exit target. Every investor conversation starts with "what does success look like?"',
       questionToAsk: 'Have you stress-tested your exit valuation against what the market will actually pay for businesses at your stage?',
+      impactMode: 'quantitative',
       financialImpactType: 'valuation_uplift',
-      financialImpactAmount: (defensible.stretch || 0) - (defensible.base || 0),
+      financialImpactAmount: stretchMinusBase,
+      financialImpactConfidence: 'medium',
+      impactCalculation: `Gap between stretch (£${stretchM}M) and base (£${baseM}M) pre-money. Movement requires hitting the metric targets the report identifies.`,
     },
     {
       code: 'fic_holdco',
@@ -475,8 +489,10 @@ async function generatePreRevenueOpportunities(
       dataEvidence: 'Pre-revenue stage requires clean corporate structure for investor due diligence.',
       talkingPoint: 'Getting your holding structure right before the round saves significant tax on exit. It is much harder to restructure after investment.',
       questionToAsk: 'Is the operating company held directly or through a holding structure? Have you taken advice on FIC or holdco for founder shares?',
+      impactMode: 'qualitative',
       financialImpactType: 'tax_efficiency',
-      financialImpactAmount: Math.round((defensible.base || 0) * 0.05),
+      financialImpactAmount: null,
+      qualitativeImpactSummary: 'Long-term tax efficiency on founder proceeds at exit. The value scales with exit size and dilution path, so a defensible £ today would be speculative. Acting at nil value before round close is the precondition that keeps the option open.',
     },
     {
       code: 'forecast_model',
@@ -488,8 +504,11 @@ async function generatePreRevenueOpportunities(
       dataEvidence: `Forecast credibility component: ${componentScore('forecast_credibility')}. Gaps: ${componentGaps('forecast_credibility')}.`,
       talkingPoint: 'A credible 3-year model is not optional for fundraising. Investors will pull it apart; better they find solid foundations than guesswork.',
       questionToAsk: 'Can you walk me through the assumptions behind your Year 1 revenue forecast? What conversion rates are you using?',
+      impactMode: 'quantitative',
       financialImpactType: 'valuation_protection',
       financialImpactAmount: Math.round((defensible.base || 0) * 0.15),
+      financialImpactConfidence: 'medium',
+      impactCalculation: `15% of defensible base (£${baseM}M). A documented bottom-up model typically protects against a ~15% diligence discount that investors apply when assumptions are not stress-tested.`,
     },
     {
       code: 'cap_table_cleanup',
@@ -501,8 +520,10 @@ async function generatePreRevenueOpportunities(
       dataEvidence: `Cap table & governance: ${componentScore('cap_table_governance')}. Gaps: ${componentGaps('cap_table_governance')}.`,
       talkingPoint: 'Angel investors expect EIS relief. Without advance assurance, you are closing your round to a fraction of the market.',
       questionToAsk: 'Do you have SEIS/EIS advance assurance? How many share classes are currently on the cap table?',
+      impactMode: 'qualitative',
       financialImpactType: 'investor_access',
-      financialImpactAmount: Math.round((defensible.base || 0) * 0.10),
+      financialImpactAmount: null,
+      qualitativeImpactSummary: 'Wider investor pool and faster round close. EIS/SEIS eligibility opens the round to UK angel networks who require relief; without it, a meaningful portion of the angel market is unreachable. Speed-to-close matters more than the raw £ here.',
     },
 
     // Tier 2: Investor Readiness (next_3_months)
@@ -514,10 +535,13 @@ async function generatePreRevenueOpportunities(
       priority: 'next_3_months',
       priorityRationale: 'Once foundations are in place, you need a compelling investor pack that tells the story with data.',
       dataEvidence: `Data room completeness: ${componentScore('data_room_ip')}.`,
-      talkingPoint: 'The best founders don\'t just pitch a vision. They show market evidence, competitive analysis, and a clear "why now" story.',
+      talkingPoint: 'The best founders do not just pitch a vision. They show market evidence, competitive analysis, and a clear "why now" story.',
       questionToAsk: 'What does your current investor deck look like? Do you have market sizing evidence or comparable transaction data?',
+      impactMode: 'quantitative',
       financialImpactType: 'fundraising_efficiency',
       financialImpactAmount: Math.round((defensible.base || 0) * 0.08),
+      financialImpactConfidence: 'low',
+      impactCalculation: `8% of defensible base (£${baseM}M) as a proxy for the valuation premium a well-evidenced pack achieves over an unsupported one. Confidence is low because the lift varies materially by investor mix.`,
     },
     {
       code: 'loi_conversion',
@@ -529,8 +553,11 @@ async function generatePreRevenueOpportunities(
       dataEvidence: `Pipeline quality: ${componentScore('pipeline_quality')}. Gaps: ${componentGaps('pipeline_quality')}.`,
       talkingPoint: 'Every verbal commitment that converts to a signed contract steps up your valuation. Two signed LOIs can shift you from base to stretch case.',
       questionToAsk: 'Which of your verbal commitments is closest to signing? What is blocking the conversion?',
+      impactMode: 'quantitative',
       financialImpactType: 'valuation_uplift',
-      financialImpactAmount: (defensible.stretch || 0) - (defensible.base || 0),
+      financialImpactAmount: stretchMinusBase,
+      financialImpactConfidence: 'high',
+      impactCalculation: `Full gap between stretch (£${stretchM}M) and base (£${baseM}M). Signed revenue is the primary input that moves the defensible range from base toward stretch in the pre-revenue model.`,
     },
     {
       code: 'founder_ip_docs',
@@ -542,8 +569,11 @@ async function generatePreRevenueOpportunities(
       dataEvidence: `Data room & IP: ${componentScore('data_room_ip')}. Gaps: ${componentGaps('data_room_ip')}.`,
       talkingPoint: 'Investors will check IP ownership on day one of due diligence. If the IP is not clearly assigned to the company, it will stall or kill the deal.',
       questionToAsk: 'Is all IP formally assigned to the operating company? Do you have invention assignment agreements with all developers?',
+      impactMode: 'quantitative',
       financialImpactType: 'valuation_protection',
       financialImpactAmount: Math.round((defensible.base || 0) * 0.10),
+      financialImpactConfidence: 'medium',
+      impactCalculation: `10% of defensible base (£${baseM}M). Unclean IP typically triggers a ~10% diligence discount or escrow/holdback equivalent. Avoidable entirely with documented assignment.`,
     },
 
     // Tier 3: Growth Levers (next_12_months)
@@ -554,11 +584,14 @@ async function generatePreRevenueOpportunities(
       severity: 'medium',
       priority: 'next_12_months',
       priorityRationale: 'Multi-year contracts and expansion revenue design add 1-2x to your ARR multiple at exit.',
-      dataEvidence: 'Pre-revenue businesses that design for NRR >110% from the start command premium multiples.',
+      dataEvidence: 'Pre-revenue businesses that design for NRR above 110% from the start command premium multiples.',
       talkingPoint: 'Building multi-year contracts and expansion pricing into your first customers sets the trajectory for everything that follows.',
       questionToAsk: 'Are you planning annual or multi-year contracts? Have you designed your pricing to allow account expansion?',
+      impactMode: 'quantitative',
       financialImpactType: 'multiple_expansion',
       financialImpactAmount: Math.round((defensible.base || 0) * 0.20),
+      financialImpactConfidence: 'low',
+      impactCalculation: `20% of defensible base (£${baseM}M) as a placeholder for multiple expansion. The real lift is at exit, where NRR above 110% supports a premium ARR multiple. Confidence is low because realisation depends on retention data not yet available.`,
     },
     {
       code: 'customer_success_ops',
@@ -570,8 +603,10 @@ async function generatePreRevenueOpportunities(
       dataEvidence: `Team & hires: ${componentScore('team_hires')}.`,
       talkingPoint: 'Your first 10 customers will define your NRR trajectory. Getting onboarding and success right from day one pays compound returns.',
       questionToAsk: 'Who will own customer success? Do you have an onboarding playbook for your first enterprise customers?',
+      impactMode: 'qualitative',
       financialImpactType: 'retention_value',
-      financialImpactAmount: Math.round((defensible.base || 0) * 0.12),
+      financialImpactAmount: null,
+      qualitativeImpactSummary: 'NRR trajectory from the first 10 customers. The compound effect at exit is material, but the £ figure depends on retention behaviour that does not yet exist. Better framed as a precondition for the multiple expansion we are aiming for.',
     },
     {
       code: 'board_neds',
@@ -583,8 +618,10 @@ async function generatePreRevenueOpportunities(
       dataEvidence: `Cap table & governance: ${componentScore('cap_table_governance')}.`,
       talkingPoint: 'A strong NED adds credibility, opens doors, and signals to investors that you are building a business, not running a project.',
       questionToAsk: 'Do you have any non-executive directors or formal advisors? What skills gap would a NED fill?',
+      impactMode: 'qualitative',
       financialImpactType: 'governance_premium',
-      financialImpactAmount: Math.round((defensible.base || 0) * 0.05),
+      financialImpactAmount: null,
+      qualitativeImpactSummary: 'Credibility signal at Series A diligence and access to the appointee\'s network. The lift is real but not separable from the broader investor readiness picture, so a discrete £ figure would be arbitrary.',
     },
   ];
 
@@ -628,6 +665,10 @@ async function generatePreRevenueOpportunities(
         data_evidence: opp.dataEvidence,
         financial_impact_type: opp.financialImpactType,
         financial_impact_amount: opp.financialImpactAmount,
+        financial_impact_confidence: (opp as any).financialImpactConfidence ?? null,
+        impact_calculation: (opp as any).impactCalculation ?? null,
+        impact_mode: (opp as any).impactMode ?? 'quantitative',
+        qualitative_impact_summary: (opp as any).qualitativeImpactSummary ?? null,
         recommended_service_id: serviceId,
         talking_point: opp.talkingPoint,
         question_to_ask: opp.questionToAsk,

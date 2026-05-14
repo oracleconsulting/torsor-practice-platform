@@ -117,7 +117,9 @@ for m in \
   20260510000030_bm_integrity_foundation \
   20260511000001_bm_prerev_services_catalogue \
   20260512000001_opportunity_qualitative_impact \
-  20260512000002_pre_revenue_signals_raise_fields; do
+  20260512000002_pre_revenue_signals_raise_fields \
+  20260512000003_add_raise_narrative_column \
+  20260512100000_bm_pre_revenue_signals_raise_fields; do
   if [ -f "$ROOT/supabase/migrations/${m}.sql" ]; then
     cp "$ROOT/supabase/migrations/${m}.sql" "$DEST/migrations_${m}-COPY.sql" && echo "  migrations_${m}-COPY.sql"
   fi
