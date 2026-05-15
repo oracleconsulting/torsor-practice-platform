@@ -117,7 +117,7 @@ export function ForwardValueBridgeSection({ preRevenueAnalysis, businessStage }:
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 14 }}>
           {[
             { name: 'Scorecard Method', value: fmt(scorecardValuation.impliedPreMoney), note: 'Weighted factor vs UK regional median' },
-            { name: 'Berkus Method', value: fmt(berkusValuation.impliedPreMoney), note: 'Factor-based early-stage ceiling' },
+            { name: 'Berkus Method', value: fmt(berkusValuation.impliedPreMoney), note: 'Factor-based pre-revenue methodology' },
             ...(comparableRoundsAnalysis ? [{ name: 'Comparable Rounds', value: fmt(comparableRoundsAnalysis.impliedRange.mid), note: `Range: ${fmt(comparableRoundsAnalysis.impliedRange.low)} – ${fmt(comparableRoundsAnalysis.impliedRange.high)}` }] : []),
             { name: 'VC Method (target consistency check)', value: fmt(vcMethodBackSolve.todayPreMoneyImplied), note: vcMethodBackSolve.methodology },
           ].map((lens, i) => (
