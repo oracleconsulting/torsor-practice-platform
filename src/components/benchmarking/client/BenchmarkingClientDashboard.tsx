@@ -383,17 +383,27 @@ function ProgressRing({ score, size = 140, strokeWidth = 12, color, ringLabel, d
 
 // ─── Format Helpers ──────────────────────────────────────────────────────────
 
+/** £750M not £750.0M when m is mathematically whole; preserves £3.4M etc. */
+function formatMillionsM(abs: number): string {
+  const m = abs / 1_000_000;
+  return Math.abs(m - Math.round(m)) < 1e-6 ? Math.round(m).toFixed(0) : m.toFixed(1);
+}
+
 const fmt = (n: number) => {
   if (n == null || isNaN(n)) return '£0';
   const abs = Math.abs(n);
   const sign = n < 0 ? '−' : '';
-  if (abs >= 1000000) return `${sign}£${(abs / 1000000).toFixed(1)}M`;
+  if (abs >= 1000000) return `${sign}£${formatMillionsM(abs)}M`;
   if (abs >= 1000) return `${sign}£${Math.round(abs / 1000)}k`;
   return `${sign}£${Math.round(abs)}`;
 };
 const fmtMetric = (val: number, format: string) => {
   switch (format) {
-    case 'currency': return val >= 1000000 ? `£${(val / 1000000).toFixed(1)}M` : val >= 1000 ? `£${Math.round(val / 1000)}k` : `£${Math.round(val)}`;
+    case 'currency':
+      if (val >= 1000000) {
+        return `£${formatMillionsM(Math.abs(val))}M`;
+      }
+      return val >= 1000 ? `£${Math.round(val / 1000)}k` : `£${Math.round(val)}`;
     case 'percent': return `${val.toFixed(1)}%`;
     case 'days': return `${Math.round(val)} days`;
     default: return val.toFixed(1);
@@ -410,7 +420,13 @@ function calcMarginScenario(revenue: number, currentGM: number, targetGM: number
   const valueMultiple = 5;
   const valueImpact = netImpact * valueMultiple;
   const marginImprovement = targetGM - currentGM;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     additionalGrossProfit: additionalGP,
     netProfitImpact: netImpact,
@@ -431,7 +447,13 @@ function calcPricingScenario(revenue: number, rateIncreasePercent: number, volum
   const retentionMult = volumeRetention / 100;
   const marginImpact = revenue * (rateIncreasePercent / 100) * retentionMult;
   const breakEvenLoss = (1 - (1 / (1 + rateIncreasePercent / 100))) * 100;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     marginImpact,
     businessValueImpact: marginImpact * 5,
@@ -452,7 +474,13 @@ function calcCashScenario(revenue: number, currentDays: number, targetDays: numb
   const daysImproved = currentDays - targetDays;
   const cashFreed = dailyRevenue * daysImproved;
   const annualInterestSaved = cashFreed * 0.05;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     cashFreed,
     daysImproved,
@@ -474,7 +502,13 @@ function calcEfficiencyScenario(revenue: number, currentRPE: number, targetRPE: 
   const efficientHeadcount = Math.ceil(revenue / targetRPE);
   const headcountReduction = Math.max(0, headcount - efficientHeadcount);
   const costSaving = headcountReduction * 55000;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     additionalRevenue,
     additionalProfit,
@@ -499,7 +533,13 @@ function calcDiversificationScenario(revenue: number, currentConc: number, targe
   const targetDiscount = targetConc >= 80 ? 25 : targetConc >= 60 ? 15 : targetConc >= 40 ? 8 : 3;
   const baseValue = netProfit > 0 ? netProfit * 5 : revenue * 0.05 * 5;
   const valueImprovement = baseValue * ((currentDiscount - targetDiscount) / 100);
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     riskReduction,
     valueImprovement,
@@ -1028,7 +1068,7 @@ export default function BenchmarkingClientDashboard({
                 { title: 'Performance Gaps', content: gapNarrative, color: C.red, icon: AlertTriangle, highlight: `${data.gap_count || gapMetrics.length} gaps identified` },
                 { title: 'The Opportunity', content: opportunityNarrative, color: C.purple, icon: Sparkles, highlight: isPreRevenue
                     ? (preRevenueValuationUplift > 0
-                        ? `+£${(preRevenueValuationUplift / 1_000_000).toFixed(1)}M at P75`
+                        ? `+£${formatMillionsM(preRevenueValuationUplift)}M at P75`
                         : 'Path to step-up')
                     : `£${totalOpportunity.toLocaleString()} potential` },
               ].map((section, i) => {
@@ -1184,7 +1224,7 @@ export default function BenchmarkingClientDashboard({
                   <RevealCard delay={240} style={{ ...glass({ padding: '14px 20px' }), borderLeft: `4px solid ${C.emerald}`, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <TrendingUp style={{ width: 18, height: 18, color: C.emerald, flexShrink: 0 }} />
                     <p style={{ fontSize: 14, color: C.textSecondary, margin: 0 }}>
-                      <strong style={{ color: C.emerald }}>Bonus:</strong> Your supplier payment terms mean you operate with £{(Math.abs(data.surplus_cash.components.netWorkingCapital) / 1000000).toFixed(1)}M of free working capital.
+                      <strong style={{ color: C.emerald }}>Bonus:</strong> Your supplier payment terms mean you operate with £{formatMillionsM(Math.abs(data.surplus_cash.components.netWorkingCapital))}M of free working capital.
                     </p>
                   </RevealCard>
                 )}
@@ -2544,13 +2584,13 @@ export default function BenchmarkingClientDashboard({
 
         const closingSummary = (() => {
           const parts: string[] = [];
-          if (baselineMetrics?.revenue) parts.push(`You're a £${(baselineMetrics.revenue / 1000000).toFixed(1)}M business`);
+          if (baselineMetrics?.revenue) parts.push(`You're a £${formatMillionsM(baselineMetrics.revenue)}M business`);
           if (percentile) parts.push(`sitting at the ${getOrdinalSuffix(percentile)} percentile`);
-          if (surplusCash > 0) parts.push(`with £${(surplusCash / 1000000).toFixed(1)}M in surplus cash`);
+          if (surplusCash > 0) parts.push(`with £${formatMillionsM(surplusCash)}M in surplus cash`);
           let summary = parts.join(' ');
           if (totalOpportunity > 0) summary += `. The data shows £${totalOpportunity.toLocaleString()} in annual opportunity`;
           const vGap = valueAnalysis?.valueGap?.mid;
-          if (vGap && vGap > 0) summary += ` and £${(vGap / 1000000).toFixed(1)}M in trapped value`;
+          if (vGap && vGap > 0) summary += ` and £${formatMillionsM(vGap)}M in trapped value`;
           summary += '. The path forward is about protecting what you\'ve built and unlocking what\'s already there.';
           return summary;
         })();

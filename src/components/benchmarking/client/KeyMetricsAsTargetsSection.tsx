@@ -34,7 +34,11 @@ const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
 const fmt = (v: number) => {
   const abs = Math.abs(v);
   const sign = v < 0 ? '-' : '';
-  if (abs >= 1000000) return sign + '£' + (abs / 1000000).toFixed(1) + 'M';
+  if (abs >= 1000000) {
+    const m = abs / 1000000;
+    const formatted = Math.abs(m - Math.round(m)) < 1e-6 ? Math.round(m).toFixed(0) : m.toFixed(1);
+    return sign + '£' + formatted + 'M';
+  }
   if (abs >= 1000) return sign + '£' + Math.round(abs / 1000) + 'k';
   return sign + '£' + abs;
 };
