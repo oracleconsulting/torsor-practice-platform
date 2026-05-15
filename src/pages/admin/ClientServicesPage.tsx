@@ -11738,6 +11738,8 @@ function BenchmarkingClientModal({
   const [activeTab, setActiveTab] = useState<'assessment' | 'hva' | 'context' | 'analysis'>('assessment');
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState<any>(null);
+  const [benchmarkEngagements, setBenchmarkEngagements] = useState<any[]>([]);
+  const [selectedBenchmarkEngagementId, setSelectedBenchmarkEngagementId] = useState<string | null>(null);
   const [assessmentResponses, setAssessmentResponses] = useState<any>(null);
   const [hvaStatus, setHvaStatus] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
@@ -11765,6 +11767,17 @@ function BenchmarkingClientModal({
   // Share with client state
   const [isBenchmarkShared, setIsBenchmarkShared] = useState(false);
   const [isTogglingBenchmarkShare, setIsTogglingBenchmarkShare] = useState(false);
+
+  const getBenchmarkEngagementLabel = (bmEngagement: any, index: number) => {
+    const stage = bmEngagement?.business_stage || bmEngagement?.bm_reports?.business_stage;
+    const isPreRevenue = stage === 'pre_revenue' || stage === 'early_revenue';
+    const base = isPreRevenue ? 'Pre-revenue benchmark' : 'Trading benchmark';
+    const dateSource = bmEngagement?.updated_at || bmEngagement?.created_at;
+    const dateLabel = dateSource
+      ? new Date(dateSource).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      : `#${index + 1}`;
+    return `${base} · ${dateLabel}`;
+  };
 
   // Handler for share toggle
   const handleToggleBenchmarkShare = async (newSharedStatus: boolean) => {
@@ -11837,7 +11850,7 @@ function BenchmarkingClientModal({
     }
   }, [clientId, currentMember?.practice_id]);
 
-  const fetchData = async () => {
+  const fetchData = async (preferredEngagementId: string | null = selectedBenchmarkEngagementId) => {
     if (!currentMember?.practice_id) {
       console.error('[Benchmarking Modal] No practice_id available');
       return;
@@ -11857,20 +11870,28 @@ function BenchmarkingClientModal({
         setClientName(clientData.client_company || clientData.company || clientData.name || '');
       }
 
-      // Fetch latest engagement. Multiple benchmarking reports per client are allowed,
-      // so avoid maybeSingle() over client_id (it errors when history exists).
-      const { data: engagementData, error: engagementError } = await supabase
+      // Fetch all engagements. Multiple benchmarking reports per client are allowed;
+      // the selected engagement drives assessment/report/share/regenerate actions.
+      const { data: engagementRows, error: engagementError } = await supabase
         .from('bm_engagements')
         .select('*')
         .eq('client_id', clientId)
         .order('updated_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle();
+        .order('id', { ascending: false });
 
       if (engagementError && engagementError.code !== 'PGRST116') {
         console.error('[Benchmarking Modal] Error fetching engagement:', engagementError);
       }
+      const engagementList = engagementRows || [];
+      setBenchmarkEngagements(engagementList);
+      const engagementData =
+        (preferredEngagementId
+          ? engagementList.find((row: any) => row.id === preferredEngagementId)
+          : null) ||
+        engagementList[0] ||
+        null;
+      setSelectedBenchmarkEngagementId(engagementData?.id ?? null);
 
       console.log('[Benchmarking Modal] Engagement query result:', {
         found: !!engagementData,
@@ -11897,6 +11918,8 @@ function BenchmarkingClientModal({
         } else if (newEngagement) {
           console.log('[Benchmarking Modal] Created engagement:', newEngagement.id);
           setEngagement(newEngagement);
+          setBenchmarkEngagements([newEngagement]);
+          setSelectedBenchmarkEngagementId(newEngagement.id);
         }
       }
 
@@ -12134,6 +12157,7 @@ function BenchmarkingClientModal({
             hasExecutiveSummary: !!reportToUse.executive_summary
           });
           setReport(reportToUse);
+          setIsBenchmarkShared(!!(reportToUse.is_shared_with_client || engagementData.report_shared_with_client));
         } else if (reportToUse && (reportToUse.status === null || reportToUse.status === undefined)) {
           console.log('[Benchmarking Modal] Report found but status is null - treating as deleted/reset');
           setReport(null);
@@ -12152,6 +12176,8 @@ function BenchmarkingClientModal({
             client_id: clientId,
             engagement_found: !!engagementData
           });
+          setReport(null);
+          setIsBenchmarkShared(!!engagementData.report_shared_with_client);
         }
 
         // Fetch HVA status (Part 3 assessment)
@@ -12621,9 +12647,35 @@ function BenchmarkingClientModal({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="p-6 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-teal-50 to-cyan-50">
-          <div>
+          <div className="min-w-0 flex-1 pr-4">
             <h2 className="text-xl font-bold text-gray-900">Benchmarking</h2>
             <p className="text-sm text-gray-500">{clientName || `Client ID: ${clientId}`}</p>
+            {benchmarkEngagements.length > 1 && selectedBenchmarkEngagementId && (
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <label className="text-xs font-medium text-gray-500">Report</label>
+                <select
+                  value={selectedBenchmarkEngagementId}
+                  onChange={(event) => {
+                    const nextId = event.target.value;
+                    setSelectedBenchmarkEngagementId(nextId);
+                    setReport(null);
+                    setAssessmentResponses(null);
+                    setEngagement(null);
+                    fetchData(nextId);
+                  }}
+                  className="max-w-full rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 shadow-sm focus:border-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                >
+                  {benchmarkEngagements.map((row, index) => (
+                    <option key={row.id} value={row.id}>
+                      {getBenchmarkEngagementLabel(row, index)}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-gray-400">
+                  {benchmarkEngagements.length} benchmarking reports
+                </span>
+              </div>
+            )}
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
             <X className="w-5 h-5 text-gray-400" />
@@ -13346,7 +13398,7 @@ function BenchmarkingClientModal({
                         </div>
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={fetchData}
+                            onClick={() => fetchData()}
                             className="px-4 py-2 border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg flex items-center gap-2"
                           >
                             <RefreshCw className="w-4 h-4" />
