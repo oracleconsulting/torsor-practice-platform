@@ -1057,7 +1057,11 @@ export default function BenchmarkingClientDashboard({
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <RevealCard style={{ ...glass({ padding: 24 }) }}>
               <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Your Position</h2>
-              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>How your business compares to sector peers</p>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>
+                {isPreRevenue
+                  ? 'Where you stand today, where the strengths are, and what is blocking the raise'
+                  : 'How your business compares to sector peers'}
+              </p>
             </RevealCard>
 
             {/* 2×2 narrative grid — responsive */}
