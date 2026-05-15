@@ -6,10 +6,20 @@ export interface ClientBenchSession {
   practiceId?: string | null;
 }
 
+export interface BenchmarkReportOption {
+  engagementId: string;
+  label: string;
+  businessStage?: string | null;
+  headline?: string | null;
+  updatedAt?: string | null;
+}
+
 export type BenchReportPayloadResult =
   | {
       ok: true;
       report: Record<string, unknown>;
+      reports: BenchmarkReportOption[];
+      selectedEngagementId: string;
       clientCompany: string;
       practitionerInfo: { name?: string; email?: string };
     }
@@ -21,7 +31,8 @@ export type BenchReportPayloadResult =
  */
 export async function fetchBenchmarkReportPayload(
   supabase: SupabaseClient,
-  session: ClientBenchSession
+  session: ClientBenchSession,
+  preferredEngagementId?: string | null
 ): Promise<BenchReportPayloadResult> {
   const { clientId, practiceId } = session;
   if (!clientId) {
@@ -37,32 +48,42 @@ export async function fetchBenchmarkReportPayload(
   const clientCompany =
     clientData?.client_company || clientData?.company || clientData?.name || 'Your Company';
 
-  const { data: engagement, error: engagementError } = await supabase
+  const { data: engagements, error: engagementError } = await supabase
     .from('bm_engagements')
-    .select('id, report_shared_with_client')
+    .select('id, report_shared_with_client, business_stage, created_at, updated_at')
     .eq('client_id', clientId)
-    .maybeSingle();
+    .eq('report_shared_with_client', true)
+    .order('updated_at', { ascending: false, nullsFirst: false });
 
-  if (engagementError || !engagement) {
+  if (engagementError || !engagements?.length) {
     return { ok: false, error: 'No benchmarking engagement found' };
   }
 
-  if (!engagement.report_shared_with_client) {
-    return {
-      ok: false,
-      error: 'Report not yet available. Your advisor will share it with you when ready.',
-    };
-  }
+  const engagementIds = engagements.map((engagement: any) => engagement.id).filter(Boolean);
 
-  const { data: report, error: reportError } = await supabase
+  const { data: reportsData, error: reportError } = await supabase
     .from('bm_reports')
     .select('*')
-    .eq('engagement_id', engagement.id)
-    .maybeSingle();
+    .in('engagement_id', engagementIds)
+    .eq('is_shared_with_client', true);
 
   if (reportError) {
     return { ok: false, error: 'Unable to load report' };
   }
+
+  const reports = reportsData || [];
+  const reportByEngagement = new Map<string, any>(
+    reports.map((report: any) => [report.engagement_id, report])
+  );
+  const sharedEngagements = engagements.filter((engagement: any) => reportByEngagement.has(engagement.id));
+
+  const selectedEngagement =
+    (preferredEngagementId
+      ? sharedEngagements.find((engagement: any) => engagement.id === preferredEngagementId)
+      : null) ||
+    sharedEngagements[0];
+
+  const report = selectedEngagement ? reportByEngagement.get(selectedEngagement.id) : null;
 
   if (!report) {
     return {
@@ -99,6 +120,24 @@ export async function fetchBenchmarkReportPayload(
     ...(hva_data !== undefined ? { hva_data } : {}),
   };
 
+  const options: BenchmarkReportOption[] = sharedEngagements.map((engagement: any, index: number) => {
+    const row = reportByEngagement.get(engagement.id);
+    const businessStage = engagement.business_stage || row?.pass1_data?.business_stage || row?.business_stage;
+    const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+    return {
+      engagementId: engagement.id,
+      label: isPreRevenue ? 'Pre-revenue benchmark' : 'Trading benchmark',
+      businessStage,
+      headline: row?.headline || null,
+      updatedAt: row?.updated_at || engagement.updated_at || engagement.created_at || null,
+    };
+  }).map((option, index, all) => ({
+    ...option,
+    label: all.filter((o) => o.label === option.label).length > 1
+      ? `${option.label} ${index + 1}`
+      : option.label,
+  }));
+
   let practitionerInfo: { name?: string; email?: string } = {};
   if (practiceId) {
     const { data: practice } = await supabase
@@ -111,5 +150,12 @@ export async function fetchBenchmarkReportPayload(
     }
   }
 
-  return { ok: true, report: merged, clientCompany, practitionerInfo };
+  return {
+    ok: true,
+    report: merged,
+    reports: options,
+    selectedEngagementId: selectedEngagement.id,
+    clientCompany,
+    practitionerInfo,
+  };
 }

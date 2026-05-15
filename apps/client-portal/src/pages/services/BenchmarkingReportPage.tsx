@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { ArrowLeft, Loader2, Lock } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import BenchmarkingClientDashboard from '@torsor/platform/components/benchmarking/client/BenchmarkingClientDashboard';
-import { fetchBenchmarkReportPayload } from '@/lib/benchmark-report-data';
+import { fetchBenchmarkReportPayload, type BenchmarkReportOption } from '@/lib/benchmark-report-data';
 
 // ============================================================================
 // BENCHMARKING REPORT — CLIENT PORTAL (dashboard, matches admin Client View)
@@ -18,16 +18,18 @@ export default function BenchmarkingReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reportData, setReportData] = useState<Record<string, unknown> | null>(null);
+  const [reports, setReports] = useState<BenchmarkReportOption[]>([]);
+  const [selectedEngagementId, setSelectedEngagementId] = useState<string | null>(null);
   const [clientCompany, setClientCompany] = useState<string>('');
   const [practitionerInfo, setPractitionerInfo] = useState<{ name?: string; email?: string }>({});
 
   useEffect(() => {
     if (!authLoading && clientSession?.clientId) {
-      loadReport();
+      loadReport(selectedEngagementId);
     }
   }, [authLoading, clientSession?.clientId]);
 
-  const loadReport = async () => {
+  const loadReport = async (engagementId?: string | null) => {
     if (!clientSession?.clientId) {
       setError('No client session found');
       setLoading(false);
@@ -38,7 +40,7 @@ export default function BenchmarkingReportPage() {
       const result = await fetchBenchmarkReportPayload(supabase, {
         clientId: clientSession.clientId,
         practiceId: clientSession.practiceId,
-      });
+      }, engagementId);
 
       if (!result.ok) {
         setError(result.error);
@@ -47,6 +49,8 @@ export default function BenchmarkingReportPage() {
       }
 
       setReportData(result.report);
+      setReports(result.reports);
+      setSelectedEngagementId(result.selectedEngagementId);
       setClientCompany(result.clientCompany);
       setPractitionerInfo(result.practitionerInfo);
     } catch (err) {
@@ -55,6 +59,13 @@ export default function BenchmarkingReportPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSelectReport = (engagementId: string) => {
+    if (engagementId === selectedEngagementId) return;
+    setSelectedEngagementId(engagementId);
+    setLoading(true);
+    loadReport(engagementId);
   };
 
   if (authLoading || loading) {
@@ -116,7 +127,23 @@ export default function BenchmarkingReportPage() {
             <ArrowLeft className="w-4 h-4" />
             Dashboard
           </button>
-          <Logo />
+          <div className="flex items-center gap-3">
+            {reports.length > 1 && selectedEngagementId && (
+              <select
+                value={selectedEngagementId}
+                onChange={(event) => handleSelectReport(event.target.value)}
+                className="max-w-[48vw] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                aria-label="Select benchmarking report"
+              >
+                {reports.map((report) => (
+                  <option key={report.engagementId} value={report.engagementId}>
+                    {report.label}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Logo />
+          </div>
         </div>
       </div>
 
