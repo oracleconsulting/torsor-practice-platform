@@ -184,6 +184,12 @@ const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T
   return value as T;
 };
 
+const toSafeArray = <T = string,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') return value.split(',').map(s => s.trim()).filter(Boolean) as T[];
+  return [];
+};
+
 // Helper to determine the correct format for a metric based on its code
 const getMetricFormat = (metricCode: string | undefined): 'currency' | 'percent' | 'number' | 'days' => {
   if (!metricCode) return 'number';
@@ -482,30 +488,34 @@ export function BenchmarkingClientReport({
   // SERVICE RECOMMENDATIONS - From bm_reports.recommended_services (Pass 3)
   // ============================================================================
   
-  // Convert database recommended_services to the new component format
+  // Convert database recommended_services to the new component format.
+  // Keep this in sync with BenchmarkingClientDashboard so classic/PDF and dashboard agree.
   const recommendedServices = useMemo((): RecommendedService[] => {
     // Primary source: bm_reports.recommended_services (built by Pass 3)
-    const dbRecommendations = data.recommended_services || [];
+    const dbRaw = safeJsonParse<unknown>(data.recommended_services as any, []);
+    const dbRecommendations = Array.isArray(dbRaw) ? dbRaw : [];
     
     if (dbRecommendations.length > 0) {
-      return dbRecommendations.map((r: any): RecommendedService => ({
-        serviceCode: r.serviceCode || r.code,
-        serviceName: r.serviceName || r.name,
+      return dbRecommendations
+        .sort((a: any, b: any) => (a.display_order || a.displayOrder || 99) - (b.display_order || b.displayOrder || 99))
+        .map((r: any): RecommendedService => ({
+        serviceCode: r.serviceCode || r.service_code || r.code,
+        serviceName: r.service_name || r.serviceName || r.name,
         description: r.description || '',
         headline: r.headline,
         priceFrom: r.priceFrom || r.price_from,
         priceTo: r.priceTo || r.price_to,
         priceUnit: r.priceUnit || r.price_unit,
-        priceRange: r.priceRange,
+        priceRange: r.priceRange || r.price_range,
         category: r.category,
-        whyThisMatters: r.whyThisMatters || r.contextReason || r.description || '',
-        whatYouGet: r.whatYouGet || r.deliverables || [],
-        expectedOutcome: r.expectedOutcome || '',
-        timeToValue: r.timeToValue || r.timeframe || '4-6 weeks',
-        addressesIssues: r.addressesIssues || [],
-        totalValueAtStake: r.totalValueAtStake,
-        source: r.source || 'opportunity',
-        priority: r.priority || 'secondary',
+        whyThisMatters: r.fit_rationale || r.whyThisMatters || r.contextReason || r.description || '',
+        whatYouGet: toSafeArray(r.whatYouGet || r.what_you_get || r.deliverables),
+        expectedOutcome: r.expectedOutcome || r.expected_outcome || '',
+        timeToValue: r.timeToValue || r.time_to_value || r.timeframe || '4-6 weeks',
+        addressesIssues: Array.isArray(r.addressesIssues) ? r.addressesIssues : Array.isArray(r.addresses_issues) ? r.addresses_issues : [],
+        totalValueAtStake: r.combined_impact_value_pounds || r.totalValueAtStake || r.total_value_at_stake,
+        source: (r.source || 'opportunity') as RecommendedService['source'],
+        priority: (r.priority_label || r.priority || 'secondary') as RecommendedService['priority'],
       }));
     }
     
@@ -912,6 +922,7 @@ export function BenchmarkingClientReport({
             clientName={clientName}
             practitionerName={practitionerName}
             practitionerEmail={practitionerEmail}
+            expandAll={printMode}
           />
         )}
         

@@ -16,12 +16,7 @@ import {
   CheckCircle, 
   Clock, 
   ChevronDown, 
-  ChevronUp,
-  Target,
-  AlertTriangle,
-  Sparkles,
-  Pin,
-  TrendingUp
+  Sparkles
 } from 'lucide-react';
 
 // =============================================================================
@@ -63,6 +58,7 @@ interface RecommendedServicesSectionProps {
   practitionerName?: string;
   practitionerEmail?: string;
   practitionerPhone?: string;
+  expandAll?: boolean;
 }
 
 // =============================================================================
@@ -124,198 +120,134 @@ const getSeverityColor = (severity: string): string => {
   }
 };
 
-const getCategoryIcon = (category?: string) => {
-  switch (category) {
-    case 'operations':
-    case 'operational':
-      return <Target className="w-5 h-5" />;
-    case 'finance':
-    case 'tax_efficiency':
-      return <TrendingUp className="w-5 h-5" />;
-    case 'governance':
-    case 'risk':
-      return <AlertTriangle className="w-5 h-5" />;
-    default:
-      return <Sparkles className="w-5 h-5" />;
-  }
-};
-
-// =============================================================================
-// PRIMARY SERVICE CARD - Full detail view
-// =============================================================================
-
-function PrimaryServiceCard({ service }: { service: RecommendedService }) {
-  const [isExpanded, setIsExpanded] = useState(true);
-  
-  const totalValue = service.totalValueAtStake || 
+function ServiceAccordionCard({
+  service,
+  index,
+  expandAll = false,
+}: {
+  service: RecommendedService;
+  index: number;
+  expandAll?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const isExpanded = expandAll || isOpen;
+  const isPrimary = service.priority === 'primary';
+  const totalValue = service.totalValueAtStake ||
     service.addressesIssues.reduce((sum, issue) => sum + (issue.valueAtStake || 0), 0);
-  
+  const accent = isPrimary ? 'border-blue-500' : 'border-purple-500';
+  const accentText = isPrimary ? 'text-blue-700' : 'text-purple-700';
+  const accentBg = isPrimary ? 'bg-blue-50' : 'bg-purple-50';
+
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-slate-50 to-white border-b border-slate-100 px-6 py-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-3">
-            {service.source === 'pinned' && (
-              <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-xs font-medium">
-                <Pin className="w-3 h-3" />
-                RECOMMENDED FOR YOU
-              </div>
-            )}
+    <div
+      className={`bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden border-l-4 ${accent}`}
+      style={{ animationDelay: `${index * 60}ms` }}
+    >
+      <button
+        type="button"
+        onClick={() => setIsOpen(prev => !prev)}
+        className="w-full text-left px-5 py-4 hover:bg-slate-50 transition-colors"
+        aria-expanded={isExpanded}
+      >
+        {isPrimary && (
+          <div className="flex items-center gap-1.5 mb-2">
+            <Sparkles className="w-3 h-3 text-blue-600" />
+            <span className="text-[10px] font-bold text-blue-700 uppercase tracking-widest">Recommended For You</span>
           </div>
-          <div className="text-right">
-            <p className="text-lg font-semibold text-slate-900">{formatPrice(service)}</p>
+        )}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-semibold text-slate-900">{service.serviceName}</h3>
+              {isPrimary && (
+                <span className="text-[10px] font-bold bg-blue-600 text-white px-2 py-0.5 rounded uppercase tracking-wide">
+                  Priority
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-600 mt-1">
+              {service.headline || service.description || service.whyThisMatters}
+            </p>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <p className={`text-sm font-semibold ${accentText}`}>{formatPrice(service)}</p>
             {getPriceUnitLabelForService(service) && (
-              <p className="text-sm text-slate-500">{getPriceUnitLabelForService(service)}</p>
+              <p className="text-xs text-slate-500">{getPriceUnitLabelForService(service)}</p>
             )}
           </div>
+          <ChevronDown
+            className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          />
         </div>
-        
-        <div className="mt-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
-            {getCategoryIcon(service.category)}
-          </div>
-          <div>
-            <h3 className="text-xl font-semibold text-slate-900">{service.serviceName}</h3>
-            {service.headline && (
-              <p className="text-slate-600 text-sm">{service.headline}</p>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Main Content */}
-      <div className="px-6 py-5 space-y-5">
-        {/* Why This Matters */}
-        <div>
-          <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">
-            Why This Matters For You
-          </h4>
-          <p className="text-slate-600 leading-relaxed">
-            {service.whyThisMatters || service.description}
-          </p>
-        </div>
-        
-        {/* Expandable Details */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
-        >
-          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          {isExpanded ? 'Show less' : 'Show what you get'}
-        </button>
-        
-        {isExpanded && (
-          <>
-            {/* What You Get */}
-            {service.whatYouGet && service.whatYouGet.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">
-                  What You Get
-                </h4>
-                <ul className="space-y-2">
-                  {service.whatYouGet.map((item, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-slate-600">
-                      <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+      </button>
+
+      {isExpanded && (
+        <div className="px-5 pb-5 pt-4 border-t border-slate-100 space-y-4">
+          {service.whyThisMatters && (
+            <div>
+              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                Why This Matters For You
+              </h4>
+              <p className="text-sm text-slate-700 leading-relaxed">{service.whyThisMatters}</p>
+            </div>
+          )}
+
+          {service.whatYouGet && service.whatYouGet.length > 0 && (
+            <div>
+              <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-2">
+                What You Get
+              </h4>
+              <ul className="space-y-2">
+                {service.whatYouGet.map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
+                    <CheckCircle className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {service.expectedOutcome && (
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+              <h4 className="text-xs font-semibold text-blue-800 uppercase tracking-wide mb-1">
+                Expected Outcome
+              </h4>
+              <p className="text-sm text-blue-800 leading-relaxed">{service.expectedOutcome}</p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-4 pt-3 border-t border-slate-100">
+            <div className="flex items-center gap-2 text-slate-500">
+              <Clock className="w-4 h-4" />
+              <span className="text-sm">{service.timeToValue || '4-6 weeks'}</span>
+            </div>
+            {service.addressesIssues && service.addressesIssues.length > 0 && (
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-slate-500">Addresses:</span>
+                {service.addressesIssues.map((issue, idx) => (
+                  <span
+                    key={idx}
+                    className={`text-xs px-2 py-1 rounded-full border ${getSeverityColor(issue.severity || 'medium')}`}
+                  >
+                    {issue.issueTitle}
+                    {issue.valueAtStake > 0 && (
+                      <span className="ml-1 font-medium">({formatCurrency(issue.valueAtStake)})</span>
+                    )}
+                  </span>
+                ))}
               </div>
             )}
-            
-            {/* Expected Outcome */}
-            {service.expectedOutcome && (
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
-                <h4 className="text-sm font-semibold text-blue-800 uppercase tracking-wide mb-1">
-                  Expected Outcome
-                </h4>
-                <p className="text-blue-700">
-                  {service.expectedOutcome}
-                </p>
-              </div>
-            )}
-          </>
-        )}
-        
-        {/* Footer: Timeline + Issues Addressed */}
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-slate-100">
-          {/* Timeline */}
-          <div className="flex items-center gap-2 text-slate-500">
-            <Clock className="w-4 h-4" />
-            <span className="text-sm">{service.timeToValue || '4-6 weeks'}</span>
           </div>
-          
-          {/* Issues Addressed */}
-          {service.addressesIssues && service.addressesIssues.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <span className="text-xs text-slate-500 self-center">Addresses:</span>
-              {service.addressesIssues.map((issue, idx) => (
-                <span 
-                  key={idx}
-                  className={`text-xs px-2 py-1 rounded-full border ${getSeverityColor(issue.severity)}`}
-                >
-                  {issue.issueTitle}
-                  {issue.valueAtStake > 0 && (
-                    <span className="ml-1 font-medium">
-                      ({formatCurrency(issue.valueAtStake)})
-                    </span>
-                  )}
-                </span>
-              ))}
+
+          {totalValue > 0 && (
+            <div className={`${accentBg} border border-slate-200 rounded-lg px-4 py-3 flex items-center justify-between`}>
+              <span className="text-slate-800 font-medium">Total value at stake:</span>
+              <span className={`font-bold text-lg ${accentText}`}>{formatCurrency(totalValue)}</span>
             </div>
           )}
         </div>
-        
-        {/* Total Value at Stake */}
-        {totalValue > 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center justify-between">
-            <span className="text-amber-800 font-medium">Total value at stake:</span>
-            <span className="text-amber-900 font-bold text-lg">{formatCurrency(totalValue)}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
-// SECONDARY SERVICE ROW - Compact view
-// =============================================================================
-
-function SecondaryServiceRow({ service }: { service: RecommendedService }) {
-  return (
-    <div className="bg-white rounded-lg border border-slate-200 px-5 py-4 hover:border-slate-300 transition-colors">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h4 className="font-semibold text-slate-900">{service.serviceName}</h4>
-            <span className="text-sm text-slate-500">{formatPrice(service)}</span>
-            {service.timeToValue && (
-              <>
-                <span className="text-slate-300">•</span>
-                <span className="text-sm text-slate-500 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {service.timeToValue}
-                </span>
-              </>
-            )}
-          </div>
-          <p className="text-sm text-slate-600 mt-1">
-            {service.headline || service.description?.substring(0, 120) + (service.description && service.description.length > 120 ? '...' : '')}
-          </p>
-          {service.addressesIssues && service.addressesIssues.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              <span className="text-xs text-slate-400">Addresses:</span>
-              {service.addressesIssues.slice(0, 3).map((issue, idx) => (
-                <span key={idx} className="text-xs text-slate-600">
-                  {issue.issueTitle}{idx < Math.min(service.addressesIssues.length - 1, 2) ? ',' : ''}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -326,15 +258,13 @@ function SecondaryServiceRow({ service }: { service: RecommendedService }) {
 
 export function RecommendedServicesSection({
   services,
-  clientName
+  clientName,
+  expandAll = false,
 }: RecommendedServicesSectionProps) {
   if (!services || services.length === 0) {
     return null;
   }
-  
-  const primaryServices = services.filter(s => s.priority === 'primary');
-  const secondaryServices = services.filter(s => s.priority === 'secondary');
-  
+
   return (
     <section className="py-12 bg-gradient-to-b from-slate-50 to-white print:py-8" data-section="recommended-services">
       <div className="max-w-4xl mx-auto px-6">
@@ -352,27 +282,17 @@ export function RecommendedServicesSection({
             {clientName && ` and are tailored to ${clientName}'s situation`}.
           </p>
         </div>
-        
-        {/* Primary Services - Full Cards */}
-        {primaryServices.length > 0 && (
-          <div className="space-y-6 mb-8">
-            {primaryServices.map((service, idx) => (
-              <PrimaryServiceCard key={service.serviceCode || idx} service={service} />
-            ))}
-          </div>
-        )}
-        
-        {/* Secondary Services - Compact List */}
-        {secondaryServices.length > 0 && (
-          <div className="mb-10">
-            <h3 className="text-lg font-semibold text-slate-700 mb-4">Additional Support Options</h3>
-            <div className="space-y-3">
-              {secondaryServices.map((service, idx) => (
-                <SecondaryServiceRow key={service.serviceCode || idx} service={service} />
-              ))}
-            </div>
-          </div>
-        )}
+
+        <div className="space-y-4 mb-10">
+          {services.map((service, idx) => (
+            <ServiceAccordionCard
+              key={service.serviceCode || `${service.serviceName}-${idx}`}
+              service={service}
+              index={idx}
+              expandAll={expandAll}
+            />
+          ))}
+        </div>
         
         {/* Softer close - no hard CTA */}
         <div className="bg-slate-50 rounded-xl p-6 text-center">
