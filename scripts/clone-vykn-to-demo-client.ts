@@ -55,6 +55,14 @@ const DEFAULT_REDACTIONS = [
   'CIBC FCIB',
   'CIBC',
   'FCIB',
+  'Jack',
+  'Vince',
+  'Joe',
+  'Bullseye',
+  'The Big Display Company',
+  'Big Display Company',
+  'jack@thebigdisplaycompany.co.uk',
+  'thebigdisplaycompany.co.uk',
 ];
 
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
@@ -357,7 +365,7 @@ async function main() {
 
   const redactionMap = new Map<string, string>();
   DEFAULT_REDACTIONS.forEach((term) => {
-    if (/damon|wilson|jo|mark|alex/i.test(term)) redactionMap.set(term, demoPerson);
+    if (/damon|wilson|jo|mark|alex|jack|vince|joe/i.test(term)) redactionMap.set(term, demoPerson);
     else if (/fundbank/i.test(term)) redactionMap.set(term, 'CapitalBridge');
     else if (/themis/i.test(term)) redactionMap.set(term, 'RegulaOne');
     else if (/datox/i.test(term)) redactionMap.set(term, 'SignalForge AI');
@@ -365,6 +373,8 @@ async function main() {
     else if (/rawlinson|hunter/i.test(term)) redactionMap.set(term, 'Northbridge Advisory');
     else if (/capitalbridge/i.test(term)) redactionMap.set(term, 'Northstar Capital');
     else if (/cibc|fcib/i.test(term)) redactionMap.set(term, 'Sterling Growth Bank');
+    else if (/bullseye/i.test(term)) redactionMap.set(term, 'Brightline');
+    else if (/big display|thebigdisplaycompany/i.test(term)) redactionMap.set(term, 'Demo Trading Ltd');
     else redactionMap.set(term, demoCompany);
   });
 
