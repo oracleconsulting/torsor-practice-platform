@@ -11790,9 +11790,13 @@ function BenchmarkingClientModal({
         return;
       }
       if (!updatedReportRows?.length) {
-        console.error('[Benchmarking] No bm_reports row for engagement; cannot sync share flags', engagement.id);
+        console.error(
+          '[Benchmarking] bm_reports share update matched 0 rows for engagement:',
+          engagement.id,
+          '(no row exists, or UPDATE blocked by permissions / RLS).'
+        );
         alert(
-          'No benchmarking report row found for this engagement. Generate or save the report first, then share again.'
+          'Could not save share settings on the benchmarking report for this engagement. If you already see a generated report here, your account may lack permission — ask your practice administrator, or confirm the database has the migration that lets practice members update bm_reports.'
         );
         return;
       }
@@ -11917,7 +11921,7 @@ function BenchmarkingClientModal({
             setEngagement(reportsForClient.bm_engagements);
           }
           console.log('[Benchmarking Modal] Found report directly (no engagement):', {
-            report_id: directReportData.id,
+            report_engagement_id: directReportData.engagement_id,
             status: directReportData.status
           });
         }
@@ -12011,9 +12015,8 @@ function BenchmarkingClientModal({
           errorCode: reportError?.code,
           errorDetails: reportError,
           engagement_id_queried: engagementData.id,
-          report_id: reportData?.id,
-          report_status: reportData?.status,
-          report_engagement_id: reportData?.engagement_id
+          report_pk_engagement_id: reportData?.engagement_id,
+          report_status: reportData?.status
         });
         
         // DEBUG: Also try querying without maybeSingle to see if there are multiple
@@ -12059,8 +12062,7 @@ function BenchmarkingClientModal({
               // Prefer the one matching current engagement, otherwise use most recent
               finalReportData = reportsByEngagements.find((r: any) => r.engagement_id === engagementData.id) || reportsByEngagements[0];
               console.log('[Benchmarking Modal] Using report from engagement search:', {
-                report_id: finalReportData.id,
-                engagement_id: finalReportData.engagement_id,
+                report_engagement_id: finalReportData.engagement_id,
                 status: finalReportData.status
               });
             }
@@ -12086,8 +12088,8 @@ function BenchmarkingClientModal({
             if (reportsViaJoin) {
               finalReportData = reportsViaJoin;
               console.log('[Benchmarking Modal] Found report via join query:', {
-                report_id: finalReportData.id,
-                engagement_id: finalReportData.engagement_id
+                report_engagement_id: finalReportData.engagement_id,
+                engagement_id_matches: finalReportData.engagement_id === engagementData.id
               });
             }
           }
@@ -12101,9 +12103,8 @@ function BenchmarkingClientModal({
             status: finalReportData?.status,
             hasHeadline: !!finalReportData?.headline,
             hasExecutiveSummary: !!finalReportData?.executive_summary,
-            engagement_id: finalReportData?.engagement_id,
-            engagement_id_queried: engagementData.id,
-            report_id: finalReportData?.id
+            report_pk_engagement_id: finalReportData?.engagement_id,
+            engagement_id_queried: engagementData.id
           });
         }
         
@@ -12116,13 +12117,13 @@ function BenchmarkingClientModal({
           directReportData: !!directReportData,
           reportToUse: !!reportToUse,
           reportStatus: reportToUse?.status,
-          reportId: reportToUse?.id
+          reportPkEngagementId: reportToUse?.engagement_id
         });
         
         // Only set report if it has a valid status (null status means it was reset/deleted)
         if (reportToUse && reportToUse.status !== null && reportToUse.status !== undefined) {
           console.log('[Benchmarking Modal] Setting report in state:', {
-            id: reportToUse.id,
+            engagement_id: reportToUse.engagement_id,
             status: reportToUse.status,
             hasHeadline: !!reportToUse.headline,
             hasExecutiveSummary: !!reportToUse.executive_summary
