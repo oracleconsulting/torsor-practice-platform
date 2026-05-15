@@ -31,6 +31,7 @@ import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
 import { BenchmarkAppendix } from '../BenchmarkAppendix';
 import { InvestmentReadinessSection } from './InvestmentReadinessSection';
 import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
+import { coerceEmployeeCount, estimateEmployeesFromBand } from '../../../lib/benchmarking/employee-band-estimate';
 import type { 
   EnhancedValueSuppressor, 
   ExitReadinessScore, 
@@ -372,15 +373,14 @@ export function BenchmarkingClientReport({
                               getMetricValue('revenue_per_employee');
     
     // Employee count: direct column > pass1_data > derived from employee band
+    // Employee count: numeric/text narrative columns → Pass 1 enriched → midpoint from employee_band
+
     const employeeBand = data.employee_band || data.pass1_data?.classification?.employeeBand;
-    const estimatedEmployees = employeeBand === '1-10' ? 5 :
-                               employeeBand === '11-50' ? 30 :
-                               employeeBand === '51-250' ? 131 :  // Mid-point, actual for Installation Tech
-                               employeeBand === '251+' ? 300 : 0;
-    
-    const employeeCountRaw = data.employee_count || 
-                             data.pass1_data?._enriched_employee_count ||
-                             estimatedEmployees;
+    const estimatedEmployees = estimateEmployeesFromBand(employeeBand);
+    const coercedEmployees =
+      coerceEmployeeCount(data.employee_count) ||
+      coerceEmployeeCount(data.pass1_data?._enriched_employee_count);
+    const employeeCountRaw = coercedEmployees || estimatedEmployees;
     
     // Calculate revenue from employees × rev/employee as a fallback
     const calculatedRevenue = (employeeCountRaw && revPerEmployeeRaw && employeeCountRaw > 0) 
@@ -389,9 +389,15 @@ export function BenchmarkingClientReport({
     
     // Priority: explicit revenue > pass1 enriched revenue > calculated from employees
     const revenue = directRevenue || calculatedRevenue || 0;
-    
-    // Debug logging to help diagnose issues
-    if (typeof window !== 'undefined' && revenue < 1000000) {
+
+    const businessStage =
+      (data.pass1_data as { business_stage?: string } | undefined)?.business_stage ||
+      (data as { business_stage?: string }).business_stage;
+    const isPreRevenueStage =
+      businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+
+    // Debug logging — pre-revenue often has no GBP run-rate; omit noisy warnings
+    if (typeof window !== 'undefined' && !isPreRevenueStage && revenue > 0 && revenue < 1000000) {
       console.warn('[ScenarioExplorer] Revenue seems low:', {
         'data.revenue': data.revenue,
         'pass1._enriched_revenue': data.pass1_data?._enriched_revenue,
@@ -402,7 +408,7 @@ export function BenchmarkingClientReport({
         'final revenue': revenue,
       });
     }
-    
+
     if (revenue <= 0) return null;
     
     // Get gross margin

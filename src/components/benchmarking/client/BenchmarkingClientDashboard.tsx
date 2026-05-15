@@ -35,6 +35,7 @@ import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
 import { InvestmentReadinessSection } from './InvestmentReadinessSection';
 import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
 import { BenchmarkAppendix } from '../BenchmarkAppendix';
+import { coerceEmployeeCount, estimateEmployeesFromBand } from '../../../lib/benchmarking/employee-band-estimate';
 
 // ─── Types (FROZEN — matches BenchmarkingClientReport exactly) ────────────
 
@@ -691,8 +692,11 @@ export default function BenchmarkingClientDashboard({
     const revPerEmployeeMetric = metrics.find((m: any) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
     const revPerEmployeeRaw = revPerEmployeeMetric?.clientValue || data.pass1_data?.revenue_per_employee || getMetricValue('revenue_per_employee');
     const employeeBand = data.employee_band || data.pass1_data?.classification?.employeeBand;
-    const estimatedEmployees = employeeBand === '1-10' ? 5 : employeeBand === '11-50' ? 30 : employeeBand === '51-250' ? 131 : employeeBand === '251+' ? 300 : 0;
-    const employeeCountRaw = data.employee_count || data.pass1_data?._enriched_employee_count || estimatedEmployees;
+    const estimatedEmployees = estimateEmployeesFromBand(employeeBand);
+    const coercedEmployees =
+      coerceEmployeeCount(data.employee_count) ||
+      coerceEmployeeCount(data.pass1_data?._enriched_employee_count);
+    const employeeCountRaw = coercedEmployees || estimatedEmployees;
     const calculatedRevenue = (employeeCountRaw && revPerEmployeeRaw && employeeCountRaw > 0) ? employeeCountRaw * revPerEmployeeRaw : 0;
     const revenue = directRevenue || calculatedRevenue || 0;
     if (revenue <= 0) return null;

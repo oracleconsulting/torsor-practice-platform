@@ -63,6 +63,7 @@ import { ClientRoadmapPreview } from '../../components/admin/ClientRoadmapPrevie
 import { dispatchOpenAgent } from '../../components/admin/AgentLauncher';
 import { SAClientReportView } from '../../components/systems-audit/SAClientReportView';
 import BenchmarkingClientDashboard from '../../components/benchmarking/client/BenchmarkingClientDashboard';
+import { mergeBenchmarkHvaForClientView } from '../../lib/benchmarking/merge-benchmark-hva';
 import { BenchmarkingAdminView } from '../../components/benchmarking/admin/BenchmarkingAdminView';
 import { EngagementSetupPanel } from '../../components/benchmarking/admin/EngagementSetupPanel';
 import { calculateFounderRisk } from '../../lib/services/benchmarking/founder-risk-calculator';
@@ -13106,64 +13107,8 @@ function BenchmarkingClientModal({
                             <BenchmarkingClientDashboard
                                 data={{
                                   ...report,
-                                created_at: report?.created_at,
-                                hva_data: (() => {
-                                  // Prefer `bm_reports.hva_data` (Pass/SQL-augmented, full structured audit)
-                                  // when present. This block previously always overwrote the column with a
-                                  // thin object built from `hvaStatus.responses`, discarding richer JSONB.
-                                  const rawHva = report?.hva_data;
-                                  const fromDb: Record<string, unknown> | null =
-                                    rawHva == null
-                                      ? null
-                                      : typeof rawHva === 'string'
-                                        ? (() => {
-                                            try {
-                                              const v = JSON.parse(rawHva) as unknown;
-                                              return v && typeof v === 'object' && !Array.isArray(v)
-                                                ? (v as Record<string, unknown>)
-                                                : null;
-                                            } catch {
-                                              return null;
-                                            }
-                                          })()
-                                        : typeof rawHva === 'object' && !Array.isArray(rawHva)
-                                          ? (rawHva as Record<string, unknown>)
-                                          : null;
-
-                                  const persistHasContent = Boolean(
-                                    fromDb &&
-                                      ((Array.isArray(fromDb.competitive_moat) && fromDb.competitive_moat.length > 0) ||
-                                        (typeof fromDb.unique_methods === 'string' && fromDb.unique_methods.trim() !== '') ||
-                                        (typeof fromDb.reputation_build_time === 'string' &&
-                                          String(fromDb.reputation_build_time).trim() !== '') ||
-                                        typeof fromDb.reputation_build_time === 'number' ||
-                                        !!(fromDb as { reputation_build_time_note?: unknown }).reputation_build_time_note ||
-                                        !!(fromDb as { founder_dependency?: unknown }).founder_dependency ||
-                                        !!(fromDb as { ip_and_documentation?: unknown }).ip_and_documentation ||
-                                        !!(fromDb as { operational_autonomy?: unknown }).operational_autonomy ||
-                                        !!(fromDb as { concentration_and_revenue?: unknown }).concentration_and_revenue)
-                                  );
-
-                                  if (persistHasContent) return fromDb;
-
-                                  const hvaResponses = hvaStatus?.responses;
-                                  if (!hvaResponses) return fromDb ?? undefined;
-                                  const cm = hvaResponses.competitive_moat;
-                                  return {
-                                    competitive_moat: Array.isArray(cm)
-                                      ? cm
-                                      : typeof cm === 'string'
-                                        ? cm.split(',').map((s: string) => s.trim()).filter(Boolean)
-                                        : [],
-                                    unique_methods:
-                                      typeof hvaResponses.unique_methods === 'string'
-                                        ? hvaResponses.unique_methods
-                                        : Array.isArray(hvaResponses.unique_methods)
-                                          ? hvaResponses.unique_methods.join('; ')
-                                          : undefined,
-                                    reputation_build_time: hvaResponses.reputation_build_time,
-                                  };
-                                })(),
+                                  created_at: report?.created_at,
+                                  hva_data: mergeBenchmarkHvaForClientView(report, hvaStatus),
                                 }}
                                 clientName={clientName}
                               />
