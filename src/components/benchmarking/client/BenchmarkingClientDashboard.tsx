@@ -2472,7 +2472,7 @@ export default function BenchmarkingClientDashboard({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{svc.serviceName}</p>
                           {isPrimary && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: C.blue, color: '#fff', ...mono }}>PRIORITY</span>}
-                          {svc.serviceStatus && <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: `${C.emerald}12`, color: C.emerald, border: `1px solid ${C.emerald}20`, ...mono }}>{svc.serviceStatus.replace(/_/g, ' ').toUpperCase()}</span>}
+                          {/* serviceStatus omitted for client UI — internal catalogued/concept tooling */}
                         </div>
                         <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>{svc.headline || svc.description}</p>
                       </div>
