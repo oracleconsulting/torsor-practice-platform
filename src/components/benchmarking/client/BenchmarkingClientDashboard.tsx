@@ -645,9 +645,20 @@ export default function BenchmarkingClientDashboard({
   const [targetRPE, setTargetRPE] = useState(500000);
   const [targetConcentration, setTargetConcentration] = useState(70);
   const contentRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const navItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // ─── Persistent visited sections ─────────────────────────────────────────
   const [visited, setVisited] = useState<Set<string>>(() => new Set(['overview']));
+
+  useEffect(() => {
+    const nav = navRef.current;
+    const activeItem = navItemRefs.current[activeSection];
+    if (!nav || !activeItem || window.innerWidth > 768) return;
+
+    const targetLeft = activeItem.offsetLeft - (nav.clientWidth - activeItem.clientWidth) / 2;
+    nav.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+  }, [activeSection]);
 
   const handleNavigate = useCallback((sectionId: string) => {
     if (sectionId === activeSection) return;
@@ -867,12 +878,12 @@ export default function BenchmarkingClientDashboard({
           </div>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 4, ...mono }}>Benchmarking Report</p>
         </div>
-        <nav className="bm-nav" style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
+        <nav ref={navRef} className="bm-nav" style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const showGroup = lastGroup !== item.section && (lastGroup = item.section);
             return (
-              <div key={item.id} className="bm-nav-item-wrap">
+              <div key={item.id} ref={(el) => { navItemRefs.current[item.id] = el; }} className="bm-nav-item-wrap">
                 {showGroup && <div className="bm-nav-group" style={{ padding: '8px 16px 4px', fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', ...mono }}>{SECTION_GROUPS[item.section]}</div>}
                 <button type="button" onClick={() => handleNavigate(item.id)}
                   className="bm-nav-button"
@@ -881,7 +892,7 @@ export default function BenchmarkingClientDashboard({
                   onMouseLeave={e => { if (activeSection !== item.id) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                 >
                   <Icon style={{ width: 18, height: 18, flexShrink: 0 }} /><span style={{ flex: 1 }}>{item.label}</span>
-                  {visited.has(item.id) && activeSection !== item.id && <span style={{ width: 18, height: 18, borderRadius: 9, background: C.emerald, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                  {visited.has(item.id) && activeSection !== item.id && <span className="bm-nav-check" style={{ width: 18, height: 18, borderRadius: 9, background: C.emerald, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>✓</span>}
                 </button>
               </div>
             );
@@ -3197,14 +3208,14 @@ export default function BenchmarkingClientDashboard({
           .bm-nav-button {
             width: auto !important;
             min-width: max-content !important;
-            padding: 9px 11px !important;
+            padding: 9px 12px !important;
             border-left: 0 !important;
             border-radius: 10px !important;
             gap: 7px !important;
             font-size: 12px !important;
             white-space: nowrap !important;
           }
-          .bm-nav-button span:last-child {
+          .bm-nav-check {
             display: none !important;
           }
           .bm-main {
