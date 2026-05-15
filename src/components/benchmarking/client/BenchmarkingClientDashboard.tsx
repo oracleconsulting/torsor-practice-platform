@@ -115,6 +115,21 @@ interface BenchmarkAnalysis {
     exit_horizon_years?: number;
     target_exit_valuation?: number;
   };
+  scenarios_content?: {
+    intro?: {
+      title?: string;
+      paragraphs?: string[];
+    };
+    metric_definitions?: Record<string, { short?: string; definition?: string }>;
+    scenario_narratives?: Record<
+      string,
+      {
+        what_this_tests?: string;
+        why_it_matters?: string;
+        interpretation?: string;
+      }
+    >;
+  };
   methodology_content?: {
     intro?: { title?: string; body?: string };
     methods?: Array<{
@@ -2054,11 +2069,24 @@ export default function BenchmarkingClientDashboard({
       case 'scenarios': {
         const preRevScenarios = preRevenueAnalysis?.scenarios || data.scenarios || data.pass1_data?.pre_revenue_scenarios;
         if (isPreRevenue && preRevScenarios?.length) {
+          const scRaw = data.scenarios_content;
+          const scenariosContentParsed =
+            scRaw == null
+              ? undefined
+              : typeof scRaw === 'string'
+                ? safeJsonParse<BenchmarkAnalysis['scenarios_content']>(scRaw, undefined)
+                : scRaw;
           return (
             <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <PreRevenueScenariosSection
                 scenarios={preRevScenarios}
-                targetExitValuation={data.pass1_data?.target_exit_valuation || data.target_exit_valuation || preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+                targetExitValuation={
+                  data.pass1_data?.target_exit_valuation ||
+                  data.target_exit_valuation ||
+                  preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation ||
+                  0
+                }
+                scenariosContent={scenariosContentParsed}
               />
             </div>
           );
