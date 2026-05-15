@@ -11796,7 +11796,7 @@ function BenchmarkingClientModal({
           '(no row exists, or UPDATE blocked by permissions / RLS).'
         );
         alert(
-          'Could not save share settings on the benchmarking report for this engagement. If you already see a generated report here, your account may lack permission — ask your practice administrator, or confirm the database has the migration that lets practice members update bm_reports.'
+          'Could not save share settings on the benchmarking report. Apply the latest Supabase migrations (benchmarking RLS), or ask your practice administrator if your staff account should have access.'
         );
         return;
       }
