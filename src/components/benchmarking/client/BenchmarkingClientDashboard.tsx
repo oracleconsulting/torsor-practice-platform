@@ -280,6 +280,90 @@ const getMetricFormat = (metricCode: string | undefined): 'currency' | 'percent'
   return 'number';
 };
 
+const appendixToMethodologyContent = (appendix: any): BenchmarkAnalysis['methodology_content'] | null => {
+  if (!appendix || typeof appendix !== 'object') return null;
+  const methodology = appendix.methodology || {};
+  const methods = [
+    methodology.summary || methodology.valuationMethod || methodology.benchmarkSource
+      ? {
+          id: 'valuation-methodology',
+          name: methodology.valuationMethod
+            ? `${methodology.valuationMethod} Methodology`
+            : 'Benchmarking Methodology',
+          originator: methodology.benchmarkSource,
+          method_value_for_vykn: methodology.valuationMethod,
+          what_it_does: methodology.summary,
+          why_relevant_to_vykn:
+            appendix.stage === 'pre_revenue' || appendix.stage === 'early_revenue'
+              ? 'Pre-revenue benchmarks need a valuation lens that can handle limited historic revenue, investor risk, and milestone evidence.'
+              : 'Trading-company benchmarks need a valuation lens that connects actual financial performance, peer metrics, and buyer confidence.',
+          how_to_interpret:
+            appendix.stage === 'pre_revenue' || appendix.stage === 'early_revenue'
+              ? 'Use this as a defensibility range for investor conversations, not a fixed price.'
+              : 'Use this as a structured estimate of what the business could be worth after adjusting for risk and operational quality.',
+          limitations: Array.isArray(appendix.limitations) ? appendix.limitations.join(' ') : undefined,
+        }
+      : null,
+    ...(Array.isArray(appendix.frameworks)
+      ? appendix.frameworks.map((framework: any) => ({
+          id: framework.code || framework.name,
+          name: framework.name || framework.code,
+          originator: framework.source,
+          method_value_for_vykn: framework.isPrimary ? 'Primary lens' : framework.weight ? `${framework.weight}% weighting` : undefined,
+          what_it_does: framework.description,
+          why_relevant_to_vykn: 'Used as one of the evidence lenses in the overall benchmarking and valuation judgement.',
+          how_to_interpret: 'Read alongside the other methods rather than in isolation.',
+        }))
+      : []),
+  ].filter(Boolean) as NonNullable<BenchmarkAnalysis['methodology_content']>['methods'];
+
+  const confidenceNotes = Array.isArray(appendix.confidenceNotes) ? appendix.confidenceNotes : [];
+  const confidenceLevel = confidenceNotes.find((note: string) => /confidence/i.test(note))?.replace(/^Confidence level:\s*/i, '');
+  const dataYear = confidenceNotes.find((note: string) => /data year/i.test(note))?.replace(/^Data year:\s*/i, '');
+  const ukDiscount = confidenceNotes.find((note: string) => /UK discount/i.test(note))?.replace(/^UK discount vs US:\s*/i, '');
+
+  return {
+    intro: {
+      title: 'Why these methods were used',
+      body:
+        methodology.summary ||
+        'This section explains the benchmark and valuation methods used to interpret the report.',
+    },
+    methods,
+    triangulation: {
+      title: 'Triangulation',
+      body:
+        appendix.stage === 'pre_revenue' || appendix.stage === 'early_revenue'
+          ? 'The report triangulates founder ambition, investor return logic, scorecard-style risk factors, and comparable round evidence.'
+          : 'The report triangulates company financials, industry benchmark performance, valuation multiples, and buyer-risk adjustments.',
+    },
+    data_sources: Array.isArray(appendix.dataSources)
+      ? appendix.dataSources.map((source: any) => ({
+          name: typeof source === 'string' ? source : source?.name || 'Benchmark source',
+          what_it_provides: typeof source === 'string' ? undefined : source?.what_it_provides || source?.description,
+        }))
+      : [],
+    glossary:
+      appendix.stage === 'pre_revenue' || appendix.stage === 'early_revenue'
+        ? [
+            { term: 'Pre-money', definition: 'The value of the business immediately before a funding round.' },
+            { term: 'ARR', expanded: 'Annual Recurring Revenue', definition: 'Recurring revenue normalised to a yearly figure.' },
+            { term: 'Berkus', definition: 'A factor-based methodology often used where there is limited revenue history.' },
+          ]
+        : [
+            { term: 'EBITDA', definition: 'Earnings before interest, tax, depreciation and amortisation; often used as an earnings base for valuation.' },
+            { term: 'Multiple', definition: 'A market-derived multiplier applied to maintainable earnings.' },
+            { term: 'Value suppressor', definition: 'A risk factor that reduces buyer confidence and therefore what they may pay.' },
+          ],
+    limitations: Array.isArray(appendix.limitations) ? appendix.limitations : [],
+    confidence_metadata: {
+      confidence_level: confidenceLevel,
+      data_year: dataYear,
+      uk_discount_vs_us: ukDiscount,
+    },
+  };
+};
+
 function splitNarrative(text: string, maxParas: number = 3): string[] {
   if (!text) return [];
   const byNewlines = text.split('\n\n').filter(Boolean);
@@ -2096,15 +2180,15 @@ export default function BenchmarkingClientDashboard({
 
       // ─── SCENARIOS ───────────────────────────────────────────────────────
       case 'scenarios': {
+        const scRaw = data.scenarios_content;
+        const scenariosContentParsed =
+          scRaw == null
+            ? undefined
+            : typeof scRaw === 'string'
+              ? safeJsonParse<BenchmarkAnalysis['scenarios_content']>(scRaw, undefined)
+              : scRaw;
         const preRevScenarios = preRevenueAnalysis?.scenarios || data.scenarios || data.pass1_data?.pre_revenue_scenarios;
         if (isPreRevenue && preRevScenarios?.length) {
-          const scRaw = data.scenarios_content;
-          const scenariosContentParsed =
-            scRaw == null
-              ? undefined
-              : typeof scRaw === 'string'
-                ? safeJsonParse<BenchmarkAnalysis['scenarios_content']>(scRaw, undefined)
-                : scRaw;
           return (
             <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <PreRevenueScenariosSection
@@ -2181,6 +2265,17 @@ export default function BenchmarkingClientDashboard({
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {scenariosContentParsed?.intro && (
+              <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+                {scenariosContentParsed.intro.title && (
+                  <h2 style={{ color: C.text, fontSize: 20, fontWeight: 800, margin: '0 0 10px' }}>{scenariosContentParsed.intro.title}</h2>
+                )}
+                {Array.isArray(scenariosContentParsed.intro.paragraphs) &&
+                  scenariosContentParsed.intro.paragraphs.map((paragraph, i) => (
+                    <p key={i} style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, margin: i === 0 ? 0 : '10px 0 0' }}>{paragraph}</p>
+                  ))}
+              </RevealCard>
+            )}
             {/* Explore Improvement Scenarios — multi-tab */}
             <RevealCard style={{ ...glass({ padding: 24 }) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -2996,11 +3091,13 @@ export default function BenchmarkingClientDashboard({
 
       case 'methodology': {
         const mcRaw = data.methodology_content;
+        const appendix = data.pass1_data?.benchmark_appendix;
+        const appendixFallback = appendixToMethodologyContent(appendix);
         const mc =
           mcRaw == null
-            ? null
+            ? appendixFallback
             : typeof mcRaw === 'string'
-              ? safeJsonParse<BenchmarkAnalysis['methodology_content']>(mcRaw, undefined)
+              ? safeJsonParse<BenchmarkAnalysis['methodology_content']>(mcRaw, undefined) || appendixFallback
               : mcRaw;
         if (!mc || typeof mc !== 'object') {
           return (

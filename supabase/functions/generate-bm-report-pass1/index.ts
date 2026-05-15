@@ -7731,6 +7731,109 @@ When writing narratives:
       ];
     }
 
+    const methodologyContent = {
+      intro: {
+        title: isPreRevenue ? 'Why these valuation methods were used' : 'Why these benchmarking methods were used',
+        body: benchmarkAppendix.methodology.summary,
+      },
+      methods: [
+        {
+          id: isPreRevenue ? 'pre-revenue-valuation' : 'operating-valuation',
+          name: benchmarkAppendix.methodology.valuationMethod
+            ? `${benchmarkAppendix.methodology.valuationMethod} Methodology`
+            : isPreRevenue ? 'Pre-revenue valuation' : 'Operating valuation',
+          originator: benchmarkAppendix.methodology.benchmarkSource,
+          method_value_for_vykn: benchmarkAppendix.methodology.valuationMethod,
+          what_it_does: benchmarkAppendix.methodology.summary,
+          why_relevant_to_vykn: isPreRevenue
+            ? 'Pre-revenue companies need valuation methods that work before historic EBITDA exists.'
+            : 'Trading companies can be assessed against actual performance, peer benchmarks, and buyer-risk adjustments.',
+          how_to_interpret: isPreRevenue
+            ? 'Treat this as a defensibility range for the raise, not a fixed price.'
+            : 'Treat this as an evidence-led estimate of maintainable value, subject to buyer diligence and risk discounts.',
+          limitations: benchmarkAppendix.limitations?.join(' '),
+        },
+        ...(benchmarkAppendix.frameworks || []).map((framework: any) => ({
+          id: framework.code || framework.name,
+          name: framework.name || framework.code,
+          originator: framework.source,
+          method_value_for_vykn: framework.isPrimary ? 'Primary lens' : framework.weight ? `${framework.weight}% weighting` : undefined,
+          what_it_does: framework.description,
+          why_relevant_to_vykn: 'Used as one of the supporting evidence lenses in the final benchmark judgement.',
+          how_to_interpret: 'Read alongside the other methods rather than in isolation.',
+        })),
+      ],
+      triangulation: {
+        title: 'Triangulation',
+        body: isPreRevenue
+          ? 'The report triangulates investor return logic, factor-based readiness scores, and comparable funding evidence.'
+          : 'The report triangulates company financials, sector benchmarks, valuation multiples, and buyer confidence adjustments.',
+      },
+      data_sources: (benchmarkAppendix.dataSources || []).map((source: any) => ({
+        name: typeof source === 'string' ? source : source?.name || 'Benchmark source',
+        what_it_provides: typeof source === 'string' ? undefined : source?.description || source?.what_it_provides,
+      })),
+      glossary: isPreRevenue
+        ? [
+            { term: 'Pre-money', definition: 'The value of the business immediately before a funding round.' },
+            { term: 'ARR', expanded: 'Annual Recurring Revenue', definition: 'Recurring revenue normalised to a yearly figure.' },
+            { term: 'Berkus', definition: 'A factor-based pre-revenue methodology for early-stage valuation.' },
+          ]
+        : [
+            { term: 'EBITDA', definition: 'Earnings before interest, tax, depreciation and amortisation; commonly used as a valuation earnings base.' },
+            { term: 'Multiple', definition: 'A market-derived multiplier applied to maintainable earnings.' },
+            { term: 'Value suppressor', definition: 'A risk factor that reduces buyer confidence and therefore valuation.' },
+          ],
+      limitations: benchmarkAppendix.limitations || [],
+      confidence_metadata: {
+        confidence_level: benchmarkAppendix.confidenceNotes?.find((note: string) => /confidence/i.test(note))?.replace(/^Confidence level:\s*/i, ''),
+        data_year: benchmarkAppendix.confidenceNotes?.find((note: string) => /data year/i.test(note))?.replace(/^Data year:\s*/i, ''),
+        uk_discount_vs_us: benchmarkAppendix.confidenceNotes?.find((note: string) => /UK discount/i.test(note))?.replace(/^UK discount vs US:\s*/i, ''),
+      },
+    };
+
+    const scenariosContent = {
+      intro: {
+        title: isPreRevenue ? 'How to read these scenarios' : 'How to read these operating scenarios',
+        paragraphs: isPreRevenue
+          ? [
+              'These scenarios test how changes in pipeline, retention, pricing, dilution, and timing affect the path to the target exit.',
+              'They are not forecasts. They are sensitivity tests that show which assumptions matter most.',
+            ]
+          : [
+              'These scenarios test how improvements in margin, pricing, cash collection, productivity, and concentration change annual profit and enterprise value.',
+              'They are not forecasts. They are directional planning tools based on the current financial baseline and peer benchmarks.',
+            ],
+      },
+      metric_definitions: isPreRevenue
+        ? {}
+        : {
+            grossMargin: { short: 'Gross margin', definition: 'Gross profit as a percentage of revenue.' },
+            debtorDays: { short: 'Debtor days', definition: 'Average days taken to collect cash from customers.' },
+            revenuePerEmployee: { short: 'Revenue per employee', definition: 'Revenue divided by headcount; a productivity benchmark.' },
+            clientConcentration: { short: 'Client concentration', definition: 'Revenue dependency on the largest customers.' },
+          },
+      scenario_narratives: isPreRevenue
+        ? {}
+        : {
+            margin: {
+              what_this_tests: 'How much value is unlocked if delivery economics improve.',
+              why_it_matters: 'Margin improvement usually converts into both profit and valuation uplift.',
+              interpretation: 'Use this to decide whether pricing, delivery discipline, or cost control should be prioritised.',
+            },
+            cash: {
+              what_this_tests: 'How much cash is released by reducing debtor days.',
+              why_it_matters: 'Working-capital improvements reduce pressure and can fund growth without new borrowing.',
+              interpretation: 'Use this to test whether credit control and billing discipline are worth immediate focus.',
+            },
+            diversification: {
+              what_this_tests: 'How valuation changes if customer dependency is reduced.',
+              why_it_matters: 'Buyers discount businesses where too much revenue depends on too few relationships.',
+              interpretation: 'Use this to assess whether sales focus should be on new logos, expansion, or contract structure.',
+            },
+          },
+    };
+
     // Build numeric anchors from pre-revenue analysis
     const numericAnchors = isPreRevenue && preRevenueAnalysis
       ? buildNumericAnchors(engagement, preRevenueAnalysis)
@@ -7850,6 +7953,36 @@ When writing narratives:
       data_integrity_manifest: manifest.entries.length > 0 ? manifest : null,
       numeric_anchors: numericAnchors.length > 0 ? numericAnchors : null,
       data_integrity: dataIntegrityState,
+      methodology_content: methodologyContent,
+      scenarios_content: scenariosContent,
+      hva_data: effectiveHVAData?.responses ? {
+        competitive_moat: effectiveHVAData.responses.competitive_moat || [],
+        unique_methods: effectiveHVAData.responses.unique_methods || null,
+        reputation_build_time: effectiveHVAData.responses.reputation_build_time || null,
+        reputation_build_time_note: effectiveHVAData.responses.reputation_build_time_note || null,
+        founder_dependency: {
+          narrative: founderRisk?.riskFactors?.founder_dependency?.evidence || null,
+          current_state: effectiveHVAData.responses.succession_your_role || null,
+          remediation_path: founderRisk?.riskFactors?.founder_dependency?.remediation || null,
+        },
+        ip_and_documentation: {
+          narrative: effectiveHVAData.responses.unique_methods || null,
+          protection_status: effectiveHVAData.responses.unique_methods_protection || null,
+          current_gaps: effectiveHVAData.responses.critical_processes_undocumented || [],
+        },
+        operational_autonomy: {
+          narrative: effectiveHVAData.responses.autonomy_strategy || null,
+          current_state: [
+            effectiveHVAData.responses.autonomy_sales,
+            effectiveHVAData.responses.autonomy_finance,
+            effectiveHVAData.responses.autonomy_delivery,
+          ].filter(Boolean),
+        },
+        concentration_and_revenue: {
+          narrative: effectiveHVAData.responses.client_concentration_top3 || effectiveHVAData.responses.top3_customer_revenue_percentage || null,
+          year_1_projection: effectiveHVAData.responses.recurring_revenue_percentage || null,
+        },
+      } : null,
     };
     
     // Add founder risk data if available
