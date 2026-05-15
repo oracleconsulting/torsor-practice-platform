@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, Loader2, Lock, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, Lock } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import BenchmarkingClientDashboard from '@torsor/platform/components/benchmarking/client/BenchmarkingClientDashboard';
 import { fetchBenchmarkReportPayload } from '@/lib/benchmark-report-data';
@@ -116,16 +116,7 @@ export default function BenchmarkingReportPage() {
             <ArrowLeft className="w-4 h-4" />
             Dashboard
           </button>
-          <div className="flex items-center gap-4">
-            <Link
-              to="/service/benchmarking/report/classic"
-              className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 font-medium"
-            >
-              <FileText className="w-4 h-4" />
-              Classic layout & PDF
-            </Link>
-            <Logo />
-          </div>
+          <Logo />
         </div>
       </div>
 
