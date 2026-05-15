@@ -1911,7 +1911,7 @@ export default function BenchmarkingClientDashboard({
                 <ProgressRing score={score} size={180} strokeWidth={14} color={scoreColor} ringLabel={isPreRevenue ? 'Invest Score' : 'Exit Score'} />
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>{isPreRevenue ? 'Investment Readiness' : 'Exit Readiness'}</h2>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 14 }}>{isPreRevenue ? 'How prepared is your business for investment?' : 'How prepared is your business for a sale or transition?'}</p>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 14 }}>{isPreRevenue ? 'Your investability score against a 65+ Series A-ready threshold' : 'Your readiness score against a 65+ sale-ready threshold'}</p>
                   <span style={{ fontSize: 13, fontWeight: 700, padding: '6px 18px', borderRadius: 20, background: `${scoreColor}25`, color: scoreColor, ...mono }}>{effectiveBreakdown.levelLabel}</span>
                   <div style={{ marginTop: 16, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${(score / effectiveBreakdown.maxScore) * 100}%`, background: scoreColor, borderRadius: 3, transition: `width 1.2s ${EASE.spring}` }} />
@@ -1957,9 +1957,16 @@ export default function BenchmarkingClientDashboard({
             {/* Path to 70 */}
             {score < 70 && effectiveBreakdown.pathTo70 && (
               <RevealCard delay={200} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                  <Target style={{ width: 18, height: 18, color: C.emerald }} />
-                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>{isPreRevenue ? 'Path to Investment Ready (70/100)' : 'Path to Credibly Exit Ready (70/100)'}</h3>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <Target style={{ width: 18, height: 18, color: C.emerald, flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>{isPreRevenue ? 'Path to Investment Ready (65+)' : 'Path to Credibly Exit Ready (65+)'}</h3>
+                      <p style={{ color: C.textMuted, fontSize: 12, marginTop: 2, marginBottom: 0 }}>
+                        {isPreRevenue ? 'Top actions to close the gap to a 65+ investment-ready score' : 'Top actions to close the gap to a 65+ exit-ready score'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                   {effectiveBreakdown.pathTo70.actions.map((action: string, i: number) => (

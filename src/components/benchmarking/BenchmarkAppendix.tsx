@@ -1,6 +1,24 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
+const humaniseIndustryCode = (code: string | undefined | null): string => {
+  if (!code) return '';
+  const overrides: Record<string, string> = {
+    SAAS_REGTECH: 'SaaS RegTech',
+    SAAS_FINTECH: 'SaaS FinTech',
+    SAAS_HRTECH: 'SaaS HR Tech',
+    SAAS_GENERIC: 'SaaS (Generic)',
+    PROFESSIONAL_SERVICES: 'Professional Services',
+    ECOMMERCE: 'E-commerce',
+  };
+  if (overrides[code]) return overrides[code];
+  return code
+    .toLowerCase()
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+};
+
 interface BenchmarkAppendixProps {
   appendix: {
     generatedAt: string;
@@ -171,7 +189,7 @@ export function BenchmarkAppendix({ appendix }: BenchmarkAppendixProps) {
 
           {/* Footer */}
           <p style={{ margin: 0, fontSize: 10, color: S.light, borderTop: `1px solid ${S.border}`, paddingTop: 10 }}>
-            Generated {fmtDate(appendix.generatedAt)} for industry {appendix.industryCode}
+            Generated {fmtDate(appendix.generatedAt)} for industry {humaniseIndustryCode(appendix.industryCode)}
           </p>
         </div>
       )}
