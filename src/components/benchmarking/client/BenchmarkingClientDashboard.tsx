@@ -857,8 +857,8 @@ export default function BenchmarkingClientDashboard({
   function Sidebar() {
     let lastGroup = '';
     return (
-      <aside style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 220, background: C.navy, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', zIndex: 30 }}>
-        <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <aside className="bm-sidebar" style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 220, background: C.navy, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', zIndex: 30 }}>
+        <div className="bm-sidebar-brand" style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ color: '#fff', fontWeight: 700, fontSize: 18, fontFamily: "'DM Sans', sans-serif" }}>RPGCC</span>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: C.blue }} />
@@ -867,14 +867,15 @@ export default function BenchmarkingClientDashboard({
           </div>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 4, ...mono }}>Benchmarking Report</p>
         </div>
-        <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
+        <nav className="bm-nav" style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const showGroup = lastGroup !== item.section && (lastGroup = item.section);
             return (
-              <div key={item.id}>
-                {showGroup && <div style={{ padding: '8px 16px 4px', fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', ...mono }}>{SECTION_GROUPS[item.section]}</div>}
+              <div key={item.id} className="bm-nav-item-wrap">
+                {showGroup && <div className="bm-nav-group" style={{ padding: '8px 16px 4px', fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', ...mono }}>{SECTION_GROUPS[item.section]}</div>}
                 <button type="button" onClick={() => handleNavigate(item.id)}
+                  className="bm-nav-button"
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', border: 'none', background: activeSection === item.id ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeSection === item.id ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textAlign: 'left', borderLeft: activeSection === item.id ? `3px solid ${C.blue}` : '3px solid transparent', transition: 'all 0.15s ease' }}
                   onMouseEnter={e => { if (activeSection !== item.id) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
                   onMouseLeave={e => { if (activeSection !== item.id) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
@@ -886,7 +887,7 @@ export default function BenchmarkingClientDashboard({
             );
           })}
         </nav>
-        <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="bm-sidebar-progress" style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', ...mono }}>Progress</span>
             <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', ...mono }}>{visited.size}/{NAV_ITEMS.length}</span>
@@ -3139,34 +3140,152 @@ export default function BenchmarkingClientDashboard({
   // ═══════════════════════════════════════════════════════════════════════════
 
   return (
-    <div style={{ display: 'flex', background: C.bg, height: '100%', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: C.text }}>
+    <div className="bm-dashboard" style={{ display: 'flex', background: C.bg, height: '100%', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: C.text }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400;1,700&display=swap" rel="stylesheet" />
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; }
+        .bm-dashboard { min-height: 100%; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 3px; }
         ::selection { background: ${C.blue}30; }
+        @media (max-width: 768px) {
+          .bm-dashboard {
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100dvh !important;
+            overflow: hidden !important;
+          }
+          .bm-sidebar {
+            position: sticky !important;
+            top: 0 !important;
+            left: auto !important;
+            bottom: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            border-right: none !important;
+            border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+            flex-shrink: 0 !important;
+          }
+          .bm-sidebar-brand {
+            display: none !important;
+          }
+          .bm-sidebar-progress {
+            display: none !important;
+          }
+          .bm-nav {
+            display: flex !important;
+            flex: none !important;
+            gap: 6px !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            padding: 8px 10px !important;
+            -webkit-overflow-scrolling: touch !important;
+            scroll-snap-type: x proximity;
+          }
+          .bm-nav-item-wrap {
+            flex: 0 0 auto !important;
+            scroll-snap-align: start;
+          }
+          .bm-nav-group {
+            display: none !important;
+          }
+          .bm-nav-button {
+            width: auto !important;
+            min-width: max-content !important;
+            padding: 9px 11px !important;
+            border-left: 0 !important;
+            border-radius: 10px !important;
+            gap: 7px !important;
+            font-size: 12px !important;
+            white-space: nowrap !important;
+          }
+          .bm-nav-button span:last-child {
+            display: none !important;
+          }
+          .bm-main {
+            margin-left: 0 !important;
+            width: 100% !important;
+            padding: 14px 12px 24px !important;
+            flex: 1 1 auto !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+          }
+          .bm-content {
+            max-width: none !important;
+            width: 100% !important;
+            overflow: visible !important;
+          }
+          .bm-header {
+            padding-bottom: 12px !important;
+            margin-bottom: 14px !important;
+            align-items: flex-start !important;
+          }
+          .bm-header-title {
+            font-size: 14px !important;
+            line-height: 1.35 !important;
+            word-break: normal !important;
+            overflow-wrap: anywhere !important;
+          }
+          .bm-header-meta {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            line-height: 1.4 !important;
+            font-size: 11px !important;
+          }
+          .bm-main [style*="grid-template-columns: repeat(3, 1fr)"],
+          .bm-main [style*="grid-template-columns: repeat(2, 1fr)"] {
+            grid-template-columns: 1fr !important;
+          }
+          .bm-main [style*="minmax(320px"],
+          .bm-main [style*="minmax(280px"],
+          .bm-main [style*="minmax(260px"],
+          .bm-main [style*="minmax(200px"] {
+            grid-template-columns: 1fr !important;
+          }
+          .bm-main h1, .bm-main h2, .bm-main h3, .bm-main p, .bm-main span, .bm-main div {
+            max-width: 100%;
+          }
+          .bm-main p {
+            overflow-wrap: anywhere;
+          }
+          .bm-main [style*="padding: 48px 40px"] {
+            padding: 28px 18px !important;
+          }
+          .bm-main [style*="padding: 36px 40px"] {
+            padding: 24px 18px !important;
+          }
+          .bm-main [style*="font-size: 32px"] {
+            font-size: 24px !important;
+            line-height: 1.15 !important;
+          }
+          .bm-main [style*="font-size: 28px"] {
+            font-size: 22px !important;
+            line-height: 1.2 !important;
+          }
+        }
       `}</style>
 
       <Sidebar />
 
-      <div ref={contentRef} style={{
+      <div ref={contentRef} className="bm-main" style={{
         marginLeft: 220, flex: 1, padding: '24px 32px', overflowY: 'auto', background: C.bg,
         opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(8px)' : 'translateY(0)',
         transition: 'opacity 0.2s ease, transform 0.2s ease',
       }}>
-        <div style={{ maxWidth: 1060, margin: '0 auto', overflow: 'hidden' }}>
+        <div className="bm-content" style={{ maxWidth: 1060, margin: '0 auto', overflow: 'hidden' }}>
           {/* Header bar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingBottom: 20, marginBottom: 20, borderBottom: `1px solid ${C.cardBorder}` }}>
+          <div className="bm-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingBottom: 20, marginBottom: 20, borderBottom: `1px solid ${C.cardBorder}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
               {onBack && <button type="button" onClick={onBack} style={{ color: C.textMuted, padding: 8, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}><ArrowLeft style={{ width: 20, height: 20 }} /></button>}
               <div style={{ minWidth: 0, flex: 1 }}>
-                <h1 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{data.headline || 'Benchmarking Report'}</h1>
-                <p style={{ fontSize: 13, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <h1 className="bm-header-title" style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{data.headline || 'Benchmarking Report'}</h1>
+                <p className="bm-header-meta" style={{ fontSize: 13, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {isPreRevenue
                     ? [clientName, `Pre-money: ${fmt(preRevenueAnalysis?.defensiblePreMoney?.base || 0)}`, `Investment Readiness: ${data.investment_readiness_score || preRevenueAnalysis?.investmentReadiness?.score || 0}/100`, `Gaps: ${data.gap_count || 0}`].filter(Boolean).join(' · ')
                     : [clientName, `${getOrdinalSuffix(percentile)} percentile`, `£${totalOpportunity.toLocaleString()} opportunity`].filter(Boolean).join(' · ')
