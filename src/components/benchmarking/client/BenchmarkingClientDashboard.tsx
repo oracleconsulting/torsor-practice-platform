@@ -652,12 +652,25 @@ export default function BenchmarkingClientDashboard({
   const [visited, setVisited] = useState<Set<string>>(() => new Set(['overview']));
 
   useEffect(() => {
-    const nav = navRef.current;
-    const activeItem = navItemRefs.current[activeSection];
-    if (!nav || !activeItem || window.innerWidth > 768) return;
+    let raf = 0;
+    const timers: number[] = [];
+    const centerActiveNavItem = (behavior: ScrollBehavior = 'smooth') => {
+      const nav = navRef.current;
+      const activeItem = navItemRefs.current[activeSection];
+      if (!nav || !activeItem || window.innerWidth > 768) return;
 
-    const targetLeft = activeItem.offsetLeft - (nav.clientWidth - activeItem.clientWidth) / 2;
-    nav.scrollTo({ left: Math.max(0, targetLeft), behavior: 'smooth' });
+      const targetLeft = activeItem.offsetLeft - (nav.clientWidth - activeItem.clientWidth) / 2;
+      nav.scrollTo({ left: Math.max(0, targetLeft), behavior });
+    };
+
+    raf = window.requestAnimationFrame(() => centerActiveNavItem('auto'));
+    timers.push(window.setTimeout(() => centerActiveNavItem('smooth'), 260));
+    timers.push(window.setTimeout(() => centerActiveNavItem('auto'), 520));
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
   }, [activeSection]);
 
   const handleNavigate = useCallback((sectionId: string) => {
@@ -3196,11 +3209,10 @@ export default function BenchmarkingClientDashboard({
             overflow-y: hidden !important;
             padding: 8px 10px !important;
             -webkit-overflow-scrolling: touch !important;
-            scroll-snap-type: x proximity;
+            overscroll-behavior-x: contain !important;
           }
           .bm-nav-item-wrap {
             flex: 0 0 auto !important;
-            scroll-snap-align: start;
           }
           .bm-nav-group {
             display: none !important;
