@@ -28,9 +28,9 @@ type AnyRow = Record<string, any>;
 
 const DEFAULT_SOURCE_CLIENT_ID = 'd62c6019-9070-473f-b379-7bfe55d6aed7'; // VYKN / Damon Wilson
 const DEFAULT_SOURCE_ENGAGEMENT_ID = '62d0332c-bd5d-44d7-9405-d53be891d58e';
-const DEFAULT_TARGET_EMAIL = 'test@testing.com';
+const DEFAULT_TARGET_EMAIL = 'test@torsor.co.uk';
 const DEFAULT_DEMO_COMPANY = 'Demo Client Ltd';
-const DEFAULT_DEMO_PERSON = 'Alex Morgan';
+const DEFAULT_DEMO_PERSON = 'Sam Carter';
 
 const DEFAULT_REDACTIONS = [
   'VYKN',
@@ -44,6 +44,12 @@ const DEFAULT_REDACTIONS = [
   'Mark',
   'dwilson@vykn.com',
   'vykn.com',
+  'Alex Morgan',
+  'Alex',
+  'Fundbank',
+  'Themis',
+  'Datox AI',
+  'Onfido',
 ];
 
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
@@ -346,7 +352,11 @@ async function main() {
 
   const redactionMap = new Map<string, string>();
   DEFAULT_REDACTIONS.forEach((term) => {
-    if (/damon|wilson|jo|mark/i.test(term)) redactionMap.set(term, demoPerson);
+    if (/damon|wilson|jo|mark|alex/i.test(term)) redactionMap.set(term, demoPerson);
+    else if (/fundbank/i.test(term)) redactionMap.set(term, 'CapitalBridge');
+    else if (/themis/i.test(term)) redactionMap.set(term, 'RegulaOne');
+    else if (/datox/i.test(term)) redactionMap.set(term, 'SignalForge AI');
+    else if (/onfido/i.test(term)) redactionMap.set(term, 'VerifyNova');
     else redactionMap.set(term, demoCompany);
   });
 

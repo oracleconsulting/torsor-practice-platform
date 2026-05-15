@@ -104,9 +104,9 @@ export default function BenchmarkingReportPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#F0F2F7' }}>
+    <div className="h-[100dvh] overflow-hidden flex flex-col" style={{ background: '#F0F2F7' }}>
       {/* Slim chrome — dashboard is full visual system */}
-      <div className="bg-white/90 border-b border-slate-200/80 backdrop-blur-sm sticky top-0 z-40">
+      <div className="bg-white/90 border-b border-slate-200/80 backdrop-blur-sm z-40 flex-shrink-0">
         <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <button
             type="button"
@@ -120,7 +120,7 @@ export default function BenchmarkingReportPage() {
         </div>
       </div>
 
-      <div className="min-h-[calc(100vh-52px)] rounded-b-2xl overflow-hidden">
+      <div className="flex-1 min-h-0 rounded-b-2xl overflow-hidden">
         <BenchmarkingClientDashboard
           data={{ ...reportData, created_at: reportData.created_at } as any}
           clientName={clientCompany}

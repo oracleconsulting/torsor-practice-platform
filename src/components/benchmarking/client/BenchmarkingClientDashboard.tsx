@@ -3180,7 +3180,8 @@ export default function BenchmarkingClientDashboard({
           .bm-dashboard {
             display: flex !important;
             flex-direction: column !important;
-            height: 100dvh !important;
+            height: 100% !important;
+            min-height: 0 !important;
             overflow: hidden !important;
           }
           .bm-sidebar {
