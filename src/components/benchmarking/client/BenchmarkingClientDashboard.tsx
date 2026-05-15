@@ -19,7 +19,7 @@ import {
   Clock, Users, Shield, Activity,
   CalendarClock, PoundSterling, Coffee, Gem,
   Rocket, Wallet, Info,
-  X, Check
+  X, Check, FileText, Settings
 } from 'lucide-react';
 import type { ValueAnalysis, ValueEnhancer } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
@@ -118,6 +118,32 @@ interface BenchmarkAnalysis {
     competitive_moat?: string[];
     unique_methods?: string;
     reputation_build_time?: string;
+    reputation_build_time_note?: string;
+    founder_dependency?: {
+      key_person_risk_acknowledged?: boolean;
+      narrative?: string;
+      key_dependencies?: string[];
+      mitigations_in_place?: string[];
+      remediation_path?: string;
+    };
+    ip_and_documentation?: {
+      protection_status?: string;
+      narrative?: string;
+      critical_documentation_gaps?: string[];
+      what_strong_looks_like?: string;
+    };
+    operational_autonomy?: {
+      narrative?: string;
+      current_state?: string[];
+      target_state?: string;
+    };
+    concentration_and_revenue?: {
+      narrative?: string;
+      year_1_projection?: string;
+      year_2_projection?: string;
+      year_3_projection?: string;
+      pricing_posture?: string;
+    };
   };
   founder_risk_level?: string;
   founder_risk_score?: number;
@@ -1188,17 +1214,24 @@ export default function BenchmarkingClientDashboard({
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Hidden Value Hero */}
-            {hasHiddenValue && (
-              <>
-                <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <Gem style={{ width: 22, height: 22, color: C.emerald }} />
-                    <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Hidden Value Identified</h2>
-                  </div>
-                  <p style={{ color: C.textSecondary, fontSize: 14, marginTop: 8 }}>Assets that sit outside normal earnings-based valuations</p>
-                </RevealCard>
+            {/* Page header — always renders, branched on stage */}
+            <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <Gem style={{ width: 22, height: 22, color: C.emerald }} />
+                <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>
+                  {isPreRevenue ? 'Hidden Value & Risk Audit' : 'Hidden Value Identified'}
+                </h2>
+              </div>
+              <p style={{ color: C.textSecondary, fontSize: 14, marginTop: 8 }}>
+                {isPreRevenue
+                  ? 'Where your defensible advantages sit, what protects them from competitors, and the structural risks that affect investor confidence'
+                  : 'Assets that sit outside normal earnings-based valuations'}
+              </p>
+            </RevealCard>
 
+            {/* Hidden Value Hero — only for trading businesses with balance sheet assets */}
+            {hasHiddenValue && !isPreRevenue && (
+              <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
                   {hasSurplus && (
                     <RevealCard delay={60} style={{ ...accentCard(C.emerald, { padding: 24 }) }}>
@@ -1377,7 +1410,172 @@ export default function BenchmarkingClientDashboard({
             );
             })()}
 
-            {!hasHiddenValue && !hasConcentrationRisk && toSafeArray(data.hva_data?.competitive_moat).length === 0 && (
+            {/* Reputation build time — sourced methodology anchor */}
+            {data.hva_data?.reputation_build_time_note && (
+              <RevealCard delay={420} style={{ ...glass({ padding: '14px 20px' }), borderLeft: `3px solid ${C.purple}40` }}>
+                <span style={{ ...label, color: C.purple }}>Time to Replicate — Methodology</span>
+                <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 6, lineHeight: 1.6, fontStyle: 'italic' }}>
+                  {data.hva_data.reputation_build_time_note}
+                </p>
+              </RevealCard>
+            )}
+
+            {/* Founder Dependency & Succession Readiness */}
+            {data.hva_data?.founder_dependency && (() => {
+              const fd = data.hva_data.founder_dependency;
+              return (
+                <RevealCard delay={480} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.amber}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <Users style={{ width: 20, height: 20, color: C.amber }} />
+                    <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Founder Dependency & Succession Readiness</h3>
+                  </div>
+                  {fd.narrative && (
+                    <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>{fd.narrative}</p>
+                  )}
+                  {Array.isArray(fd.key_dependencies) && fd.key_dependencies.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ ...label, color: C.amber }}>Key dependencies</span>
+                      <ul style={{ marginTop: 6, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                        {fd.key_dependencies.map((d: string, i: number) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{d}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {Array.isArray(fd.mitigations_in_place) && fd.mitigations_in_place.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ ...label, color: C.emerald }}>Mitigations already in place</span>
+                      <ul style={{ marginTop: 6, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                        {fd.mitigations_in_place.map((m: string, i: number) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{m}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {fd.remediation_path && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.blue}06`, borderLeft: `3px solid ${C.blue}40` }}>
+                      <span style={{ ...label, color: C.blue }}>Remediation path</span>
+                      <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 1.6 }}>{fd.remediation_path}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              );
+            })()}
+
+            {/* IP & Documentation Defensibility */}
+            {data.hva_data?.ip_and_documentation && (() => {
+              const ip = data.hva_data.ip_and_documentation;
+              return (
+                <RevealCard delay={540} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.purple}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <FileText style={{ width: 20, height: 20, color: C.purple }} />
+                    <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>IP & Documentation Defensibility</h3>
+                  </div>
+                  {ip.protection_status && (
+                    <div style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 12, background: `${C.purple}10`, color: C.purple, fontSize: 12, fontWeight: 600, marginBottom: 14 }}>
+                      {ip.protection_status}
+                    </div>
+                  )}
+                  {ip.narrative && (
+                    <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>{ip.narrative}</p>
+                  )}
+                  {Array.isArray(ip.critical_documentation_gaps) && ip.critical_documentation_gaps.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ ...label, color: C.red }}>Critical documentation gaps</span>
+                      <ul style={{ marginTop: 6, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                        {ip.critical_documentation_gaps.map((g: string, i: number) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{g}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {ip.what_strong_looks_like && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <span style={{ ...label, color: C.emerald }}>What strong looks like</span>
+                      <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 1.6 }}>{ip.what_strong_looks_like}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              );
+            })()}
+
+            {/* Operational Autonomy */}
+            {data.hva_data?.operational_autonomy && (() => {
+              const oa = data.hva_data.operational_autonomy;
+              return (
+                <RevealCard delay={600} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <Settings style={{ width: 20, height: 20, color: C.blue }} />
+                    <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Operational Autonomy</h3>
+                  </div>
+                  {oa.narrative && (
+                    <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>{oa.narrative}</p>
+                  )}
+                  {Array.isArray(oa.current_state) && oa.current_state.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ ...label, color: C.amber }}>Current state</span>
+                      <ul style={{ marginTop: 6, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                        {oa.current_state.map((s: string, i: number) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {oa.target_state && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <span style={{ ...label, color: C.emerald }}>Target state by Series A</span>
+                      <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 1.6 }}>{oa.target_state}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              );
+            })()}
+
+            {/* Concentration & Revenue Risk */}
+            {data.hva_data?.concentration_and_revenue && (() => {
+              const cr = data.hva_data.concentration_and_revenue;
+              return (
+                <RevealCard delay={660} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.red}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <AlertTriangle style={{ width: 20, height: 20, color: C.red }} />
+                    <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Concentration & Revenue Risk</h3>
+                  </div>
+                  {cr.narrative && (
+                    <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>{cr.narrative}</p>
+                  )}
+                  {(cr.year_1_projection || cr.year_2_projection || cr.year_3_projection) && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+                      {cr.year_1_projection && (
+                        <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.red}06`, border: `1px solid ${C.red}15` }}>
+                          <span style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Year 1</span>
+                          <p style={{ fontSize: 13, color: C.text, marginTop: 4, fontWeight: 600 }}>{cr.year_1_projection}</p>
+                        </div>
+                      )}
+                      {cr.year_2_projection && (
+                        <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.amber}06`, border: `1px solid ${C.amber}15` }}>
+                          <span style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Year 2</span>
+                          <p style={{ fontSize: 13, color: C.text, marginTop: 4, fontWeight: 600 }}>{cr.year_2_projection}</p>
+                        </div>
+                      )}
+                      {cr.year_3_projection && (
+                        <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.emerald}06`, border: `1px solid ${C.emerald}15` }}>
+                          <span style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Year 3</span>
+                          <p style={{ fontSize: 13, color: C.text, marginTop: 4, fontWeight: 600 }}>{cr.year_3_projection}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {cr.pricing_posture && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
+                      <span style={{ ...label, color: C.purple }}>Pricing posture</span>
+                      <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 1.6 }}>{cr.pricing_posture}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              );
+            })()}
+
+            {!hasHiddenValue && !hasConcentrationRisk && toSafeArray(data.hva_data?.competitive_moat).length === 0 && !data.hva_data?.founder_dependency && !data.hva_data?.ip_and_documentation && !data.hva_data?.operational_autonomy && !data.hva_data?.concentration_and_revenue && !data.hva_data?.reputation_build_time_note && (
               <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
                 <p style={{ color: C.textMuted, fontSize: 14 }}>No hidden value or concentration risk data available for this engagement.</p>
               </RevealCard>
