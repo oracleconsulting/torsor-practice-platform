@@ -1,4 +1,4 @@
-import { Suspense, lazy } from 'react';
+import { Component, Suspense, lazy, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -8,9 +8,12 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import InvitationPage from './pages/InvitationPage';
 import StaffInterviewPage from './pages/services/StaffInterviewPage';
+import UnifiedDashboardPage from './pages/UnifiedDashboardPage';
+import BenchmarkingReportPage from './pages/services/BenchmarkingReportPage';
 
+// Dashboard and benchmarking are critical navigation routes; keep them in the
+// main bundle to avoid stale dynamic chunk failures during client-facing deploys.
 // Lazy-loaded pages (default exports)
-const UnifiedDashboardPage = lazy(() => import('./pages/UnifiedDashboardPage'));
 const DiscoveryCompletePage = lazy(() => import('./pages/DiscoveryCompletePage'));
 const AssessmentsPage = lazy(() => import('./pages/assessments/AssessmentsPage'));
 const AssessmentPart1Page = lazy(() => import('./pages/assessments/Part1Page'));
@@ -34,7 +37,6 @@ const ProcessDeepDivesPage = lazy(() => import('./pages/services/ProcessDeepDive
 const SAReportPage = lazy(() => import('./pages/services/SAReportPage'));
 const ReviewSubmitPage = lazy(() => import('./pages/services/ReviewSubmitPage'));
 const SubmissionStatusPage = lazy(() => import('./pages/services/SubmissionStatusPage'));
-const BenchmarkingReportPage = lazy(() => import('./pages/services/BenchmarkingReportPage'));
 const BenchmarkingReportClassicPage = lazy(() => import('./pages/services/BenchmarkingReportClassicPage'));
 const BenchmarkingReportPreviewPage = lazy(() => import('./pages/services/BenchmarkingReportPreviewPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
@@ -67,12 +69,52 @@ function PageLoadingFallback() {
   );
 }
 
+class RouteErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+
+    const isChunkError =
+      this.state.error.message.includes('dynamically imported module') ||
+      this.state.error.message.includes('Importing a module script failed') ||
+      this.state.error.message.includes('Failed to fetch');
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 px-6">
+        <div className="max-w-md rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-lg font-semibold text-slate-900 mb-2">
+            {isChunkError ? 'Update required' : 'Something went wrong'}
+          </h1>
+          <p className="text-sm text-slate-600 mb-6">
+            {isChunkError
+              ? 'The portal has been updated while this session was open. Reload once to get the latest report files.'
+              : 'Please reload the portal and try again.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            Reload portal
+          </button>
+        </div>
+      </div>
+    );
+  }
+}
+
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Suspense fallback={<PageLoadingFallback />}>
-          <Routes>
+        <RouteErrorBoundary>
+          <Suspense fallback={<PageLoadingFallback />}>
+            <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/signup/:practiceCode" element={<SignupPage />} />
@@ -128,8 +170,9 @@ function App() {
             </Route>
 
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </Suspense>
+            </Routes>
+          </Suspense>
+        </RouteErrorBoundary>
       </BrowserRouter>
     </AuthProvider>
   );
