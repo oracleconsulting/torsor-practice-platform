@@ -2,16 +2,17 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { ArrowLeft, Loader2, Lock, FileText } from 'lucide-react';
+import { ArrowLeft, Loader2, Lock, LayoutDashboard } from 'lucide-react';
 import { Logo } from '@/components/Logo';
-import BenchmarkingClientDashboard from '@torsor/platform/components/benchmarking/client/BenchmarkingClientDashboard';
+import { BenchmarkingClientReport } from '@torsor/platform/components/benchmarking/client/BenchmarkingClientReport';
 import { fetchBenchmarkReportPayload } from '@/lib/benchmark-report-data';
 
 // ============================================================================
-// BENCHMARKING REPORT — CLIENT PORTAL (dashboard, matches admin Client View)
+// CLASSIC BENCHMARKING REPORT — scroll layout + PDF export
+// Same merged data as main dashboard route; use when a linear / printable view is preferred.
 // ============================================================================
 
-export default function BenchmarkingReportPage() {
+export default function BenchmarkingReportClassicPage() {
   const navigate = useNavigate();
   const { clientSession, loading: authLoading } = useAuth();
 
@@ -75,27 +76,26 @@ export default function BenchmarkingReportPage() {
           <div className="max-w-6xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <button
-                onClick={() => navigate('/dashboard')}
+                onClick={() => navigate('/service/benchmarking/report')}
                 className="flex items-center gap-2 text-slate-600 hover:text-slate-900"
               >
                 <ArrowLeft className="w-5 h-5" />
-                <span>Back to Dashboard</span>
+                <span>Back to Report</span>
               </button>
               <Logo />
             </div>
           </div>
         </div>
-
         <div className="max-w-4xl mx-auto px-6 py-12">
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <Lock className="w-12 h-12 text-slate-400 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-slate-900 mb-2">Report Not Available</h2>
             <p className="text-slate-600 mb-6">{error || 'Report not yet available.'}</p>
             <button
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/service/benchmarking/report')}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              Return to Dashboard
+              Back to interactive report
             </button>
           </div>
         </div>
@@ -104,38 +104,37 @@ export default function BenchmarkingReportPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#F0F2F7' }}>
-      {/* Slim chrome — dashboard is full visual system */}
-      <div className="bg-white/90 border-b border-slate-200/80 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-[1600px] mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <button
-            type="button"
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-medium"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Dashboard
-          </button>
-          <div className="flex items-center gap-4">
-            <Link
-              to="/service/benchmarking/report/classic"
-              className="flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 font-medium"
+    <div className="min-h-screen bg-slate-50">
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <button
+              onClick={() => navigate('/service/benchmarking/report')}
+              className="flex items-center gap-2 text-slate-600 hover:text-slate-900"
             >
-              <FileText className="w-4 h-4" />
-              Classic layout & PDF
-            </Link>
-            <Logo />
+              <ArrowLeft className="w-5 h-5" />
+              <span>Interactive report</span>
+            </button>
+            <div className="flex items-center gap-4">
+              <Link
+                to="/service/benchmarking/report"
+                className="flex items-center gap-1.5 text-sm text-teal-600 hover:text-teal-700 font-medium"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                <span>Interactive dashboard</span>
+              </Link>
+              <Logo />
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="min-h-[calc(100vh-52px)] rounded-b-2xl overflow-hidden">
-        <BenchmarkingClientDashboard
-          data={{ ...reportData, created_at: reportData.created_at } as any}
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <BenchmarkingClientReport
+          data={reportData as any}
           clientName={clientCompany}
           practitionerName={practitionerInfo.name}
           practitionerEmail={practitionerInfo.email}
-          onBack={() => navigate('/dashboard')}
         />
       </div>
     </div>

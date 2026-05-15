@@ -35,6 +35,7 @@ const SAReportPage = lazy(() => import('./pages/services/SAReportPage'));
 const ReviewSubmitPage = lazy(() => import('./pages/services/ReviewSubmitPage'));
 const SubmissionStatusPage = lazy(() => import('./pages/services/SubmissionStatusPage'));
 const BenchmarkingReportPage = lazy(() => import('./pages/services/BenchmarkingReportPage'));
+const BenchmarkingReportClassicPage = lazy(() => import('./pages/services/BenchmarkingReportClassicPage'));
 const BenchmarkingReportPreviewPage = lazy(() => import('./pages/services/BenchmarkingReportPreviewPage'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 const LifeThreadPage = lazy(() => import('./pages/LifeThreadPage'));
@@ -117,6 +118,7 @@ function App() {
               <Route path="/service/systems_audit/status" element={<SubmissionStatusPage />} />
               <Route path="/service/systems_audit/report" element={<SAReportPage />} />
               <Route path="/service/benchmarking/report" element={<BenchmarkingReportPage />} />
+              <Route path="/service/benchmarking/report/classic" element={<BenchmarkingReportClassicPage />} />
               <Route path="/service/benchmarking/report/preview" element={<BenchmarkingReportPreviewPage />} />
               <Route path="/service/benchmarking/hva" element={<AssessmentPart3Page />} />
               <Route path="/discovery" element={<DestinationDiscoveryPage />} />
