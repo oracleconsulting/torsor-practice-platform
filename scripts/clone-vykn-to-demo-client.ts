@@ -22,6 +22,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 
 type AnyRow = Record<string, any>;
@@ -449,6 +450,48 @@ async function main() {
     await maybeDelete(supabase, table, 'client_id', targetClientId, execute);
     await maybeInsert(supabase, table, cloned, execute);
     console.log(`  Prepared ${table}: ${cloned.length}`);
+  }
+
+  // Financial upload rows + extracted financial data. The upload table's
+  // engagement_id points at discovery_engagements, so leave it null here rather
+  // than accidentally pointing it at a BM engagement.
+  const sourceUploads = await maybeSelect(supabase, 'client_accounts_uploads', (from) =>
+    from.select('*').eq('client_id', sourceClientId)
+  );
+  const uploadIdMap = new Map<string, string>();
+  if (sourceUploads.length) {
+    const uploadRows = sourceUploads.map((row) => {
+      const targetUploadId = randomUUID();
+      uploadIdMap.set(row.id, targetUploadId);
+      return cleanRowForInsert(redactJson(row, redactionMap) as AnyRow, {
+        id: targetUploadId,
+        client_id: targetClientId,
+        practice_id: sourceClient.practice_id,
+        engagement_id: null,
+      });
+    });
+    uploadRows.forEach(addPayloadForAudit);
+    await maybeDelete(supabase, 'client_accounts_uploads', 'client_id', targetClientId, execute);
+    await maybeInsert(supabase, 'client_accounts_uploads', uploadRows, execute);
+    console.log(`  Prepared client_accounts_uploads: ${uploadRows.length}`);
+  }
+
+  const sourceFinancials = await maybeSelect(supabase, 'client_financial_data', (from) =>
+    from.select('*').eq('client_id', sourceClientId)
+  );
+  if (sourceFinancials.length) {
+    const financialRows = sourceFinancials.map((row) => {
+      const mappedUploadId = typeof row.upload_id === 'string' ? uploadIdMap.get(row.upload_id) : null;
+      return cleanRowForInsert(redactJson(row, redactionMap) as AnyRow, {
+        client_id: targetClientId,
+        practice_id: sourceClient.practice_id,
+        upload_id: mappedUploadId ?? null,
+      });
+    });
+    financialRows.forEach(addPayloadForAudit);
+    await maybeDelete(supabase, 'client_financial_data', 'client_id', targetClientId, execute);
+    await maybeInsert(supabase, 'client_financial_data', financialRows, execute);
+    console.log(`  Prepared client_financial_data: ${financialRows.length}`);
   }
 
   // BM assessment response, usually one row per engagement.
