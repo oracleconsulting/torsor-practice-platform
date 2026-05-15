@@ -19,7 +19,8 @@ import {
   Clock, Users, Shield, Activity,
   CalendarClock, PoundSterling, Coffee, Gem,
   Rocket, Wallet, Info,
-  X, Check, FileText, Settings
+  X, Check, FileText, Settings,
+  BookOpen
 } from 'lucide-react';
 import type { ValueAnalysis, ValueEnhancer } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
@@ -113,6 +114,29 @@ interface BenchmarkAnalysis {
     pre_revenue_scenarios?: any[];
     exit_horizon_years?: number;
     target_exit_valuation?: number;
+  };
+  methodology_content?: {
+    intro?: { title?: string; body?: string };
+    methods?: Array<{
+      id?: string;
+      name?: string;
+      originator?: string;
+      method_value_for_vykn?: string;
+      what_it_does?: string;
+      why_relevant_to_vykn?: string;
+      how_to_interpret?: string;
+      limitations?: string;
+    }>;
+    triangulation?: { title?: string; body?: string };
+    data_sources?: Array<{ name?: string; what_it_provides?: string }>;
+    glossary?: Array<{ term?: string; expanded?: string; definition?: string }>;
+    limitations?: string[];
+    confidence_metadata?: {
+      confidence_level?: string;
+      data_year?: string;
+      uk_discount_vs_us?: string;
+      uk_discount_note?: string;
+    };
   };
   hva_data?: {
     competitive_moat?: string[];
@@ -799,8 +823,15 @@ export default function BenchmarkingClientDashboard({
     { id: 'services', label: 'Services', icon: Zap, section: 'action' },
     { id: 'path', label: 'Your Path', icon: Rocket, section: 'action' },
     { id: 'vision', label: 'Vision', icon: Coffee, section: 'action' },
+    { id: 'methodology', label: 'Methodology', icon: BookOpen, section: 'reference' },
   ];
-  const SECTION_GROUPS: Record<string, string> = { overview: 'Overview', analysis: 'Analysis', value: 'Value', action: 'Action' };
+  const SECTION_GROUPS: Record<string, string> = {
+    overview: 'Overview',
+    analysis: 'Analysis',
+    value: 'Value',
+    action: 'Action',
+    reference: 'Reference',
+  };
 
   // ─── Sidebar ─────────────────────────────────────────────────────────────
 
@@ -2906,6 +2937,166 @@ export default function BenchmarkingClientDashboard({
         );
       }
 
+      case 'methodology': {
+        const mcRaw = data.methodology_content;
+        const mc =
+          mcRaw == null
+            ? null
+            : typeof mcRaw === 'string'
+              ? safeJsonParse<BenchmarkAnalysis['methodology_content']>(mcRaw, undefined)
+              : mcRaw;
+        if (!mc || typeof mc !== 'object') {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
+                <p style={{ color: C.textMuted, fontSize: 14 }}>Methodology reference is being prepared for this engagement.</p>
+              </RevealCard>
+            </div>
+          );
+        }
+        return (
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <BookOpen style={{ width: 22, height: 22, color: C.blue }} />
+                <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Methodology & Reference</h2>
+              </div>
+              <p style={{ color: C.textSecondary, fontSize: 14, marginTop: 8 }}>
+                Detailed explainers for the methods behind the numbers, plus a glossary, data sources, and limitations.
+              </p>
+            </RevealCard>
+
+            {mc.intro?.body && (
+              <RevealCard delay={60} style={{ ...glass({ padding: 24 }) }}>
+                {mc.intro.title?.trim() ? (
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{mc.intro.title}</h3>
+                ) : null}
+                <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7 }}>{mc.intro.body}</p>
+              </RevealCard>
+            )}
+
+            {Array.isArray(mc.methods) &&
+              mc.methods.map((m, i) => (
+                <RevealCard key={m.id || String(i)} delay={120 + i * 60} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
+                    <div>
+                      <h3 style={{ color: C.text, fontSize: 18, fontWeight: 700, margin: 0 }}>{m.name}</h3>
+                      {m.originator && <p style={{ color: C.textMuted, fontSize: 12, marginTop: 4, ...mono }}>{m.originator}</p>}
+                    </div>
+                    {m.method_value_for_vykn && (
+                      <div style={{ padding: '6px 14px', borderRadius: 12, background: `${C.blue}10`, color: C.blue, fontSize: 14, fontWeight: 700, ...mono }}>
+                        {m.method_value_for_vykn}
+                      </div>
+                    )}
+                  </div>
+                  {m.what_it_does && (
+                    <div style={{ marginBottom: 12 }}>
+                      <span style={{ ...label, color: C.blue }}>What it does</span>
+                      <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginTop: 4 }}>{m.what_it_does}</p>
+                    </div>
+                  )}
+                  {m.why_relevant_to_vykn && (
+                    <div style={{ marginBottom: 12 }}>
+                      <span style={{ ...label, color: C.purple }}>Why it is relevant for you</span>
+                      <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginTop: 4 }}>{m.why_relevant_to_vykn}</p>
+                    </div>
+                  )}
+                  {m.how_to_interpret && (
+                    <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <span style={{ ...label, color: C.emerald }}>How to interpret</span>
+                      <p style={{ color: C.textSecondary, fontSize: 13, lineHeight: 1.7, marginTop: 4 }}>{m.how_to_interpret}</p>
+                    </div>
+                  )}
+                  {m.limitations && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.amber}06`, borderLeft: `3px solid ${C.amber}40` }}>
+                      <span style={{ ...label, color: C.amber }}>Limitations</span>
+                      <p style={{ color: C.textSecondary, fontSize: 13, lineHeight: 1.7, marginTop: 4 }}>{m.limitations}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              ))}
+
+            {mc.triangulation?.body && (
+              <RevealCard delay={420} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{mc.triangulation.title || 'Triangulation'}</h3>
+                <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7 }}>{mc.triangulation.body}</p>
+              </RevealCard>
+            )}
+
+            {Array.isArray(mc.data_sources) && mc.data_sources.length > 0 && (
+              <RevealCard delay={480} style={{ ...glass({ padding: 24 }) }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Data Sources</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {mc.data_sources.map((ds, i) => (
+                    <div key={i} style={{ padding: '10px 14px', borderRadius: 10, background: `${C.blue}05`, borderLeft: `2px solid ${C.blue}30` }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{ds.name}</p>
+                      {ds.what_it_provides && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{ds.what_it_provides}</p>}
+                    </div>
+                  ))}
+                </div>
+              </RevealCard>
+            )}
+
+            {Array.isArray(mc.glossary) && mc.glossary.length > 0 && (
+              <RevealCard delay={540} style={{ ...glass({ padding: 24 }) }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Glossary</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                  {mc.glossary.map((g, i) => (
+                    <div key={i} style={{ padding: '12px 14px', borderRadius: 10, background: `${C.purple}05`, borderLeft: `2px solid ${C.purple}30` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.text, ...mono }}>{g.term}</span>
+                        {g.expanded && <span style={{ fontSize: 11, color: C.textMuted, fontStyle: 'italic' }}>{g.expanded}</span>}
+                      </div>
+                      {g.definition && <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 6, lineHeight: 1.6 }}>{g.definition}</p>}
+                    </div>
+                  ))}
+                </div>
+              </RevealCard>
+            )}
+
+            {Array.isArray(mc.limitations) && mc.limitations.length > 0 && (
+              <RevealCard delay={600} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.amber}` }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Limitations & Honest Caveats</h3>
+                <ul style={{ marginTop: 0, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                  {mc.limitations.map((lim, i) => (
+                    <li key={i} style={{ marginBottom: 6 }}>
+                      {lim}
+                    </li>
+                  ))}
+                </ul>
+              </RevealCard>
+            )}
+
+            {mc.confidence_metadata && (
+              <RevealCard delay={660} style={{ ...glass({ padding: 20 }) }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                  {mc.confidence_metadata.confidence_level && (
+                    <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 10, background: `${C.emerald}10`, color: C.emerald }}>
+                      Confidence: {mc.confidence_metadata.confidence_level}
+                    </span>
+                  )}
+                  {mc.confidence_metadata.data_year && (
+                    <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 10, background: `${C.blue}10`, color: C.blue }}>
+                      Data year: {mc.confidence_metadata.data_year}
+                    </span>
+                  )}
+                  {mc.confidence_metadata.uk_discount_vs_us && (
+                    <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 10, background: `${C.purple}10`, color: C.purple }}>
+                      UK discount vs US: {mc.confidence_metadata.uk_discount_vs_us}
+                    </span>
+                  )}
+                </div>
+                {mc.confidence_metadata.uk_discount_note && (
+                  <p style={{ fontSize: 12, color: C.textMuted, fontStyle: 'italic', lineHeight: 1.6, marginTop: 6 }}>
+                    {mc.confidence_metadata.uk_discount_note}
+                  </p>
+                )}
+              </RevealCard>
+            )}
+          </div>
+        );
+      }
+
       default:
         return <div style={{ color: C.textMuted, padding: 32 }}>Section not found.</div>;
     }
@@ -2958,11 +3149,13 @@ export default function BenchmarkingClientDashboard({
           <div key={activeSection} style={{ animation: 'fadeIn 0.4s ease' }}>
             {renderSection()}
           </div>
-          {data.pass1_data?.benchmark_appendix && (
-            <div style={{ marginTop: 20 }}>
-              <BenchmarkAppendix appendix={data.pass1_data.benchmark_appendix} />
-            </div>
-          )}
+          {activeSection !== 'methodology' &&
+            ['value', 'metrics', 'scenarios'].includes(activeSection) &&
+            data.pass1_data?.benchmark_appendix && (
+              <div style={{ marginTop: 20 }}>
+                <BenchmarkAppendix appendix={data.pass1_data.benchmark_appendix} />
+              </div>
+            )}
         </div>
       </div>
     </div>
