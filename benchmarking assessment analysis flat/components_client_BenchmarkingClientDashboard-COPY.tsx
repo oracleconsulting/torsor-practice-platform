@@ -19,7 +19,8 @@ import {
   Clock, Users, Shield, Activity,
   CalendarClock, PoundSterling, Coffee, Gem,
   Rocket, Wallet, Info,
-  X, Check
+  X, Check, FileText, Settings,
+  BookOpen
 } from 'lucide-react';
 import type { ValueAnalysis, ValueEnhancer } from '../../../types/benchmarking';
 import type { BaselineMetrics } from '../../../lib/scenario-calculator';
@@ -34,6 +35,7 @@ import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
 import { InvestmentReadinessSection } from './InvestmentReadinessSection';
 import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
 import { BenchmarkAppendix } from '../BenchmarkAppendix';
+import { coerceEmployeeCount, estimateEmployeesFromBand } from '../../../lib/benchmarking/employee-band-estimate';
 
 // ─── Types (FROZEN — matches BenchmarkingClientReport exactly) ────────────
 
@@ -114,10 +116,74 @@ interface BenchmarkAnalysis {
     exit_horizon_years?: number;
     target_exit_valuation?: number;
   };
+  scenarios_content?: {
+    intro?: {
+      title?: string;
+      paragraphs?: string[];
+    };
+    metric_definitions?: Record<string, { short?: string; definition?: string }>;
+    scenario_narratives?: Record<
+      string,
+      {
+        what_this_tests?: string;
+        why_it_matters?: string;
+        interpretation?: string;
+      }
+    >;
+  };
+  methodology_content?: {
+    intro?: { title?: string; body?: string };
+    methods?: Array<{
+      id?: string;
+      name?: string;
+      originator?: string;
+      method_value_for_vykn?: string;
+      what_it_does?: string;
+      why_relevant_to_vykn?: string;
+      how_to_interpret?: string;
+      limitations?: string;
+    }>;
+    triangulation?: { title?: string; body?: string };
+    data_sources?: Array<{ name?: string; what_it_provides?: string }>;
+    glossary?: Array<{ term?: string; expanded?: string; definition?: string }>;
+    limitations?: string[];
+    confidence_metadata?: {
+      confidence_level?: string;
+      data_year?: string;
+      uk_discount_vs_us?: string;
+      uk_discount_note?: string;
+    };
+  };
   hva_data?: {
     competitive_moat?: string[];
     unique_methods?: string;
     reputation_build_time?: string;
+    reputation_build_time_note?: string;
+    founder_dependency?: {
+      key_person_risk_acknowledged?: boolean;
+      narrative?: string;
+      key_dependencies?: string[];
+      mitigations_in_place?: string[];
+      remediation_path?: string;
+    };
+    ip_and_documentation?: {
+      protection_status?: string;
+      narrative?: string;
+      critical_documentation_gaps?: string[];
+      what_strong_looks_like?: string;
+    };
+    operational_autonomy?: {
+      narrative?: string;
+      current_state?: string[];
+      target_state?: string;
+    };
+    concentration_and_revenue?: {
+      narrative?: string;
+      year_1_projection?: string;
+      year_2_projection?: string;
+      year_3_projection?: string;
+      pricing_posture?: string;
+    };
   };
   founder_risk_level?: string;
   founder_risk_score?: number;
@@ -212,6 +278,90 @@ const getMetricFormat = (metricCode: string | undefined): 'currency' | 'percent'
   if (code.includes('margin') || code.includes('rate') || code.includes('utilisation') || code.includes('utilization') || code.includes('concentration') || code.includes('growth') || code.includes('retention') || code.includes('turnover') || code.includes('percentage') || code.includes('pct') || code.includes('ratio')) return 'percent';
   if (code.includes('revenue') || code.includes('profit') || code.includes('ebitda') || code.includes('hourly') || code.includes('salary') || code.includes('cost') || code.includes('fee') || code.includes('price') || code.includes('value') || code.includes('per_employee')) return 'currency';
   return 'number';
+};
+
+const appendixToMethodologyContent = (appendix: any): BenchmarkAnalysis['methodology_content'] | null => {
+  if (!appendix || typeof appendix !== 'object') return null;
+  const methodology = appendix.methodology || {};
+  const methods = [
+    methodology.summary || methodology.valuationMethod || methodology.benchmarkSource
+      ? {
+          id: 'valuation-methodology',
+          name: methodology.valuationMethod
+            ? `${methodology.valuationMethod} Methodology`
+            : 'Benchmarking Methodology',
+          originator: methodology.benchmarkSource,
+          method_value_for_vykn: methodology.valuationMethod,
+          what_it_does: methodology.summary,
+          why_relevant_to_vykn:
+            appendix.stage === 'pre_revenue' || appendix.stage === 'early_revenue'
+              ? 'Pre-revenue benchmarks need a valuation lens that can handle limited historic revenue, investor risk, and milestone evidence.'
+              : 'Trading-company benchmarks need a valuation lens that connects actual financial performance, peer metrics, and buyer confidence.',
+          how_to_interpret:
+            appendix.stage === 'pre_revenue' || appendix.stage === 'early_revenue'
+              ? 'Use this as a defensibility range for investor conversations, not a fixed price.'
+              : 'Use this as a structured estimate of what the business could be worth after adjusting for risk and operational quality.',
+          limitations: Array.isArray(appendix.limitations) ? appendix.limitations.join(' ') : undefined,
+        }
+      : null,
+    ...(Array.isArray(appendix.frameworks)
+      ? appendix.frameworks.map((framework: any) => ({
+          id: framework.code || framework.name,
+          name: framework.name || framework.code,
+          originator: framework.source,
+          method_value_for_vykn: framework.isPrimary ? 'Primary lens' : framework.weight ? `${framework.weight}% weighting` : undefined,
+          what_it_does: framework.description,
+          why_relevant_to_vykn: 'Used as one of the evidence lenses in the overall benchmarking and valuation judgement.',
+          how_to_interpret: 'Read alongside the other methods rather than in isolation.',
+        }))
+      : []),
+  ].filter(Boolean) as NonNullable<BenchmarkAnalysis['methodology_content']>['methods'];
+
+  const confidenceNotes = Array.isArray(appendix.confidenceNotes) ? appendix.confidenceNotes : [];
+  const confidenceLevel = confidenceNotes.find((note: string) => /confidence/i.test(note))?.replace(/^Confidence level:\s*/i, '');
+  const dataYear = confidenceNotes.find((note: string) => /data year/i.test(note))?.replace(/^Data year:\s*/i, '');
+  const ukDiscount = confidenceNotes.find((note: string) => /UK discount/i.test(note))?.replace(/^UK discount vs US:\s*/i, '');
+
+  return {
+    intro: {
+      title: 'Why these methods were used',
+      body:
+        methodology.summary ||
+        'This section explains the benchmark and valuation methods used to interpret the report.',
+    },
+    methods,
+    triangulation: {
+      title: 'Triangulation',
+      body:
+        appendix.stage === 'pre_revenue' || appendix.stage === 'early_revenue'
+          ? 'The report triangulates founder ambition, investor return logic, scorecard-style risk factors, and comparable round evidence.'
+          : 'The report triangulates company financials, industry benchmark performance, valuation multiples, and buyer-risk adjustments.',
+    },
+    data_sources: Array.isArray(appendix.dataSources)
+      ? appendix.dataSources.map((source: any) => ({
+          name: typeof source === 'string' ? source : source?.name || 'Benchmark source',
+          what_it_provides: typeof source === 'string' ? undefined : source?.what_it_provides || source?.description,
+        }))
+      : [],
+    glossary:
+      appendix.stage === 'pre_revenue' || appendix.stage === 'early_revenue'
+        ? [
+            { term: 'Pre-money', definition: 'The value of the business immediately before a funding round.' },
+            { term: 'ARR', expanded: 'Annual Recurring Revenue', definition: 'Recurring revenue normalised to a yearly figure.' },
+            { term: 'Berkus', definition: 'A factor-based methodology often used where there is limited revenue history.' },
+          ]
+        : [
+            { term: 'EBITDA', definition: 'Earnings before interest, tax, depreciation and amortisation; often used as an earnings base for valuation.' },
+            { term: 'Multiple', definition: 'A market-derived multiplier applied to maintainable earnings.' },
+            { term: 'Value suppressor', definition: 'A risk factor that reduces buyer confidence and therefore what they may pay.' },
+          ],
+    limitations: Array.isArray(appendix.limitations) ? appendix.limitations : [],
+    confidence_metadata: {
+      confidence_level: confidenceLevel,
+      data_year: dataYear,
+      uk_discount_vs_us: ukDiscount,
+    },
+  };
 };
 
 function splitNarrative(text: string, maxParas: number = 3): string[] {
@@ -383,17 +533,27 @@ function ProgressRing({ score, size = 140, strokeWidth = 12, color, ringLabel, d
 
 // ─── Format Helpers ──────────────────────────────────────────────────────────
 
+/** £750M not £750.0M when m is mathematically whole; preserves £3.4M etc. */
+function formatMillionsM(abs: number): string {
+  const m = abs / 1_000_000;
+  return Math.abs(m - Math.round(m)) < 1e-6 ? Math.round(m).toFixed(0) : m.toFixed(1);
+}
+
 const fmt = (n: number) => {
   if (n == null || isNaN(n)) return '£0';
   const abs = Math.abs(n);
   const sign = n < 0 ? '−' : '';
-  if (abs >= 1000000) return `${sign}£${(abs / 1000000).toFixed(1)}M`;
+  if (abs >= 1000000) return `${sign}£${formatMillionsM(abs)}M`;
   if (abs >= 1000) return `${sign}£${Math.round(abs / 1000)}k`;
   return `${sign}£${Math.round(abs)}`;
 };
 const fmtMetric = (val: number, format: string) => {
   switch (format) {
-    case 'currency': return val >= 1000000 ? `£${(val / 1000000).toFixed(1)}M` : val >= 1000 ? `£${Math.round(val / 1000)}k` : `£${Math.round(val)}`;
+    case 'currency':
+      if (val >= 1000000) {
+        return `£${formatMillionsM(Math.abs(val))}M`;
+      }
+      return val >= 1000 ? `£${Math.round(val / 1000)}k` : `£${Math.round(val)}`;
     case 'percent': return `${val.toFixed(1)}%`;
     case 'days': return `${Math.round(val)} days`;
     default: return val.toFixed(1);
@@ -410,7 +570,13 @@ function calcMarginScenario(revenue: number, currentGM: number, targetGM: number
   const valueMultiple = 5;
   const valueImpact = netImpact * valueMultiple;
   const marginImprovement = targetGM - currentGM;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     additionalGrossProfit: additionalGP,
     netProfitImpact: netImpact,
@@ -431,7 +597,13 @@ function calcPricingScenario(revenue: number, rateIncreasePercent: number, volum
   const retentionMult = volumeRetention / 100;
   const marginImpact = revenue * (rateIncreasePercent / 100) * retentionMult;
   const breakEvenLoss = (1 - (1 / (1 + rateIncreasePercent / 100))) * 100;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     marginImpact,
     businessValueImpact: marginImpact * 5,
@@ -452,7 +624,13 @@ function calcCashScenario(revenue: number, currentDays: number, targetDays: numb
   const daysImproved = currentDays - targetDays;
   const cashFreed = dailyRevenue * daysImproved;
   const annualInterestSaved = cashFreed * 0.05;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     cashFreed,
     daysImproved,
@@ -474,7 +652,13 @@ function calcEfficiencyScenario(revenue: number, currentRPE: number, targetRPE: 
   const efficientHeadcount = Math.ceil(revenue / targetRPE);
   const headcountReduction = Math.max(0, headcount - efficientHeadcount);
   const costSaving = headcountReduction * 55000;
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     additionalRevenue,
     additionalProfit,
@@ -499,7 +683,13 @@ function calcDiversificationScenario(revenue: number, currentConc: number, targe
   const targetDiscount = targetConc >= 80 ? 25 : targetConc >= 60 ? 15 : targetConc >= 40 ? 8 : 3;
   const baseValue = netProfit > 0 ? netProfit * 5 : revenue * 0.05 * 5;
   const valueImprovement = baseValue * ((currentDiscount - targetDiscount) / 100);
-  const fmtCur = (v: number) => (Math.abs(v) >= 1000000 ? `£${(v / 1000000).toFixed(1)}M` : Math.abs(v) >= 1000 ? `£${Math.round(v / 1000)}k` : `£${v.toFixed(0)}`);
+  const fmtCur = (v: number) => {
+      const abs = Math.abs(v);
+      const neg = v < 0 ? '-' : '';
+      if (abs >= 1000000) return `${neg}£${formatMillionsM(abs)}M`;
+      if (abs >= 1000) return `${neg}£${Math.round(abs / 1000)}k`;
+      return `${neg}£${Math.round(abs)}`;
+    };
   return {
     riskReduction,
     valueImprovement,
@@ -539,9 +729,33 @@ export default function BenchmarkingClientDashboard({
   const [targetRPE, setTargetRPE] = useState(500000);
   const [targetConcentration, setTargetConcentration] = useState(70);
   const contentRef = useRef<HTMLDivElement>(null);
+  const navRef = useRef<HTMLElement>(null);
+  const navItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // ─── Persistent visited sections ─────────────────────────────────────────
   const [visited, setVisited] = useState<Set<string>>(() => new Set(['overview']));
+
+  useEffect(() => {
+    let raf = 0;
+    const timers: number[] = [];
+    const centerActiveNavItem = (behavior: ScrollBehavior = 'smooth') => {
+      const nav = navRef.current;
+      const activeItem = navItemRefs.current[activeSection];
+      if (!nav || !activeItem || window.innerWidth > 768) return;
+
+      const targetLeft = activeItem.offsetLeft - (nav.clientWidth - activeItem.clientWidth) / 2;
+      nav.scrollTo({ left: Math.max(0, targetLeft), behavior });
+    };
+
+    raf = window.requestAnimationFrame(() => centerActiveNavItem('auto'));
+    timers.push(window.setTimeout(() => centerActiveNavItem('smooth'), 260));
+    timers.push(window.setTimeout(() => centerActiveNavItem('auto'), 520));
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [activeSection]);
 
   const handleNavigate = useCallback((sectionId: string) => {
     if (sectionId === activeSection) return;
@@ -586,8 +800,11 @@ export default function BenchmarkingClientDashboard({
     const revPerEmployeeMetric = metrics.find((m: any) => m.metricCode === 'revenue_per_consultant' || m.metricCode === 'revenue_per_employee');
     const revPerEmployeeRaw = revPerEmployeeMetric?.clientValue || data.pass1_data?.revenue_per_employee || getMetricValue('revenue_per_employee');
     const employeeBand = data.employee_band || data.pass1_data?.classification?.employeeBand;
-    const estimatedEmployees = employeeBand === '1-10' ? 5 : employeeBand === '11-50' ? 30 : employeeBand === '51-250' ? 131 : employeeBand === '251+' ? 300 : 0;
-    const employeeCountRaw = data.employee_count || data.pass1_data?._enriched_employee_count || estimatedEmployees;
+    const estimatedEmployees = estimateEmployeesFromBand(employeeBand);
+    const coercedEmployees =
+      coerceEmployeeCount(data.employee_count) ||
+      coerceEmployeeCount(data.pass1_data?._enriched_employee_count);
+    const employeeCountRaw = coercedEmployees || estimatedEmployees;
     const calculatedRevenue = (employeeCountRaw && revPerEmployeeRaw && employeeCountRaw > 0) ? employeeCountRaw * revPerEmployeeRaw : 0;
     const revenue = directRevenue || calculatedRevenue || 0;
     if (revenue <= 0) return null;
@@ -689,6 +906,16 @@ export default function BenchmarkingClientDashboard({
   const businessStage = data.pass1_data?.business_stage || data.business_stage || 'operating';
   const isPreRevenue = businessStage === 'pre_revenue' || businessStage === 'early_revenue';
   const preRevenueAnalysis = data.pass1_data?.pre_revenue_analysis || data.pre_revenue_analysis;
+
+  // Pre-revenue: sum of valuation uplifts at P75 across metric targets
+  // Used for "The Opportunity" pill on Position tab when there's no current ARR
+  const preRevenueValuationUplift = useMemo(() => {
+    if (!preRevenueAnalysis?.metricTargets || !Array.isArray(preRevenueAnalysis.metricTargets)) return 0;
+    return preRevenueAnalysis.metricTargets.reduce((sum: number, m: any) => {
+      const uplift = Number(m?.valuationImpactAtP75 ?? 0);
+      return sum + (isFinite(uplift) ? uplift : 0);
+    }, 0);
+  }, [preRevenueAnalysis]);
   const investmentReadinessBreakdown = data.investment_readiness_breakdown || data.pass1_data?.investment_readiness_breakdown;
 
   // Filtered metrics (no concentration, must have valid p50)
@@ -723,16 +950,23 @@ export default function BenchmarkingClientDashboard({
     { id: 'services', label: 'Services', icon: Zap, section: 'action' },
     { id: 'path', label: 'Your Path', icon: Rocket, section: 'action' },
     { id: 'vision', label: 'Vision', icon: Coffee, section: 'action' },
+    { id: 'methodology', label: 'Methodology', icon: BookOpen, section: 'reference' },
   ];
-  const SECTION_GROUPS: Record<string, string> = { overview: 'Overview', analysis: 'Analysis', value: 'Value', action: 'Action' };
+  const SECTION_GROUPS: Record<string, string> = {
+    overview: 'Overview',
+    analysis: 'Analysis',
+    value: 'Value',
+    action: 'Action',
+    reference: 'Reference',
+  };
 
   // ─── Sidebar ─────────────────────────────────────────────────────────────
 
   function Sidebar() {
     let lastGroup = '';
     return (
-      <aside style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 220, background: C.navy, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', zIndex: 30 }}>
-        <div style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      <aside className="bm-sidebar" style={{ position: 'fixed', left: 0, top: 0, bottom: 0, width: 220, background: C.navy, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', zIndex: 30 }}>
+        <div className="bm-sidebar-brand" style={{ padding: '20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ color: '#fff', fontWeight: 700, fontSize: 18, fontFamily: "'DM Sans', sans-serif" }}>RPGCC</span>
             <span style={{ width: 6, height: 6, borderRadius: 3, background: C.blue }} />
@@ -741,26 +975,27 @@ export default function BenchmarkingClientDashboard({
           </div>
           <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11, marginTop: 4, ...mono }}>Benchmarking Report</p>
         </div>
-        <nav style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
+        <nav ref={navRef} className="bm-nav" style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
           {NAV_ITEMS.map(item => {
             const Icon = item.icon;
             const showGroup = lastGroup !== item.section && (lastGroup = item.section);
             return (
-              <div key={item.id}>
-                {showGroup && <div style={{ padding: '8px 16px 4px', fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', ...mono }}>{SECTION_GROUPS[item.section]}</div>}
+              <div key={item.id} ref={(el) => { navItemRefs.current[item.id] = el; }} className="bm-nav-item-wrap">
+                {showGroup && <div className="bm-nav-group" style={{ padding: '8px 16px 4px', fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.1em', ...mono }}>{SECTION_GROUPS[item.section]}</div>}
                 <button type="button" onClick={() => handleNavigate(item.id)}
+                  className="bm-nav-button"
                   style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', border: 'none', background: activeSection === item.id ? 'rgba(255,255,255,0.1)' : 'transparent', color: activeSection === item.id ? '#fff' : 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", textAlign: 'left', borderLeft: activeSection === item.id ? `3px solid ${C.blue}` : '3px solid transparent', transition: 'all 0.15s ease' }}
                   onMouseEnter={e => { if (activeSection !== item.id) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
                   onMouseLeave={e => { if (activeSection !== item.id) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                 >
                   <Icon style={{ width: 18, height: 18, flexShrink: 0 }} /><span style={{ flex: 1 }}>{item.label}</span>
-                  {visited.has(item.id) && activeSection !== item.id && <span style={{ width: 18, height: 18, borderRadius: 9, background: C.emerald, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>✓</span>}
+                  {visited.has(item.id) && activeSection !== item.id && <span className="bm-nav-check" style={{ width: 18, height: 18, borderRadius: 9, background: C.emerald, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700 }}>✓</span>}
                 </button>
               </div>
             );
           })}
         </nav>
-        <div style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="bm-sidebar-progress" style={{ padding: '16px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', ...mono }}>Progress</span>
             <span style={{ fontSize: 11, fontWeight: 600, color: '#fff', ...mono }}>{visited.size}/{NAV_ITEMS.length}</span>
@@ -1007,7 +1242,11 @@ export default function BenchmarkingClientDashboard({
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <RevealCard style={{ ...glass({ padding: 24 }) }}>
               <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Your Position</h2>
-              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>How your business compares to sector peers</p>
+              <p style={{ color: C.textMuted, fontSize: 14, marginTop: 4 }}>
+                {isPreRevenue
+                  ? 'Where you stand today, where the strengths are, and what is blocking the raise'
+                  : 'How your business compares to sector peers'}
+              </p>
             </RevealCard>
 
             {/* 2×2 narrative grid — responsive */}
@@ -1016,7 +1255,11 @@ export default function BenchmarkingClientDashboard({
                 { title: 'Where You Stand', content: positionNarrative, color: C.blue, icon: Target, highlight: isPreRevenue ? 'Pre-revenue · Year 0' : `${getOrdinalSuffix(percentile)} percentile` },
                 { title: 'Your Strengths', content: strengthNarrative, color: C.emerald, icon: CheckCircle },
                 { title: 'Performance Gaps', content: gapNarrative, color: C.red, icon: AlertTriangle, highlight: `${data.gap_count || gapMetrics.length} gaps identified` },
-                { title: 'The Opportunity', content: opportunityNarrative, color: C.purple, icon: Sparkles, highlight: `£${totalOpportunity.toLocaleString()} potential` },
+                { title: 'The Opportunity', content: opportunityNarrative, color: C.purple, icon: Sparkles, highlight: isPreRevenue
+                    ? (preRevenueValuationUplift > 0
+                        ? `+£${formatMillionsM(preRevenueValuationUplift)}M at P75`
+                        : 'Path to step-up')
+                    : `£${totalOpportunity.toLocaleString()} potential` },
               ].map((section, i) => {
                 const Icon = section.icon;
                 return (
@@ -1072,7 +1315,12 @@ export default function BenchmarkingClientDashboard({
                                 Proportional share of the £{heroTotal.toLocaleString()} annual margin opportunity, allocated by estimated contribution to the net margin gap.
                               </p>
                             )}
-                            {annualVal === 0 && totalWaterfallGap > 0 && (
+                            {annualVal === 0 && isPreRevenue && (
+                              <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', margin: '6px 0 0', lineHeight: 1.5 }}>
+                                This action supports the pre-revenue milestone path. Each milestone (first signed enterprise contract → £500k ARR → £1.5M ARR → Series A) corresponds to a defensible valuation step-up.
+                              </p>
+                            )}
+                            {annualVal === 0 && !isPreRevenue && totalWaterfallGap > 0 && (
                               <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', margin: '6px 0 0', lineHeight: 1.5 }}>
                                 This recommendation addresses trapped enterprise value (part of the {fmt(totalWaterfallGap)} structural gap) rather than annual profit — it improves what a buyer would pay for the business.
                               </p>
@@ -1125,17 +1373,24 @@ export default function BenchmarkingClientDashboard({
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Hidden Value Hero */}
-            {hasHiddenValue && (
-              <>
-                <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <Gem style={{ width: 22, height: 22, color: C.emerald }} />
-                    <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Hidden Value Identified</h2>
-                  </div>
-                  <p style={{ color: C.textSecondary, fontSize: 14, marginTop: 8 }}>Assets that sit outside normal earnings-based valuations</p>
-                </RevealCard>
+            {/* Page header — always renders, branched on stage */}
+            <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <Gem style={{ width: 22, height: 22, color: C.emerald }} />
+                <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>
+                  {isPreRevenue ? 'Hidden Value & Risk Audit' : 'Hidden Value Identified'}
+                </h2>
+              </div>
+              <p style={{ color: C.textSecondary, fontSize: 14, marginTop: 8 }}>
+                {isPreRevenue
+                  ? 'Where your defensible advantages sit, what protects them from competitors, and the structural risks that affect investor confidence'
+                  : 'Assets that sit outside normal earnings-based valuations'}
+              </p>
+            </RevealCard>
 
+            {/* Hidden Value Hero — only for trading businesses with balance sheet assets */}
+            {hasHiddenValue && !isPreRevenue && (
+              <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 14 }}>
                   {hasSurplus && (
                     <RevealCard delay={60} style={{ ...accentCard(C.emerald, { padding: 24 }) }}>
@@ -1165,7 +1420,7 @@ export default function BenchmarkingClientDashboard({
                   <RevealCard delay={240} style={{ ...glass({ padding: '14px 20px' }), borderLeft: `4px solid ${C.emerald}`, display: 'flex', alignItems: 'center', gap: 12 }}>
                     <TrendingUp style={{ width: 18, height: 18, color: C.emerald, flexShrink: 0 }} />
                     <p style={{ fontSize: 14, color: C.textSecondary, margin: 0 }}>
-                      <strong style={{ color: C.emerald }}>Bonus:</strong> Your supplier payment terms mean you operate with £{(Math.abs(data.surplus_cash.components.netWorkingCapital) / 1000000).toFixed(1)}M of free working capital.
+                      <strong style={{ color: C.emerald }}>Bonus:</strong> Your supplier payment terms mean you operate with £{formatMillionsM(Math.abs(data.surplus_cash.components.netWorkingCapital))}M of free working capital.
                     </p>
                   </RevealCard>
                 )}
@@ -1288,33 +1543,220 @@ export default function BenchmarkingClientDashboard({
             {/* Competitive Moat (HVA) */}
             {(() => {
               const competitiveMoat = toSafeArray(data.hva_data?.competitive_moat);
-              return competitiveMoat.length > 0 && (
+              const um = typeof data.hva_data?.unique_methods === 'string' ? data.hva_data.unique_methods.trim() : '';
+              const rb = typeof data.hva_data?.reputation_build_time === 'string' ? data.hva_data.reputation_build_time.trim() : '';
+              const showMoatSection = competitiveMoat.length > 0 || !!(um || rb);
+              return showMoatSection && (
               <RevealCard delay={hasHiddenValue || hasConcentrationRisk ? 380 : 0} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                   <Shield style={{ width: 20, height: 20, color: C.blue }} />
                   <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Competitive Moat</h3>
                 </div>
-                <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 14 }}>Barriers that protect your business from competitors:</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
-                  {competitiveMoat.map((moat: string, i: number) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: `${C.blue}06`, border: `1px solid ${C.blue}15` }}>
-                      <CheckCircle style={{ width: 14, height: 14, color: C.blue, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, color: C.text }}>{moat}</span>
+                {competitiveMoat.length > 0 && (
+                  <>
+                    <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 14 }}>Barriers that protect your business from competitors:</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+                      {competitiveMoat.map((moat: string, i: number) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: `${C.blue}06`, border: `1px solid ${C.blue}15` }}>
+                          <CheckCircle style={{ width: 14, height: 14, color: C.blue, flexShrink: 0 }} />
+                          <span style={{ fontSize: 13, color: C.text }}>{moat}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                {data.hva_data?.unique_methods && (
-                  <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
-                    <span style={{ ...label, color: C.purple }}>Your Unique Advantage</span>
-                    <p style={{ fontSize: 14, fontStyle: 'italic', color: C.text, marginTop: 6, lineHeight: 1.6 }}>"{data.hva_data.unique_methods}"</p>
-                    {data.hva_data.reputation_build_time && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>Time to replicate: {data.hva_data.reputation_build_time}</p>}
+                  </>
+                )}
+                {(um || rb) && (
+                  <div style={{ marginTop: competitiveMoat.length > 0 ? 14 : 0, padding: '14px 18px', borderRadius: 12, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
+                    {um ? (
+                      <>
+                        <span style={{ ...label, color: C.purple }}>Your Unique Advantage</span>
+                        <p style={{ fontSize: 14, fontStyle: 'italic', color: C.text, marginTop: 6, lineHeight: 1.6 }}>"{um}"</p>
+                      </>
+                    ) : (
+                      <span style={{ ...label, color: C.purple }}>Reputation & replication horizon</span>
+                    )}
+                    {rb ? <p style={{ fontSize: 12, color: C.textMuted, marginTop: um ? 6 : 10 }}>Time to replicate: {rb}</p> : null}
                   </div>
                 )}
               </RevealCard>
             );
             })()}
 
-            {!hasHiddenValue && !hasConcentrationRisk && toSafeArray(data.hva_data?.competitive_moat).length === 0 && (
+            {/* Reputation build time — sourced methodology anchor */}
+            {data.hva_data?.reputation_build_time_note && (
+              <RevealCard delay={420} style={{ ...glass({ padding: '14px 20px' }), borderLeft: `3px solid ${C.purple}40` }}>
+                <span style={{ ...label, color: C.purple }}>Time to Replicate — Methodology</span>
+                <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 6, lineHeight: 1.6, fontStyle: 'italic' }}>
+                  {data.hva_data.reputation_build_time_note}
+                </p>
+              </RevealCard>
+            )}
+
+            {/* Founder Dependency & Succession Readiness */}
+            {data.hva_data?.founder_dependency && (() => {
+              const fd = data.hva_data.founder_dependency;
+              return (
+                <RevealCard delay={480} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.amber}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <Users style={{ width: 20, height: 20, color: C.amber }} />
+                    <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Founder Dependency & Succession Readiness</h3>
+                  </div>
+                  {fd.narrative && (
+                    <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>{fd.narrative}</p>
+                  )}
+                  {Array.isArray(fd.key_dependencies) && fd.key_dependencies.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ ...label, color: C.amber }}>Key dependencies</span>
+                      <ul style={{ marginTop: 6, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                        {fd.key_dependencies.map((d: string, i: number) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{d}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {Array.isArray(fd.mitigations_in_place) && fd.mitigations_in_place.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ ...label, color: C.emerald }}>Mitigations already in place</span>
+                      <ul style={{ marginTop: 6, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                        {fd.mitigations_in_place.map((m: string, i: number) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{m}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {fd.remediation_path && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.blue}06`, borderLeft: `3px solid ${C.blue}40` }}>
+                      <span style={{ ...label, color: C.blue }}>Remediation path</span>
+                      <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 1.6 }}>{fd.remediation_path}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              );
+            })()}
+
+            {/* IP & Documentation Defensibility */}
+            {data.hva_data?.ip_and_documentation && (() => {
+              const ip = data.hva_data.ip_and_documentation;
+              return (
+                <RevealCard delay={540} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.purple}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <FileText style={{ width: 20, height: 20, color: C.purple }} />
+                    <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>IP & Documentation Defensibility</h3>
+                  </div>
+                  {ip.protection_status && (
+                    <div style={{ display: 'inline-block', padding: '4px 12px', borderRadius: 12, background: `${C.purple}10`, color: C.purple, fontSize: 12, fontWeight: 600, marginBottom: 14 }}>
+                      {ip.protection_status}
+                    </div>
+                  )}
+                  {ip.narrative && (
+                    <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>{ip.narrative}</p>
+                  )}
+                  {Array.isArray(ip.critical_documentation_gaps) && ip.critical_documentation_gaps.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ ...label, color: C.red }}>Critical documentation gaps</span>
+                      <ul style={{ marginTop: 6, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                        {ip.critical_documentation_gaps.map((g: string, i: number) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{g}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {ip.what_strong_looks_like && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <span style={{ ...label, color: C.emerald }}>What strong looks like</span>
+                      <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 1.6 }}>{ip.what_strong_looks_like}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              );
+            })()}
+
+            {/* Operational Autonomy */}
+            {data.hva_data?.operational_autonomy && (() => {
+              const oa = data.hva_data.operational_autonomy;
+              return (
+                <RevealCard delay={600} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <Settings style={{ width: 20, height: 20, color: C.blue }} />
+                    <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Operational Autonomy</h3>
+                  </div>
+                  {oa.narrative && (
+                    <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>{oa.narrative}</p>
+                  )}
+                  {Array.isArray(oa.current_state) && oa.current_state.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <span style={{ ...label, color: C.amber }}>Current state</span>
+                      <ul style={{ marginTop: 6, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                        {oa.current_state.map((s: string, i: number) => (
+                          <li key={i} style={{ marginBottom: 4 }}>{s}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {oa.target_state && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <span style={{ ...label, color: C.emerald }}>Target state by Series A</span>
+                      <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 1.6 }}>{oa.target_state}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              );
+            })()}
+
+            {/* Concentration & Revenue Risk */}
+            {data.hva_data?.concentration_and_revenue && (() => {
+              const cr = data.hva_data.concentration_and_revenue;
+              return (
+                <RevealCard delay={660} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.red}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <AlertTriangle style={{ width: 20, height: 20, color: C.red }} />
+                    <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Concentration & Revenue Risk</h3>
+                  </div>
+                  {cr.narrative && (
+                    <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginBottom: 18 }}>{cr.narrative}</p>
+                  )}
+                  {(cr.year_1_projection || cr.year_2_projection || cr.year_3_projection) && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 14 }}>
+                      {cr.year_1_projection && (
+                        <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.red}06`, border: `1px solid ${C.red}15` }}>
+                          <span style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Year 1</span>
+                          <p style={{ fontSize: 13, color: C.text, marginTop: 4, fontWeight: 600 }}>{cr.year_1_projection}</p>
+                        </div>
+                      )}
+                      {cr.year_2_projection && (
+                        <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.amber}06`, border: `1px solid ${C.amber}15` }}>
+                          <span style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Year 2</span>
+                          <p style={{ fontSize: 13, color: C.text, marginTop: 4, fontWeight: 600 }}>{cr.year_2_projection}</p>
+                        </div>
+                      )}
+                      {cr.year_3_projection && (
+                        <div style={{ padding: '10px 12px', borderRadius: 8, background: `${C.emerald}06`, border: `1px solid ${C.emerald}15` }}>
+                          <span style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Year 3</span>
+                          <p style={{ fontSize: 13, color: C.text, marginTop: 4, fontWeight: 600 }}>{cr.year_3_projection}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {cr.pricing_posture && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
+                      <span style={{ ...label, color: C.purple }}>Pricing posture</span>
+                      <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 4, lineHeight: 1.6 }}>{cr.pricing_posture}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              );
+            })()}
+
+            {!hasHiddenValue &&
+              !hasConcentrationRisk &&
+              toSafeArray(data.hva_data?.competitive_moat).length === 0 &&
+              !(typeof data.hva_data?.unique_methods === 'string' && data.hva_data.unique_methods.trim()) &&
+              !(typeof data.hva_data?.reputation_build_time === 'string' && data.hva_data.reputation_build_time.trim()) &&
+              !data.hva_data?.founder_dependency &&
+              !data.hva_data?.ip_and_documentation &&
+              !data.hva_data?.operational_autonomy &&
+              !data.hva_data?.concentration_and_revenue &&
+              !data.hva_data?.reputation_build_time_note && (
               <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
                 <p style={{ color: C.textMuted, fontSize: 14 }}>No hidden value or concentration risk data available for this engagement.</p>
               </RevealCard>
@@ -1628,7 +2070,7 @@ export default function BenchmarkingClientDashboard({
                 <ProgressRing score={score} size={180} strokeWidth={14} color={scoreColor} ringLabel={isPreRevenue ? 'Invest Score' : 'Exit Score'} />
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <h2 style={{ color: '#fff', fontSize: 24, fontWeight: 800, margin: '0 0 8px' }}>{isPreRevenue ? 'Investment Readiness' : 'Exit Readiness'}</h2>
-                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 14 }}>{isPreRevenue ? 'How prepared is your business for investment?' : 'How prepared is your business for a sale or transition?'}</p>
+                  <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginBottom: 14 }}>{isPreRevenue ? 'Your investability score against a 65+ Series A-ready threshold' : 'Your readiness score against a 65+ sale-ready threshold'}</p>
                   <span style={{ fontSize: 13, fontWeight: 700, padding: '6px 18px', borderRadius: 20, background: `${scoreColor}25`, color: scoreColor, ...mono }}>{effectiveBreakdown.levelLabel}</span>
                   <div style={{ marginTop: 16, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${(score / effectiveBreakdown.maxScore) * 100}%`, background: scoreColor, borderRadius: 3, transition: `width 1.2s ${EASE.spring}` }} />
@@ -1674,9 +2116,16 @@ export default function BenchmarkingClientDashboard({
             {/* Path to 70 */}
             {score < 70 && effectiveBreakdown.pathTo70 && (
               <RevealCard delay={200} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                  <Target style={{ width: 18, height: 18, color: C.emerald }} />
-                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>{isPreRevenue ? 'Path to Investment Ready (70/100)' : 'Path to Credibly Exit Ready (70/100)'}</h3>
+                <div style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <Target style={{ width: 18, height: 18, color: C.emerald, flexShrink: 0, marginTop: 2 }} />
+                    <div>
+                      <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>{isPreRevenue ? 'Path to Investment Ready (65+)' : 'Path to Credibly Exit Ready (65+)'}</h3>
+                      <p style={{ color: C.textMuted, fontSize: 12, marginTop: 2, marginBottom: 0 }}>
+                        {isPreRevenue ? 'Top actions to close the gap to a 65+ investment-ready score' : 'Top actions to close the gap to a 65+ exit-ready score'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
                   {effectiveBreakdown.pathTo70.actions.map((action: string, i: number) => (
@@ -1731,13 +2180,26 @@ export default function BenchmarkingClientDashboard({
 
       // ─── SCENARIOS ───────────────────────────────────────────────────────
       case 'scenarios': {
+        const scRaw = data.scenarios_content;
+        const scenariosContentParsed =
+          scRaw == null
+            ? undefined
+            : typeof scRaw === 'string'
+              ? safeJsonParse<BenchmarkAnalysis['scenarios_content']>(scRaw, undefined)
+              : scRaw;
         const preRevScenarios = preRevenueAnalysis?.scenarios || data.scenarios || data.pass1_data?.pre_revenue_scenarios;
         if (isPreRevenue && preRevScenarios?.length) {
           return (
             <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
               <PreRevenueScenariosSection
                 scenarios={preRevScenarios}
-                targetExitValuation={data.pass1_data?.target_exit_valuation || data.target_exit_valuation || preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+                targetExitValuation={
+                  data.pass1_data?.target_exit_valuation ||
+                  data.target_exit_valuation ||
+                  preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation ||
+                  0
+                }
+                scenariosContent={scenariosContentParsed}
               />
             </div>
           );
@@ -1803,6 +2265,17 @@ export default function BenchmarkingClientDashboard({
 
         return (
           <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {scenariosContentParsed?.intro && (
+              <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+                {scenariosContentParsed.intro.title && (
+                  <h2 style={{ color: C.text, fontSize: 20, fontWeight: 800, margin: '0 0 10px' }}>{scenariosContentParsed.intro.title}</h2>
+                )}
+                {Array.isArray(scenariosContentParsed.intro.paragraphs) &&
+                  scenariosContentParsed.intro.paragraphs.map((paragraph, i) => (
+                    <p key={i} style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, margin: i === 0 ? 0 : '10px 0 0' }}>{paragraph}</p>
+                  ))}
+              </RevealCard>
+            )}
             {/* Explore Improvement Scenarios — multi-tab */}
             <RevealCard style={{ ...glass({ padding: 24 }) }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
@@ -2123,7 +2596,7 @@ export default function BenchmarkingClientDashboard({
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                           <p style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{svc.serviceName}</p>
                           {isPrimary && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: C.blue, color: '#fff', ...mono }}>PRIORITY</span>}
-                          {svc.serviceStatus && <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 4, background: `${C.emerald}12`, color: C.emerald, border: `1px solid ${C.emerald}20`, ...mono }}>{svc.serviceStatus.replace(/_/g, ' ').toUpperCase()}</span>}
+                          {/* serviceStatus omitted for client UI — internal catalogued/concept tooling */}
                         </div>
                         <p style={{ fontSize: 13, color: C.textMuted, margin: 0 }}>{svc.headline || svc.description}</p>
                       </div>
@@ -2282,8 +2755,35 @@ export default function BenchmarkingClientDashboard({
                 </RevealCard>
               )}
 
-              {/* Potential value card */}
-              {potentialVal > 0 && (
+              {/* Potential value card — branched on pre-revenue */}
+              {isPreRevenue && Array.isArray(preRevenueAnalysis?.milestonePath) && preRevenueAnalysis.milestonePath.length > 0 ? (() => {
+                const milestones = preRevenueAnalysis.milestonePath;
+                const first = milestones[0];
+                const last = milestones[milestones.length - 1];
+                const fromVal = first?.valuationStepUp?.from
+                  ?? preRevenueAnalysis?.defensiblePreMoney?.base
+                  ?? 0;
+                const toVal = last?.valuationStepUp?.to ?? 0;
+                const uplift = toVal - fromVal;
+                if (uplift <= 0) return null;
+                return (
+                  <RevealCard delay={200} style={{ ...glass({ padding: '20px 24px' }), borderTop: `3px solid ${C.emerald}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                      <div>
+                        <p style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 2 }}>If you hit the milestone path:</p>
+                        <p style={{ fontSize: 12, color: C.textMuted }}>Pre-money: {fmt(fromVal)} today → {fmt(toVal)} at Series A</p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontSize: 24, fontWeight: 800, color: C.emerald, margin: 0, ...mono }}>+{fmt(uplift)}</p>
+                        <p style={{ fontSize: 11, color: C.emerald }}>pre-money step-up</p>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: 10, color: C.textMuted, fontStyle: 'italic', marginTop: 10, lineHeight: 1.5 }}>
+                      Each milestone (first signed enterprise contract → £500k ARR → £1.5M ARR → Series A ready) corresponds to a defensible valuation step-up. The numbers reflect comparable-round evidence in UK regtech at each stage.
+                    </p>
+                  </RevealCard>
+                );
+              })() : (potentialVal > 0 && !isPreRevenue && (
                 <RevealCard delay={200} style={{ ...glass({ padding: '20px 24px' }), borderTop: `3px solid ${C.emerald}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
@@ -2299,7 +2799,7 @@ export default function BenchmarkingClientDashboard({
                     This is separate from the {fmt(marginOpp)}/yr margin opportunity — that adds to profit annually, this increases what the business is worth at point of sale.
                   </p>
                 </RevealCard>
-              )}
+              ))}
 
               {/* Quick Wins (opportunity_synthesis) */}
               {(() => {
@@ -2498,13 +2998,13 @@ export default function BenchmarkingClientDashboard({
 
         const closingSummary = (() => {
           const parts: string[] = [];
-          if (baselineMetrics?.revenue) parts.push(`You're a £${(baselineMetrics.revenue / 1000000).toFixed(1)}M business`);
+          if (baselineMetrics?.revenue) parts.push(`You're a £${formatMillionsM(baselineMetrics.revenue)}M business`);
           if (percentile) parts.push(`sitting at the ${getOrdinalSuffix(percentile)} percentile`);
-          if (surplusCash > 0) parts.push(`with £${(surplusCash / 1000000).toFixed(1)}M in surplus cash`);
+          if (surplusCash > 0) parts.push(`with £${formatMillionsM(surplusCash)}M in surplus cash`);
           let summary = parts.join(' ');
           if (totalOpportunity > 0) summary += `. The data shows £${totalOpportunity.toLocaleString()} in annual opportunity`;
           const vGap = valueAnalysis?.valueGap?.mid;
-          if (vGap && vGap > 0) summary += ` and £${(vGap / 1000000).toFixed(1)}M in trapped value`;
+          if (vGap && vGap > 0) summary += ` and £${formatMillionsM(vGap)}M in trapped value`;
           summary += '. The path forward is about protecting what you\'ve built and unlocking what\'s already there.';
           return summary;
         })();
@@ -2589,6 +3089,168 @@ export default function BenchmarkingClientDashboard({
         );
       }
 
+      case 'methodology': {
+        const mcRaw = data.methodology_content;
+        const appendix = data.pass1_data?.benchmark_appendix;
+        const appendixFallback = appendixToMethodologyContent(appendix);
+        const mc =
+          mcRaw == null
+            ? appendixFallback
+            : typeof mcRaw === 'string'
+              ? safeJsonParse<BenchmarkAnalysis['methodology_content']>(mcRaw, undefined) || appendixFallback
+              : mcRaw;
+        if (!mc || typeof mc !== 'object') {
+          return (
+            <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
+                <p style={{ color: C.textMuted, fontSize: 14 }}>Methodology reference is being prepared for this engagement.</p>
+              </RevealCard>
+            </div>
+          );
+        }
+        return (
+          <div style={{ ...sectionWrap, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <RevealCard style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <BookOpen style={{ width: 22, height: 22, color: C.blue }} />
+                <h2 style={{ color: C.text, fontSize: 24, fontWeight: 800, margin: 0 }}>Methodology & Reference</h2>
+              </div>
+              <p style={{ color: C.textSecondary, fontSize: 14, marginTop: 8 }}>
+                Detailed explainers for the methods behind the numbers, plus a glossary, data sources, and limitations.
+              </p>
+            </RevealCard>
+
+            {mc.intro?.body && (
+              <RevealCard delay={60} style={{ ...glass({ padding: 24 }) }}>
+                {mc.intro.title?.trim() ? (
+                  <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{mc.intro.title}</h3>
+                ) : null}
+                <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7 }}>{mc.intro.body}</p>
+              </RevealCard>
+            )}
+
+            {Array.isArray(mc.methods) &&
+              mc.methods.map((m, i) => (
+                <RevealCard key={m.id || String(i)} delay={120 + i * 60} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
+                    <div>
+                      <h3 style={{ color: C.text, fontSize: 18, fontWeight: 700, margin: 0 }}>{m.name}</h3>
+                      {m.originator && <p style={{ color: C.textMuted, fontSize: 12, marginTop: 4, ...mono }}>{m.originator}</p>}
+                    </div>
+                    {m.method_value_for_vykn && (
+                      <div style={{ padding: '6px 14px', borderRadius: 12, background: `${C.blue}10`, color: C.blue, fontSize: 14, fontWeight: 700, ...mono }}>
+                        {m.method_value_for_vykn}
+                      </div>
+                    )}
+                  </div>
+                  {m.what_it_does && (
+                    <div style={{ marginBottom: 12 }}>
+                      <span style={{ ...label, color: C.blue }}>What it does</span>
+                      <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginTop: 4 }}>{m.what_it_does}</p>
+                    </div>
+                  )}
+                  {m.why_relevant_to_vykn && (
+                    <div style={{ marginBottom: 12 }}>
+                      <span style={{ ...label, color: C.purple }}>Why it is relevant for you</span>
+                      <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7, marginTop: 4 }}>{m.why_relevant_to_vykn}</p>
+                    </div>
+                  )}
+                  {m.how_to_interpret && (
+                    <div style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                      <span style={{ ...label, color: C.emerald }}>How to interpret</span>
+                      <p style={{ color: C.textSecondary, fontSize: 13, lineHeight: 1.7, marginTop: 4 }}>{m.how_to_interpret}</p>
+                    </div>
+                  )}
+                  {m.limitations && (
+                    <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.amber}06`, borderLeft: `3px solid ${C.amber}40` }}>
+                      <span style={{ ...label, color: C.amber }}>Limitations</span>
+                      <p style={{ color: C.textSecondary, fontSize: 13, lineHeight: 1.7, marginTop: 4 }}>{m.limitations}</p>
+                    </div>
+                  )}
+                </RevealCard>
+              ))}
+
+            {mc.triangulation?.body && (
+              <RevealCard delay={420} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.emerald}` }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 10 }}>{mc.triangulation.title || 'Triangulation'}</h3>
+                <p style={{ color: C.textSecondary, fontSize: 14, lineHeight: 1.7 }}>{mc.triangulation.body}</p>
+              </RevealCard>
+            )}
+
+            {Array.isArray(mc.data_sources) && mc.data_sources.length > 0 && (
+              <RevealCard delay={480} style={{ ...glass({ padding: 24 }) }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Data Sources</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {mc.data_sources.map((ds, i) => (
+                    <div key={i} style={{ padding: '10px 14px', borderRadius: 10, background: `${C.blue}05`, borderLeft: `2px solid ${C.blue}30` }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text, margin: 0 }}>{ds.name}</p>
+                      {ds.what_it_provides && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>{ds.what_it_provides}</p>}
+                    </div>
+                  ))}
+                </div>
+              </RevealCard>
+            )}
+
+            {Array.isArray(mc.glossary) && mc.glossary.length > 0 && (
+              <RevealCard delay={540} style={{ ...glass({ padding: 24 }) }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 14 }}>Glossary</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                  {mc.glossary.map((g, i) => (
+                    <div key={i} style={{ padding: '12px 14px', borderRadius: 10, background: `${C.purple}05`, borderLeft: `2px solid ${C.purple}30` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 6 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.text, ...mono }}>{g.term}</span>
+                        {g.expanded && <span style={{ fontSize: 11, color: C.textMuted, fontStyle: 'italic' }}>{g.expanded}</span>}
+                      </div>
+                      {g.definition && <p style={{ fontSize: 13, color: C.textSecondary, marginTop: 6, lineHeight: 1.6 }}>{g.definition}</p>}
+                    </div>
+                  ))}
+                </div>
+              </RevealCard>
+            )}
+
+            {Array.isArray(mc.limitations) && mc.limitations.length > 0 && (
+              <RevealCard delay={600} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.amber}` }}>
+                <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Limitations & Honest Caveats</h3>
+                <ul style={{ marginTop: 0, paddingLeft: 18, color: C.textSecondary, fontSize: 13, lineHeight: 1.7 }}>
+                  {mc.limitations.map((lim, i) => (
+                    <li key={i} style={{ marginBottom: 6 }}>
+                      {lim}
+                    </li>
+                  ))}
+                </ul>
+              </RevealCard>
+            )}
+
+            {mc.confidence_metadata && (
+              <RevealCard delay={660} style={{ ...glass({ padding: 20 }) }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                  {mc.confidence_metadata.confidence_level && (
+                    <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 10, background: `${C.emerald}10`, color: C.emerald }}>
+                      Confidence: {mc.confidence_metadata.confidence_level}
+                    </span>
+                  )}
+                  {mc.confidence_metadata.data_year && (
+                    <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 10, background: `${C.blue}10`, color: C.blue }}>
+                      Data year: {mc.confidence_metadata.data_year}
+                    </span>
+                  )}
+                  {mc.confidence_metadata.uk_discount_vs_us && (
+                    <span style={{ fontSize: 11, padding: '4px 10px', borderRadius: 10, background: `${C.purple}10`, color: C.purple }}>
+                      UK discount vs US: {mc.confidence_metadata.uk_discount_vs_us}
+                    </span>
+                  )}
+                </div>
+                {mc.confidence_metadata.uk_discount_note && (
+                  <p style={{ fontSize: 12, color: C.textMuted, fontStyle: 'italic', lineHeight: 1.6, marginTop: 6 }}>
+                    {mc.confidence_metadata.uk_discount_note}
+                  </p>
+                )}
+              </RevealCard>
+            )}
+          </div>
+        );
+      }
+
       default:
         return <div style={{ color: C.textMuted, padding: 32 }}>Section not found.</div>;
     }
@@ -2599,34 +3261,152 @@ export default function BenchmarkingClientDashboard({
   // ═══════════════════════════════════════════════════════════════════════════
 
   return (
-    <div style={{ display: 'flex', background: C.bg, height: '100%', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: C.text }}>
+    <div className="bm-dashboard" style={{ display: 'flex', background: C.bg, height: '100%', overflow: 'hidden', fontFamily: "'DM Sans', sans-serif", color: C.text }}>
       <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,700;1,400;1,700&display=swap" rel="stylesheet" />
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes spin { to { transform: rotate(360deg); } }
         * { box-sizing: border-box; }
+        .bm-dashboard { min-height: 100%; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 3px; }
         ::selection { background: ${C.blue}30; }
+        @media (max-width: 768px) {
+          .bm-dashboard {
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+          }
+          .bm-sidebar {
+            position: sticky !important;
+            top: 0 !important;
+            left: auto !important;
+            bottom: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            max-height: none !important;
+            border-right: none !important;
+            border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+            flex-shrink: 0 !important;
+          }
+          .bm-sidebar-brand {
+            display: none !important;
+          }
+          .bm-sidebar-progress {
+            display: none !important;
+          }
+          .bm-nav {
+            display: flex !important;
+            flex: none !important;
+            gap: 6px !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            padding: 8px 10px !important;
+            -webkit-overflow-scrolling: touch !important;
+            overscroll-behavior-x: contain !important;
+          }
+          .bm-nav-item-wrap {
+            flex: 0 0 auto !important;
+          }
+          .bm-nav-group {
+            display: none !important;
+          }
+          .bm-nav-button {
+            width: auto !important;
+            min-width: max-content !important;
+            padding: 9px 12px !important;
+            border-left: 0 !important;
+            border-radius: 10px !important;
+            gap: 7px !important;
+            font-size: 12px !important;
+            white-space: nowrap !important;
+          }
+          .bm-nav-check {
+            display: none !important;
+          }
+          .bm-main {
+            margin-left: 0 !important;
+            width: 100% !important;
+            padding: 14px 12px 24px !important;
+            flex: 1 1 auto !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+          }
+          .bm-content {
+            max-width: none !important;
+            width: 100% !important;
+            overflow: visible !important;
+          }
+          .bm-header {
+            padding-bottom: 12px !important;
+            margin-bottom: 14px !important;
+            align-items: flex-start !important;
+          }
+          .bm-header-title {
+            font-size: 14px !important;
+            line-height: 1.35 !important;
+            word-break: normal !important;
+            overflow-wrap: anywhere !important;
+          }
+          .bm-header-meta {
+            white-space: normal !important;
+            overflow: visible !important;
+            text-overflow: clip !important;
+            line-height: 1.4 !important;
+            font-size: 11px !important;
+          }
+          .bm-main [style*="grid-template-columns: repeat(3, 1fr)"],
+          .bm-main [style*="grid-template-columns: repeat(2, 1fr)"] {
+            grid-template-columns: 1fr !important;
+          }
+          .bm-main [style*="minmax(320px"],
+          .bm-main [style*="minmax(280px"],
+          .bm-main [style*="minmax(260px"],
+          .bm-main [style*="minmax(200px"] {
+            grid-template-columns: 1fr !important;
+          }
+          .bm-main h1, .bm-main h2, .bm-main h3, .bm-main p, .bm-main span, .bm-main div {
+            max-width: 100%;
+          }
+          .bm-main p {
+            overflow-wrap: anywhere;
+          }
+          .bm-main [style*="padding: 48px 40px"] {
+            padding: 28px 18px !important;
+          }
+          .bm-main [style*="padding: 36px 40px"] {
+            padding: 24px 18px !important;
+          }
+          .bm-main [style*="font-size: 32px"] {
+            font-size: 24px !important;
+            line-height: 1.15 !important;
+          }
+          .bm-main [style*="font-size: 28px"] {
+            font-size: 22px !important;
+            line-height: 1.2 !important;
+          }
+        }
       `}</style>
 
       <Sidebar />
 
-      <div ref={contentRef} style={{
+      <div ref={contentRef} className="bm-main" style={{
         marginLeft: 220, flex: 1, padding: '24px 32px', overflowY: 'auto', background: C.bg,
         opacity: transitioning ? 0 : 1, transform: transitioning ? 'translateY(8px)' : 'translateY(0)',
         transition: 'opacity 0.2s ease, transform 0.2s ease',
       }}>
-        <div style={{ maxWidth: 1060, margin: '0 auto', overflow: 'hidden' }}>
+        <div className="bm-content" style={{ maxWidth: 1060, margin: '0 auto', overflow: 'hidden' }}>
           {/* Header bar */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingBottom: 20, marginBottom: 20, borderBottom: `1px solid ${C.cardBorder}` }}>
+          <div className="bm-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, paddingBottom: 20, marginBottom: 20, borderBottom: `1px solid ${C.cardBorder}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
               {onBack && <button type="button" onClick={onBack} style={{ color: C.textMuted, padding: 8, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}><ArrowLeft style={{ width: 20, height: 20 }} /></button>}
               <div style={{ minWidth: 0, flex: 1 }}>
-                <h1 style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{data.headline || 'Benchmarking Report'}</h1>
-                <p style={{ fontSize: 13, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <h1 className="bm-header-title" style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 2, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any, overflow: 'hidden' }}>{data.headline || 'Benchmarking Report'}</h1>
+                <p className="bm-header-meta" style={{ fontSize: 13, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {isPreRevenue
                     ? [clientName, `Pre-money: ${fmt(preRevenueAnalysis?.defensiblePreMoney?.base || 0)}`, `Investment Readiness: ${data.investment_readiness_score || preRevenueAnalysis?.investmentReadiness?.score || 0}/100`, `Gaps: ${data.gap_count || 0}`].filter(Boolean).join(' · ')
                     : [clientName, `${getOrdinalSuffix(percentile)} percentile`, `£${totalOpportunity.toLocaleString()} opportunity`].filter(Boolean).join(' · ')
@@ -2641,11 +3421,13 @@ export default function BenchmarkingClientDashboard({
           <div key={activeSection} style={{ animation: 'fadeIn 0.4s ease' }}>
             {renderSection()}
           </div>
-          {data.pass1_data?.benchmark_appendix && (
-            <div style={{ marginTop: 20 }}>
-              <BenchmarkAppendix appendix={data.pass1_data.benchmark_appendix} />
-            </div>
-          )}
+          {activeSection !== 'methodology' &&
+            ['value', 'metrics', 'scenarios'].includes(activeSection) &&
+            data.pass1_data?.benchmark_appendix && (
+              <div style={{ marginTop: 20 }}>
+                <BenchmarkAppendix appendix={data.pass1_data.benchmark_appendix} />
+              </div>
+            )}
         </div>
       </div>
     </div>

@@ -31,7 +31,39 @@ const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
   ...extra,
 });
 
-const fmt = (v: number) => v >= 1000000 ? '£' + (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? '£' + Math.round(v / 1000) + 'k' : '£' + v;
+const fmt = (v: number) => {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1000000) {
+    const m = abs / 1000000;
+    const formatted = Math.abs(m - Math.round(m)) < 1e-6 ? Math.round(m).toFixed(0) : m.toFixed(1);
+    return sign + '£' + formatted + 'M';
+  }
+  if (abs >= 1000) return sign + '£' + Math.round(abs / 1000) + 'k';
+  return sign + '£' + abs;
+};
+
+// Normalises a metric's stored unit string for display
+const unitSuffix = (unit: string): string => {
+  const u = (unit || '').toLowerCase().trim();
+  if (u === '%' || u === 'percent' || u === 'pct') return '%';
+  if (u === 'months' || u === 'month') return ' months';
+  if (u === 'years' || u === 'year') return ' years';
+  if (u === 'currency' || u === 'gbp' || u === '£') return ''; // formatted as £ separately
+  return u ? ` ${unit}` : '';
+};
+
+// Formats a metric value according to its unit
+const formatMetricValue = (value: number | string, unit: string): string => {
+  const u = (unit || '').toLowerCase().trim();
+  const num = typeof value === 'number' ? value : parseFloat(String(value));
+  if (!isFinite(num)) return String(value);
+  if (u === 'currency' || u === 'gbp' || u === '£') return fmt(num);
+  if (u === '%' || u === 'percent' || u === 'pct') return `${num}%`;
+  if (u === 'months' || u === 'month') return `${num} months`;
+  if (u === 'years' || u === 'year') return `${num} years`;
+  return `${num}${unitSuffix(unit)}`;
+};
 
 interface MetricTarget {
   metricCode: string;
@@ -90,7 +122,7 @@ function MetricTargetCard({ metric }: { metric: MetricTarget }) {
       {/* Current value */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 14 }}>
         <span style={{ fontSize: 22, fontWeight: 800, color: C.text, ...mono }}>{metric.currentValueDisplay}</span>
-        <span style={{ fontSize: 12, color: C.textMuted }}>→ target: {metric.targetValue}{metric.unit === '%' ? '%' : ` ${metric.unit}`} by Y{metric.targetByYear}</span>
+        <span style={{ fontSize: 12, color: C.textMuted }}>→ target: {formatMetricValue(metric.targetValue, metric.unit)} by Y{metric.targetByYear}</span>
       </div>
 
       {/* Horizontal track with P25/P50/P75 markers */}
@@ -116,9 +148,9 @@ function MetricTargetCard({ metric }: { metric: MetricTarget }) {
 
       {/* P-labels */}
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.textMuted, ...mono, marginBottom: 10 }}>
-        <span>P25: {metric.p25}{metric.unit === '%' ? '%' : ''}</span>
-        <span>P50: {metric.p50}{metric.unit === '%' ? '%' : ''}</span>
-        <span>P75: {metric.p75}{metric.unit === '%' ? '%' : ''}</span>
+        <span>P25: {formatMetricValue(metric.p25, metric.unit)}</span>
+        <span>P50: {formatMetricValue(metric.p50, metric.unit)}</span>
+        <span>P75: {formatMetricValue(metric.p75, metric.unit)}</span>
       </div>
 
       {/* Valuation impact */}

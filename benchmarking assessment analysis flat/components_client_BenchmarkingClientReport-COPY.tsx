@@ -31,6 +31,8 @@ import { KeyMetricsAsTargetsSection } from './KeyMetricsAsTargetsSection';
 import { BenchmarkAppendix } from '../BenchmarkAppendix';
 import { InvestmentReadinessSection } from './InvestmentReadinessSection';
 import { PreRevenueScenariosSection } from './PreRevenueScenariosSection';
+import { coerceEmployeeCount, estimateEmployeesFromBand } from '../../../lib/benchmarking/employee-band-estimate';
+import type { PreRevenueScenariosContent } from './PreRevenueScenariosSection';
 import type { 
   EnhancedValueSuppressor, 
   ExitReadinessScore, 
@@ -140,6 +142,10 @@ interface BenchmarkAnalysis {
     exit_horizon_years?: number;
     pre_revenue_scenarios?: any[];
   };
+  scenarios?: any[];
+  scenarios_content?: PreRevenueScenariosContent | string;
+  methodology_content?: any;
+  opportunity_synthesis?: any;
   // Pre-revenue fields (top-level)
   business_stage?: string;
   pre_revenue_analysis?: any;
@@ -150,6 +156,29 @@ interface BenchmarkAnalysis {
     competitive_moat?: string[];
     unique_methods?: string;
     reputation_build_time?: string;
+    reputation_build_time_note?: string;
+    founder_dependency?: {
+      narrative?: string;
+      current_state?: string;
+      remediation_path?: string;
+      key_person_risk_acknowledged?: boolean;
+    };
+    ip_and_documentation?: {
+      narrative?: string;
+      protection_status?: string;
+      current_gaps?: string[];
+      what_strong_looks_like?: string;
+    };
+    operational_autonomy?: {
+      narrative?: string;
+      current_state?: string[];
+      target_state?: string;
+    };
+    concentration_and_revenue?: {
+      narrative?: string;
+      year_1_projection?: string;
+      actions_to_reduce_risk?: string[];
+    };
   };
   // Founder risk fields
   founder_risk_level?: string;
@@ -181,6 +210,12 @@ const safeJsonParse = <T,>(value: string | T | null | undefined, fallback: T): T
     }
   }
   return value as T;
+};
+
+const toSafeArray = <T = string,>(value: unknown): T[] => {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') return value.split(',').map(s => s.trim()).filter(Boolean) as T[];
+  return [];
 };
 
 // Helper to determine the correct format for a metric based on its code
@@ -372,15 +407,14 @@ export function BenchmarkingClientReport({
                               getMetricValue('revenue_per_employee');
     
     // Employee count: direct column > pass1_data > derived from employee band
+    // Employee count: numeric/text narrative columns → Pass 1 enriched → midpoint from employee_band
+
     const employeeBand = data.employee_band || data.pass1_data?.classification?.employeeBand;
-    const estimatedEmployees = employeeBand === '1-10' ? 5 :
-                               employeeBand === '11-50' ? 30 :
-                               employeeBand === '51-250' ? 131 :  // Mid-point, actual for Installation Tech
-                               employeeBand === '251+' ? 300 : 0;
-    
-    const employeeCountRaw = data.employee_count || 
-                             data.pass1_data?._enriched_employee_count ||
-                             estimatedEmployees;
+    const estimatedEmployees = estimateEmployeesFromBand(employeeBand);
+    const coercedEmployees =
+      coerceEmployeeCount(data.employee_count) ||
+      coerceEmployeeCount(data.pass1_data?._enriched_employee_count);
+    const employeeCountRaw = coercedEmployees || estimatedEmployees;
     
     // Calculate revenue from employees × rev/employee as a fallback
     const calculatedRevenue = (employeeCountRaw && revPerEmployeeRaw && employeeCountRaw > 0) 
@@ -389,9 +423,15 @@ export function BenchmarkingClientReport({
     
     // Priority: explicit revenue > pass1 enriched revenue > calculated from employees
     const revenue = directRevenue || calculatedRevenue || 0;
-    
-    // Debug logging to help diagnose issues
-    if (typeof window !== 'undefined' && revenue < 1000000) {
+
+    const businessStage =
+      (data.pass1_data as { business_stage?: string } | undefined)?.business_stage ||
+      (data as { business_stage?: string }).business_stage;
+    const isPreRevenueStage =
+      businessStage === 'pre_revenue' || businessStage === 'early_revenue';
+
+    // Debug logging — pre-revenue often has no GBP run-rate; omit noisy warnings
+    if (typeof window !== 'undefined' && !isPreRevenueStage && revenue > 0 && revenue < 1000000) {
       console.warn('[ScenarioExplorer] Revenue seems low:', {
         'data.revenue': data.revenue,
         'pass1._enriched_revenue': data.pass1_data?._enriched_revenue,
@@ -402,7 +442,7 @@ export function BenchmarkingClientReport({
         'final revenue': revenue,
       });
     }
-    
+
     if (revenue <= 0) return null;
     
     // Get gross margin
@@ -476,30 +516,34 @@ export function BenchmarkingClientReport({
   // SERVICE RECOMMENDATIONS - From bm_reports.recommended_services (Pass 3)
   // ============================================================================
   
-  // Convert database recommended_services to the new component format
+  // Convert database recommended_services to the new component format.
+  // Keep this in sync with BenchmarkingClientDashboard so classic/PDF and dashboard agree.
   const recommendedServices = useMemo((): RecommendedService[] => {
     // Primary source: bm_reports.recommended_services (built by Pass 3)
-    const dbRecommendations = data.recommended_services || [];
+    const dbRaw = safeJsonParse<unknown>(data.recommended_services as any, []);
+    const dbRecommendations = Array.isArray(dbRaw) ? dbRaw : [];
     
     if (dbRecommendations.length > 0) {
-      return dbRecommendations.map((r: any): RecommendedService => ({
-        serviceCode: r.serviceCode || r.code,
-        serviceName: r.serviceName || r.name,
+      return dbRecommendations
+        .sort((a: any, b: any) => (a.display_order || a.displayOrder || 99) - (b.display_order || b.displayOrder || 99))
+        .map((r: any): RecommendedService => ({
+        serviceCode: r.serviceCode || r.service_code || r.code,
+        serviceName: r.service_name || r.serviceName || r.name,
         description: r.description || '',
         headline: r.headline,
         priceFrom: r.priceFrom || r.price_from,
         priceTo: r.priceTo || r.price_to,
         priceUnit: r.priceUnit || r.price_unit,
-        priceRange: r.priceRange,
+        priceRange: r.priceRange || r.price_range,
         category: r.category,
-        whyThisMatters: r.whyThisMatters || r.contextReason || r.description || '',
-        whatYouGet: r.whatYouGet || r.deliverables || [],
-        expectedOutcome: r.expectedOutcome || '',
-        timeToValue: r.timeToValue || r.timeframe || '4-6 weeks',
-        addressesIssues: r.addressesIssues || [],
-        totalValueAtStake: r.totalValueAtStake,
-        source: r.source || 'opportunity',
-        priority: r.priority || 'secondary',
+        whyThisMatters: r.fit_rationale || r.whyThisMatters || r.contextReason || r.description || '',
+        whatYouGet: toSafeArray(r.whatYouGet || r.what_you_get || r.deliverables),
+        expectedOutcome: r.expectedOutcome || r.expected_outcome || '',
+        timeToValue: r.timeToValue || r.time_to_value || r.timeframe || '4-6 weeks',
+        addressesIssues: Array.isArray(r.addressesIssues) ? r.addressesIssues : Array.isArray(r.addresses_issues) ? r.addresses_issues : [],
+        totalValueAtStake: r.combined_impact_value_pounds || r.totalValueAtStake || r.total_value_at_stake,
+        source: (r.source || 'opportunity') as RecommendedService['source'],
+        priority: (r.priority_label || r.priority || 'secondary') as RecommendedService['priority'],
       }));
     }
     
@@ -557,6 +601,41 @@ export function BenchmarkingClientReport({
       return (b.totalValueAtStake || 0) - (a.totalValueAtStake || 0);
     });
   }, [data.recommended_services, data.opportunities, data.not_recommended_services]);
+
+  const scenariosContent = useMemo(() => {
+    const raw = data.scenarios_content;
+    if (!raw) return undefined;
+    return typeof raw === 'string'
+      ? safeJsonParse<PreRevenueScenariosContent | undefined>(raw, undefined)
+      : raw;
+  }, [data.scenarios_content]);
+
+  const methodologyContent = useMemo(() => {
+    const raw = data.methodology_content;
+    if (!raw) return null;
+    return typeof raw === 'string' ? safeJsonParse<any | null>(raw, null) : raw;
+  }, [data.methodology_content]);
+
+  const opportunitySynthesis = useMemo(
+    () => safeJsonParse<any | null>(data.opportunity_synthesis as any, null),
+    [data.opportunity_synthesis]
+  );
+
+  const formatMillions = (value: number): string => {
+    const m = Math.abs(value) / 1_000_000;
+    return Math.abs(m - Math.round(m)) < 1e-6 ? Math.round(m).toFixed(0) : m.toFixed(1);
+  };
+
+  const fmtMoney = (value: number): string => {
+    const sign = value < 0 ? '-' : '';
+    const abs = Math.abs(value);
+    if (abs >= 1_000_000) return `${sign}£${formatMillions(abs)}M`;
+    if (abs >= 1_000) return `${sign}£${Math.round(abs / 1_000)}k`;
+    return `${sign}£${Math.round(abs)}`;
+  };
+
+  const totalOpportunityValue = parseFloat(data.total_annual_opportunity) || 0;
+  const valueGap = data.value_analysis?.valueGap?.mid || 0;
   
   return (
     <div className="min-h-screen bg-slate-50" ref={reportRef} data-pdf-content>
@@ -753,6 +832,108 @@ export function BenchmarkingClientReport({
             )}
           </section>
         )}
+
+        {/* Structured Hidden Value Audit blocks (matches dashboard content coverage) */}
+        {data.hva_data && (
+          <section className="space-y-4">
+            {data.hva_data.reputation_build_time_note && (
+              <div className="bg-purple-50 rounded-xl border border-purple-200 p-5">
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-purple-800 mb-2">
+                  Time to Replicate - Methodology
+                </h3>
+                <p className="text-sm text-slate-700 leading-relaxed italic">
+                  {data.hva_data.reputation_build_time_note}
+                </p>
+              </div>
+            )}
+
+            {data.hva_data.founder_dependency && (
+              <div className="bg-amber-50 rounded-xl border border-amber-200 p-5">
+                <h3 className="text-lg font-semibold text-amber-900 mb-2">Founder Dependency & Succession Readiness</h3>
+                {data.hva_data.founder_dependency.narrative && (
+                  <p className="text-sm text-slate-700 leading-relaxed mb-3">{data.hva_data.founder_dependency.narrative}</p>
+                )}
+                <div className="grid md:grid-cols-2 gap-3 text-sm">
+                  {data.hva_data.founder_dependency.current_state && (
+                    <div className="bg-white rounded-lg p-3 border border-amber-100">
+                      <span className="font-medium text-slate-700">Current state: </span>
+                      <span className="text-slate-600">{data.hva_data.founder_dependency.current_state}</span>
+                    </div>
+                  )}
+                  {data.hva_data.founder_dependency.remediation_path && (
+                    <div className="bg-white rounded-lg p-3 border border-amber-100">
+                      <span className="font-medium text-slate-700">Path to improve: </span>
+                      <span className="text-slate-600">{data.hva_data.founder_dependency.remediation_path}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {data.hva_data.ip_and_documentation && (
+              <div className="bg-indigo-50 rounded-xl border border-indigo-200 p-5">
+                <h3 className="text-lg font-semibold text-indigo-900 mb-2">IP & Documentation Defensibility</h3>
+                {data.hva_data.ip_and_documentation.narrative && (
+                  <p className="text-sm text-slate-700 leading-relaxed mb-3">{data.hva_data.ip_and_documentation.narrative}</p>
+                )}
+                {data.hva_data.ip_and_documentation.protection_status && (
+                  <p className="text-sm text-slate-700 mb-2">
+                    <span className="font-medium">Protection status:</span> {data.hva_data.ip_and_documentation.protection_status}
+                  </p>
+                )}
+                {toSafeArray(data.hva_data.ip_and_documentation.current_gaps).length > 0 && (
+                  <ul className="space-y-1 text-sm text-slate-700 list-disc pl-5">
+                    {toSafeArray<string>(data.hva_data.ip_and_documentation.current_gaps).map((gap, i) => <li key={i}>{gap}</li>)}
+                  </ul>
+                )}
+                {data.hva_data.ip_and_documentation.what_strong_looks_like && (
+                  <p className="text-sm text-slate-600 mt-3 italic">{data.hva_data.ip_and_documentation.what_strong_looks_like}</p>
+                )}
+              </div>
+            )}
+
+            {data.hva_data.operational_autonomy && (
+              <div className="bg-blue-50 rounded-xl border border-blue-200 p-5">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Operational Autonomy</h3>
+                {data.hva_data.operational_autonomy.narrative && (
+                  <p className="text-sm text-slate-700 leading-relaxed mb-3">{data.hva_data.operational_autonomy.narrative}</p>
+                )}
+                {toSafeArray(data.hva_data.operational_autonomy.current_state).length > 0 && (
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-800 mb-2">Current state</p>
+                    <ul className="space-y-1 text-sm text-slate-700 list-disc pl-5">
+                      {toSafeArray<string>(data.hva_data.operational_autonomy.current_state).map((item, i) => <li key={i}>{item}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {data.hva_data.operational_autonomy.target_state && (
+                  <div className="bg-white rounded-lg p-3 border border-blue-100 text-sm text-slate-700">
+                    <span className="font-medium">Target state:</span> {data.hva_data.operational_autonomy.target_state}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {data.hva_data.concentration_and_revenue && (
+              <div className="bg-red-50 rounded-xl border border-red-200 p-5">
+                <h3 className="text-lg font-semibold text-red-900 mb-2">Concentration & Revenue Risk</h3>
+                {data.hva_data.concentration_and_revenue.narrative && (
+                  <p className="text-sm text-slate-700 leading-relaxed mb-3">{data.hva_data.concentration_and_revenue.narrative}</p>
+                )}
+                {data.hva_data.concentration_and_revenue.year_1_projection && (
+                  <p className="text-sm text-slate-700 mb-3">
+                    <span className="font-medium">Year 1 projection:</span> {data.hva_data.concentration_and_revenue.year_1_projection}
+                  </p>
+                )}
+                {toSafeArray(data.hva_data.concentration_and_revenue.actions_to_reduce_risk).length > 0 && (
+                  <ul className="space-y-1 text-sm text-slate-700 list-disc pl-5">
+                    {toSafeArray<string>(data.hva_data.concentration_and_revenue.actions_to_reduce_risk).map((action, i) => <li key={i}>{action}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+          </section>
+        )}
         
         {/* Metrics Grid */}
         {isPreRevenue && preRevenueAnalysis?.metricTargets ? (
@@ -906,25 +1087,59 @@ export function BenchmarkingClientReport({
             clientName={clientName}
             practitionerName={practitionerName}
             practitionerEmail={practitionerEmail}
+            expandAll={printMode}
           />
         )}
         
         {/* Two Paths Section - Connecting Operational and Strategic */}
-        {data.pass1_data?.two_paths_narrative && baselineMetrics && (
+        {data.pass1_data?.two_paths_narrative && baselineMetrics ? (
           <TwoPathsSection
             marginOpportunity={parseFloat(data.total_annual_opportunity) || 0}
             valueGap={data.value_analysis?.valueGap?.mid || 0}
             ownerName={clientName || 'You'}
             narrative={data.pass1_data.two_paths_narrative}
           />
+        ) : (
+          <section className="bg-white rounded-xl border border-slate-200 p-6">
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Your Path</h2>
+            <p className="text-slate-600 text-sm mb-5">
+              Two different kinds of value are in play: recurring profit improvement and enterprise value that becomes visible when structural risks are addressed.
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-5">
+                <p className="text-2xl font-bold text-emerald-700 mb-1">{fmtMoney(totalOpportunityValue)}</p>
+                <p className="text-sm font-medium text-slate-800">Annual profit improvement</p>
+                <p className="text-xs text-slate-600 mt-2">The recurring margin and operating performance opportunity identified in the benchmark data.</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 border border-amber-100 p-5">
+                <p className="text-2xl font-bold text-amber-700 mb-1">{fmtMoney(valueGap)}</p>
+                <p className="text-sm font-medium text-slate-800">Trapped enterprise value</p>
+                <p className="text-xs text-slate-600 mt-2">A one-time valuation unlock from reducing buyer discounts and improving readiness.</p>
+              </div>
+            </div>
+            {data.value_analysis?.pathToValue?.keyActions?.length ? (
+              <div className="mt-5">
+                <h3 className="text-sm font-semibold text-slate-800 mb-3">Priority actions</h3>
+                <div className="space-y-2">
+                  {data.value_analysis.pathToValue.keyActions.map((action: string, i: number) => (
+                    <div key={i} className="flex items-start gap-3 rounded-lg bg-slate-50 border border-slate-100 p-3 text-sm text-slate-700">
+                      <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                      <span>{action}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </section>
         )}
         
         {/* Scenario Planning - What If Projections */}
         {/* ASPIRATIONAL CLOSE: Ends on possibility, not pressure */}
-        {isPreRevenue && preRevenueAnalysis?.scenarios ? (
+        {isPreRevenue && (preRevenueAnalysis?.scenarios || data.scenarios || data.pass1_data?.pre_revenue_scenarios) ? (
           <PreRevenueScenariosSection
-            scenarios={preRevenueAnalysis.scenarios}
+            scenarios={preRevenueAnalysis?.scenarios || data.scenarios || data.pass1_data?.pre_revenue_scenarios || []}
             targetExitValuation={data.pass1_data?.target_exit_valuation || preRevenueAnalysis?.vcMethodBackSolve?.targetExitValuation || 0}
+            scenariosContent={scenariosContent}
           />
         ) : baselineMetrics && baselineMetrics.revenue > 0 ? (
           <ScenarioPlanningSection 
@@ -939,16 +1154,36 @@ export function BenchmarkingClientReport({
           />
         ) : null}
         
-        {/* Closing Summary - Confident wrap-up, no CTA */}
-        {baselineMetrics && (
+        {/* Vision - mirrors dashboard Vision tab */}
+        {(baselineMetrics || (isPreRevenue && preRevenueAnalysis)) && (
           <section className="bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl p-8 text-white print:bg-slate-800 print:rounded-lg">
-            <h2 className="text-2xl font-bold mb-4">Your Position: Summed Up</h2>
+            <h2 className="text-2xl font-bold mb-4">Vision</h2>
+            {isPreRevenue && preRevenueAnalysis ? (
+              <div className="grid gap-4 md:grid-cols-3 mb-5">
+                <div className="rounded-xl bg-white/10 border border-white/10 p-4">
+                  <p className="text-2xl font-bold">{fmtMoney(preRevenueAnalysis.defensiblePreMoney?.base || 0)}</p>
+                  <p className="text-xs text-slate-300">Defensible pre-money</p>
+                </div>
+                <div className="rounded-xl bg-white/10 border border-white/10 p-4">
+                  <p className="text-2xl font-bold">{preRevenueAnalysis.investmentReadiness?.score || data.investment_readiness_score || 0}/100</p>
+                  <p className="text-xs text-slate-300">Investment readiness</p>
+                </div>
+                <div className="rounded-xl bg-white/10 border border-white/10 p-4">
+                  <p className="text-2xl font-bold">{fmtMoney(data.pass1_data?.target_exit_valuation || 0)}</p>
+                  <p className="text-xs text-slate-300">Target exit</p>
+                </div>
+              </div>
+            ) : null}
             <p className="text-slate-300 leading-relaxed text-lg">
               {(() => {
+                if (isPreRevenue && preRevenueAnalysis) {
+                  return data.pass1_data?.two_paths_narrative?.bottomLine ||
+                    'The near-term work is to make the investment story more defensible: prove traction, reduce execution risk, and build the evidence investors need to believe the target exit path.';
+                }
                 const parts: string[] = [];
                 
                 // Revenue context
-                if (baselineMetrics.revenue) {
+                if (baselineMetrics?.revenue) {
                   parts.push(`You're a £${(baselineMetrics.revenue / 1000000).toFixed(0)}M business`);
                 }
                 
@@ -988,9 +1223,144 @@ export function BenchmarkingClientReport({
                 return summary;
               })()}
             </p>
+            {opportunitySynthesis?.topPriority && (
+              <div className="mt-5 rounded-xl bg-white/10 border border-white/10 p-4">
+                <p className="text-sm text-slate-200 leading-relaxed">{opportunitySynthesis.topPriority}</p>
+              </div>
+            )}
           </section>
         )}
         
+        {/* Methodology & Reference - mirrors dashboard Methodology tab */}
+        {methodologyContent && typeof methodologyContent === 'object' && (
+          <section className="bg-white rounded-xl border border-slate-200 p-6 space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">Methodology & Reference</h2>
+              <p className="text-sm text-slate-600">
+                Detailed explainers for the methods behind the numbers, plus glossary, data sources, and limitations.
+              </p>
+            </div>
+
+            {methodologyContent.intro?.body && (
+              <div className="rounded-xl bg-slate-50 border border-slate-100 p-5">
+                {methodologyContent.intro.title && <h3 className="font-semibold text-slate-900 mb-2">{methodologyContent.intro.title}</h3>}
+                <p className="text-sm text-slate-700 leading-relaxed">{methodologyContent.intro.body}</p>
+              </div>
+            )}
+
+            {Array.isArray(methodologyContent.methods) && methodologyContent.methods.length > 0 && (
+              <div className="space-y-4">
+                {methodologyContent.methods.map((method: any, i: number) => (
+                  <div key={method.id || i} className="rounded-xl border border-blue-100 bg-blue-50/40 p-5">
+                    <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
+                      <div>
+                        <h3 className="text-lg font-semibold text-slate-900">{method.name}</h3>
+                        {method.originator && <p className="text-xs text-slate-500 mt-1">{method.originator}</p>}
+                      </div>
+                      {method.method_value_for_vykn && (
+                        <span className="rounded-full bg-blue-100 text-blue-700 text-sm font-semibold px-3 py-1">
+                          {method.method_value_for_vykn}
+                        </span>
+                      )}
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {method.what_it_does && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 mb-1">What it does</p>
+                          <p className="text-sm text-slate-700 leading-relaxed">{method.what_it_does}</p>
+                        </div>
+                      )}
+                      {method.why_relevant_to_vykn && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-purple-700 mb-1">Why it is relevant for you</p>
+                          <p className="text-sm text-slate-700 leading-relaxed">{method.why_relevant_to_vykn}</p>
+                        </div>
+                      )}
+                    </div>
+                    {method.how_to_interpret && (
+                      <div className="mt-3 rounded-lg bg-emerald-50 border-l-4 border-emerald-300 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 mb-1">How to interpret</p>
+                        <p className="text-sm text-slate-700 leading-relaxed">{method.how_to_interpret}</p>
+                      </div>
+                    )}
+                    {method.limitations && (
+                      <div className="mt-3 rounded-lg bg-amber-50 border-l-4 border-amber-300 p-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Limitations</p>
+                        <p className="text-sm text-slate-700 leading-relaxed">{method.limitations}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {methodologyContent.triangulation?.body && (
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-5">
+                <h3 className="font-semibold text-slate-900 mb-2">{methodologyContent.triangulation.title || 'Triangulation'}</h3>
+                <p className="text-sm text-slate-700 leading-relaxed">{methodologyContent.triangulation.body}</p>
+              </div>
+            )}
+
+            {Array.isArray(methodologyContent.data_sources) && methodologyContent.data_sources.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3">Data Sources</h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {methodologyContent.data_sources.map((source: any, i: number) => (
+                    <div key={i} className="rounded-lg bg-slate-50 border border-slate-100 p-3">
+                      <p className="text-sm font-semibold text-slate-800">{source.name}</p>
+                      {source.what_it_provides && <p className="text-xs text-slate-600 mt-1">{source.what_it_provides}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {Array.isArray(methodologyContent.glossary) && methodologyContent.glossary.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3">Glossary</h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {methodologyContent.glossary.map((item: any, i: number) => (
+                    <div key={i} className="rounded-lg bg-purple-50 border border-purple-100 p-3">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {item.term}{item.expanded ? <span className="text-xs font-normal text-slate-500"> - {item.expanded}</span> : null}
+                      </p>
+                      {item.definition && <p className="text-xs text-slate-700 mt-1 leading-relaxed">{item.definition}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {Array.isArray(methodologyContent.limitations) && methodologyContent.limitations.length > 0 && (
+              <div className="rounded-xl bg-amber-50 border border-amber-100 p-5">
+                <h3 className="font-semibold text-slate-900 mb-3">Limitations & Honest Caveats</h3>
+                <ul className="space-y-2 list-disc pl-5 text-sm text-slate-700">
+                  {methodologyContent.limitations.map((limitation: string, i: number) => <li key={i}>{limitation}</li>)}
+                </ul>
+              </div>
+            )}
+
+            {methodologyContent.confidence_metadata && (
+              <div className="rounded-xl bg-slate-50 border border-slate-100 p-4">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {methodologyContent.confidence_metadata.confidence_level && (
+                    <span className="rounded-full bg-emerald-100 text-emerald-700 px-3 py-1 text-xs">Confidence: {methodologyContent.confidence_metadata.confidence_level}</span>
+                  )}
+                  {methodologyContent.confidence_metadata.data_year && (
+                    <span className="rounded-full bg-blue-100 text-blue-700 px-3 py-1 text-xs">Data year: {methodologyContent.confidence_metadata.data_year}</span>
+                  )}
+                  {methodologyContent.confidence_metadata.uk_discount_vs_us && (
+                    <span className="rounded-full bg-purple-100 text-purple-700 px-3 py-1 text-xs">UK discount vs US: {methodologyContent.confidence_metadata.uk_discount_vs_us}</span>
+                  )}
+                </div>
+                {methodologyContent.confidence_metadata.uk_discount_note && (
+                  <p className="text-xs text-slate-600 italic">{methodologyContent.confidence_metadata.uk_discount_note}</p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Data Sources / Methodology */}
         {data.data_sources && data.data_sources.length > 0 && (
           <div className="bg-slate-100 rounded-lg p-4 text-sm text-slate-600">

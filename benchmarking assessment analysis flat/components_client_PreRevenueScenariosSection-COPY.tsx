@@ -29,7 +29,47 @@ const glass = (extra?: React.CSSProperties): React.CSSProperties => ({
   ...extra,
 });
 
-const fmt = (v: number) => v >= 1000000 ? '£' + (v / 1000000).toFixed(1) + 'M' : v >= 1000 ? '£' + Math.round(v / 1000) + 'k' : '£' + v;
+const fmt = (v: number) => {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1000000) {
+    const m = abs / 1000000;
+    const formatted = Math.abs(m - Math.round(m)) < 1e-6 ? Math.round(m).toFixed(0) : m.toFixed(1);
+    return sign + '£' + formatted + 'M';
+  }
+  if (abs >= 1000) return sign + '£' + Math.round(abs / 1000) + 'k';
+  return sign + '£' + abs;
+};
+
+const humaniseKey = (key: string): string => {
+  const overrides: Record<string, string> = {
+    pipelineAcv: 'Pipeline ACV',
+    pipelineACV: 'Pipeline ACV',
+    achievedArr: 'Achieved ARR',
+    achievedARR: 'Achieved ARR',
+    conversionRate: 'Conversion rate',
+    pipelineContributionToValuation: 'Pipeline contribution to valuation',
+    impliedValuation: 'Implied valuation',
+    nrr: 'NRR',
+    cacPayback: 'CAC payback',
+    arrMultiple: 'ARR multiple',
+    contractLength: 'Contract length',
+    exitYear: 'Exit year',
+    targetExit: 'Target exit',
+    targetArr: 'Target ARR',
+    targetARR: 'Target ARR',
+    cumulativeDilution: 'Cumulative dilution',
+    ownershipAtExit: 'Ownership at exit',
+    proceedsAtExit: 'Proceeds at exit',
+  };
+  if (overrides[key]) return overrides[key];
+  const spaced = key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .trim()
+    .toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+};
 
 interface Scenario {
   scenarioName: string;
@@ -41,9 +81,19 @@ interface Scenario {
   methodology: string;
 }
 
+export type PreRevenueScenariosContent = {
+  intro?: { title?: string; paragraphs?: string[] };
+  metric_definitions?: Record<string, { short?: string; definition?: string }>;
+  scenario_narratives?: Record<
+    string,
+    { what_this_tests?: string; why_it_matters?: string; interpretation?: string }
+  >;
+};
+
 interface PreRevenueScenariosProps {
   scenarios: Scenario[];
   targetExitValuation: number;
+  scenariosContent?: PreRevenueScenariosContent;
 }
 
 const DEFAULT_TAB_LABELS = [
@@ -55,7 +105,7 @@ const DEFAULT_TAB_LABELS = [
   'Time to Exit',
 ];
 
-export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: PreRevenueScenariosProps) {
+export function PreRevenueScenariosSection({ scenarios, targetExitValuation, scenariosContent }: PreRevenueScenariosProps) {
   const [activeIdx, setActiveIdx] = useState(0);
   const activeScenario = scenarios[activeIdx] || scenarios[0];
 
@@ -69,6 +119,29 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
         <p style={{ fontSize: 14, color: C.textSecondary, margin: 0 }}>
           Explore how different assumptions affect your trajectory to {fmt(targetExitValuation)} exit
         </p>
+
+        {/* Intro card — how to read these scenarios */}
+        {scenariosContent?.intro && (
+          <div style={{ padding: '20px 22px', borderRadius: 14, background: `${C.blue}05`, border: `1px solid ${C.blue}15`, marginTop: 16 }}>
+            {scenariosContent.intro.title && (
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: '0 0 10px' }}>{scenariosContent.intro.title}</h3>
+            )}
+            {Array.isArray(scenariosContent.intro.paragraphs) &&
+              scenariosContent.intro.paragraphs.map((para, i) => (
+                <p
+                  key={i}
+                  style={{
+                    fontSize: 13,
+                    color: C.textSecondary,
+                    lineHeight: 1.7,
+                    margin: i === 0 ? 0 : '10px 0 0',
+                  }}
+                >
+                  {para}
+                </p>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* Tab bar */}
@@ -101,20 +174,38 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
         </div>
 
         {/* Active scenario content */}
-        {activeScenario && (
+        {activeScenario && (() => {
+          const narratives = scenariosContent?.scenario_narratives;
+          const tabLabel = activeScenario.scenarioName?.trim() || DEFAULT_TAB_LABELS[activeIdx] || '';
+          const scenarioNarrative =
+            (tabLabel && narratives?.[tabLabel]) ||
+            (activeScenario.scenarioName?.trim() && narratives?.[activeScenario.scenarioName.trim()]) ||
+            narratives?.[String(activeIdx)] ||
+            undefined;
+          const hasNarrative =
+            scenarioNarrative &&
+            (scenarioNarrative.what_this_tests || scenarioNarrative.why_it_matters || scenarioNarrative.interpretation);
+
+          return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Inputs */}
             <div style={{ padding: '16px 18px', borderRadius: 12, background: `${C.blue}04`, border: `1px solid ${C.blue}12` }}>
               <p style={{ fontSize: 11, fontWeight: 700, color: C.blue, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10, ...mono }}>Inputs</p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
-                {Object.entries(activeScenario.inputs).map(([key, val]) => (
-                  <div key={key}>
-                    <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{key.replace(/_/g, ' ')}</p>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, ...mono }}>
-                      {typeof val === 'number' ? (val >= 1000 ? fmt(val) : val.toLocaleString()) : val}
-                    </p>
-                  </div>
-                ))}
+                {Object.entries(activeScenario.inputs).map(([key, val]) => {
+                  const def = scenariosContent?.metric_definitions?.[key];
+                  return (
+                    <div key={key}>
+                      <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{humaniseKey(key)}</p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, ...mono }}>
+                        {typeof val === 'number' ? (val >= 1000 ? fmt(val) : val.toLocaleString()) : val}
+                      </p>
+                      {def?.definition && (
+                        <p style={{ fontSize: 11, color: C.textMuted, fontStyle: 'italic', lineHeight: 1.5, margin: '4px 0 0' }}>{def.definition}</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -128,10 +219,10 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
                     const columns = Object.keys(val[0]);
                     return (
                       <div key={key} style={{ marginBottom: 10, gridColumn: '1 / -1' }}>
-                        <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</p>
+                        <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>{humaniseKey(key)}</p>
                         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                           <thead>
-                            <tr>{columns.map(col => <th key={col} style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid rgba(0,0,0,0.1)', fontSize: 10, color: C.textMuted, textTransform: 'capitalize' }}>{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}</tr>
+                            <tr>{columns.map(col => <th key={col} style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid rgba(0,0,0,0.1)', fontSize: 10, color: C.textMuted }}>{humaniseKey(col)}</th>)}</tr>
                           </thead>
                           <tbody>
                             {val.map((row: any, idx: number) => (
@@ -149,17 +240,22 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
                   if (typeof val === 'object' && val !== null) {
                     return (
                       <div key={key} style={{ marginBottom: 6 }}>
-                        <p style={{ fontSize: 11, color: C.textMuted }}>{key.replace(/_/g, ' ')}</p>
+                        <p style={{ fontSize: 11, color: C.textMuted }}>{humaniseKey(key)}</p>
                         <p style={{ fontSize: 13, color: C.text }}>{JSON.stringify(val)}</p>
                       </div>
                     );
                   }
                   return (
                     <div key={key}>
-                      <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{key.replace(/_/g, ' ')}</p>
+                      <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{humaniseKey(key)}</p>
                       <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, ...mono }}>
                         {typeof val === 'number' ? (Math.abs(val) >= 1000 ? fmt(val) : val.toLocaleString()) : String(val)}
                       </p>
+                      {scenariosContent?.metric_definitions?.[key]?.definition && (
+                        <p style={{ fontSize: 11, color: C.textMuted, fontStyle: 'italic', lineHeight: 1.5, margin: '4px 0 0' }}>
+                          {scenariosContent.metric_definitions[key].definition}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -197,10 +293,37 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
               </div>
             ) : null}
 
-            {/* Summary */}
-            <div style={{ padding: '14px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.02)' }}>
-              <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.7, margin: 0 }}>{activeScenario.summary}</p>
-            </div>
+            {/* Summary — only when trajectoryImpact absent (Trajectory card carries narrative otherwise) */}
+            {!activeScenario.trajectoryImpact && activeScenario.summary && (
+              <div style={{ padding: '14px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.02)' }}>
+                <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.7, margin: 0 }}>{activeScenario.summary}</p>
+              </div>
+            )}
+
+            {/* What this scenario means — full prose narrative */}
+            {hasNarrative && scenarioNarrative && (
+              <div style={{ padding: '18px 20px', borderRadius: 12, background: `${C.purple}05`, border: `1px solid ${C.purple}15` }}>
+                <p style={{ fontSize: 11, fontWeight: 700, color: C.purple, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 12px', ...mono }}>What this scenario means</p>
+                {scenarioNarrative.what_this_tests && (
+                  <div style={{ marginBottom: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.blue, ...mono }}>WHAT IT TESTS</span>
+                    <p style={{ fontSize: 13, color: C.text, lineHeight: 1.7, margin: '4px 0 0' }}>{scenarioNarrative.what_this_tests}</p>
+                  </div>
+                )}
+                {scenarioNarrative.why_it_matters && (
+                  <div style={{ marginBottom: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.purple, ...mono }}>WHY IT MATTERS</span>
+                    <p style={{ fontSize: 13, color: C.text, lineHeight: 1.7, margin: '4px 0 0' }}>{scenarioNarrative.why_it_matters}</p>
+                  </div>
+                )}
+                {scenarioNarrative.interpretation && (
+                  <div style={{ padding: '12px 14px', borderRadius: 10, background: `${C.emerald}06`, borderLeft: `3px solid ${C.emerald}40` }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.emerald, ...mono }}>HOW TO INTERPRET</span>
+                    <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.7, margin: '4px 0 0' }}>{scenarioNarrative.interpretation}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Methodology */}
             {activeScenario.methodology && (
@@ -209,7 +332,8 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
               </p>
             )}
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
