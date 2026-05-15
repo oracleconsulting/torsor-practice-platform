@@ -41,6 +41,36 @@ const fmt = (v: number) => {
   return sign + '£' + abs;
 };
 
+const humaniseKey = (key: string): string => {
+  const overrides: Record<string, string> = {
+    pipelineAcv: 'Pipeline ACV',
+    pipelineACV: 'Pipeline ACV',
+    achievedArr: 'Achieved ARR',
+    achievedARR: 'Achieved ARR',
+    conversionRate: 'Conversion rate',
+    pipelineContributionToValuation: 'Pipeline contribution to valuation',
+    impliedValuation: 'Implied valuation',
+    nrr: 'NRR',
+    cacPayback: 'CAC payback',
+    arrMultiple: 'ARR multiple',
+    contractLength: 'Contract length',
+    exitYear: 'Exit year',
+    targetExit: 'Target exit',
+    targetArr: 'Target ARR',
+    targetARR: 'Target ARR',
+    cumulativeDilution: 'Cumulative dilution',
+    ownershipAtExit: 'Ownership at exit',
+    proceedsAtExit: 'Proceeds at exit',
+  };
+  if (overrides[key]) return overrides[key];
+  const spaced = key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/_/g, ' ')
+    .trim()
+    .toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+};
+
 interface Scenario {
   scenarioName: string;
   inputs: Record<string, number | string>;
@@ -119,7 +149,7 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
                 {Object.entries(activeScenario.inputs).map(([key, val]) => (
                   <div key={key}>
-                    <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{key.replace(/_/g, ' ')}</p>
+                    <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{humaniseKey(key)}</p>
                     <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, ...mono }}>
                       {typeof val === 'number' ? (val >= 1000 ? fmt(val) : val.toLocaleString()) : val}
                     </p>
@@ -138,10 +168,10 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
                     const columns = Object.keys(val[0]);
                     return (
                       <div key={key} style={{ marginBottom: 10, gridColumn: '1 / -1' }}>
-                        <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</p>
+                        <p style={{ fontSize: 11, color: C.textMuted, marginBottom: 4 }}>{humaniseKey(key)}</p>
                         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                           <thead>
-                            <tr>{columns.map(col => <th key={col} style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid rgba(0,0,0,0.1)', fontSize: 10, color: C.textMuted, textTransform: 'capitalize' }}>{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}</tr>
+                            <tr>{columns.map(col => <th key={col} style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid rgba(0,0,0,0.1)', fontSize: 10, color: C.textMuted }}>{humaniseKey(col)}</th>)}</tr>
                           </thead>
                           <tbody>
                             {val.map((row: any, idx: number) => (
@@ -159,14 +189,14 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
                   if (typeof val === 'object' && val !== null) {
                     return (
                       <div key={key} style={{ marginBottom: 6 }}>
-                        <p style={{ fontSize: 11, color: C.textMuted }}>{key.replace(/_/g, ' ')}</p>
+                        <p style={{ fontSize: 11, color: C.textMuted }}>{humaniseKey(key)}</p>
                         <p style={{ fontSize: 13, color: C.text }}>{JSON.stringify(val)}</p>
                       </div>
                     );
                   }
                   return (
                     <div key={key}>
-                      <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{key.replace(/_/g, ' ')}</p>
+                      <p style={{ fontSize: 11, color: C.textMuted, margin: '0 0 2px' }}>{humaniseKey(key)}</p>
                       <p style={{ fontSize: 14, fontWeight: 600, color: C.text, margin: 0, ...mono }}>
                         {typeof val === 'number' ? (Math.abs(val) >= 1000 ? fmt(val) : val.toLocaleString()) : String(val)}
                       </p>
@@ -207,10 +237,12 @@ export function PreRevenueScenariosSection({ scenarios, targetExitValuation }: P
               </div>
             ) : null}
 
-            {/* Summary */}
-            <div style={{ padding: '14px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.02)' }}>
-              <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.7, margin: 0 }}>{activeScenario.summary}</p>
-            </div>
+            {/* Summary — only when trajectoryImpact absent (Trajectory card carries narrative otherwise) */}
+            {!activeScenario.trajectoryImpact && activeScenario.summary && (
+              <div style={{ padding: '14px 16px', borderRadius: 10, background: 'rgba(0,0,0,0.02)' }}>
+                <p style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.7, margin: 0 }}>{activeScenario.summary}</p>
+              </div>
+            )}
 
             {/* Methodology */}
             {activeScenario.methodology && (
