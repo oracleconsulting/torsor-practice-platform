@@ -11773,7 +11773,7 @@ function BenchmarkingClientModal({
     try {
       const timestamp = newSharedStatus ? new Date().toISOString() : null;
       
-      // Update bm_reports (must affect a row or client RLS / portal will not see the report)
+      // bm_reports PRIMARY KEY is engagement_id (no separate id column); select it to confirm row updated.
       const { data: updatedReportRows, error: reportError } = await supabase
         .from('bm_reports')
         .update({
@@ -11782,7 +11782,7 @@ function BenchmarkingClientModal({
           shared_by: newSharedStatus ? currentMember?.id : null
         })
         .eq('engagement_id', engagement.id)
-        .select('id');
+        .select('engagement_id');
       
       if (reportError) {
         console.error('[Benchmarking] Error toggling share on bm_reports:', reportError);
