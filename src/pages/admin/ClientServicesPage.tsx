@@ -12060,9 +12060,11 @@ function BenchmarkingClientModal({
           });
         }
         
-        // If not found, try a broader search (in case there's a mismatch)
+        // If not found, keep this engagement reportless. Older fallback logic
+        // searched all client reports and could show a different benchmarking run
+        // when multiple reports exist for the same client.
         let finalReportData = reportData;
-        if (!reportData && !reportError) {
+        if (!reportData && !reportError && !selectedBenchmarkEngagementId) {
           console.log('[Benchmarking Modal] Report not found by engagement_id, trying broader search...');
           
           // Strategy 1: Get all engagements for this client, then find reports
