@@ -11857,11 +11857,15 @@ function BenchmarkingClientModal({
         setClientName(clientData.client_company || clientData.company || clientData.name || '');
       }
 
-      // Fetch engagement - use maybeSingle() to avoid errors if none exists
+      // Fetch latest engagement. Multiple benchmarking reports per client are allowed,
+      // so avoid maybeSingle() over client_id (it errors when history exists).
       const { data: engagementData, error: engagementError } = await supabase
         .from('bm_engagements')
         .select('*')
         .eq('client_id', clientId)
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false, nullsFirst: false })
+        .limit(1)
         .maybeSingle();
 
       if (engagementError && engagementError.code !== 'PGRST116') {
