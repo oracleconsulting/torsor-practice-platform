@@ -13,7 +13,7 @@ interface BenchmarkAppendixProps {
       year: number;
       amountGbp?: number;
       preMoneyGbp?: number;
-      relevanceNote: string;
+      relevanceNote?: string;
     }>;
     dataSources: string[];
     limitations: string[];
@@ -104,7 +104,7 @@ export function BenchmarkAppendix({ appendix }: BenchmarkAppendixProps) {
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                   <thead>
                     <tr style={{ borderBottom: `1px solid ${S.border}` }}>
-                      {['Company', 'Stage', 'Year', 'Amount', 'Pre-Money'].map((h) => (
+                      {['Company', 'Stage', 'Year', 'Amount', 'Pre-Money', 'Relevance'].map((h) => (
                         <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: S.light, fontWeight: 600, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                           {h}
                         </th>
@@ -119,6 +119,9 @@ export function BenchmarkAppendix({ appendix }: BenchmarkAppendixProps) {
                         <td style={{ padding: '6px 8px', color: S.muted }}>{tx.year}</td>
                         <td style={{ padding: '6px 8px', color: S.muted, fontVariantNumeric: 'tabular-nums' }}>{fmtCurrency(tx.amountGbp)}</td>
                         <td style={{ padding: '6px 8px', color: S.muted, fontVariantNumeric: 'tabular-nums' }}>{fmtCurrency(tx.preMoneyGbp)}</td>
+                        <td style={{ padding: '6px 8px', fontSize: 12, color: '#666', lineHeight: 1.5, maxWidth: 280, minWidth: 120, verticalAlign: 'top' }}>
+                          {tx.relevanceNote || ''}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
