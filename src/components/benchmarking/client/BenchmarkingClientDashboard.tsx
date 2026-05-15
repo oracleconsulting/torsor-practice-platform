@@ -1384,26 +1384,39 @@ export default function BenchmarkingClientDashboard({
             {/* Competitive Moat (HVA) */}
             {(() => {
               const competitiveMoat = toSafeArray(data.hva_data?.competitive_moat);
-              return competitiveMoat.length > 0 && (
+              const um = typeof data.hva_data?.unique_methods === 'string' ? data.hva_data.unique_methods.trim() : '';
+              const rb = typeof data.hva_data?.reputation_build_time === 'string' ? data.hva_data.reputation_build_time.trim() : '';
+              const showMoatSection = competitiveMoat.length > 0 || !!(um || rb);
+              return showMoatSection && (
               <RevealCard delay={hasHiddenValue || hasConcentrationRisk ? 380 : 0} style={{ ...glass({ padding: 24 }), borderTop: `3px solid ${C.blue}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                   <Shield style={{ width: 20, height: 20, color: C.blue }} />
                   <h3 style={{ color: C.text, fontSize: 16, fontWeight: 700, margin: 0 }}>Competitive Moat</h3>
                 </div>
-                <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 14 }}>Barriers that protect your business from competitors:</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
-                  {competitiveMoat.map((moat: string, i: number) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: `${C.blue}06`, border: `1px solid ${C.blue}15` }}>
-                      <CheckCircle style={{ width: 14, height: 14, color: C.blue, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, color: C.text }}>{moat}</span>
+                {competitiveMoat.length > 0 && (
+                  <>
+                    <p style={{ color: C.textSecondary, fontSize: 14, marginBottom: 14 }}>Barriers that protect your business from competitors:</p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+                      {competitiveMoat.map((moat: string, i: number) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, background: `${C.blue}06`, border: `1px solid ${C.blue}15` }}>
+                          <CheckCircle style={{ width: 14, height: 14, color: C.blue, flexShrink: 0 }} />
+                          <span style={{ fontSize: 13, color: C.text }}>{moat}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                {data.hva_data?.unique_methods && (
-                  <div style={{ marginTop: 14, padding: '14px 18px', borderRadius: 12, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
-                    <span style={{ ...label, color: C.purple }}>Your Unique Advantage</span>
-                    <p style={{ fontSize: 14, fontStyle: 'italic', color: C.text, marginTop: 6, lineHeight: 1.6 }}>"{data.hva_data.unique_methods}"</p>
-                    {data.hva_data.reputation_build_time && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 6 }}>Time to replicate: {data.hva_data.reputation_build_time}</p>}
+                  </>
+                )}
+                {(um || rb) && (
+                  <div style={{ marginTop: competitiveMoat.length > 0 ? 14 : 0, padding: '14px 18px', borderRadius: 12, background: `${C.purple}06`, borderLeft: `3px solid ${C.purple}40` }}>
+                    {um ? (
+                      <>
+                        <span style={{ ...label, color: C.purple }}>Your Unique Advantage</span>
+                        <p style={{ fontSize: 14, fontStyle: 'italic', color: C.text, marginTop: 6, lineHeight: 1.6 }}>"{um}"</p>
+                      </>
+                    ) : (
+                      <span style={{ ...label, color: C.purple }}>Reputation & replication horizon</span>
+                    )}
+                    {rb ? <p style={{ fontSize: 12, color: C.textMuted, marginTop: um ? 6 : 10 }}>Time to replicate: {rb}</p> : null}
                   </div>
                 )}
               </RevealCard>
@@ -1575,7 +1588,16 @@ export default function BenchmarkingClientDashboard({
               );
             })()}
 
-            {!hasHiddenValue && !hasConcentrationRisk && toSafeArray(data.hva_data?.competitive_moat).length === 0 && !data.hva_data?.founder_dependency && !data.hva_data?.ip_and_documentation && !data.hva_data?.operational_autonomy && !data.hva_data?.concentration_and_revenue && !data.hva_data?.reputation_build_time_note && (
+            {!hasHiddenValue &&
+              !hasConcentrationRisk &&
+              toSafeArray(data.hva_data?.competitive_moat).length === 0 &&
+              !(typeof data.hva_data?.unique_methods === 'string' && data.hva_data.unique_methods.trim()) &&
+              !(typeof data.hva_data?.reputation_build_time === 'string' && data.hva_data.reputation_build_time.trim()) &&
+              !data.hva_data?.founder_dependency &&
+              !data.hva_data?.ip_and_documentation &&
+              !data.hva_data?.operational_autonomy &&
+              !data.hva_data?.concentration_and_revenue &&
+              !data.hva_data?.reputation_build_time_note && (
               <RevealCard style={{ ...glass({ padding: 32, textAlign: 'center' }) }}>
                 <p style={{ color: C.textMuted, fontSize: 14 }}>No hidden value or concentration risk data available for this engagement.</p>
               </RevealCard>
