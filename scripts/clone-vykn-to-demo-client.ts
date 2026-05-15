@@ -50,6 +50,11 @@ const DEFAULT_REDACTIONS = [
   'Themis',
   'Datox AI',
   'Onfido',
+  'Rawlinson & Hunter',
+  'CapitalBridge',
+  'CIBC FCIB',
+  'CIBC',
+  'FCIB',
 ];
 
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
@@ -357,6 +362,9 @@ async function main() {
     else if (/themis/i.test(term)) redactionMap.set(term, 'RegulaOne');
     else if (/datox/i.test(term)) redactionMap.set(term, 'SignalForge AI');
     else if (/onfido/i.test(term)) redactionMap.set(term, 'VerifyNova');
+    else if (/rawlinson|hunter/i.test(term)) redactionMap.set(term, 'Northbridge Advisory');
+    else if (/capitalbridge/i.test(term)) redactionMap.set(term, 'Northstar Capital');
+    else if (/cibc|fcib/i.test(term)) redactionMap.set(term, 'Sterling Growth Bank');
     else redactionMap.set(term, demoCompany);
   });
 
