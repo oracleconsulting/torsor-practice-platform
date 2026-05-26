@@ -199,7 +199,7 @@ export default function UnifiedDashboardPage() {
           .from('bm_engagements')
           .select('id, status, assessment_completed_at, report_shared_with_client')
           .eq('client_id', clientId)
-          .maybeSingle(),
+          .order('updated_at', { ascending: false, nullsFirst: false }),
       ]);
 
       const hideDiscoveryInPortal = !!pmResult.data?.hide_discovery_in_portal;
@@ -213,18 +213,28 @@ export default function UnifiedDashboardPage() {
       const engagement = maEngagement || biEngagement;
       const maAssessmentDone = !!maAssessResult.data?.completed_at;
       let discovery = discoveryResult.data?.[0] ?? null;
-      const bmEngagement = bmResult.data;
+      const bmEngagements = bmResult.data || [];
+      if (bmResult.error) {
+        console.error('Error loading benchmarking engagements:', bmResult.error);
+      }
 
       maAssessmentCompletedRef.current = maAssessmentDone;
       setMAAssessmentCompleted(maAssessmentDone);
 
-      if (bmEngagement) {
-        const isReportGenerated = ['generated', 'approved', 'published', 'pass1_complete'].includes(bmEngagement.status);
+      if (bmEngagements.length > 0) {
+        const sharedCount = bmEngagements.filter((engagement: any) => !!engagement.report_shared_with_client).length;
+        const hasGenerated = bmEngagements.some((engagement: any) =>
+          ['generated', 'approved', 'published', 'pass1_complete'].includes(engagement.status)
+        );
+        const hasCompletedAssessment = bmEngagements.some((engagement: any) =>
+          !!engagement.assessment_completed_at ||
+          ['assessment_complete', 'generated', 'approved', 'published', 'pass1_complete'].includes(engagement.status)
+        );
         setBenchmarkingStatus({
           hasEngagement: true,
-          assessmentComplete: !!bmEngagement.assessment_completed_at || ['assessment_complete', 'generated', 'approved', 'published', 'pass1_complete'].includes(bmEngagement.status),
-          reportGenerated: isReportGenerated,
-          reportShared: !!bmEngagement.report_shared_with_client,
+          assessmentComplete: hasCompletedAssessment,
+          reportGenerated: hasGenerated,
+          reportShared: sharedCount > 0,
         });
       } else {
         setBenchmarkingStatus({ hasEngagement: false, assessmentComplete: false, reportGenerated: false, reportShared: false });
