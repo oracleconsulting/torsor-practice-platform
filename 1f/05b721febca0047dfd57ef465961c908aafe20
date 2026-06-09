@@ -1,0 +1,27 @@
+supabase/functions/bulk-import-clients/index.ts
+  s_a9b0237f7d2eb2::t_0070516aa1017c 189
+src/pages/admin/ClientServicesClientListModals.tsx
+  s_a9b0237f7d2eb2::t_0a3ae792cb1996 576
+vite.config.ts
+  s_a9b0237f7d2eb2::t_7be268aa6bfb12 21
+supabase/functions/send-assessment-review/index.ts
+  s_a9b0237f7d2eb2::t_3dd76ffe960574 117-118
+src/components/benchmarking/admin/ExportAnalysisButton.tsx
+  s_a9b0237f7d2eb2::t_dbcb183e7fcacf 928
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "1f05b721febca0047dfd57ef465961c908aafe20",
+  "prompts": {},
+  "sessions": {
+    "s_a9b0237f7d2eb2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a083d20c-5520-470e-a16d-d667eddb4458",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
