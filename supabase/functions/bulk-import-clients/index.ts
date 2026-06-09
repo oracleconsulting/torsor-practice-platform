@@ -186,7 +186,7 @@ serve(async (req) => {
       practiceId, 
       clients, 
       sendEmails = true,
-      portalUrl = 'https://torsor.co.uk/client',
+      portalUrl = Deno.env.get('CLIENT_PORTAL_URL') || 'https://client.torsor.co.uk',
       invitedByName = 'Your Advisor'
     } = body;
 

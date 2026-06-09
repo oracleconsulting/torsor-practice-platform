@@ -18,6 +18,6 @@ export default defineConfig({
     host: true,
     port: 4173,
     strictPort: false,
-    allowedHosts: ['torsor.co.uk', '.railway.app']
+    allowedHosts: ['torsor.co.uk', 'v1.torsor.co.uk', '.railway.app']
   }
 })

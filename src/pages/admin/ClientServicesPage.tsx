@@ -701,7 +701,7 @@ export function ClientServicesPage() {
           practiceId: currentMember.practice_id,
           clients,
           sendEmails: bulkSendEmails, // User controls whether to send emails
-          portalUrl: 'https://torsor.co.uk/client',
+          portalUrl: (import.meta as any).env?.VITE_CLIENT_PORTAL_URL || 'https://client.torsor.co.uk',
           invitedByName: currentMember.name || 'Your Advisor'
         }
       });

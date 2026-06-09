@@ -573,7 +573,7 @@ Jeremy Baron	jeremy@baronsec.com	Baron Securities"
                           </table>
                         </div>
                         <div className="px-4 py-3 bg-blue-50 border-t border-blue-200 text-xs text-blue-700">
-                          <strong>Portal URL:</strong> https://torsor.co.uk/client
+                          <strong>Portal URL:</strong> {(import.meta as any).env?.VITE_CLIENT_PORTAL_URL || 'https://client.torsor.co.uk'}
                         </div>
                       </div>
                     )}

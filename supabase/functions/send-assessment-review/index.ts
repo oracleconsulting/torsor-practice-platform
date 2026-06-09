@@ -114,7 +114,8 @@ serve(async (req) => {
     }
 
     // Generate review URL (public preview - no login required)
-    const reviewUrl = `https://torsor.co.uk/review?type=${assessmentType}&practice=${encodeURIComponent(practice?.name || 'RPGCC')}`;
+    const adminBaseUrl = Deno.env.get('ADMIN_PLATFORM_URL') || 'https://v1.torsor.co.uk';
+    const reviewUrl = `${adminBaseUrl}/review?type=${assessmentType}&practice=${encodeURIComponent(practice?.name || 'RPGCC')}`;
 
     // Build email HTML
     const assessmentListHtml = filteredSections.map(section => {
