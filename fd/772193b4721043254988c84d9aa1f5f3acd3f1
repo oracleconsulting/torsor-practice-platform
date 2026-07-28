@@ -1,0 +1,25 @@
+apps/client-portal/src/lib/utils/weekGating.test.ts
+  s_870a398e4fad9b::t_130839bef3b694 88-93,105
+apps/client-portal/src/lib/utils/weekGating.ts
+  s_870a398e4fad9b::t_72b71971ba2307 3-4,25-34,122-129,139-140,178,180,184,186
+apps/client-portal/src/pages/SprintDashboardPage.tsx
+  s_870a398e4fad9b::t_9a18cdd91f9339 818-819,825-829,834-835,837-845,847
+  s_870a398e4fad9b::t_d8ac7b1523f23b 1799-1802
+  s_870a398e4fad9b::t_e0679c548c309f 896,910,928-932,939-942,948,950,961-962,964,966-969,974-975,990,993-994,998-1002,1005,1007,1010-1011
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "fd772193b4721043254988c84d9aa1f5f3acd3f1",
+  "prompts": {},
+  "sessions": {
+    "s_870a398e4fad9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "792c688e-cda7-412c-a92d-fb8a1cad4e1d",
+        "model": "default"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
