@@ -815,31 +815,36 @@ function ProgressStrip({
       <div className="flex gap-1">
         {(weeks || Array.from({ length: 12 }, (_, i) => ({ weekNumber: i + 1, theme: `Week ${i + 1}` }))).map((week: any, i: number) => {
           const weekNum = week.weekNumber ?? i + 1;
-          const isResolved = gating.isWeekResolved(weekNum);
-          const isLocked = gating.isWeekLocked(weekNum);
-          const isActive = weekNum === gating.activeWeek;
+          const phase = gating.weekPhase(weekNum);
+          const expandable = gating.isWeekExpandable(weekNum);
           const weekDbTasks = tasks.filter((t: any) => t.week_number === weekNum);
           const completed = weekDbTasks.filter((t: any) => t.status === 'completed').length;
           const skipped = weekDbTasks.filter((t: any) => t.status === 'skipped').length;
           const total = weekDbTasks.length > 0 ? weekDbTasks.length : (week.tasks || []).length;
           let bgColor = 'bg-slate-100 text-slate-400';
-          if (isResolved) bgColor = 'bg-emerald-500 text-white';
-          else if (isActive) bgColor = 'bg-indigo-500 text-white';
-          else if (isLocked) bgColor = 'bg-slate-50 text-slate-300';
+          if (phase === 'resolved') bgColor = 'bg-emerald-500 text-white';
+          else if (phase === 'active') bgColor = 'bg-indigo-500 text-white';
+          else if (phase === 'scheduled') bgColor = 'bg-amber-100 text-amber-800';
+          else if (phase === 'locked') bgColor = 'bg-slate-50 text-slate-300';
+          const startLabel = formatWeekStartLabel(gating.weekStartDate(weekNum));
           return (
             <button
               key={weekNum}
               type="button"
-              onClick={() => !isLocked && onWeekClick(weekNum)}
-              disabled={isLocked}
+              onClick={() => expandable && onWeekClick(weekNum)}
+              disabled={!expandable}
               className={`flex-1 h-8 rounded-md flex items-center justify-center text-xs font-medium transition-all ${bgColor} ${
-                isActive ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
-              } ${isLocked ? 'cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}`}
-              title={isLocked
-                ? `Week ${weekNum} — Locked (${weekLockReason(gating, weekNum).label})`
-                : `Week ${weekNum}: ${week.theme ?? ''} — ${completed} done, ${skipped} skipped of ${total}`}
+                phase === 'active' ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
+              } ${!expandable ? 'cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}`}
+              title={
+                phase === 'locked'
+                  ? `Week ${weekNum} — Locked (${weekLockReason(gating).label})`
+                  : phase === 'scheduled'
+                    ? `Week ${weekNum}: ${week.theme ?? ''} — ${startLabel ?? 'Opens soon'} (preview)`
+                    : `Week ${weekNum}: ${week.theme ?? ''} — ${completed} done, ${skipped} skipped of ${total}`
+              }
             >
-              {isResolved ? '✓' : isLocked ? '🔒' : weekNum}
+              {phase === 'resolved' ? '✓' : phase === 'locked' ? '🔒' : weekNum}
             </button>
           );
         })}
@@ -888,7 +893,7 @@ function AllWeeksAccordion({
   const didInitialScroll = useRef(false);
 
   useEffect(() => {
-    if (scrollToWeek != null && weekRefs.current[scrollToWeek] && !gating.isWeekLocked(scrollToWeek)) {
+    if (scrollToWeek != null && weekRefs.current[scrollToWeek] && gating.isWeekExpandable(scrollToWeek)) {
       setOpenWeek(scrollToWeek);
       const el = weekRefs.current[scrollToWeek];
       if (el) {
@@ -902,7 +907,7 @@ function AllWeeksAccordion({
   useEffect(() => {
     if (didInitialScroll.current) return;
     const target = gating.activeWeek;
-    if (!target || gating.isWeekLocked(target)) return;
+    if (!target || !gating.isWeekExpandable(target)) return;
     const el = weekRefs.current[target];
     if (!el) return;
     didInitialScroll.current = true;
@@ -920,23 +925,29 @@ function AllWeeksAccordion({
       <div className="divide-y divide-slate-100">
         {list.map((week: any) => {
           const weekNum = week.weekNumber ?? week.week;
-          const isLocked = gating.isWeekLocked(weekNum);
-          const isResolved = gating.isWeekResolved(weekNum);
+          const phase = gating.weekPhase(weekNum);
+          const isLocked = phase === 'locked';
+          const isScheduled = phase === 'scheduled';
+          const isResolved = phase === 'resolved';
+          const expandable = gating.isWeekExpandable(weekNum);
           const weekTasks = tasks.filter((t: any) => t.week_number === weekNum);
           const weekTaskList = week.tasks || [];
           const weekMatches = matchWeekTasks(weekTaskList, weekTasks, weekNum);
           const completedCount = weekTasks.filter((t: any) => t.status === 'completed').length;
           const skippedCount = weekTasks.filter((t: any) => t.status === 'skipped').length;
           const totalCount = weekTaskList.length > 0 ? weekTaskList.length : weekTasks.length;
-          const isActive = openWeek === weekNum;
-          const isActionable = gating.isWeekActionable(weekNum);
+          const isOpen = openWeek === weekNum;
+          const isActionable = phase === 'active' || phase === 'resolved'
+            ? gating.isWeekActionable(weekNum)
+            : false;
           const startDate = gating.weekStartDate(weekNum);
           const lifeTasks = weekTaskList.filter((t: any) => t.category?.startsWith?.('life_'));
           const businessTasks = weekTaskList.filter((t: any) => !t.category?.startsWith?.('life_'));
           const existingPulse = pulseByWeek.get(weekNum) ?? null;
           // Active week's live form lives in ThisWeekCard only — avoid two forms.
+          // Scheduled weeks never show a pulse form (not started yet).
           const showPulseSection =
-            weekNum !== gating.activeWeek && !!existingPulse;
+            weekNum !== gating.activeWeek && !!existingPulse && phase === 'resolved';
 
           return (
             <div
@@ -947,18 +958,21 @@ function AllWeeksAccordion({
               <button
                 type="button"
                 onClick={() => {
-                  if (isLocked) return;
-                  setOpenWeek(isActive ? null : weekNum);
+                  if (!expandable) return;
+                  setOpenWeek(isOpen ? null : weekNum);
                 }}
-                disabled={isLocked}
+                disabled={!expandable}
                 className={`w-full p-4 flex items-center gap-4 text-left transition-colors ${
-                  isLocked ? 'cursor-not-allowed' : 'hover:bg-slate-50'
-                } ${isResolved ? 'bg-emerald-50/50' : ''} ${weekNum === gating.activeWeek ? 'border-l-4 border-l-indigo-500' : ''}`}
+                  !expandable ? 'cursor-not-allowed' : 'hover:bg-slate-50'
+                } ${isResolved ? 'bg-emerald-50/50' : ''} ${isScheduled ? 'bg-amber-50/40' : ''} ${
+                  weekNum === gating.activeWeek ? 'border-l-4 border-l-indigo-500' : ''
+                }`}
               >
                 <div
                   className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
                     isResolved ? 'bg-emerald-500 text-white' :
-                    weekNum === gating.activeWeek ? 'bg-indigo-500 text-white' :
+                    phase === 'active' ? 'bg-indigo-500 text-white' :
+                    isScheduled ? 'bg-amber-100 text-amber-800' :
                     isLocked ? 'bg-slate-100 text-slate-300' :
                     'bg-slate-200 text-slate-600'
                   }`}
@@ -973,31 +987,28 @@ function AllWeeksAccordion({
                   <span className="text-sm font-medium text-slate-900">{completedCount + skippedCount}/{totalCount} tasks</span>
                   {isLocked && (
                     <span className="text-xs text-slate-400 text-right max-w-[11rem]">
-                      {weekLockReason(gating, weekNum).label}
+                      {weekLockReason(gating).label}
                     </span>
                   )}
-                  {!isLocked && !isActionable && startDate && (
-                    <span className="text-xs text-amber-600">
+                  {isScheduled && startDate && (
+                    <span className="text-xs text-amber-700 font-medium">
                       {formatWeekStartLabel(startDate)}
                     </span>
                   )}
-                  {isActive ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                  {expandable ? (
+                    isOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />
+                  ) : (
+                    <Lock className="w-4 h-4 text-slate-300" />
+                  )}
                 </div>
               </button>
-              {isActive && !isLocked && (
+              {isOpen && expandable && (
                 <div className="px-4 pb-4">
-                  {!isActionable && startDate && (
+                  {isScheduled && startDate && (
                     <div className="ml-16 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-sm text-amber-900">
-                        Preview only — Week {weekNum} opens on{' '}
-                        <strong>
-                          {startDate.toLocaleDateString(undefined, {
-                            weekday: 'long',
-                            day: 'numeric',
-                            month: 'long',
-                          })}
-                        </strong>
-                        . Read ahead and plan, but tasks become tickable on that date.
+                        Preview — Week {weekNum} {formatWeekStartLabel(startDate)?.replace(/^Starts /, 'starts on ') ?? 'opens soon'}.
+                        {' '}Read ahead and plan; tasks become tickable on that date.
                       </p>
                     </div>
                   )}
@@ -1785,7 +1796,10 @@ export default function SprintDashboardPage() {
               practiceId={clientSession?.practiceId}
               sprintNumber={currentSprintNumber}
               existingPulse={pulseByWeek.get(gating.activeWeek) ?? null}
-              needsPulse={gating.needsPulse(gating.activeWeek)}
+              needsPulse={
+                gating.weekPhase(gating.activeWeek) === 'active' &&
+                gating.needsPulse(gating.activeWeek)
+              }
               onSubmitPulse={(rating, categories, protectText) =>
                 handleSubmitPulse(rating, categories, protectText, gating.activeWeek)
               }

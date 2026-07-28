@@ -85,7 +85,12 @@ describe('computeWeekGating + rolling schedule unlock path', () => {
     );
     expect(gating.weekStartDate(4)?.toDateString()).toBe(new Date(2026, 7, 3).toDateString());
     expect(formatWeekStartLabel(gating.weekStartDate(4))).toMatch(/Starts Monday/);
-    expect(weekLockReason(gating, 4).label).toMatch(/Starts Monday/);
+    // Week 4 is the active week with a future start → scheduled (expandable, not locked)
+    expect(gating.weekPhase(4)).toBe('scheduled');
+    expect(gating.isWeekExpandable(4)).toBe(true);
+    expect(gating.isWeekActionable(4)).toBe(false);
+    expect(gating.weekPhase(5)).toBe('locked');
+    expect(gating.isWeekExpandable(5)).toBe(false);
   });
 
   it('keeps a reachable unlock path via inline pulse (no page-level block)', () => {
@@ -97,6 +102,7 @@ describe('computeWeekGating + rolling schedule unlock path', () => {
       false,
     );
     expect(gating.needsPulse(gating.activeWeek)).toBe(true);
+    expect(gating.weekPhase(3)).toBe('active');
     expect(
       isPulseUnlockPathReachable({
         needsPulse: true,

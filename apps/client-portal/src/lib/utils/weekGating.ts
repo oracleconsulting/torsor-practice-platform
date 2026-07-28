@@ -1,5 +1,7 @@
 import { matchWeekTasks, isTaskResolved } from './taskMatching';
 
+export type WeekPhase = 'resolved' | 'active' | 'scheduled' | 'locked';
+
 export type WeekGating = {
   activeWeek: number;
   resolvedWeeks: number[];
@@ -20,6 +22,16 @@ export type WeekGating = {
    * Prefers sprint_week_schedule rows; falls back to sprintStartDate + 7×(n−1).
    */
   weekStartDate: (weekNum: number) => Date | null;
+  /**
+   * Three live states plus resolved:
+   * - locked: previous week not closed — not expandable
+   * - scheduled: previous closed, starts_on in the future — expandable, read-only
+   * - active: starts_on reached, not yet closed — fully interactive
+   * - resolved: closed (tasks + pulse)
+   */
+  weekPhase: (weekNum: number) => WeekPhase;
+  /** Expandable unless locked (scheduled weeks are readable ahead of time). */
+  isWeekExpandable: (weekNum: number) => boolean;
 };
 
 /**
@@ -107,6 +119,14 @@ export function computeWeekGating(
     return today.getTime() >= startDay.getTime();
   };
 
+  const weekPhase = (weekNum: number): WeekPhase => {
+    if (resolvedWeeks.includes(weekNum)) return 'resolved';
+    if (weekNum > activeWeek) return 'locked';
+    // First unresolved week: scheduled until starts_on, then active
+    if (!isWeekActionable(weekNum)) return 'scheduled';
+    return 'active';
+  };
+
   return {
     activeWeek,
     resolvedWeeks,
@@ -116,6 +136,8 @@ export function computeWeekGating(
     needsPulse: (w) => tasksDoneWeeks.includes(w) && !resolvedWeeks.includes(w),
     isWeekActionable,
     weekStartDate,
+    weekPhase,
+    isWeekExpandable: (w) => weekPhase(w) !== 'locked',
   };
 }
 
@@ -153,26 +175,15 @@ export function formatWeekStartLabel(date: Date | null | undefined): string | nu
   })}`;
 }
 
-/** Lock / tooltip copy distinguishing tasks vs pulse as the blocker. */
+/** Lock copy for weeks that cannot open yet (previous week not closed). */
 export function weekLockReason(
-  gating: Pick<WeekGating, 'activeWeek' | 'needsPulse' | 'weekStartDate'>,
-  lockedWeekNum?: number,
+  gating: Pick<WeekGating, 'activeWeek' | 'needsPulse'>,
 ): { kind: 'tasks' | 'pulse'; label: string } {
   const n = gating.activeWeek;
-  const parts: string[] = [];
   if (gating.needsPulse(n)) {
-    parts.push(`Week ${n} pulse outstanding`);
-  } else {
-    parts.push(`Finish Week ${n} tasks`);
+    return { kind: 'pulse', label: `Week ${n} pulse outstanding` };
   }
-  if (lockedWeekNum != null) {
-    const startLabel = formatWeekStartLabel(gating.weekStartDate(lockedWeekNum));
-    if (startLabel) parts.push(startLabel);
-  }
-  return {
-    kind: gating.needsPulse(n) ? 'pulse' : 'tasks',
-    label: parts.join(' · '),
-  };
+  return { kind: 'tasks', label: `Finish Week ${n} tasks` };
 }
 
 /**
