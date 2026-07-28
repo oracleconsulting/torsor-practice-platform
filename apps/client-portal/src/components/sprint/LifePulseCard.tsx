@@ -48,7 +48,7 @@ export function LifePulseCard({
   const [showForm, setShowForm] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  if (isCatchUp || isSprintComplete) return null;
+  if (isSprintComplete) return null;
 
   const toggleCategory = (value: string) => {
     setCategories((prev) =>
@@ -102,13 +102,15 @@ export function LifePulseCard({
       <div className="flex items-center gap-2 mb-4">
         <Heart className="w-4 h-4 text-rose-500" />
         <span className="text-sm font-semibold text-rose-800 uppercase tracking-wide">
-          Weekly Life Pulse
+          {isCatchUp ? 'Catch-up Life Pulse' : 'Weekly Life Pulse'}
         </span>
         <span className="text-xs text-rose-600 bg-rose-100 px-2 py-0.5 rounded">Week {weekNumber}</span>
       </div>
 
       <p className="text-sm text-rose-900 mb-3">
-        How aligned did your week feel with the life you&apos;re building?
+        {isCatchUp
+          ? 'Looking back, how aligned did that week feel with the life you\u2019re building?'
+          : 'How aligned did your week feel with the life you\u2019re building?'}
       </p>
       <div className="flex items-center gap-2 mb-4">
         {[1, 2, 3, 4, 5].map((n) => (
@@ -132,7 +134,9 @@ export function LifePulseCard({
       )}
 
       <p className="text-sm text-rose-900 mb-2">
-        Which life areas got attention this week?
+        {isCatchUp
+          ? 'Which life areas got attention that week?'
+          : 'Which life areas got attention this week?'}
       </p>
       <div className="flex flex-wrap gap-2 mb-4">
         {CATEGORY_OPTIONS.map(({ value, label, emoji }) => (
@@ -152,7 +156,11 @@ export function LifePulseCard({
         ))}
       </div>
 
-      <p className="text-sm text-rose-900 mb-2">One thing to protect next week (optional)</p>
+      <p className="text-sm text-rose-900 mb-2">
+        {isCatchUp
+          ? 'One thing you\u2019d protect if you had that week again (optional)'
+          : 'One thing to protect next week (optional)'}
+      </p>
       <input
         type="text"
         value={protectText}
@@ -179,6 +187,8 @@ export function LifePulseCard({
           Couldn&apos;t save your Life Pulse: {submitError}
         </div>
       )}
+      {/* sprintNumber kept for callers / future analytics */}
+      <span className="sr-only">Sprint {sprintNumber}</span>
     </div>
   );
 }

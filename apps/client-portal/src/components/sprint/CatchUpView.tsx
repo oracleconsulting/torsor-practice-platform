@@ -3,11 +3,13 @@
 // ============================================================================
 // Replaces main content when client is 3+ weeks behind. Task key = "weekNumber:title"
 // for safe parsing when title contains ':'. Submit uses batch upsert.
+// After tasks resolve, collects a Life Pulse per week before completing.
 // ============================================================================
 
 import { useState, useMemo, useEffect } from 'react';
 import { Loader2, SkipForward } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { LifePulseCard } from '@/components/sprint/LifePulseCard';
 
 function taskKey(weekNumber: number, title: string): string {
   return `${weekNumber}:${title}`;
@@ -33,6 +35,8 @@ export function CatchUpView({
   clientId,
   practiceId,
   sprintNumber,
+  pulseWeeks,
+  onSubmitPulse,
   onComplete,
   onCancel,
 }: {
@@ -42,11 +46,25 @@ export function CatchUpView({
   clientId: string;
   practiceId: string;
   sprintNumber: number;
+  pulseWeeks: Set<number>;
+  onSubmitPulse: (
+    rating: number,
+    categories: string[],
+    protectText: string | undefined,
+    weekNumber: number,
+  ) => Promise<void>;
   onComplete: () => void;
   onCancel: () => void;
 }) {
   const [resolutions, setResolutions] = useState<Record<string, 'completed' | 'skipped'>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [phase, setPhase] = useState<'tasks' | 'pulses'>('tasks');
+  const [pulseQueue, setPulseQueue] = useState<number[]>([]);
+  const [localPulseWeeks, setLocalPulseWeeks] = useState<Set<number>>(() => new Set(pulseWeeks));
+
+  useEffect(() => {
+    setLocalPulseWeeks(new Set(pulseWeeks));
+  }, [pulseWeeks]);
 
   const tasksForSprint = useMemo(
     () => dbTasks.filter((t: any) => (t.sprint_number ?? 1) === sprintNumber),
@@ -126,6 +144,25 @@ export function CatchUpView({
   const remainingCount = tasksNeedingResolution.length - completedCount - skippedCount;
   const allResolved = remainingCount === 0;
 
+  const weeksNeedingPulse = (sourceWeeks: CatchUpWeek[], pulses: Set<number>) =>
+    sourceWeeks
+      .filter((w) =>
+        w.tasks.length > 0 &&
+        w.tasks.every((t) => t.alreadyResolved || resolutions[t.key]),
+      )
+      .map((w) => w.weekNumber)
+      .filter((wn) => !pulses.has(wn));
+
+  const advanceToPulsesOrComplete = (pulses: Set<number>) => {
+    const needing = weeksNeedingPulse(catchUpWeeks, pulses);
+    if (needing.length > 0) {
+      setPulseQueue(needing);
+      setPhase('pulses');
+    } else {
+      onComplete();
+    }
+  };
+
   const handleSubmit = async () => {
     if (!clientId || !practiceId) return;
 
@@ -182,7 +219,7 @@ export function CatchUpView({
         if (error) throw error;
       }
 
-      onComplete();
+      advanceToPulsesOrComplete(localPulseWeeks);
     } catch (err) {
       console.error('Catch-up submit failed:', err);
       alert('Failed to save. Please try again.');
@@ -190,6 +227,60 @@ export function CatchUpView({
       setSubmitting(false);
     }
   };
+
+  const currentPulseWeek = pulseQueue[0];
+
+  const handlePulseSubmit = async (
+    rating: number,
+    categories: string[],
+    protectText?: string,
+  ) => {
+    if (currentPulseWeek == null) return;
+    await onSubmitPulse(rating, categories, protectText, currentPulseWeek);
+    const nextPulses = new Set(localPulseWeeks);
+    nextPulses.add(currentPulseWeek);
+    setLocalPulseWeeks(nextPulses);
+    const remaining = pulseQueue.slice(1);
+    if (remaining.length === 0) {
+      onComplete();
+    } else {
+      setPulseQueue(remaining);
+    }
+  };
+
+  if (phase === 'pulses' && currentPulseWeek != null) {
+    return (
+      <div className="space-y-4 pb-8">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-sm text-slate-500 hover:text-slate-700 flex items-center gap-1"
+        >
+          ← Back to Sprint Dashboard
+        </button>
+
+        <div className="bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-6">
+          <h2 className="text-xl font-bold text-rose-900">Catch-up Life Pulse</h2>
+          <p className="text-sm text-rose-700 mt-2 max-w-lg">
+            Tasks for these weeks are resolved. Submit a quick retrospective pulse for each
+            outstanding week so the sprint can unlock again.
+          </p>
+          <p className="text-xs text-rose-600 mt-3">
+            {pulseQueue.length} week{pulseQueue.length === 1 ? '' : 's'} remaining
+          </p>
+        </div>
+
+        <LifePulseCard
+          key={currentPulseWeek}
+          sprintNumber={sprintNumber}
+          weekNumber={currentPulseWeek}
+          isCatchUp
+          isSprintComplete={false}
+          onSubmit={handlePulseSubmit}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 pb-24">
@@ -210,7 +301,8 @@ export function CatchUpView({
             <p className="text-sm text-amber-700 mt-2 max-w-lg">
               You&apos;re catching up on week{unresolvedWeeks.length !== 1 ? 's' : ''}{' '}
               {unresolvedWeeks.length > 0 ? unresolvedWeeks.join(', ') : ''}. Mark each task as done
-              or skipped to get back on track.
+              or skipped to get back on track. You&apos;ll submit a Life Pulse for each resolved
+              week before finishing.
             </p>
           </div>
           <button
@@ -267,6 +359,13 @@ export function CatchUpView({
                 <span className="text-xs text-slate-500">
                   {weekResolvedCount} of {week.tasks.length} resolved
                 </span>
+                {weekResolvedCount === week.tasks.length &&
+                  week.tasks.length > 0 &&
+                  !localPulseWeeks.has(week.weekNumber) && (
+                    <span className="text-xs text-rose-600 bg-rose-50 px-2 py-0.5 rounded">
+                      Pulse needed
+                    </span>
+                  )}
               </div>
 
               {weekHasUnresolved && (
@@ -366,7 +465,9 @@ export function CatchUpView({
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div className="text-sm text-slate-600">
             {remainingCount === 0 && tasksNeedingResolution.length > 0 ? (
-              <span>All resolved — save to continue</span>
+              <span>All resolved — continue to Life Pulse</span>
+            ) : remainingCount === 0 && weeksNeedingPulse(catchUpWeeks, localPulseWeeks).length > 0 ? (
+              <span>Tasks done — continue to Life Pulse</span>
             ) : (
               <>
                 <span className="font-medium text-emerald-600">✓ {completedCount} completed</span>
@@ -393,6 +494,8 @@ export function CatchUpView({
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Saving...
               </>
+            ) : weeksNeedingPulse(catchUpWeeks, localPulseWeeks).length > 0 ? (
+              'Save & Continue to Pulse'
             ) : (
               'Save & Continue'
             )}

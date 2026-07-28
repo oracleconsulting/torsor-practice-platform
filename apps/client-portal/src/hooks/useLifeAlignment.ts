@@ -100,8 +100,9 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
   const trend: 'up' | 'down' | 'stable' = latestScore?.trend ?? 'stable';
   const categoryScores: Record<string, number> = latestScore?.category_scores ?? {};
 
-  const recalculateScore = useCallback(async () => {
-    if (!clientId || !practiceId || sprintNumber < 1 || currentWeek < 1) return;
+  const recalculateScore = useCallback(async (forWeek?: number) => {
+    const week = forWeek ?? currentWeek;
+    if (!clientId || !practiceId || sprintNumber < 1 || week < 1) return;
     try {
       const [
         { data: lifeTasks },
@@ -193,7 +194,7 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
       );
       const overallRounded = Math.round(overall * 100) / 100;
 
-      const prevWeekScoreRow = scoresThisSprint.find((s) => s.week_number === currentWeek - 1);
+      const prevWeekScoreRow = scoresThisSprint.find((s) => s.week_number === week - 1);
       const prevOverall = prevWeekScoreRow != null ? Number(prevWeekScoreRow.overall_score) : null;
       let trendVal: 'up' | 'down' | 'stable' = 'stable';
       if (prevOverall != null) {
@@ -215,7 +216,7 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
         client_id: clientId,
         practice_id: practiceId,
         sprint_number: sprintNumber,
-        week_number: currentWeek,
+        week_number: week,
         task_completion_score: taskCompletionScore,
         pulse_alignment_score: pulseAlignmentScore,
         hours_adherence_score: hoursAdherenceScore,
@@ -239,8 +240,9 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
   }, [clientId, practiceId, sprintNumber, currentWeek, fetchPulseAndScores]);
 
   const submitPulse = useCallback(
-    async (rating: number, categories: string[], protectText?: string) => {
-      if (!clientId || !practiceId || sprintNumber < 1 || currentWeek < 1) {
+    async (rating: number, categories: string[], protectText?: string, forWeek?: number) => {
+      const week = forWeek ?? currentWeek;
+      if (!clientId || !practiceId || sprintNumber < 1 || week < 1) {
         throw new Error('Cannot submit pulse: missing client/sprint/week context.');
       }
       const { error } = await supabase.from('life_pulse_entries').upsert(
@@ -248,7 +250,7 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
           client_id: clientId,
           practice_id: practiceId,
           sprint_number: sprintNumber,
-          week_number: currentWeek,
+          week_number: week,
           alignment_rating: rating,
           active_categories: categories,
           protect_next_week: protectText?.trim() || null,
@@ -262,7 +264,7 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
         throw new Error(error.message || 'Failed to save Life Pulse.');
       }
       await fetchPulseAndScores();
-      await recalculateScore();
+      await recalculateScore(week);
     },
     [clientId, practiceId, sprintNumber, currentWeek, fetchPulseAndScores, recalculateScore]
   );

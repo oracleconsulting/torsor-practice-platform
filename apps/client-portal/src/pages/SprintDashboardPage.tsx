@@ -48,7 +48,12 @@ import { useProgress } from '@/hooks/useProgress';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
 import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
-import { matchWeekTasks, isTaskResolved } from '@/lib/utils/taskMatching';
+import { matchWeekTasks } from '@/lib/utils/taskMatching';
+import {
+  computeWeekGating,
+  getPulseTargetWeek,
+  weekLockReason,
+} from '@/lib/utils/weekGating';
 
 // ============================================================================
 // CALENDAR WEEK (for catch-up gating)
@@ -129,130 +134,6 @@ function getCurrentWeekFromTasks(tasks: any[]): number {
     .filter(t => t.week_number === highestActive)
     .every(t => t.status === 'completed' || t.status === 'skipped');
   return allDoneInHighest ? Math.min(highestActive + 1, 12) : highestActive;
-}
-
-// ============================================================================
-// WEEK GATING
-// ============================================================================
-
-function computeWeekGating(
-  weeks: any[],
-  dbTasks: any[],
-  pulseWeeks?: Set<number>,
-  sprintStartDate?: string | null,
-): {
-  activeWeek: number;
-  resolvedWeeks: number[];
-  lockedWeeks: number[];
-  isWeekResolved: (weekNum: number) => boolean;
-  isWeekLocked: (weekNum: number) => boolean;
-  /** Weeks where tasks are done but pulse is missing */
-  needsPulse: (weekNum: number) => boolean;
-  /**
-   * True when the calendar has reached this week's start date AND the previous
-   * week is fully resolved. Drives whether tasks for this week can be marked
-   * in_progress / completed. Weeks before activeWeek are always actionable.
-   * If `sprintStartDate` is null, every visible week is actionable (legacy).
-   */
-  isWeekActionable: (weekNum: number) => boolean;
-  /**
-   * Returns the calendar date this week first becomes actionable (i.e. tasks
-   * can be marked done). Null if `sprintStartDate` is not set yet.
-   */
-  weekStartDate: (weekNum: number) => Date | null;
-} {
-  const resolvedWeeks: number[] = [];
-  const tasksDoneWeeks: number[] = [];
-
-  for (let i = 0; i < (weeks?.length || 0); i++) {
-    const week = weeks[i];
-    const weekNum = week?.weekNumber ?? week?.week ?? (i + 1);
-    const generatedTasks = week?.tasks || [];
-
-    const matches = matchWeekTasks(generatedTasks, dbTasks, weekNum);
-    const allTasksDone =
-      generatedTasks.length > 0 &&
-      matches.every((m) => m !== null && isTaskResolved(m.status));
-
-    if (allTasksDone) {
-      tasksDoneWeeks.push(weekNum);
-      const hasPulse = !pulseWeeks || pulseWeeks.has(weekNum);
-      if (hasPulse) {
-        resolvedWeeks.push(weekNum);
-      } else {
-        break;
-      }
-    } else {
-      break;
-    }
-  }
-
-  const activeWeek =
-    resolvedWeeks.length > 0
-      ? Math.min(resolvedWeeks[resolvedWeeks.length - 1] + 1, 12)
-      : 1;
-
-  const lockedWeeks = Array.from({ length: 12 }, (_, i) => i + 1).filter(
-    (w) => w > activeWeek && !resolvedWeeks.includes(w)
-  );
-
-  // Compute week start dates. Each week begins exactly 7 days after the previous,
-  // anchored on the chosen sprint_start_date.
-  const weekStartDate = (weekNum: number): Date | null => {
-    if (!sprintStartDate) return null;
-    const start = new Date(sprintStartDate);
-    if (Number.isNaN(start.getTime())) return null;
-    const d = new Date(start);
-    d.setDate(d.getDate() + (weekNum - 1) * 7);
-    return d;
-  };
-
-  const isWeekActionable = (weekNum: number): boolean => {
-    // Resolved weeks stay actionable so the client can edit/skip retroactively.
-    if (resolvedWeeks.includes(weekNum)) return true;
-    // Without a chosen start date, behave as before — any visible week is actionable.
-    if (!sprintStartDate) return true;
-    const startDate = weekStartDate(weekNum);
-    if (!startDate) return true;
-    const now = new Date();
-    return now.getTime() >= startDate.getTime();
-  };
-
-  return {
-    activeWeek,
-    resolvedWeeks,
-    lockedWeeks,
-    isWeekResolved: (w) => resolvedWeeks.includes(w),
-    isWeekLocked: (w) => lockedWeeks.includes(w),
-    needsPulse: (w) => tasksDoneWeeks.includes(w) && !resolvedWeeks.includes(w),
-    isWeekActionable,
-    weekStartDate,
-  };
-}
-
-/**
- * Highest week number where every generated task has a matching DB task in
- * completed/skipped status. Used as the target week for the Life Pulse so it
- * gets saved against the week the client is closing out — NOT the next week
- * they haven't started yet. Defaults to 1 when no week is fully done.
- */
-function getPulseTargetWeek(weeks: any[], dbTasks: any[]): number {
-  let lastDoneWeek = 0;
-  for (let i = 0; i < (weeks?.length || 0); i++) {
-    const week = weeks[i];
-    const weekNum = week?.weekNumber ?? week?.week ?? (i + 1);
-    const generatedTasks = week?.tasks || [];
-    const matches = matchWeekTasks(generatedTasks, dbTasks, weekNum);
-    const allDone =
-      generatedTasks.length > 0 &&
-      matches.every((m) => m !== null && isTaskResolved(m.status));
-    if (allDone) {
-      lastDoneWeek = weekNum;
-    } else {
-      break;
-    }
-  }
-  return lastDoneWeek > 0 ? lastDoneWeek : 1;
 }
 
 // ============================================================================
@@ -968,7 +849,7 @@ function ProgressStrip({
                 isActive ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
               } ${isLocked ? 'cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}`}
               title={isLocked
-                ? `Week ${weekNum} — Locked (complete Week ${gating.activeWeek} first)`
+                ? `Week ${weekNum} — Locked (${weekLockReason(gating).label})`
                 : `Week ${weekNum}: ${week.theme ?? ''} — ${completed} done, ${skipped} skipped of ${total}`}
             >
               {isResolved ? '✓' : isLocked ? '🔒' : weekNum}
@@ -1077,9 +958,20 @@ function AllWeeksAccordion({
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <span className="text-sm font-medium text-slate-900">{completedCount + skippedCount}/{totalCount} tasks</span>
-                  {isLocked && (
-                    <span className="text-xs text-slate-400">Complete Week {gating.activeWeek} to unlock</span>
-                  )}
+                  {isLocked && (() => {
+                    const reason = weekLockReason(gating);
+                    return reason.kind === 'pulse' ? (
+                      <a
+                        href="#life-pulse-card"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs text-rose-600 hover:text-rose-800 hover:underline"
+                      >
+                        {reason.label}
+                      </a>
+                    ) : (
+                      <span className="text-xs text-slate-400">{reason.label}</span>
+                    );
+                  })()}
                   {!isLocked && !isActionable && startDate && (
                     <span className="text-xs text-amber-600">
                       Opens {startDate.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
@@ -1241,10 +1133,21 @@ export default function SprintDashboardPage() {
     loading: lifeLoading,
   } = useLifeAlignment(currentSprintNumber, pulseTargetWeek);
 
+  const [pulseInitialLoadDone, setPulseInitialLoadDone] = useState(false);
+  useEffect(() => {
+    if (!lifeLoading) setPulseInitialLoadDone(true);
+  }, [lifeLoading]);
+
   // Compute gating WITH pulse data as a week-completion gate AND the chosen
   // sprint start date as a calendar-time gate (next-week tasks become
   // actionable only after 7 days have passed since the previous week began).
-  const gating = computeWeekGating(weeks, tasks, pulseWeeks, sprintStartDate);
+  const gating = computeWeekGating(
+    weeks,
+    tasks,
+    pulseWeeks,
+    sprintStartDate,
+    !pulseInitialLoadDone,
+  );
 
   // TEMP: remove once Week 3→4 unlock verified for client 9eb9588a
   console.log('[GATE]', {
@@ -1586,6 +1489,14 @@ export default function SprintDashboardPage() {
     );
   }
 
+  if (weeks.length > 0 && !pulseInitialLoadDone) {
+    return (
+      <Layout title="Your Sprint" subtitle={sprint?.sprintTheme || 'Your 12-week transformation'}>
+        <PageSkeleton />
+      </Layout>
+    );
+  }
+
   if (!sprint || !weeks.length) {
     const hasUnpublishedSprint = roadmap?.hasUnpublishedSprint === true;
     return (
@@ -1681,6 +1592,10 @@ export default function SprintDashboardPage() {
           clientId={clientSession?.clientId ?? ''}
           practiceId={clientSession?.practiceId ?? ''}
           sprintNumber={renewalState?.currentSprint ?? currentSprintNumber}
+          pulseWeeks={pulseWeeks}
+          onSubmitPulse={(rating, categories, protectText, weekNumber) =>
+            submitPulse(rating, categories, protectText, weekNumber)
+          }
           onComplete={handleCatchUpComplete}
           onCancel={() => setCatchUpMode(false)}
         />
@@ -1728,6 +1643,36 @@ export default function SprintDashboardPage() {
                 />
               </div>
             )}
+          {/* End-of-week Life Pulse — always shown when it's the blocker, including
+              when behind schedule. Placed above CatchUpBanner so the immediate
+              unlock action outranks the longer catch-up flow. */}
+          {gating.needsPulse(gating.activeWeek) && !completionState.isSprintComplete && (
+            <div
+              id="life-pulse-card"
+              className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-5 ring-2 ring-rose-300/40"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-bold">
+                  ✓
+                </span>
+                <p className="text-sm font-semibold text-rose-900">
+                  All tasks done — submit your Life Pulse to unlock Week {Math.min(gating.activeWeek + 1, 12)}
+                </p>
+              </div>
+              <p className="text-xs text-rose-700/80 mb-3">
+                30-second weekly check-in: rate how aligned the week felt, tap the life areas you tended to, and submit.
+              </p>
+              <LifePulseCard
+                sprintNumber={currentSprintNumber}
+                weekNumber={gating.activeWeek}
+                isCatchUp={false}
+                isSprintComplete={false}
+                onSubmit={submitPulse}
+                currentScore={lifeScore}
+                loading={lifeLoading}
+              />
+            </div>
+          )}
           {isBehind && (
             <CatchUpBanner
               weeksBehind={catchUpState.weeksBehind}
@@ -1750,8 +1695,8 @@ export default function SprintDashboardPage() {
               </span>
             </div>
           )}
-          {/* Life Alignment overview */}
-          {!isBehind && !completionState.isSprintComplete && (
+          {/* Life Alignment overview — keep visible when behind; those clients need the trend most */}
+          {!completionState.isSprintComplete && (
             <LifeAlignmentCard
               scores={lifeScores}
               currentScore={lifeScore}
@@ -1857,32 +1802,6 @@ export default function SprintDashboardPage() {
             }}
             loading={checkInLoading}
           />
-          {/* End-of-week Life Pulse — appears after the week's tasks are all
-              completed or skipped, as the final gate to unlock the next week. */}
-          {gating.needsPulse(gating.activeWeek) && !completionState.isSprintComplete && !isBehind && (
-            <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-5 ring-2 ring-rose-300/40">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-bold">
-                  ✓
-                </span>
-                <p className="text-sm font-semibold text-rose-900">
-                  All tasks done — submit your Life Pulse to unlock Week {Math.min(gating.activeWeek + 1, 12)}
-                </p>
-              </div>
-              <p className="text-xs text-rose-700/80 mb-3">
-                30-second weekly check-in: rate how aligned the week felt, tap the life areas you tended to, and submit.
-              </p>
-              <LifePulseCard
-                sprintNumber={currentSprintNumber}
-                weekNumber={gating.activeWeek}
-                isCatchUp={false}
-                isSprintComplete={false}
-                onSubmit={submitPulse}
-                currentScore={lifeScore}
-                loading={lifeLoading}
-              />
-            </div>
-          )}
           {/* Sticky progress strip — stays visible when scrolling */}
           <div className="sticky top-0 z-20 -mx-4 lg:-mx-8 px-4 lg:px-8 py-3 bg-white/95 backdrop-blur-sm border-b border-slate-100">
             <ProgressStrip
