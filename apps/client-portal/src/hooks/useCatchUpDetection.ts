@@ -1,51 +1,59 @@
 // ============================================================================
-// useCatchUpDetection — Determines if catch-up mode should be offered
+// useCatchUpDetection — Dormancy-based catch-up offer (rolling schedule)
 // ============================================================================
-// Trigger: client is 3+ weeks behind calendar. Unresolved weeks = activeWeek
-// through calendarWeek that are not fully resolved.
+// "Weeks behind" a fixed calendar is meaningless once week starts re-anchor.
+// Instead: days since the ACTIVE week's starts_on while that week is unclosed.
+//   < 14 days  → normal
+//   14–28 days → gentle "pick up where you left off"
+//   > 28 days  → offer catch-up mode
 // ============================================================================
 
+export type DormancyLevel = 'none' | 'gentle' | 'catch_up';
+
 export interface CatchUpState {
+  /** True when dormant > 28 days — offer catch-up mode */
   isCatchUpNeeded: boolean;
-  calendarWeek: number;
+  /** True when dormant 14–28 days — gentle nudge only */
+  isGentleNudge: boolean;
+  dormancyLevel: DormancyLevel;
+  daysDormant: number;
   activeWeek: number;
-  weeksBehind: number;
   unresolvedWeeks: number[];
 }
 
 export function useCatchUpDetection(
-  sprintStartDate: string | Date | null,
-  gating: { activeWeek: number; resolvedWeeks: number[] },
+  gating: { activeWeek: number; resolvedWeeks: number[]; weekStartDate: (n: number) => Date | null },
   totalWeeks: number = 12,
+  now: Date = new Date(),
 ): CatchUpState {
-  const start = sprintStartDate ? new Date(sprintStartDate) : null;
-  const now = new Date();
-  const msPerWeek = 7 * 24 * 60 * 60 * 1000;
-
-  const calendarWeek =
-    start != null
-      ? Math.min(
-          Math.max(1, Math.floor((now.getTime() - start.getTime()) / msPerWeek) + 1),
-          totalWeeks,
-        )
-      : 1;
-
   const activeWeek = gating.activeWeek;
-  const weeksBehind = Math.max(0, calendarWeek - activeWeek);
-  const isCatchUpNeeded = weeksBehind >= 3;
+  const start = gating.weekStartDate(activeWeek);
+
+  let daysDormant = 0;
+  if (start) {
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    daysDormant = Math.max(
+      0,
+      Math.floor((today.getTime() - startDay.getTime()) / (24 * 60 * 60 * 1000)),
+    );
+  }
+
+  let dormancyLevel: DormancyLevel = 'none';
+  if (daysDormant > 28) dormancyLevel = 'catch_up';
+  else if (daysDormant >= 14) dormancyLevel = 'gentle';
 
   const unresolvedWeeks: number[] = [];
-  for (let w = activeWeek; w <= Math.min(calendarWeek, totalWeeks); w++) {
-    if (!gating.resolvedWeeks.includes(w)) {
-      unresolvedWeeks.push(w);
-    }
+  if (activeWeek >= 1 && activeWeek <= totalWeeks && !gating.resolvedWeeks.includes(activeWeek)) {
+    unresolvedWeeks.push(activeWeek);
   }
 
   return {
-    isCatchUpNeeded,
-    calendarWeek,
+    isCatchUpNeeded: dormancyLevel === 'catch_up',
+    isGentleNudge: dormancyLevel === 'gentle',
+    dormancyLevel,
+    daysDormant,
     activeWeek,
-    weeksBehind,
     unresolvedWeeks,
   };
 }

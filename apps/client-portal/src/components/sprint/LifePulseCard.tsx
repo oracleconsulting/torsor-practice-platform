@@ -3,9 +3,10 @@
 // ============================================================================
 
 import { useState } from 'react';
-import { Heart, Loader2 } from 'lucide-react';
+import { Heart, Loader2, CheckCircle } from 'lucide-react';
+import type { PulseByWeekEntry } from '@/hooks/useLifeAlignment';
 
-const CATEGORY_OPTIONS: { value: string; label: string; emoji: string }[] = [
+export const CATEGORY_OPTIONS: { value: string; label: string; emoji: string }[] = [
   { value: 'life_time', label: 'Time', emoji: '⏰' },
   { value: 'life_relationship', label: 'Relationships', emoji: '💛' },
   { value: 'life_health', label: 'Health', emoji: '🏃' },
@@ -24,31 +25,91 @@ const RATING_LABELS: Record<number, string> = {
 export interface LifePulseCardProps {
   sprintNumber: number;
   weekNumber: number;
-  isCatchUp: boolean;
-  isSprintComplete: boolean;
-  onSubmit: (rating: number, categories: string[], protectText?: string) => Promise<void>;
+  isCatchUp?: boolean;
+  isSprintComplete?: boolean;
+  onSubmit?: (rating: number, categories: string[], protectText?: string) => Promise<void>;
   currentScore?: number | null;
   loading?: boolean;
+  /** When present, render a read-only submitted summary (WeeklyCheckInCard pattern). */
+  existingPulse?: PulseByWeekEntry | null;
+  /** Override the form heading (e.g. "Close out Week N"). */
+  formHeading?: string;
 }
 
 export function LifePulseCard({
   sprintNumber,
   weekNumber,
-  isCatchUp,
-  isSprintComplete,
+  isCatchUp = false,
+  isSprintComplete = false,
   onSubmit,
   currentScore = null,
   loading = false,
+  existingPulse = null,
+  formHeading,
 }: LifePulseCardProps) {
   const [rating, setRating] = useState<number>(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [protectText, setProtectText] = useState('');
-  const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [showForm, setShowForm] = useState(true);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (isSprintComplete) return null;
+
+  if (existingPulse) {
+    const areaLabels = existingPulse.activeCategories
+      .map((v) => CATEGORY_OPTIONS.find((c) => c.value === v))
+      .filter(Boolean) as typeof CATEGORY_OPTIONS;
+    return (
+      <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-100 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-emerald-500" />
+            <h3 className="text-sm font-semibold text-rose-900">
+              Week {weekNumber} Life Pulse — Submitted
+            </h3>
+          </div>
+          <span className="text-xs text-rose-500">
+            {new Date(existingPulse.createdAt).toLocaleDateString(undefined, {
+              weekday: 'short',
+              day: 'numeric',
+              month: 'short',
+            })}
+          </span>
+        </div>
+        <div className="space-y-2 text-sm">
+          <p className="text-rose-900">
+            <span className="text-rose-600">Alignment:</span>{' '}
+            <span className="font-medium">
+              {existingPulse.alignmentRating}/5
+              {RATING_LABELS[existingPulse.alignmentRating]
+                ? ` — ${RATING_LABELS[existingPulse.alignmentRating]}`
+                : ''}
+            </span>
+          </p>
+          {areaLabels.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {areaLabels.map(({ value, label, emoji }) => (
+                <span
+                  key={value}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-100 text-rose-800"
+                >
+                  <span>{emoji}</span>
+                  <span>{label}</span>
+                </span>
+              ))}
+            </div>
+          )}
+          {existingPulse.protectNextWeek && (
+            <p className="text-rose-800">
+              <span className="text-rose-600">Protect:</span> {existingPulse.protectNextWeek}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (!onSubmit) return null;
 
   const toggleCategory = (value: string) => {
     setCategories((prev) =>
@@ -62,8 +123,6 @@ export function LifePulseCard({
     setSubmitError(null);
     try {
       await onSubmit(rating, categories, protectText.trim() || undefined);
-      setSubmitted(true);
-      setShowForm(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to save your Life Pulse.';
       setSubmitError(msg);
@@ -72,39 +131,19 @@ export function LifePulseCard({
     }
   };
 
-  if (submitted && !showForm) {
-    return (
-      <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-100 rounded-xl p-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Heart className="w-4 h-4 text-rose-500" />
-            <span className="text-sm font-semibold text-rose-800">Life Pulse saved ✓</span>
-          </div>
-          {currentScore != null && (
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">
-              Score: {Math.round(currentScore)}
-            </span>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowForm(true)}
-          className="mt-2 text-xs text-rose-600 hover:text-rose-800 underline"
-        >
-          Edit
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-100 rounded-xl p-6">
+    <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-100 rounded-xl p-5">
       <div className="flex items-center gap-2 mb-4">
         <Heart className="w-4 h-4 text-rose-500" />
         <span className="text-sm font-semibold text-rose-800 uppercase tracking-wide">
-          {isCatchUp ? 'Catch-up Life Pulse' : 'Weekly Life Pulse'}
+          {formHeading
+            ?? (isCatchUp ? 'Catch-up Life Pulse' : 'Weekly Life Pulse')}
         </span>
-        <span className="text-xs text-rose-600 bg-rose-100 px-2 py-0.5 rounded">Week {weekNumber}</span>
+        {!formHeading && (
+          <span className="text-xs text-rose-600 bg-rose-100 px-2 py-0.5 rounded">
+            Week {weekNumber}
+          </span>
+        )}
       </div>
 
       <p className="text-sm text-rose-900 mb-3">
@@ -187,7 +226,9 @@ export function LifePulseCard({
           Couldn&apos;t save your Life Pulse: {submitError}
         </div>
       )}
-      {/* sprintNumber kept for callers / future analytics */}
+      {currentScore != null && (
+        <p className="mt-2 text-xs text-rose-500">Current alignment score: {Math.round(currentScore)}</p>
+      )}
       <span className="sr-only">Sprint {sprintNumber}</span>
     </div>
   );

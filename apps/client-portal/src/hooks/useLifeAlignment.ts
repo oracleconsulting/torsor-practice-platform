@@ -22,6 +22,14 @@ export interface LifePulseEntry {
   created_at: string;
 }
 
+export type PulseByWeekEntry = {
+  weekNumber: number;
+  alignmentRating: number;
+  activeCategories: string[];
+  protectNextWeek: string | null;
+  createdAt: string;
+};
+
 export interface LifeAlignmentScoreRow {
   id: string;
   client_id: string;
@@ -93,7 +101,20 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
 
   const hasPulseThisWeek = pulse.some((p) => p.week_number === currentWeek);
   const hasPulseForWeek = (weekNum: number) => pulse.some((p) => p.week_number === weekNum);
-  const pulseWeeks = new Set(pulse.map(p => p.week_number));
+  const pulseWeeks = new Set(pulse.map((p) => p.week_number));
+
+  const pulseByWeek = new Map(
+    pulse.map((p) => [
+      p.week_number,
+      {
+        weekNumber: p.week_number,
+        alignmentRating: p.alignment_rating,
+        activeCategories: p.active_categories ?? [],
+        protectNextWeek: p.protect_next_week,
+        createdAt: p.created_at,
+      },
+    ]),
+  );
 
   const latestScore = scores.length > 0 ? scores[scores.length - 1] : null;
   const currentScore = latestScore != null ? Number(latestScore.overall_score) : null;
@@ -280,6 +301,7 @@ export function useLifeAlignment(sprintNumber: number, currentWeek: number) {
     hasPulseThisWeek,
     hasPulseForWeek,
     pulseWeeks,
+    pulseByWeek,
     loading,
     refetch: fetchPulseAndScores,
   };

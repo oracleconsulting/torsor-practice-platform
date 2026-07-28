@@ -31,7 +31,6 @@ import {
   Lock,
   Sparkles,
 } from 'lucide-react';
-import { useCatchUpDetection } from '@/hooks/useCatchUpDetection';
 import { CatchUpBanner } from '@/components/sprint/CatchUpBanner';
 import { CatchUpView } from '@/components/sprint/CatchUpView';
 import { SprintCompletionCelebration } from '@/components/sprint/SprintCompletionCelebration';
@@ -41,9 +40,10 @@ import { QuarterlyLifeCheck } from '@/components/sprint/QuarterlyLifeCheck';
 import { QuarterlyLifeCheckForm } from '@/components/QuarterlyLifeCheckForm';
 import { SprintSummaryClientView } from '@/components/SprintSummaryClientView';
 import { TuesdayCheckInCard } from '@/components/sprint/TuesdayCheckInCard';
-import { LifePulseCard } from '@/components/sprint/LifePulseCard';
+import { WeekPulseSection } from '@/components/sprint/WeekPulseSection';
 import { LifeAlignmentCard } from '@/components/sprint/LifeAlignmentCard';
-import { useLifeAlignment } from '@/hooks/useLifeAlignment';
+import { useLifeAlignment, type PulseByWeekEntry } from '@/hooks/useLifeAlignment';
+import { useSprintWeekSchedule } from '@/hooks/useSprintWeekSchedule';
 import { useProgress } from '@/hooks/useProgress';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
@@ -53,19 +53,9 @@ import {
   computeWeekGating,
   getPulseTargetWeek,
   weekLockReason,
+  formatWeekStartLabel,
 } from '@/lib/utils/weekGating';
-
-// ============================================================================
-// CALENDAR WEEK (for catch-up gating)
-// ============================================================================
-
-function getCalendarWeek(sprintStartDate: string | null): number {
-  if (!sprintStartDate) return 1;
-  const start = new Date(sprintStartDate).getTime();
-  const now = Date.now();
-  const weekNum = Math.ceil((now - start) / (7 * 24 * 60 * 60 * 1000));
-  return Math.max(1, Math.min(12, weekNum));
-}
+import { useCatchUpDetection } from '@/hooks/useCatchUpDetection';
 
 // ============================================================================
 // SPRINT COMPLETION (for Phase 3 summary)
@@ -439,30 +429,34 @@ function ThisWeekCard({
   dbTasks,
   onTaskStatusChange,
   onSkip,
-  isBehind,
-  activeWeek,
-  calendarWeek,
   isActionable = true,
   weekStartDate,
-  onStartCatchUp,
   clientId,
   practiceId,
+  sprintNumber,
+  existingPulse,
+  needsPulse,
+  onSubmitPulse,
+  pulseLoading,
+  lifeScore,
 }: {
   week: any;
   weekNumber: number;
   dbTasks: any[];
   onTaskStatusChange: (taskId: string, status: 'pending' | 'in_progress' | 'completed', task?: any) => void;
   onSkip?: (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }) => void;
-  isBehind?: boolean;
-  activeWeek?: number;
-  calendarWeek?: number;
   /** When false, this week is visible-only (preview). Tasks cannot be ticked. */
   isActionable?: boolean;
   /** Date this week becomes actionable (when isActionable=false). */
   weekStartDate?: Date | null;
-  onStartCatchUp?: () => void;
   clientId?: string;
   practiceId?: string;
+  sprintNumber: number;
+  existingPulse?: PulseByWeekEntry | null;
+  needsPulse: boolean;
+  onSubmitPulse: (rating: number, categories: string[], protectText?: string) => Promise<void>;
+  pulseLoading?: boolean;
+  lifeScore?: number | null;
 }) {
   const narrative = week.narrative || week.focus;
   const weekMilestone = week.weekMilestone || week.milestone;
@@ -506,22 +500,6 @@ function ThisWeekCard({
         <div className="mx-5 mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
           <p className="text-sm text-indigo-800 font-medium">
             Ready to start? Click any task below to begin your first week.
-          </p>
-        </div>
-      )}
-
-      {isBehind && activeWeek != null && calendarWeek != null && onStartCatchUp && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mx-5 mt-5">
-          <p className="text-sm text-amber-800">
-            You're on Week {activeWeek} — the calendar says Week {calendarWeek}.
-            {' '}
-            <button
-              type="button"
-              onClick={onStartCatchUp}
-              className="font-semibold text-amber-900 underline hover:no-underline"
-            >
-              Catch up now →
-            </button>
           </p>
         </div>
       )}
@@ -606,6 +584,20 @@ function ThisWeekCard({
               {weekMilestone}
             </p>
           </div>
+        </div>
+      )}
+
+      {(existingPulse || needsPulse) && (
+        <div className="px-5 pb-5">
+          <WeekPulseSection
+            weekNumber={weekNumber}
+            sprintNumber={sprintNumber}
+            existingPulse={existingPulse}
+            needsPulse={needsPulse}
+            onSubmit={onSubmitPulse}
+            loading={pulseLoading}
+            currentScore={lifeScore}
+          />
         </div>
       )}
     </div>
@@ -805,13 +797,11 @@ function ProgressStrip({
   weeks,
   tasks,
   gating,
-  calendarWeek,
   onWeekClick,
 }: {
   weeks: any[];
   tasks: any[];
   gating: ReturnType<typeof computeWeekGating>;
-  calendarWeek: number;
   onWeekClick: (weekNum: number) => void;
 }) {
   return (
@@ -820,9 +810,6 @@ function ProgressStrip({
         <h3 className="text-sm font-semibold text-slate-700">12-Week Progress</h3>
         <span className="text-xs text-slate-400">
           Week {gating.activeWeek} of 12
-          {calendarWeek > gating.activeWeek + 2 && (
-            <span className="text-amber-500 ml-1">(calendar: week {calendarWeek})</span>
-          )}
         </span>
       </div>
       <div className="flex gap-1">
@@ -849,7 +836,7 @@ function ProgressStrip({
                 isActive ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
               } ${isLocked ? 'cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}`}
               title={isLocked
-                ? `Week ${weekNum} — Locked (${weekLockReason(gating).label})`
+                ? `Week ${weekNum} — Locked (${weekLockReason(gating, weekNum).label})`
                 : `Week ${weekNum}: ${week.theme ?? ''} — ${completed} done, ${skipped} skipped of ${total}`}
             >
               {isResolved ? '✓' : isLocked ? '🔒' : weekNum}
@@ -875,6 +862,11 @@ function AllWeeksAccordion({
   onSkip,
   clientId,
   practiceId,
+  sprintNumber,
+  pulseByWeek,
+  onSubmitPulse,
+  pulseLoading,
+  lifeScore,
 }: {
   weeks: any[];
   tasks: any[];
@@ -885,9 +877,15 @@ function AllWeeksAccordion({
   onSkip?: (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }) => void;
   clientId?: string;
   practiceId?: string;
+  sprintNumber: number;
+  pulseByWeek: Map<number, PulseByWeekEntry>;
+  onSubmitPulse: (rating: number, categories: string[], protectText: string | undefined, weekNumber: number) => Promise<void>;
+  pulseLoading?: boolean;
+  lifeScore?: number | null;
 }) {
-  const [openWeek, setOpenWeek] = useState<number | null>(null);
+  const [openWeek, setOpenWeek] = useState<number | null>(gating.activeWeek);
   const weekRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const didInitialScroll = useRef(false);
 
   useEffect(() => {
     if (scrollToWeek != null && weekRefs.current[scrollToWeek] && !gating.isWeekLocked(scrollToWeek)) {
@@ -899,6 +897,18 @@ function AllWeeksAccordion({
       onScrolledToWeek?.();
     }
   }, [scrollToWeek, onScrolledToWeek, gating]);
+
+  // Land on the active week on first mount so its pulse is visible without hunting
+  useEffect(() => {
+    if (didInitialScroll.current) return;
+    const target = gating.activeWeek;
+    if (!target || gating.isWeekLocked(target)) return;
+    const el = weekRefs.current[target];
+    if (!el) return;
+    didInitialScroll.current = true;
+    setOpenWeek(target);
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [gating.activeWeek, gating]);
 
   const list = weeks?.length ? weeks : Array.from({ length: 12 }, (_, i) => ({ weekNumber: i + 1, theme: `Week ${i + 1}`, tasks: [] }));
 
@@ -918,12 +928,15 @@ function AllWeeksAccordion({
           const completedCount = weekTasks.filter((t: any) => t.status === 'completed').length;
           const skippedCount = weekTasks.filter((t: any) => t.status === 'skipped').length;
           const totalCount = weekTaskList.length > 0 ? weekTaskList.length : weekTasks.length;
-          const progress = totalCount > 0 ? Math.round(((completedCount + skippedCount) / totalCount) * 100) : 0;
           const isActive = openWeek === weekNum;
           const isActionable = gating.isWeekActionable(weekNum);
           const startDate = gating.weekStartDate(weekNum);
           const lifeTasks = weekTaskList.filter((t: any) => t.category?.startsWith?.('life_'));
           const businessTasks = weekTaskList.filter((t: any) => !t.category?.startsWith?.('life_'));
+          const existingPulse = pulseByWeek.get(weekNum) ?? null;
+          // Active week's live form lives in ThisWeekCard only — avoid two forms.
+          const showPulseSection =
+            weekNum !== gating.activeWeek && !!existingPulse;
 
           return (
             <div
@@ -958,23 +971,14 @@ function AllWeeksAccordion({
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <span className="text-sm font-medium text-slate-900">{completedCount + skippedCount}/{totalCount} tasks</span>
-                  {isLocked && (() => {
-                    const reason = weekLockReason(gating);
-                    return reason.kind === 'pulse' ? (
-                      <a
-                        href="#life-pulse-card"
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-xs text-rose-600 hover:text-rose-800 hover:underline"
-                      >
-                        {reason.label}
-                      </a>
-                    ) : (
-                      <span className="text-xs text-slate-400">{reason.label}</span>
-                    );
-                  })()}
+                  {isLocked && (
+                    <span className="text-xs text-slate-400 text-right max-w-[11rem]">
+                      {weekLockReason(gating, weekNum).label}
+                    </span>
+                  )}
                   {!isLocked && !isActionable && startDate && (
                     <span className="text-xs text-amber-600">
-                      Opens {startDate.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                      {formatWeekStartLabel(startDate)}
                     </span>
                   )}
                   {isActive ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
@@ -1056,6 +1060,19 @@ function AllWeeksAccordion({
                       </p>
                     </div>
                   )}
+                  {showPulseSection && (
+                    <div className="ml-16 mt-4">
+                      <WeekPulseSection
+                        weekNumber={weekNum}
+                        sprintNumber={sprintNumber}
+                        existingPulse={existingPulse}
+                        needsPulse={false}
+                        onSubmit={async () => {}}
+                        loading={pulseLoading}
+                        currentScore={lifeScore}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1126,46 +1143,51 @@ export default function SprintDashboardPage() {
     trend: lifeTrend,
     categoryScores,
     submitPulse,
-    hasPulseThisWeek,
-    hasPulseForWeek,
     pulseWeeks,
+    pulseByWeek,
     recalculateScore,
     loading: lifeLoading,
   } = useLifeAlignment(currentSprintNumber, pulseTargetWeek);
 
+  const {
+    weekStartsByNumber,
+    loading: scheduleLoading,
+    refetch: refetchSchedule,
+    ensureWeek1,
+  } = useSprintWeekSchedule(currentSprintNumber);
+
   const [pulseInitialLoadDone, setPulseInitialLoadDone] = useState(false);
   useEffect(() => {
-    if (!lifeLoading) setPulseInitialLoadDone(true);
-  }, [lifeLoading]);
+    if (!lifeLoading && !scheduleLoading) setPulseInitialLoadDone(true);
+  }, [lifeLoading, scheduleLoading]);
 
-  // Compute gating WITH pulse data as a week-completion gate AND the chosen
-  // sprint start date as a calendar-time gate (next-week tasks become
-  // actionable only after 7 days have passed since the previous week began).
+  // Compute gating WITH pulse data as a week-completion gate AND rolling
+  // week start dates from sprint_week_schedule (fallback: fixed derivation).
   const gating = computeWeekGating(
     weeks,
     tasks,
     pulseWeeks,
     sprintStartDate,
     !pulseInitialLoadDone,
+    weekStartsByNumber,
   );
 
-  // TEMP: remove once Week 3→4 unlock verified for client 9eb9588a
-  console.log('[GATE]', {
-    weeksLen: weeks.length,
-    tasksLen: tasks.length,
-    resolved: gating.resolvedWeeks,
-    active: gating.activeWeek,
-    w3gen: (weeks[2]?.tasks || []).map((t: any) => t.title),
-    w3db: tasks.filter((t: any) => t.week_number === 3).map((t: any) => [t.title, t.status]),
-  });
+  const catchUpState = useCatchUpDetection(gating, 12);
+  const showDormancyBanner =
+    catchUpState.dormancyLevel === 'gentle' || catchUpState.dormancyLevel === 'catch_up';
 
-  const calendarWeek = getCalendarWeek(sprintStartDate);
-  const catchUpState = useCatchUpDetection(
-    sprintStartDate,
-    { activeWeek: gating.activeWeek, resolvedWeeks: gating.resolvedWeeks },
-    12,
+  const handleSubmitPulse = useCallback(
+    async (
+      rating: number,
+      categories: string[],
+      protectText: string | undefined,
+      weekNumber?: number,
+    ) => {
+      await submitPulse(rating, categories, protectText, weekNumber);
+      await refetchSchedule();
+    },
+    [submitPulse, refetchSchedule],
   );
-  const isBehind = catchUpState.isCatchUpNeeded;
 
   useEffect(() => {
     fetchRoadmap();
@@ -1394,8 +1416,9 @@ export default function SprintDashboardPage() {
 
   const handleCatchUpComplete = useCallback(() => {
     fetchTasks();
+    refetchSchedule();
     setCatchUpMode(false);
-  }, [fetchTasks]);
+  }, [fetchTasks, refetchSchedule]);
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed', task?: any) => {
@@ -1593,8 +1616,9 @@ export default function SprintDashboardPage() {
           practiceId={clientSession?.practiceId ?? ''}
           sprintNumber={renewalState?.currentSprint ?? currentSprintNumber}
           pulseWeeks={pulseWeeks}
+          pulseByWeek={pulseByWeek}
           onSubmitPulse={(rating, categories, protectText, weekNumber) =>
-            submitPulse(rating, categories, protectText, weekNumber)
+            handleSubmitPulse(rating, categories, protectText, weekNumber)
           }
           onComplete={handleCatchUpComplete}
           onCancel={() => setCatchUpMode(false)}
@@ -1614,6 +1638,7 @@ export default function SprintDashboardPage() {
                   if (sl?.id && clientSession?.clientId) {
                     await supabase.from('client_service_lines').update({ sprint_start_date: date }).eq('client_id', clientSession.clientId).eq('service_line_id', sl.id);
                     setSprintStartDate(date);
+                    await ensureWeek1(date);
                   }
                 }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Start Sprint</button>
               </div>
@@ -1643,41 +1668,16 @@ export default function SprintDashboardPage() {
                 />
               </div>
             )}
-          {/* End-of-week Life Pulse — always shown when it's the blocker, including
-              when behind schedule. Placed above CatchUpBanner so the immediate
-              unlock action outranks the longer catch-up flow. */}
-          {gating.needsPulse(gating.activeWeek) && !completionState.isSprintComplete && (
-            <div
-              id="life-pulse-card"
-              className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-5 ring-2 ring-rose-300/40"
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-bold">
-                  ✓
-                </span>
-                <p className="text-sm font-semibold text-rose-900">
-                  All tasks done — submit your Life Pulse to unlock Week {Math.min(gating.activeWeek + 1, 12)}
-                </p>
-              </div>
-              <p className="text-xs text-rose-700/80 mb-3">
-                30-second weekly check-in: rate how aligned the week felt, tap the life areas you tended to, and submit.
-              </p>
-              <LifePulseCard
-                sprintNumber={currentSprintNumber}
-                weekNumber={gating.activeWeek}
-                isCatchUp={false}
-                isSprintComplete={false}
-                onSubmit={submitPulse}
-                currentScore={lifeScore}
-                loading={lifeLoading}
-              />
-            </div>
-          )}
-          {isBehind && (
+          {showDormancyBanner && (
             <CatchUpBanner
-              weeksBehind={catchUpState.weeksBehind}
-              unresolvedWeekCount={catchUpState.unresolvedWeeks.length}
-              onEnter={() => setCatchUpMode(true)}
+              dormancyLevel={catchUpState.dormancyLevel === 'catch_up' ? 'catch_up' : 'gentle'}
+              daysDormant={catchUpState.daysDormant}
+              activeWeek={catchUpState.activeWeek}
+              onEnter={
+                catchUpState.dormancyLevel === 'catch_up'
+                  ? () => setCatchUpMode(true)
+                  : undefined
+              }
             />
           )}
           {enrichmentSources && Object.values(enrichmentSources).some(Boolean) && (
@@ -1695,7 +1695,7 @@ export default function SprintDashboardPage() {
               </span>
             </div>
           )}
-          {/* Life Alignment overview — keep visible when behind; those clients need the trend most */}
+          {/* Life Alignment overview */}
           {!completionState.isSprintComplete && (
             <LifeAlignmentCard
               scores={lifeScores}
@@ -1779,14 +1779,18 @@ export default function SprintDashboardPage() {
               dbTasks={thisWeekTasks}
               onTaskStatusChange={handleTaskStatusChange}
               onSkip={(info) => setSkippingTask(info)}
-              isBehind={isBehind}
-              activeWeek={gating.activeWeek}
-              calendarWeek={calendarWeek}
               isActionable={gating.isWeekActionable(gating.activeWeek)}
               weekStartDate={gating.weekStartDate(gating.activeWeek)}
-              onStartCatchUp={() => setCatchUpMode(true)}
               clientId={clientSession?.clientId}
               practiceId={clientSession?.practiceId}
+              sprintNumber={currentSprintNumber}
+              existingPulse={pulseByWeek.get(gating.activeWeek) ?? null}
+              needsPulse={gating.needsPulse(gating.activeWeek)}
+              onSubmitPulse={(rating, categories, protectText) =>
+                handleSubmitPulse(rating, categories, protectText, gating.activeWeek)
+              }
+              pulseLoading={lifeLoading}
+              lifeScore={lifeScore}
             />
           )}
           <WeeklyCheckInCard
@@ -1808,7 +1812,6 @@ export default function SprintDashboardPage() {
               weeks={weeks}
               tasks={tasks}
               gating={gating}
-              calendarWeek={calendarWeek}
               onWeekClick={(w) => setScrollToWeek(w)}
             />
           </div>
@@ -1822,6 +1825,11 @@ export default function SprintDashboardPage() {
             onSkip={(info) => setSkippingTask(info)}
             clientId={clientSession?.clientId}
             practiceId={clientSession?.practiceId}
+            sprintNumber={currentSprintNumber}
+            pulseByWeek={pulseByWeek}
+            onSubmitPulse={handleSubmitPulse}
+            pulseLoading={lifeLoading}
+            lifeScore={lifeScore}
           />
         </div>
       )}

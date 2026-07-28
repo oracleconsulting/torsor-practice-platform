@@ -3,6 +3,7 @@ import {
   computeWeekGating,
   isPulseUnlockPathReachable,
   weekLockReason,
+  formatWeekStartLabel,
 } from './weekGating';
 
 function week(n: number, titles: string[]) {
@@ -16,7 +17,7 @@ function dbTask(week_number: number, title: string, status: string) {
   return { week_number, title, status, sort_order: 0 };
 }
 
-describe('computeWeekGating + behind-schedule unlock path', () => {
+describe('computeWeekGating + rolling schedule unlock path', () => {
   const weeks = [
     week(1, ['W1a', 'W1b']),
     week(2, ['W2a', 'W2b']),
@@ -38,7 +39,7 @@ describe('computeWeekGating + behind-schedule unlock path', () => {
     const gating = computeWeekGating(
       weeks,
       tasksAllResolvedThrough3,
-      new Set([1, 2]), // no week 3 pulse
+      new Set([1, 2]),
       '2026-05-01',
       false,
     );
@@ -52,11 +53,10 @@ describe('computeWeekGating + behind-schedule unlock path', () => {
     const gating = computeWeekGating(
       weeks,
       tasksAllResolvedThrough3,
-      new Set([1, 2, 3]), // would unlock if trusted
+      new Set([1, 2, 3]),
       '2026-05-01',
-      true, // loading
+      true,
     );
-    expect(gating.needsPulse(1) || gating.activeWeek === 1).toBe(true);
     expect(gating.resolvedWeeks).toEqual([]);
     expect(gating.activeWeek).toBe(1);
   });
@@ -73,7 +73,22 @@ describe('computeWeekGating + behind-schedule unlock path', () => {
     expect(gating.needsPulse(3)).toBe(false);
   });
 
-  it('keeps a reachable unlock path when calendarWeek >> activeWeek (isBehind)', () => {
+  it('prefers stored schedule dates over fixed derivation', () => {
+    const schedule = new Map<number, Date>([[4, new Date(2026, 7, 3)]]);
+    const gating = computeWeekGating(
+      weeks,
+      tasksAllResolvedThrough3,
+      new Set([1, 2, 3]),
+      '2026-05-01',
+      false,
+      schedule,
+    );
+    expect(gating.weekStartDate(4)?.toDateString()).toBe(new Date(2026, 7, 3).toDateString());
+    expect(formatWeekStartLabel(gating.weekStartDate(4))).toMatch(/Starts Monday/);
+    expect(weekLockReason(gating, 4).label).toMatch(/Starts Monday/);
+  });
+
+  it('keeps a reachable unlock path via inline pulse (no page-level block)', () => {
     const gating = computeWeekGating(
       weeks,
       tasksAllResolvedThrough3,
@@ -81,28 +96,11 @@ describe('computeWeekGating + behind-schedule unlock path', () => {
       '2026-05-01',
       false,
     );
-    // calendar week 9 vs active 3 ⇒ behind by 6 — product must still offer pulse UI
-    const calendarWeek = 9;
-    const isBehind = calendarWeek - gating.activeWeek >= 3;
-    expect(isBehind).toBe(true);
     expect(gating.needsPulse(gating.activeWeek)).toBe(true);
-
-    // Pre-fix: pulse card hidden when behind AND catch-up had no pulse → dead end
     expect(
       isPulseUnlockPathReachable({
         needsPulse: true,
-        isBehind: true,
-        showPulseCardWhenNeedsPulse: false,
-        catchUpCollectsPulse: false,
-      }),
-    ).toBe(false);
-
-    // Post-fix: dashboard always shows pulse card when needsPulse
-    expect(
-      isPulseUnlockPathReachable({
-        needsPulse: true,
-        isBehind: true,
-        showPulseCardWhenNeedsPulse: true,
+        showInlinePulseWhenNeedsPulse: true,
         catchUpCollectsPulse: true,
       }),
     ).toBe(true);
