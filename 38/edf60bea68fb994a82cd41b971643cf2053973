@@ -1,0 +1,46 @@
+apps/client-portal/vite.config.ts
+  s_870a398e4fad9b::t_e7ed3f4e8889ab 1
+  s_870a398e4fad9b::t_968121458a55a4 26-29
+apps/client-portal/src/components/sprint/CatchUpView.tsx
+  s_870a398e4fad9b::t_8dc1163a8b761b 6,12,38-39,49-55,61-67,147-165,222,231-284,304-305,362-368,468-470,497-498
+apps/client-portal/src/components/sprint/LifePulseCard.tsx
+  s_870a398e4fad9b::t_6feb15b35ffbe6 51,105,111-113,137-139,159-163,190-191
+apps/client-portal/package.json
+  s_870a398e4fad9b::t_79850c6feb63e6 11-12
+  s_870a398e4fad9b::t_2e1c4400a92eef 37
+  s_870a398e4fad9b::t_55157a0fc302f5 38
+apps/client-portal/src/lib/utils/weekGating.test.ts
+  s_870a398e4fad9b::t_55d2a9ec19b450 1-110
+apps/client-portal/src/pages/SprintDashboardPage.tsx
+  s_870a398e4fad9b::t_d79aeefe915e1c 961-963,969,972-974
+  s_870a398e4fad9b::t_dc712685fa760d 964-968,970-971
+  s_870a398e4fad9b::t_b16189736e0616 1595-1598,1646-1675,1698-1699
+  s_870a398e4fad9b::t_b0e46b706c02bd 1149
+  s_870a398e4fad9b::t_d7da1aeee010c0 852
+  s_870a398e4fad9b::t_4072f0fccd5b46 51
+  s_870a398e4fad9b::t_0790e9958e30ed 1136-1140,1144-1148,1150
+  s_870a398e4fad9b::t_4911001a06d4ee 1492-1499
+  s_870a398e4fad9b::t_2b5568cd7311d0 52-56
+apps/client-portal/src/lib/utils/weekGating.ts
+  s_870a398e4fad9b::t_8ff15d75c23588 1-161
+apps/client-portal/src/hooks/useLifeAlignment.ts
+  s_870a398e4fad9b::t_974be1e6cf77a7 103-105,197,219,243-245,253,267
+package-lock.json
+  s_870a398e4fad9b::t_6bb7b71d88e9e3 3,9,66-67,2753-2763,2827-2833,3212-3326,3553-3562,3812-3821,3923-3939,3971-3980,4417-4426,4563-4569,4836-4845,4904-4913,5815-5821,5841-5850,6366-6382,7621-7627,7691-7697,7708-7714,7779-7798,7979-7992,8010-8039,8406-8501,8542-8558
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "38edf60bea68fb994a82cd41b971643cf2053973",
+  "prompts": {},
+  "sessions": {
+    "s_870a398e4fad9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "792c688e-cda7-412c-a92d-fb8a1cad4e1d",
+        "model": "default"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
