@@ -48,6 +48,7 @@ import { useProgress } from '@/hooks/useProgress';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
 import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
+import { matchWeekTasks, isTaskResolved } from '@/lib/utils/taskMatching';
 
 // ============================================================================
 // CALENDAR WEEK (for catch-up gating)
@@ -85,17 +86,17 @@ function checkSprintCompletion(
   let completedTasks = 0;
   let skippedTasks = 0;
 
-  for (let weekNum = 1; weekNum <= totalWeeks; weekNum++) {
-    const week = sprintWeeks[weekNum - 1];
-    if (!week?.tasks) continue;
+  for (let i = 0; i < (sprintWeeks?.length || 0) && i < totalWeeks; i++) {
+    const week = sprintWeeks[i];
+    const weekNum = week?.weekNumber ?? week?.week ?? (i + 1);
+    const generatedTasks = week?.tasks || [];
+    if (!generatedTasks.length) continue;
 
-    for (const task of week.tasks) {
+    const matches = matchWeekTasks(generatedTasks, dbTasks, weekNum);
+    for (const m of matches) {
       totalTasks++;
-      const dbTask = dbTasks.find(
-        (t: any) => t.week_number === weekNum && t.title === task.title,
-      );
-      if (dbTask?.status === 'completed') completedTasks++;
-      else if (dbTask?.status === 'skipped') skippedTasks++;
+      if (m?.status === 'completed') completedTasks++;
+      else if (m?.status === 'skipped') skippedTasks++;
     }
   }
 
@@ -165,16 +166,13 @@ function computeWeekGating(
 
   for (let i = 0; i < (weeks?.length || 0); i++) {
     const week = weeks[i];
-    const weekNum = i + 1;
+    const weekNum = week?.weekNumber ?? week?.week ?? (i + 1);
     const generatedTasks = week?.tasks || [];
-    const weekDbTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
 
+    const matches = matchWeekTasks(generatedTasks, dbTasks, weekNum);
     const allTasksDone =
       generatedTasks.length > 0 &&
-      generatedTasks.every((gt: any) => {
-        const dbTask = weekDbTasks.find((t: any) => t.title === gt.title);
-        return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
-      });
+      matches.every((m) => m !== null && isTaskResolved(m.status));
 
     if (allTasksDone) {
       tasksDoneWeeks.push(weekNum);
@@ -242,15 +240,12 @@ function getPulseTargetWeek(weeks: any[], dbTasks: any[]): number {
   let lastDoneWeek = 0;
   for (let i = 0; i < (weeks?.length || 0); i++) {
     const week = weeks[i];
-    const weekNum = i + 1;
+    const weekNum = week?.weekNumber ?? week?.week ?? (i + 1);
     const generatedTasks = week?.tasks || [];
-    const weekDbTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
+    const matches = matchWeekTasks(generatedTasks, dbTasks, weekNum);
     const allDone =
       generatedTasks.length > 0 &&
-      generatedTasks.every((gt: any) => {
-        const dbTask = weekDbTasks.find((t: any) => t.title === gt.title);
-        return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
-      });
+      matches.every((m) => m !== null && isTaskResolved(m.status));
     if (allDone) {
       lastDoneWeek = weekNum;
     } else {
@@ -557,17 +552,6 @@ function TaskCard({
 // THIS WEEK CARD
 // ============================================================================
 
-/** Match a generated task to its DB counterpart (title or sort_order). Same as RoadmapPage WeekCard. */
-function findMatchingDbTask(generatedTask: any, dbTasks: any[], weekNumber: number, taskIndex: number): any {
-  return (
-    dbTasks.find(
-      (t: any) =>
-        t.title === generatedTask.title ||
-        (t.week_number === weekNumber && t.sort_order === taskIndex)
-    ) ?? null
-  );
-}
-
 function ThisWeekCard({
   week,
   weekNumber,
@@ -602,6 +586,7 @@ function ThisWeekCard({
   const narrative = week.narrative || week.focus;
   const weekMilestone = week.weekMilestone || week.milestone;
   const weekTasks = week.tasks || [];
+  const weekMatches = matchWeekTasks(weekTasks, dbTasks, weekNumber);
   const lifeTasks = weekTasks.filter((t: any) => t.category?.startsWith?.('life_'));
   const businessTasks = weekTasks.filter((t: any) => !t.category?.startsWith?.('life_'));
 
@@ -672,7 +657,7 @@ function ThisWeekCard({
             <div className="space-y-2">
               {lifeTasks.map((task: any, idx: number) => {
                 const taskIndex = weekTasks.indexOf(task);
-                const dbTask = findMatchingDbTask(task, dbTasks, weekNumber, taskIndex);
+                const dbTask = weekMatches[taskIndex] ?? null;
                 const status = dbTask?.status || 'pending';
                 return (
                   <TaskCard
@@ -706,7 +691,7 @@ function ThisWeekCard({
             {businessTasks.length > 0 ? (
               businessTasks.map((task: any, idx: number) => {
                 const taskIndex = weekTasks.indexOf(task);
-                const dbTask = findMatchingDbTask(task, dbTasks, weekNumber, taskIndex);
+                const dbTask = weekMatches[taskIndex] ?? null;
                 const status = dbTask?.status || 'pending';
                 return (
                   <TaskCard
@@ -1048,6 +1033,7 @@ function AllWeeksAccordion({
           const isResolved = gating.isWeekResolved(weekNum);
           const weekTasks = tasks.filter((t: any) => t.week_number === weekNum);
           const weekTaskList = week.tasks || [];
+          const weekMatches = matchWeekTasks(weekTaskList, weekTasks, weekNum);
           const completedCount = weekTasks.filter((t: any) => t.status === 'completed').length;
           const skippedCount = weekTasks.filter((t: any) => t.status === 'skipped').length;
           const totalCount = weekTaskList.length > 0 ? weekTaskList.length : weekTasks.length;
@@ -1128,7 +1114,7 @@ function AllWeeksAccordion({
                         </div>
                         {lifeTasks.map((task: any, idx: number) => {
                           const taskIndex = weekTaskList.indexOf(task);
-                          const dbTask = findMatchingDbTask(task, weekTasks, weekNum, taskIndex);
+                          const dbTask = weekMatches[taskIndex] ?? null;
                           const status = dbTask?.status || 'pending';
                           return (
                             <TaskCard
@@ -1151,7 +1137,7 @@ function AllWeeksAccordion({
                     )}
                     {businessTasks.map((task: any, idx: number) => {
                       const taskIndex = weekTaskList.indexOf(task);
-                      const dbTask = findMatchingDbTask(task, weekTasks, weekNum, taskIndex);
+                      const dbTask = weekMatches[taskIndex] ?? null;
                       const status = dbTask?.status || 'pending';
                       return (
                         <TaskCard
@@ -1259,6 +1245,16 @@ export default function SprintDashboardPage() {
   // sprint start date as a calendar-time gate (next-week tasks become
   // actionable only after 7 days have passed since the previous week began).
   const gating = computeWeekGating(weeks, tasks, pulseWeeks, sprintStartDate);
+
+  // TEMP: remove once Week 3→4 unlock verified for client 9eb9588a
+  console.log('[GATE]', {
+    weeksLen: weeks.length,
+    tasksLen: tasks.length,
+    resolved: gating.resolvedWeeks,
+    active: gating.activeWeek,
+    w3gen: (weeks[2]?.tasks || []).map((t: any) => t.title),
+    w3db: tasks.filter((t: any) => t.week_number === 3).map((t: any) => [t.title, t.status]),
+  });
 
   const calendarWeek = getCalendarWeek(sprintStartDate);
   const catchUpState = useCatchUpDetection(
@@ -1461,6 +1457,7 @@ export default function SprintDashboardPage() {
       const { dbTaskId, generatedTask, weekNumber, index } = info;
       if (dbTaskId) {
         await updateTaskStatus(dbTaskId, 'skipped', undefined, reason);
+        await fetchTasks();
       } else {
         if (!clientSession?.clientId || !clientSession?.practiceId) return;
         const { error } = await supabase
@@ -1518,6 +1515,7 @@ export default function SprintDashboardPage() {
       const task = completingTask;
       const wasLifeTask = task?.category?.startsWith?.('life_');
       await updateTaskStatus(taskId, 'completed', feedback);
+      await fetchTasks();
       setCompletingTask(null);
       if (wasLifeTask && recalculateScore) {
         recalculateScore();
@@ -1548,7 +1546,7 @@ export default function SprintDashboardPage() {
         }
       }
     },
-    [updateTaskStatus, completingTask, recalculateScore, recalculateProgress, clientSession?.clientId, clientSession?.practiceId, currentSprintNumber]
+    [updateTaskStatus, fetchTasks, completingTask, recalculateScore, recalculateProgress, clientSession?.clientId, clientSession?.practiceId, currentSprintNumber]
   );
 
   const lifeAlignment = getLifeAlignmentSummary();

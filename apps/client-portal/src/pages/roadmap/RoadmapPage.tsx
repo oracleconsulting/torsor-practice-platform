@@ -18,6 +18,7 @@ import { useAssessmentProgress } from '@/hooks/useAssessmentProgress';
 import { TaskCompletionModal } from '@/components/tasks/TaskCompletionModal';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { matchWeekTasks } from '@/lib/utils/taskMatching';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Sparkles,
@@ -1177,8 +1178,10 @@ function WeekCard({
   practiceId?: string;
 }) {
   const weekNumber = week.weekNumber || week.week;
+  const weekTaskList = week.tasks || [];
+  const weekMatches = matchWeekTasks(weekTaskList, tasks, weekNumber);
   const completedTasks = tasks.filter(t => t.status === 'completed').length;
-  const totalTasks = week.tasks?.length || tasks.length || 0;
+  const totalTasks = weekTaskList.length || tasks.length || 0;
   const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   return (
@@ -1223,12 +1226,8 @@ function WeekCard({
       {isActive && (
         <div className="px-4 pb-4">
           <div className="ml-16 space-y-2">
-            {(week.tasks || []).map((task: any, index: number) => {
-              // Try to match by title first, then by week + sort_order
-              const dbTask = tasks.find(t => 
-                t.title === task.title || 
-                (t.week_number === weekNumber && t.sort_order === index)
-              );
+            {weekTaskList.map((task: any, index: number) => {
+              const dbTask = weekMatches[index] ?? null;
               const status = dbTask?.status || 'pending';
               
               return (
