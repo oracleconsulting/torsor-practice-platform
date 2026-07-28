@@ -1,0 +1,53 @@
+apps/client-portal/src/hooks/useLifeAlignment.ts
+  s_870a398e4fad9b::t_7ebb042981fc17 25-32
+  s_870a398e4fad9b::t_9813205e89cead 304
+  s_870a398e4fad9b::t_315cd7949ee5ca 104-117
+apps/client-portal/src/lib/utils/weekGating.ts
+  s_870a398e4fad9b::t_7f9020c4c64229 15,19-20,40,82-83,87-93,102,105-107,147-155,158-159,162,164-166,168-175,180,184,188-189
+apps/client-portal/src/components/sprint/WeekPulseSection.tsx
+  s_870a398e4fad9b::t_e934dfca853639 1-55
+apps/client-portal/src/hooks/useCatchUpDetection.ts
+  s_870a398e4fad9b::t_0439eb9698b1ed 2,4-8,11-12,14,16-19,25,27,29-30,32-40,42-44,47-48,52-55
+supabase/migrations/20260728120000_sprint_week_schedule.sql
+  s_870a398e4fad9b::t_72742306900d9d 1-130
+apps/client-portal/src/components/sprint/CatchUpBanner.tsx
+  s_870a398e4fad9b::t_5e4734e30bb3d6 2,5,8-11,15-17,20-40,49,52-54,56-64
+apps/client-portal/src/lib/utils/weekGating.test.ts
+  s_870a398e4fad9b::t_767a041075f11f 6,20,42,56,58,76-91,103
+apps/client-portal/src/components/sprint/LifePulseCard.tsx
+  s_870a398e4fad9b::t_7a597180f05338 6-7,9,28-30,33-36,42-43,47-48,58-113,135,139-140,142-146,229-230
+  s_870a398e4fad9b::t_3be286ba877936 231
+apps/client-portal/src/components/sprint/CatchUpView.tsx
+  s_870a398e4fad9b::t_4ecfe887e6a065 2,4-6,12-13,40,52,65,69-70,141-144,151-204,207-211,216,221-241,243-247,266-267,281-282,287-291,303-305,323-327,418-432,440,448-451,457-458,460
+apps/client-portal/src/pages/SprintDashboardPage.tsx
+  s_870a398e4fad9b::t_74f7b58a4b4095 436-441,454-459,589-600
+  s_870a398e4fad9b::t_940b7dd1d4cfe5 937-939
+  s_870a398e4fad9b::t_13b1a119cefc3d 865-869,880-884,886,888,901-912,936,974-978,981,1064-1068,1071-1073,1075
+  s_870a398e4fad9b::t_1822be10c56938 839
+  s_870a398e4fad9b::t_c6488a9146a018 43,45-46,56,58
+  s_870a398e4fad9b::t_2b2ff1bc8cc1ce 1147,1152-1158,1161-1162,1164-1165,1172,1175-1189
+  s_870a398e4fad9b::t_e8c5dc1386b929 1419,1421
+  s_870a398e4fad9b::t_e407d104e44a40 1063,1069-1070
+  s_870a398e4fad9b::t_fe8d687e953f23 1619,1621,1641,1671,1673-1680,1698
+  s_870a398e4fad9b::t_15b210ad4c2e29 1786-1793,1828-1832
+  s_870a398e4fad9b::t_cecc1f1a81e6ab 601-602
+  s_870a398e4fad9b::t_ce66efdae4d921 1074
+apps/client-portal/src/hooks/useSprintWeekSchedule.ts
+  s_870a398e4fad9b::t_ed4d38eba8a19a 1-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "4d37ced7a4288f10d011e01d8157b6ae58e10c4f",
+  "prompts": {},
+  "sessions": {
+    "s_870a398e4fad9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "792c688e-cda7-412c-a92d-fb8a1cad4e1d",
+        "model": "default"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
