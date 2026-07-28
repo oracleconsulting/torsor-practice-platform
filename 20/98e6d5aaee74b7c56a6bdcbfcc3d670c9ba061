@@ -1,0 +1,35 @@
+apps/client-portal/src/pages/SprintDashboardPage.tsx
+  s_870a398e4fad9b::t_2d5111cc54c663 1117,1140
+  s_870a398e4fad9b::t_eb016096f609ab 89-93,95-96,98-99
+  s_870a398e4fad9b::t_255d8314763554 243,245,248
+  s_870a398e4fad9b::t_1704abfaaf389e 1518,1549
+  s_870a398e4fad9b::t_a87bf57aa47021 1036
+  s_870a398e4fad9b::t_ee54aa01d6953d 1249-1258
+  s_870a398e4fad9b::t_7d5b50ce0ff2a5 51
+  s_870a398e4fad9b::t_220832a56a471c 1460
+  s_870a398e4fad9b::t_24ee1453e7714a 169,172,175
+  s_870a398e4fad9b::t_219fe65cc46409 589,660,694
+apps/client-portal/src/pages/roadmap/RoadmapPage.tsx
+  s_870a398e4fad9b::t_273332065c2db8 1181-1182,1184
+  s_870a398e4fad9b::t_72b7389a321fbc 21
+  s_870a398e4fad9b::t_c630d36e0b69dc 1229-1230
+apps/client-portal/src/lib/utils/taskMatching.ts
+  s_870a398e4fad9b::t_4f8d8faca50d46 30
+  s_870a398e4fad9b::t_3f02072907df43 1-29,31-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.16",
+  "base_commit_sha": "2098e6d5aaee74b7c56a6bdcbfcc3d670c9ba061",
+  "prompts": {},
+  "sessions": {
+    "s_870a398e4fad9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "792c688e-cda7-412c-a92d-fb8a1cad4e1d",
+        "model": "default"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
