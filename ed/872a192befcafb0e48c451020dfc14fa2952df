@@ -1,0 +1,76 @@
+src/components/admin/SprintRefreshReviewPanel.tsx
+  s_870a398e4fad9b::t_7801a26d3d6c6e 705
+  s_870a398e4fad9b::t_49708f6635311e 1-23,25-704,706-809,814-815,841-842,855
+  s_870a398e4fad9b::t_7418d32ad31cc0 24
+  s_870a398e4fad9b::t_9097dd8733bfdf 810-813,816-840,843-854
+supabase/functions/roadmap-orchestrator/index.ts
+  s_870a398e4fad9b::t_1c84cb24ea31d2 129-138
+  s_870a398e4fad9b::t_200366065540ce 398-402,404-406,408,411,416-417,419-422
+  s_870a398e4fad9b::t_0927abac6b1524 356-362
+  s_870a398e4fad9b::t_6e58a723f55e12 351-352
+  s_870a398e4fad9b::t_01719989976343 403,407,418
+  s_870a398e4fad9b::t_b59a437804c95b 341
+  s_870a398e4fad9b::t_c9aa0738f8ca52 45-80
+  s_870a398e4fad9b::t_bdf16d4d97896e 238-239,244
+  s_870a398e4fad9b::t_ee8dc3fde78e6c 409-410,412-415
+  s_870a398e4fad9b::t_dbf52f959f6604 280-284
+  s_870a398e4fad9b::t_5c582e53311c2b 209
+  s_870a398e4fad9b::t_9963611b1159d6 37,40-43
+  s_870a398e4fad9b::t_7fe38136b453ed 207-208,210-234
+  s_870a398e4fad9b::t_e9a57c1c1516b9 397,423
+  s_870a398e4fad9b::t_2b90271322e3d1 44
+supabase/functions/_shared/ga-voice-scan.test.ts
+  s_870a398e4fad9b::t_8941e1b724feb2 1-96
+src/lib/sprintRefreshDiff.test.ts
+  s_870a398e4fad9b::t_fe8fdab8f8984a 1-133
+src/components/admin/sprint-editor/types.ts
+  s_870a398e4fad9b::t_ae0c00bde0d6e6 64-70
+supabase/functions/generate-sprint-refresh/index.ts
+  s_870a398e4fad9b::t_b89d41adb45201 211-221
+  s_870a398e4fad9b::t_f7052e45d3be3d 440
+  s_870a398e4fad9b::t_6bcb28b6aac536 15
+  s_870a398e4fad9b::t_1b28d2399355fd 352-354,357-358,362-399,414
+  s_870a398e4fad9b::t_0f607d480612c1 355-356,359-361
+src/lib/sprintRefreshDiff.ts
+  s_870a398e4fad9b::t_0ac43e96d2236d 167-191,193-195,197-203,228-239,241-245,248-250
+  s_870a398e4fad9b::t_51298d6d59ea6a 332
+  s_870a398e4fad9b::t_0e1ce46c9af150 1-166,192,196,204-227,240,246-247,251-331,333-413,418-424
+  s_870a398e4fad9b::t_e8f6e39b4acde2 414-417
+src/pages/admin/GADashboardPage.tsx
+  s_870a398e4fad9b::t_5018cb2d36ba44 14
+  s_870a398e4fad9b::t_34431360467e87 951-960
+src/components/admin/sprint-editor/syncTasks.ts
+  s_870a398e4fad9b::t_7ddc08a847f098 7-16,22-23,37
+  s_870a398e4fad9b::t_6aa892fe5356f1 38
+src/components/admin/sprint-editor/SprintEditorModal.tsx
+  s_870a398e4fad9b::t_3471273eaa64d7 255-257
+  s_870a398e4fad9b::t_51723113b20302 293-294
+  s_870a398e4fad9b::t_8ca82a05a8fe96 28-29
+  s_870a398e4fad9b::t_1b0e8bb950b72e 220,226-228,232-239
+supabase/functions/_shared/ga-voice-scan.ts
+  s_870a398e4fad9b::t_bbe14f4345c5c9 1-101,103-211
+  s_870a398e4fad9b::t_8517e25d89db9e 102
+supabase/migrations/20260804130000_sprint_refresh_queue_trigger.sql
+  s_870a398e4fad9b::t_54bb01a857ebe4 11-14,20,24,27-29,31,33-36,38-40,44,48,53-55,57-58,60-69,71-76,79,83,85,88-96,100-102,104-106,111-112,114,120-128,133-134,137,158,163,179-187,216-218,228
+  s_870a398e4fad9b::t_42b8859991ce9f 1-10,15-19,21-23,25-26,30,32,37,41-43,45-47,49-52,56,59,70,77-78,80-82,84,86-87,97-99,103,107-110,113,115-119,129-132,135-136,138-157,159-162,164-178,188-215,219-227,229-270
+src/pages/admin/GAClientLiveViewPage.tsx
+  s_870a398e4fad9b::t_d1153422973554 240-242,248
+apps/client-portal/src/pages/UnifiedDashboardPage.tsx
+  s_870a398e4fad9b::t_e973063d5af484 385,391-394
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "ed872a192befcafb0e48c451020dfc14fa2952df",
+  "prompts": {},
+  "sessions": {
+    "s_870a398e4fad9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "792c688e-cda7-412c-a92d-fb8a1cad4e1d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
