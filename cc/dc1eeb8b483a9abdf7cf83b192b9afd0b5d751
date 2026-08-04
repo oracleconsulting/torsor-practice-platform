@@ -1,0 +1,20 @@
+supabase/functions/generate-sprint-refresh/index.ts
+  s_870a398e4fad9b::t_b91f4177309da7 293-307,310,321,325-326,329,331-338,340-343,345-363,366-368,376-378
+  s_870a398e4fad9b::t_62b342daf131aa 165-167,178,192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "ccdc1eeb8b483a9abdf7cf83b192b9afd0b5d751",
+  "prompts": {},
+  "sessions": {
+    "s_870a398e4fad9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "792c688e-cda7-412c-a92d-fb8a1cad4e1d",
+        "model": "grok-4.5"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
