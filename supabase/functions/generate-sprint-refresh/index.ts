@@ -162,7 +162,9 @@ serve(async (req) => {
 
     const { data: stages } = await supabase
       .from('roadmap_stages')
-      .select('id, stage_type, generated_content, approved_content, status')
+      .select(
+        'id, stage_type, version, sprint_number, generated_content, approved_content, status',
+      )
       .eq('client_id', clientId)
       .eq('practice_id', practiceId)
       .in('stage_type', ['sprint_plan', 'sprint_plan_part1', 'sprint_plan_part2'])
@@ -173,7 +175,7 @@ serve(async (req) => {
 
     // Prefer full sprint_plan, else merge part1/part2 content from newest rows
     let sprintContent: any = null;
-    let primaryStage = stages.find((s) => s.stage_type === 'sprint_plan') || stages[0];
+    const primaryStage = stages.find((s) => s.stage_type === 'sprint_plan') || stages[0];
     const content = primaryStage.approved_content || primaryStage.generated_content;
     sprintContent = content?.sprint ? content : { sprint: content };
     if (!sprintContent?.sprint?.weeks && stages.length > 1) {
@@ -187,6 +189,7 @@ serve(async (req) => {
     }
 
     const existingWeeks: any[] = sprintContent?.sprint?.weeks || [];
+    const stageType = primaryStage.stage_type as string;
 
     const { data: tasks } = await supabase
       .from('client_tasks')
@@ -287,20 +290,24 @@ serve(async (req) => {
 
     if (newWeeks.length === 0) throw new Error('Refresh returned no weeks');
 
-    const byNumber = new Map<number, any>();
-    for (const w of existingWeeks) {
-      byNumber.set(w.weekNumber ?? w.week, w);
-    }
-    for (const w of newWeeks) {
-      const n = w.weekNumber ?? w.week;
-      byNumber.set(n, { ...byNumber.get(n), ...w, weekNumber: n });
-    }
-    const mergedWeeks = Array.from(byNumber.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([, w]) => w);
+    // Weeks 1..checkpointWeek stay verbatim from the source row. Regenerated
+    // weeks replace their window; anything beyond that window is kept as-is.
+    const weekNum = (w: any) => w.weekNumber ?? w.week;
+    const pastWeeks = existingWeeks.filter((w) => weekNum(w) <= checkpointWeek);
+    const untouchedFuture = existingWeeks.filter(
+      (w) => weekNum(w) > checkpointWeek && !weeksToRegenerate.includes(weekNum(w)),
+    );
+    const refreshedWeeks = weeksToRegenerate.map((n) => {
+      const fromLlm = newWeeks.find((w) => weekNum(w) === n);
+      if (!fromLlm) throw new Error(`Refresh missing week ${n}`);
+      return { ...fromLlm, weekNumber: n };
+    });
+    const mergedWeeks = [...pastWeeks, ...refreshedWeeks, ...untouchedFuture].sort(
+      (a, b) => weekNum(a) - weekNum(b),
+    );
 
     const baseContent = primaryStage.approved_content || primaryStage.generated_content || {};
-    const updatedContent = {
+    const generatedContent: any = {
       ...baseContent,
       sprint: {
         ...(baseContent.sprint || baseContent),
@@ -311,60 +318,53 @@ serve(async (req) => {
           refreshNotes: parsed.refreshNotes || null,
           hadClientReview: !!review,
           capacityOutlook: review?.capacity_outlook ?? null,
+          sourceStageId: primaryStage.id,
         },
       },
     };
-    // Keep top-level shape consistent when content was already { sprint: ... }
-    if (baseContent.sprint) {
-      // already nested
-    } else if (baseContent.weeks) {
-      updatedContent.weeks = mergedWeeks;
+    if (!baseContent.sprint && baseContent.weeks) {
+      generatedContent.weeks = mergedWeeks;
     }
 
-    const { error: updateError } = await supabase
+    const { data: latestVersionRow } = await supabase
       .from('roadmap_stages')
-      .update({
-        generated_content: updatedContent,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', primaryStage.id);
+      .select('version')
+      .eq('client_id', clientId)
+      .eq('stage_type', stageType)
+      .order('version', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const nextVersion = (latestVersionRow?.version ?? 0) + 1;
+    const now = new Date().toISOString();
 
-    if (updateError) throw new Error(`Failed to save refresh: ${updateError.message}`);
-
-    // Replace pending generated tasks for regenerated weeks (leave completed/skipped)
-    for (const weekNum of weeksToRegenerate) {
-      const week = byNumber.get(weekNum);
-      if (!week?.tasks?.length) continue;
-
-      await supabase
-        .from('client_tasks')
-        .delete()
-        .eq('client_id', clientId)
-        .eq('sprint_number', sprintNumber)
-        .eq('week_number', weekNum)
-        .eq('status', 'pending');
-
-      const inserts = week.tasks.map((t: any, idx: number) => ({
-        client_id: clientId,
+    // New version for admin review — never overwrite the published/source row.
+    const { data: insertedStage, error: insertError } = await supabase
+      .from('roadmap_stages')
+      .insert({
         practice_id: practiceId,
-        sprint_number: sprintNumber,
-        week_number: weekNum,
-        title: t.title,
-        description: t.description || null,
-        category: t.category || 'General',
-        status: 'pending',
-        sort_order: idx,
-        estimated_hours: t.estimatedMinutes ? Math.max(0.25, t.estimatedMinutes / 60) : 1,
-        metadata: { source: 'sprint_refresh', checkpointWeek },
-      }));
+        client_id: clientId,
+        stage_type: stageType,
+        sprint_number: primaryStage.sprint_number ?? sprintNumber,
+        version: nextVersion,
+        status: 'generated',
+        generated_content: generatedContent,
+        approved_content: null,
+        published_at: null,
+        manually_edited: false,
+        created_at: now,
+        updated_at: now,
+        generation_completed_at: now,
+        model_used: 'anthropic/claude-sonnet-4.5',
+      })
+      .select('id, version')
+      .single();
 
-      if (inserts.length) {
-        const { error: insertErr } = await supabase.from('client_tasks').insert(inserts);
-        if (insertErr) {
-          console.warn('[generate-sprint-refresh] task insert warning:', insertErr.message);
-        }
-      }
+    if (insertError) {
+      throw new Error(`Failed to save refresh version: ${insertError.message}`);
     }
+
+    // client_tasks are created lazily on first click — do not pre-insert or
+    // delete rows here. Regenerated weeks have no rows yet by definition.
 
     return new Response(
       JSON.stringify({
@@ -373,6 +373,9 @@ serve(async (req) => {
         weeksRegenerated: weeksToRegenerate,
         hadClientReview: !!review,
         refreshNotes: parsed.refreshNotes || null,
+        stageId: insertedStage?.id ?? null,
+        version: insertedStage?.version ?? nextVersion,
+        status: 'generated',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
