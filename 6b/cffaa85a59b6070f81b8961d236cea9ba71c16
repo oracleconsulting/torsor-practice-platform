@@ -1,0 +1,19 @@
+apps/client-portal/src/pages/SprintDashboardPage.tsx
+  s_870a398e4fad9b::t_a19d1fa70336ec 1033-1038,1041-1043
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "6bcffaa85a59b6070f81b8961d236cea9ba71c16",
+  "prompts": {},
+  "sessions": {
+    "s_870a398e4fad9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "792c688e-cda7-412c-a92d-fb8a1cad4e1d",
+        "model": "claude-opus-5"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
