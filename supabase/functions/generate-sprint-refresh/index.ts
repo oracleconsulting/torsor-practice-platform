@@ -12,6 +12,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { GA_SYSTEM_PROMPT } from '../_shared/ga-system-prompt.ts';
 import { recordLlmCostByClient } from '../_shared/llm-cost-logger.ts';
+import { scanVoice } from '../_shared/ga-voice-scan.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -207,6 +208,17 @@ serve(async (req) => {
       .lte('week_number', checkpointWeek)
       .order('week_number', { ascending: true });
 
+    // Recorded on the new row so the admin diff view can show what the refresh
+    // acted on without reconstructing the period after the fact.
+    const { data: checkins } = await supabase
+      .from('weekly_checkins')
+      .select(
+        'week_number, life_satisfaction, time_protected, personal_win, business_progress, blockers',
+      )
+      .eq('client_id', clientId)
+      .lte('week_number', checkpointWeek)
+      .order('week_number', { ascending: true });
+
     const pulseSummary =
       (pulses || [])
         .map(
@@ -337,6 +349,54 @@ serve(async (req) => {
     const nextVersion = (latestVersionRow?.version ?? 0) + 1;
     const now = new Date().toISOString();
 
+    // Voice scan runs on the regenerated weeks only. Weeks already lived are
+    // carried over verbatim and were scanned when they were first written.
+    // Violations are flagged for the reviewer, never blocking.
+    // Keyed by week number, not array position, so the admin diff view can line
+    // violations up with the week and task it renders.
+    let voiceScan: ReturnType<typeof scanVoice> | null = null;
+    try {
+      voiceScan = scanVoice(
+        Object.fromEntries(refreshedWeeks.map((w: any) => [`week${weekNum(w)}`, w])),
+      );
+    } catch (e) {
+      console.error('[generate-sprint-refresh] voice scan failed', e);
+    }
+
+    const skipReasons = (tasks || [])
+      .filter((t: any) => t.status === 'skipped' && t.skip_reason)
+      .map((t: any) => ({
+        weekNumber: t.week_number,
+        title: t.title,
+        skipReason: t.skip_reason,
+      }));
+
+    const metadata = {
+      refreshKind: 'sprint_checkpoint',
+      checkpointWeek,
+      sprintNumber,
+      weeksRegenerated: weeksToRegenerate,
+      sourceStageId: primaryStage.id,
+      sourceStageStatus: primaryStage.status,
+      generatedAt: now,
+      hadClientReview: !!review,
+      refreshNotes: parsed.refreshNotes || null,
+      voiceScan,
+      // Everything the refresh was given, so the reviewer can judge whether it listened.
+      refreshInputs: {
+        checkpointReview: review ?? null,
+        pulses: pulses || [],
+        checkins: checkins || [],
+        skipReasons,
+        taskOutcomes: (tasks || []).map((t: any) => ({
+          weekNumber: t.week_number,
+          title: t.title,
+          status: t.status,
+          completionFeedback: t.completion_feedback ?? null,
+        })),
+      },
+    };
+
     // New version for admin review — never overwrite the published/source row.
     const { data: insertedStage, error: insertError } = await supabase
       .from('roadmap_stages')
@@ -351,6 +411,7 @@ serve(async (req) => {
         approved_content: null,
         published_at: null,
         manually_edited: false,
+        metadata,
         created_at: now,
         updated_at: now,
         generation_completed_at: now,
@@ -376,6 +437,7 @@ serve(async (req) => {
         stageId: insertedStage?.id ?? null,
         version: insertedStage?.version ?? nextVersion,
         status: 'generated',
+        voiceViolations: voiceScan?.violationCount ?? 0,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );

@@ -382,13 +382,16 @@ export default function UnifiedDashboardPage() {
           } else {
           const [enrollRow, sprintStage] = await Promise.all([
             supabase.from('client_service_lines').select('current_sprint_number, tier_name, renewal_status, sprint_start_date').eq('client_id', clientId).eq('service_line_id', slId).maybeSingle(),
-            supabase.from('roadmap_stages').select('generated_content, approved_content, created_at').eq('client_id', clientId).eq('stage_type', 'sprint_plan_part2').eq('sprint_number', 1).order('version', { ascending: false }).limit(1).maybeSingle(),
+            supabase.from('roadmap_stages').select('generated_content, approved_content, created_at').eq('client_id', clientId).eq('stage_type', 'sprint_plan_part2').eq('sprint_number', 1).in('status', ['published', 'approved']).order('version', { ascending: false }).limit(1).maybeSingle(),
           ]);
           let enrollment = enrollRow.data;
           const sprintNumber = enrollment?.current_sprint_number ?? 1;
           const renewalStatus = enrollment?.renewal_status || 'not_started';
           const tier = enrollment?.tier_name || 'Growth';
-          const statusFilter = tier === 'Partner' ? ['published'] : ['published', 'approved', 'generated'];
+          // 'generated' is practice-only, for every tier. A checkpoint refresh
+          // lands as a new generated version and must stay invisible here until
+          // an admin publishes it, otherwise the client sees an unreviewed plan.
+          const statusFilter = tier === 'Partner' ? ['published'] : ['published', 'approved'];
 
           const [sprintStageCorrect, legacyStage, dbTasksResult] = await Promise.all([
             supabase.from('roadmap_stages').select('generated_content, approved_content, created_at').eq('client_id', clientId).eq('stage_type', 'sprint_plan_part2').eq('sprint_number', sprintNumber).in('status', statusFilter).order('version', { ascending: false }).limit(1).maybeSingle(),

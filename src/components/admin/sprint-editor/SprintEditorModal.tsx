@@ -25,6 +25,8 @@ export function SprintEditorModal({
   clientName,
   tierName: _tierName,
   serviceLineId,
+  isCheckpointRefresh = false,
+  publishedBy,
   onSave,
   onClose,
 }: SprintEditorModalProps) {
@@ -215,16 +217,26 @@ export function SprintEditorModal({
 
     setPublishing(true);
     try {
+      const publishedAt = new Date().toISOString();
       await supabase
         .from('roadmap_stages')
         .update({
           approved_content: editedSprint,
           status: 'published',
-          updated_at: new Date().toISOString(),
+          published_at: publishedAt,
+          ...(publishedBy ? { published_by: publishedBy } : {}),
+          updated_at: publishedAt,
         })
         .eq('id', stageId);
 
-      await syncTasksToClientTasks(supabase, clientId, practiceId, editedSprint, sprintNumber);
+      await syncTasksToClientTasks(
+        supabase,
+        clientId,
+        practiceId,
+        editedSprint,
+        sprintNumber,
+        { preserveExistingTasks: isCheckpointRefresh },
+      );
 
       if (changeLog.length > 0) {
         await supabase.from('generation_feedback').insert({
@@ -240,7 +252,9 @@ export function SprintEditorModal({
         });
       }
 
-      if (sprintNumber > 1) {
+      // A checkpoint refresh happens mid-sprint, so the renewal is not the
+      // thing being published here.
+      if (sprintNumber > 1 && !isCheckpointRefresh) {
         let slId = serviceLineId;
         if (!slId) {
           const { data: sl } = await supabase
@@ -276,6 +290,8 @@ export function SprintEditorModal({
     changeLog,
     generatedContent,
     serviceLineId,
+    isCheckpointRefresh,
+    publishedBy,
     onSave,
     onClose,
   ]);

@@ -4,12 +4,23 @@
 
 import type { SprintData } from './types';
 
+export interface SyncTasksOptions {
+  /**
+   * Never delete existing rows, even when the client has no recorded progress.
+   * Set when publishing a mid-sprint checkpoint refresh: the weeks already
+   * lived are carried over unchanged, and wiping their task rows would destroy
+   * completion history the client can still see.
+   */
+  preserveExistingTasks?: boolean;
+}
+
 export async function syncTasksToClientTasks(
   supabase: any,
   clientId: string,
   practiceId: string,
   sprintData: SprintData,
-  sprintNumber: number
+  sprintNumber: number,
+  options: SyncTasksOptions = {}
 ): Promise<void> {
   const weeks = sprintData.weeks || [];
   const existingResult = await supabase
@@ -23,8 +34,8 @@ export async function syncTasksToClientTasks(
     (t: any) => t.status === 'completed' || t.status === 'skipped' || t.status === 'in_progress'
   );
 
-  if (hasProgress) {
-    // Client has started — only add new tasks; don't delete completed/in-progress
+  if (hasProgress || options.preserveExistingTasks) {
+    // Additive only — never delete completed/in-progress rows
     const existingKeys = new Set(existingTasks.map((t: any) => `${t.week_number}:${t.title}`));
     const toInsert: any[] = [];
     for (const week of weeks) {

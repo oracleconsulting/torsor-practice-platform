@@ -34,7 +34,49 @@ const STAGE_FUNCTIONS: Record<string, string> = {
   'life_design_refresh': 'generate-life-design-refresh',
   'vision_update': 'generate-vision-update',
   'shift_update': 'generate-shift-update',
+  'sprint_refresh': 'generate-sprint-refresh',
 };
+
+// Stages that produce a new version of an existing stage_type rather than a
+// stage_type of their own. The "already generated" and timeout-recovery checks
+// below match on stage_type, which would never match for these.
+const VERSIONING_STAGES = new Set(['sprint_refresh']);
+
+/**
+ * Did this queue item's work land in roadmap_stages? Used to recover from
+ * connection drops where the function completed but the response was lost.
+ *
+ * A sprint_refresh writes a new version of an existing sprint stage_type, so
+ * it is identified by its metadata rather than by stage_type.
+ */
+async function findSavedStage(supabase: any, queueItem: any, sprintNum: number | null) {
+  if (queueItem.stage_type === 'sprint_refresh') {
+    let query = supabase
+      .from('roadmap_stages')
+      .select('id, status')
+      .eq('client_id', queueItem.client_id)
+      .eq('metadata->>refreshKind', 'sprint_checkpoint')
+      .eq('metadata->>checkpointWeek', String(queueItem.checkpoint_week))
+      .order('version', { ascending: false })
+      .limit(1);
+    if (queueItem.started_at) query = query.gte('created_at', queueItem.started_at);
+    if (sprintNum != null) query = query.eq('sprint_number', sprintNum);
+    const { data } = await query.maybeSingle();
+    return data ?? null;
+  }
+
+  let query = supabase
+    .from('roadmap_stages')
+    .select('id, status')
+    .eq('client_id', queueItem.client_id)
+    .eq('stage_type', queueItem.stage_type)
+    .in('status', ['generated', 'approved', 'published'])
+    .order('version', { ascending: false })
+    .limit(1);
+  if (sprintNum != null) query = query.eq('sprint_number', sprintNum);
+  const { data } = await query.maybeSingle();
+  return data ?? null;
+}
 
 // Ordered pipeline stages
 const STAGE_ORDER = [
@@ -83,6 +125,16 @@ serve(async (req) => {
     }
 
     // Default: process queue
+
+    // Fallback sweep: queue a refresh for any checkpoint whose pulse landed
+    // over 7 days ago with no review submitted. Idempotent and cheap. Runs from
+    // pg_cron where available; this call covers deployments where it is not.
+    try {
+      const { data: swept } = await supabase.rpc('enqueue_due_sprint_refreshes');
+      if (swept) console.log(`Fallback sweep queued ${swept} sprint refresh job(s)`);
+    } catch (sweepError) {
+      console.error('Sprint refresh sweep failed (non-fatal):', sweepError);
+    }
 
     const processedStages: string[] = [];
     const maxIterations = 20; // Increased to handle all 5 stages plus retries
@@ -152,38 +204,44 @@ serve(async (req) => {
       }
 
       // SMART CHECK: See if this stage is already generated (handles timeout recovery)
-      let existingQuery = supabase
-        .from('roadmap_stages')
-        .select('id, status, version')
-        .eq('client_id', queueItem.client_id)
-        .eq('stage_type', queueItem.stage_type)
-        .in('status', ['generated', 'approved', 'published'])
-        .order('version', { ascending: false })
-        .limit(1);
-      if (sprintNum != null) existingQuery = existingQuery.eq('sprint_number', sprintNum);
-      const { data: existingStage } = await existingQuery.maybeSingle();
+      // Skipped for versioning stages: a refresh always produces a new version
+      // of a stage_type that by definition already exists.
+      if (!VERSIONING_STAGES.has(queueItem.stage_type)) {
+        let existingQuery = supabase
+          .from('roadmap_stages')
+          .select('id, status, version')
+          .eq('client_id', queueItem.client_id)
+          .eq('stage_type', queueItem.stage_type)
+          .in('status', ['generated', 'approved', 'published'])
+          .order('version', { ascending: false })
+          .limit(1);
+        if (sprintNum != null) existingQuery = existingQuery.eq('sprint_number', sprintNum);
+        const { data: existingStage } = await existingQuery.maybeSingle();
 
-      if (existingStage) {
-        console.log(`✓ Stage ${queueItem.stage_type} already generated (v${existingStage.version}), marking queue as complete`);
-        await supabase
-          .from('generation_queue')
-          .update({ 
-            status: 'completed', 
-            completed_at: new Date().toISOString() 
-          })
-          .eq('id', queueItem.id);
-        
-        processedStages.push(`${queueItem.stage_type} (already done)`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        continue;
+        if (existingStage) {
+          console.log(`✓ Stage ${queueItem.stage_type} already generated (v${existingStage.version}), marking queue as complete`);
+          await supabase
+            .from('generation_queue')
+            .update({
+              status: 'completed',
+              completed_at: new Date().toISOString()
+            })
+            .eq('id', queueItem.id);
+
+          processedStages.push(`${queueItem.stage_type} (already done)`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        }
       }
 
       // Mark as processing
+      const startedAt = new Date().toISOString();
+      queueItem.started_at = startedAt;
       await supabase
         .from('generation_queue')
         .update({ 
           status: 'processing', 
-          started_at: new Date().toISOString(),
+          started_at: startedAt,
           attempts: queueItem.attempts + 1
         })
         .eq('id', queueItem.id);
@@ -218,6 +276,11 @@ serve(async (req) => {
       if (queueItem.stage_type === 'value_analysis') {
         requestBody.action = 'generate-analysis';
         requestBody.part3Responses = {}; // Empty object - will use defaults from assessment data
+      }
+
+      // Sprint refresh regenerates the three weeks after a checkpoint
+      if (queueItem.stage_type === 'sprint_refresh') {
+        requestBody.checkpointWeek = queueItem.checkpoint_week;
       }
       
       // Use AbortController for timeout - wait up to 300s (5 minutes)
@@ -275,16 +338,7 @@ serve(async (req) => {
           // Wait longer for the function to finish saving
           await new Promise(resolve => setTimeout(resolve, 10000));
           
-          let savedQuery = supabase
-            .from('roadmap_stages')
-            .select('id, status')
-            .eq('client_id', queueItem.client_id)
-            .eq('stage_type', queueItem.stage_type)
-            .in('status', ['generated', 'approved', 'published'])
-            .order('version', { ascending: false })
-            .limit(1);
-          if (sprintNum != null) savedQuery = savedQuery.eq('sprint_number', sprintNum);
-          const { data: savedStage } = await savedQuery.maybeSingle();
+          const savedStage = await findSavedStage(supabase, queueItem, sprintNum);
 
           if (savedStage) {
             console.log(`✓ ${queueItem.stage_type} WAS SAVED despite connection error - continuing pipeline`);
@@ -294,20 +348,18 @@ serve(async (req) => {
             console.log(`⏳ Stage not found yet, waiting 10 more seconds...`);
             await new Promise(resolve => setTimeout(resolve, 10000));
 
-            let savedQuery2 = supabase
-              .from('roadmap_stages')
-              .select('id, status')
-              .eq('client_id', queueItem.client_id)
-              .eq('stage_type', queueItem.stage_type)
-              .in('status', ['generated', 'approved', 'published'])
-              .order('version', { ascending: false })
-              .limit(1);
-            if (sprintNum != null) savedQuery2 = savedQuery2.eq('sprint_number', sprintNum);
-            const { data: savedStage2 } = await savedQuery2.maybeSingle();
-            
+            const savedStage2 = await findSavedStage(supabase, queueItem, sprintNum);
+
             if (savedStage2) {
               console.log(`✓ ${queueItem.stage_type} found on second check - continuing pipeline`);
               functionCompleted = true;
+            } else if (VERSIONING_STAGES.has(queueItem.stage_type)) {
+              // A stuck 'processing' row would hold the unique active-job slot
+              // for this checkpoint and block every later attempt. Fail it so
+              // the next review edit or sweep can queue again.
+              console.log(`✗ ${queueItem.stage_type} did not save - marking failed so it can be re-queued`);
+              errorMessage = 'Timed out and no new version was saved';
+              functionFailed = true;
             } else {
               // Still not saved - leave as processing for resume
               console.log(`⏳ ${queueItem.stage_type} still processing - will be picked up on resume`);
@@ -342,6 +394,33 @@ serve(async (req) => {
             completed_at: new Date().toISOString() 
           })
           .eq('id', queueItem.id);
+
+        // The flag is set while this job runs, so re-read it rather than
+        // trusting the snapshot taken before dispatch.
+        if (queueItem.stage_type === 'sprint_refresh') {
+          const { data: finished } = await supabase
+            .from('generation_queue')
+            .select('needs_rerun')
+            .eq('id', queueItem.id)
+            .maybeSingle();
+
+          if (finished?.needs_rerun) {
+            // The client edited their review mid-generation. Queue a fresh job
+            // now rather than having generated in parallel. Clear the flag
+            // first so this cannot queue twice.
+            console.log(`↻ Re-run requested for checkpoint ${queueItem.checkpoint_week}, queueing again`);
+            await supabase
+              .from('generation_queue')
+              .update({ needs_rerun: false })
+              .eq('id', queueItem.id);
+            await supabase.rpc('enqueue_sprint_refresh', {
+              p_client_id: queueItem.client_id,
+              p_practice_id: queueItem.practice_id,
+              p_sprint_number: sprintNum,
+              p_checkpoint_week: queueItem.checkpoint_week,
+            });
+          }
+        }
       }
 
       processedStages.push(queueItem.stage_type);

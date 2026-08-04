@@ -237,13 +237,15 @@ async function fetchClientLiveSprint(clientId: string): Promise<SprintViewData> 
 
   const sprintNumber = enrollment?.current_sprint_number ?? 1;
 
-  // Latest sprint plan
+  // Latest sprint plan the client can actually see. This page mirrors their
+  // portal, so an unpublished checkpoint refresh must not appear here — review
+  // it on the GA dashboard instead.
   const { data: stage } = await supabase
     .from('roadmap_stages')
     .select('generated_content, approved_content, status, created_at, published_at, sprint_number')
     .eq('client_id', clientId)
     .in('stage_type', ['sprint_plan_part2', 'sprint_plan_part1', 'sprint_plan'])
-    .in('status', ['generated', 'approved', 'published'])
+    .in('status', ['approved', 'published'])
     .order('version', { ascending: false })
     .limit(1)
     .maybeSingle();

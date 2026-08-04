@@ -11,6 +11,7 @@ import { PageSkeleton, EmptyState } from '../../components/ui';
 import { useAuth } from '../../hooks/useAuth';
 import { useCurrentMember } from '../../hooks/useCurrentMember';
 import { useScopedClients } from '../../hooks/useScopedClients';
+import { SprintRefreshReviewPanel } from '../../components/admin/SprintRefreshReviewPanel';
 import { supabase } from '../../lib/supabase';
 import {
   Target,
@@ -947,6 +948,16 @@ export function GADashboardPage() {
     >
       <div className="max-w-6xl mx-auto space-y-6">
         <SummaryCards clients={visibleClients} />
+        <SprintRefreshReviewPanel
+          practiceId={currentMember?.practice_id}
+          memberId={currentMember?.id}
+          clients={visibleClients.map((c) => ({
+            clientId: c.clientId,
+            name: c.name,
+            company: c.company,
+          }))}
+          onPublished={fetchDashboard}
+        />
         <CheckpointPanel clients={visibleClients} />
         <ClientList clients={visibleClients} onViewDetail={handleViewDetail} />
       </div>

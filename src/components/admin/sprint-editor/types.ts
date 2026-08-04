@@ -61,6 +61,13 @@ export interface SprintEditorModalProps {
   clientName: string;
   tierName: string;
   serviceLineId?: string;
+  /**
+   * Publishing a mid-sprint checkpoint refresh. Task sync becomes additive only
+   * and the renewal status is left alone, because the sprint is already running.
+   */
+  isCheckpointRefresh?: boolean;
+  /** practice_members.id of the publishing admin, written to published_by */
+  publishedBy?: string;
   onSave: () => void;
   onClose: () => void;
 }
