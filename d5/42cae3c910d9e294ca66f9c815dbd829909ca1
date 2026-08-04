@@ -1,0 +1,58 @@
+apps/client-portal/src/hooks/useCheckpointReview.ts
+  s_870a398e4fad9b::t_712a701a74b0ea 1-170
+"goal alignment analysis/frontend-client-SprintDashboardPage.tsx"
+  s_870a398e4fad9b::t_072095dd0df98e 43-44,46-55,60-67,93-97,99-100,102-103,445-453,466-474,479,534,568,604-637,853-854,860-864,869-870,872-880,882,905-912,923-930,932,934,937,947-958,969-973,976,980-983,987-991,1002-1003,1005,1007-1010,1015-1016,1030-1032,1034-1036,1039-1043,1046,1048,1051-1052,1065,1088,1115-1145,1217,1222-1233,1235-1245,1247-1265,1461,1495,1497,1520,1551,1591-1598,1694-1698,1717,1747,1749-1756,1775,1862-1875,1878-1906,1939-1946
+supabase/config.toml
+  s_870a398e4fad9b::t_56dddacb510243 134-136
+src/pages/admin/GADashboardPage.tsx
+  s_870a398e4fad9b::t_0d87576c5207e8 658
+  s_870a398e4fad9b::t_129a61c9e06e64 196-206,212-216,506
+  s_870a398e4fad9b::t_22a8e67608b634 950
+  s_870a398e4fad9b::t_cbb5e27dd92c3c 313-325,335,351-354
+  s_870a398e4fad9b::t_715a500cc1e335 855-856,865-867,873
+  s_870a398e4fad9b::t_8a3ed10b56f405 160,178-183,188
+  s_870a398e4fad9b::t_ad6d93c09fbdeb 404,424,431-437,461-503
+  s_870a398e4fad9b::t_ddf32915d0f988 646-657,659-669
+  s_870a398e4fad9b::t_6c80ad7c76872a 63-69
+  s_870a398e4fad9b::t_4ebbf6160b9c6e 504-505
+  s_870a398e4fad9b::t_1d31ebf0a09b24 507
+supabase/migrations/20260804100000_sprint_checkpoint_reviews.sql
+  s_870a398e4fad9b::t_7b7c408d84cfcd 1-60
+apps/client-portal/src/lib/utils/weekGating.test.ts
+  s_870a398e4fad9b::t_63fb1c1385bde8 118-198
+  s_870a398e4fad9b::t_2c832e7764d72c 8
+  s_870a398e4fad9b::t_b796c191a8b5dc 78-80,89
+apps/client-portal/src/pages/SprintDashboardPage.tsx
+  s_870a398e4fad9b::t_1cb52b06c47b13 1878-1906
+  s_870a398e4fad9b::t_adb5c109bcdbf0 51-52
+  s_870a398e4fad9b::t_fb3120825c3d64 1873-1875
+  s_870a398e4fad9b::t_39f554ba2d5dbf 1944-1946
+  s_870a398e4fad9b::t_47cc223de39241 44,47-50,53-54
+  s_870a398e4fad9b::t_052cb42139afac 1128-1145
+  s_870a398e4fad9b::t_c8b25b976a2516 1229-1234
+  s_870a398e4fad9b::t_de8ad3622dec2d 472-473
+  s_870a398e4fad9b::t_d49c7f14faecb8 618-637
+  s_870a398e4fad9b::t_6355f964840cd5 910-912,928-930
+  s_870a398e4fad9b::t_d896fb7e627be1 451-453,474
+supabase/functions/generate-sprint-refresh/index.ts
+  s_870a398e4fad9b::t_92b59956d71302 1-353,355-356,359-386
+  s_870a398e4fad9b::t_6faa6e590b4c4b 354,357-358
+apps/client-portal/src/components/sprint/CheckpointReviewCard.tsx
+  s_870a398e4fad9b::t_e3455bdeafc648 1-268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "d542cae3c910d9e294ca66f9c815dbd829909ca1",
+  "prompts": {},
+  "sessions": {
+    "s_870a398e4fad9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "792c688e-cda7-412c-a92d-fb8a1cad4e1d",
+        "model": "grok-4.5"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
