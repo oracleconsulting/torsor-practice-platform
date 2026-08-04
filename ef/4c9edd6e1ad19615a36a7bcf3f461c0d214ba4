@@ -1,0 +1,23 @@
+apps/client-portal/src/pages/SprintDashboardPage.tsx
+  s_870a398e4fad9b::t_26f0631ec75890 934-937
+  s_870a398e4fad9b::t_6a8bd96cdd6bd7 1148-1150
+  s_870a398e4fad9b::t_b8cdffdee3e72d 635-637
+  s_870a398e4fad9b::t_ef6d7ce0081a24 1910-1912
+  s_870a398e4fad9b::t_78c3cb82f098af 473-476
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "ef4c9edd6e1ad19615a36a7bcf3f461c0d214ba4",
+  "prompts": {},
+  "sessions": {
+    "s_870a398e4fad9b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "792c688e-cda7-412c-a92d-fb8a1cad4e1d",
+        "model": "grok-4.5"
+      },
+      "human_author": "James Howard <james@ivcaccounting.co.uk>"
+    }
+  }
+}
