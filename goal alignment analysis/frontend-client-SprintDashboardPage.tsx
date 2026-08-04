@@ -31,7 +31,6 @@ import {
   Lock,
   Sparkles,
 } from 'lucide-react';
-import { useCatchUpDetection } from '@/hooks/useCatchUpDetection';
 import { CatchUpBanner } from '@/components/sprint/CatchUpBanner';
 import { CatchUpView } from '@/components/sprint/CatchUpView';
 import { SprintCompletionCelebration } from '@/components/sprint/SprintCompletionCelebration';
@@ -41,25 +40,31 @@ import { QuarterlyLifeCheck } from '@/components/sprint/QuarterlyLifeCheck';
 import { QuarterlyLifeCheckForm } from '@/components/QuarterlyLifeCheckForm';
 import { SprintSummaryClientView } from '@/components/SprintSummaryClientView';
 import { TuesdayCheckInCard } from '@/components/sprint/TuesdayCheckInCard';
-import { LifePulseCard } from '@/components/sprint/LifePulseCard';
+import { WeekPulseSection } from '@/components/sprint/WeekPulseSection';
+import { CheckpointReviewCard } from '@/components/sprint/CheckpointReviewCard';
 import { LifeAlignmentCard } from '@/components/sprint/LifeAlignmentCard';
-import { useLifeAlignment } from '@/hooks/useLifeAlignment';
+import { useLifeAlignment, type PulseByWeekEntry } from '@/hooks/useLifeAlignment';
+import {
+  useCheckpointReview,
+  shouldShowCheckpointReview,
+  isCheckpointWeek,
+  type CheckpointReview,
+  type CheckpointReviewInput,
+  type CheckpointWeek,
+} from '@/hooks/useCheckpointReview';
+import { useSprintWeekSchedule } from '@/hooks/useSprintWeekSchedule';
 import { useProgress } from '@/hooks/useProgress';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
 import { TierUpgradePrompt } from '@/components/sprint/TierUpgradePrompt';
 import { checkRenewalEligibility, type RenewalEligibility } from '@/lib/renewal';
-
-// ============================================================================
-// CALENDAR WEEK (for catch-up gating)
-// ============================================================================
-
-function getCalendarWeek(sprintStartDate: string | null): number {
-  if (!sprintStartDate) return 1;
-  const start = new Date(sprintStartDate).getTime();
-  const now = Date.now();
-  const weekNum = Math.ceil((now - start) / (7 * 24 * 60 * 60 * 1000));
-  return Math.max(1, Math.min(12, weekNum));
-}
+import { matchWeekTasks } from '@/lib/utils/taskMatching';
+import {
+  computeWeekGating,
+  getPulseTargetWeek,
+  weekLockReason,
+  formatWeekStartLabel,
+} from '@/lib/utils/weekGating';
+import { useCatchUpDetection } from '@/hooks/useCatchUpDetection';
 
 // ============================================================================
 // SPRINT COMPLETION (for Phase 3 summary)
@@ -85,17 +90,17 @@ function checkSprintCompletion(
   let completedTasks = 0;
   let skippedTasks = 0;
 
-  for (let weekNum = 1; weekNum <= totalWeeks; weekNum++) {
-    const week = sprintWeeks[weekNum - 1];
-    if (!week?.tasks) continue;
+  for (let i = 0; i < (sprintWeeks?.length || 0) && i < totalWeeks; i++) {
+    const week = sprintWeeks[i];
+    const weekNum = week?.weekNumber ?? week?.week ?? (i + 1);
+    const generatedTasks = week?.tasks || [];
+    if (!generatedTasks.length) continue;
 
-    for (const task of week.tasks) {
+    const matches = matchWeekTasks(generatedTasks, dbTasks, weekNum);
+    for (const m of matches) {
       totalTasks++;
-      const dbTask = dbTasks.find(
-        (t: any) => t.week_number === weekNum && t.title === task.title,
-      );
-      if (dbTask?.status === 'completed') completedTasks++;
-      else if (dbTask?.status === 'skipped') skippedTasks++;
+      if (m?.status === 'completed') completedTasks++;
+      else if (m?.status === 'skipped') skippedTasks++;
     }
   }
 
@@ -128,136 +133,6 @@ function getCurrentWeekFromTasks(tasks: any[]): number {
     .filter(t => t.week_number === highestActive)
     .every(t => t.status === 'completed' || t.status === 'skipped');
   return allDoneInHighest ? Math.min(highestActive + 1, 12) : highestActive;
-}
-
-// ============================================================================
-// WEEK GATING
-// ============================================================================
-
-function computeWeekGating(
-  weeks: any[],
-  dbTasks: any[],
-  pulseWeeks?: Set<number>,
-  sprintStartDate?: string | null,
-): {
-  activeWeek: number;
-  resolvedWeeks: number[];
-  lockedWeeks: number[];
-  isWeekResolved: (weekNum: number) => boolean;
-  isWeekLocked: (weekNum: number) => boolean;
-  /** Weeks where tasks are done but pulse is missing */
-  needsPulse: (weekNum: number) => boolean;
-  /**
-   * True when the calendar has reached this week's start date AND the previous
-   * week is fully resolved. Drives whether tasks for this week can be marked
-   * in_progress / completed. Weeks before activeWeek are always actionable.
-   * If `sprintStartDate` is null, every visible week is actionable (legacy).
-   */
-  isWeekActionable: (weekNum: number) => boolean;
-  /**
-   * Returns the calendar date this week first becomes actionable (i.e. tasks
-   * can be marked done). Null if `sprintStartDate` is not set yet.
-   */
-  weekStartDate: (weekNum: number) => Date | null;
-} {
-  const resolvedWeeks: number[] = [];
-  const tasksDoneWeeks: number[] = [];
-
-  for (let i = 0; i < (weeks?.length || 0); i++) {
-    const week = weeks[i];
-    const weekNum = i + 1;
-    const generatedTasks = week?.tasks || [];
-    const weekDbTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
-
-    const allTasksDone =
-      generatedTasks.length > 0 &&
-      generatedTasks.every((gt: any) => {
-        const dbTask = weekDbTasks.find((t: any) => t.title === gt.title);
-        return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
-      });
-
-    if (allTasksDone) {
-      tasksDoneWeeks.push(weekNum);
-      const hasPulse = !pulseWeeks || pulseWeeks.has(weekNum);
-      if (hasPulse) {
-        resolvedWeeks.push(weekNum);
-      } else {
-        break;
-      }
-    } else {
-      break;
-    }
-  }
-
-  const activeWeek =
-    resolvedWeeks.length > 0
-      ? Math.min(resolvedWeeks[resolvedWeeks.length - 1] + 1, 12)
-      : 1;
-
-  const lockedWeeks = Array.from({ length: 12 }, (_, i) => i + 1).filter(
-    (w) => w > activeWeek && !resolvedWeeks.includes(w)
-  );
-
-  // Compute week start dates. Each week begins exactly 7 days after the previous,
-  // anchored on the chosen sprint_start_date.
-  const weekStartDate = (weekNum: number): Date | null => {
-    if (!sprintStartDate) return null;
-    const start = new Date(sprintStartDate);
-    if (Number.isNaN(start.getTime())) return null;
-    const d = new Date(start);
-    d.setDate(d.getDate() + (weekNum - 1) * 7);
-    return d;
-  };
-
-  const isWeekActionable = (weekNum: number): boolean => {
-    // Resolved weeks stay actionable so the client can edit/skip retroactively.
-    if (resolvedWeeks.includes(weekNum)) return true;
-    // Without a chosen start date, behave as before — any visible week is actionable.
-    if (!sprintStartDate) return true;
-    const startDate = weekStartDate(weekNum);
-    if (!startDate) return true;
-    const now = new Date();
-    return now.getTime() >= startDate.getTime();
-  };
-
-  return {
-    activeWeek,
-    resolvedWeeks,
-    lockedWeeks,
-    isWeekResolved: (w) => resolvedWeeks.includes(w),
-    isWeekLocked: (w) => lockedWeeks.includes(w),
-    needsPulse: (w) => tasksDoneWeeks.includes(w) && !resolvedWeeks.includes(w),
-    isWeekActionable,
-    weekStartDate,
-  };
-}
-
-/**
- * Highest week number where every generated task has a matching DB task in
- * completed/skipped status. Used as the target week for the Life Pulse so it
- * gets saved against the week the client is closing out — NOT the next week
- * they haven't started yet. Defaults to 1 when no week is fully done.
- */
-function getPulseTargetWeek(weeks: any[], dbTasks: any[]): number {
-  let lastDoneWeek = 0;
-  for (let i = 0; i < (weeks?.length || 0); i++) {
-    const week = weeks[i];
-    const weekNum = i + 1;
-    const generatedTasks = week?.tasks || [];
-    const weekDbTasks = dbTasks.filter((t: any) => t.week_number === weekNum);
-    const allDone =
-      generatedTasks.length > 0 &&
-      generatedTasks.every((gt: any) => {
-        const dbTask = weekDbTasks.find((t: any) => t.title === gt.title);
-        return dbTask && (dbTask.status === 'completed' || dbTask.status === 'skipped');
-      });
-    if (allDone) {
-      lastDoneWeek = weekNum;
-    } else {
-      break;
-    }
-  }
-  return lastDoneWeek > 0 ? lastDoneWeek : 1;
 }
 
 // ============================================================================
@@ -557,51 +432,51 @@ function TaskCard({
 // THIS WEEK CARD
 // ============================================================================
 
-/** Match a generated task to its DB counterpart (title or sort_order). Same as RoadmapPage WeekCard. */
-function findMatchingDbTask(generatedTask: any, dbTasks: any[], weekNumber: number, taskIndex: number): any {
-  return (
-    dbTasks.find(
-      (t: any) =>
-        t.title === generatedTask.title ||
-        (t.week_number === weekNumber && t.sort_order === taskIndex)
-    ) ?? null
-  );
-}
-
 function ThisWeekCard({
   week,
   weekNumber,
   dbTasks,
   onTaskStatusChange,
   onSkip,
-  isBehind,
-  activeWeek,
-  calendarWeek,
   isActionable = true,
   weekStartDate,
-  onStartCatchUp,
   clientId,
   practiceId,
+  sprintNumber,
+  existingPulse,
+  needsPulse,
+  onSubmitPulse,
+  pulseLoading,
+  lifeScore,
+  checkpointReview = null,
+  onSubmitCheckpointReview,
+  checkpointReviewLoading = false,
 }: {
   week: any;
   weekNumber: number;
   dbTasks: any[];
   onTaskStatusChange: (taskId: string, status: 'pending' | 'in_progress' | 'completed', task?: any) => void;
   onSkip?: (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }) => void;
-  isBehind?: boolean;
-  activeWeek?: number;
-  calendarWeek?: number;
   /** When false, this week is visible-only (preview). Tasks cannot be ticked. */
   isActionable?: boolean;
   /** Date this week becomes actionable (when isActionable=false). */
   weekStartDate?: Date | null;
-  onStartCatchUp?: () => void;
   clientId?: string;
   practiceId?: string;
+  sprintNumber: number;
+  existingPulse?: PulseByWeekEntry | null;
+  needsPulse: boolean;
+  onSubmitPulse: (rating: number, categories: string[], protectText?: string) => Promise<void>;
+  pulseLoading?: boolean;
+  lifeScore?: number | null;
+  checkpointReview?: CheckpointReview | null;
+  onSubmitCheckpointReview?: (week: CheckpointWeek, input: CheckpointReviewInput) => Promise<void>;
+  checkpointReviewLoading?: boolean;
 }) {
   const narrative = week.narrative || week.focus;
   const weekMilestone = week.weekMilestone || week.milestone;
   const weekTasks = week.tasks || [];
+  const weekMatches = matchWeekTasks(weekTasks, dbTasks, weekNumber);
   const lifeTasks = weekTasks.filter((t: any) => t.category?.startsWith?.('life_'));
   const businessTasks = weekTasks.filter((t: any) => !t.category?.startsWith?.('life_'));
 
@@ -644,22 +519,6 @@ function ThisWeekCard({
         </div>
       )}
 
-      {isBehind && activeWeek != null && calendarWeek != null && onStartCatchUp && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mx-5 mt-5">
-          <p className="text-sm text-amber-800">
-            You're on Week {activeWeek} — the calendar says Week {calendarWeek}.
-            {' '}
-            <button
-              type="button"
-              onClick={onStartCatchUp}
-              className="font-semibold text-amber-900 underline hover:no-underline"
-            >
-              Catch up now →
-            </button>
-          </p>
-        </div>
-      )}
-
       <div className="divide-y divide-slate-100">
         {lifeTasks.length > 0 && (
           <div className="p-5">
@@ -672,7 +531,7 @@ function ThisWeekCard({
             <div className="space-y-2">
               {lifeTasks.map((task: any, idx: number) => {
                 const taskIndex = weekTasks.indexOf(task);
-                const dbTask = findMatchingDbTask(task, dbTasks, weekNumber, taskIndex);
+                const dbTask = weekMatches[taskIndex] ?? null;
                 const status = dbTask?.status || 'pending';
                 return (
                   <TaskCard
@@ -706,7 +565,7 @@ function ThisWeekCard({
             {businessTasks.length > 0 ? (
               businessTasks.map((task: any, idx: number) => {
                 const taskIndex = weekTasks.indexOf(task);
-                const dbTask = findMatchingDbTask(task, dbTasks, weekNumber, taskIndex);
+                const dbTask = weekMatches[taskIndex] ?? null;
                 const status = dbTask?.status || 'pending';
                 return (
                   <TaskCard
@@ -742,6 +601,40 @@ function ThisWeekCard({
           </div>
         </div>
       )}
+
+      {(existingPulse || needsPulse) && (
+        <div className="px-5 pb-5">
+          <WeekPulseSection
+            weekNumber={weekNumber}
+            sprintNumber={sprintNumber}
+            existingPulse={existingPulse}
+            needsPulse={needsPulse}
+            onSubmit={onSubmitPulse}
+            loading={pulseLoading}
+            currentScore={lifeScore}
+          />
+        </div>
+      )}
+
+      {shouldShowCheckpointReview({
+        weekNumber,
+        hasPulseForWeek: !!existingPulse,
+      }) &&
+        isCheckpointWeek(weekNumber) &&
+        onSubmitCheckpointReview && (
+          <div className="px-5 pb-5">
+            {checkpointReviewLoading && !checkpointReview ? (
+              <div className="h-28 rounded-xl bg-slate-100 animate-pulse" aria-busy="true" />
+            ) : (
+              <CheckpointReviewCard
+                checkpointWeek={weekNumber}
+                existingReview={checkpointReview}
+                onSubmit={(input) => onSubmitCheckpointReview(weekNumber, input)}
+                loading={checkpointReviewLoading}
+              />
+            )}
+          </div>
+        )}
     </div>
   );
 }
@@ -939,13 +832,11 @@ function ProgressStrip({
   weeks,
   tasks,
   gating,
-  calendarWeek,
   onWeekClick,
 }: {
   weeks: any[];
   tasks: any[];
   gating: ReturnType<typeof computeWeekGating>;
-  calendarWeek: number;
   onWeekClick: (weekNum: number) => void;
 }) {
   return (
@@ -954,39 +845,41 @@ function ProgressStrip({
         <h3 className="text-sm font-semibold text-slate-700">12-Week Progress</h3>
         <span className="text-xs text-slate-400">
           Week {gating.activeWeek} of 12
-          {calendarWeek > gating.activeWeek + 2 && (
-            <span className="text-amber-500 ml-1">(calendar: week {calendarWeek})</span>
-          )}
         </span>
       </div>
       <div className="flex gap-1">
         {(weeks || Array.from({ length: 12 }, (_, i) => ({ weekNumber: i + 1, theme: `Week ${i + 1}` }))).map((week: any, i: number) => {
           const weekNum = week.weekNumber ?? i + 1;
-          const isResolved = gating.isWeekResolved(weekNum);
-          const isLocked = gating.isWeekLocked(weekNum);
-          const isActive = weekNum === gating.activeWeek;
+          const phase = gating.weekPhase(weekNum);
+          const expandable = gating.isWeekExpandable(weekNum);
           const weekDbTasks = tasks.filter((t: any) => t.week_number === weekNum);
           const completed = weekDbTasks.filter((t: any) => t.status === 'completed').length;
           const skipped = weekDbTasks.filter((t: any) => t.status === 'skipped').length;
           const total = weekDbTasks.length > 0 ? weekDbTasks.length : (week.tasks || []).length;
           let bgColor = 'bg-slate-100 text-slate-400';
-          if (isResolved) bgColor = 'bg-emerald-500 text-white';
-          else if (isActive) bgColor = 'bg-indigo-500 text-white';
-          else if (isLocked) bgColor = 'bg-slate-50 text-slate-300';
+          if (phase === 'resolved') bgColor = 'bg-emerald-500 text-white';
+          else if (phase === 'active') bgColor = 'bg-indigo-500 text-white';
+          else if (phase === 'scheduled') bgColor = 'bg-amber-100 text-amber-800';
+          else if (phase === 'locked') bgColor = 'bg-slate-50 text-slate-300';
+          const startLabel = formatWeekStartLabel(gating.weekStartDate(weekNum));
           return (
             <button
               key={weekNum}
               type="button"
-              onClick={() => !isLocked && onWeekClick(weekNum)}
-              disabled={isLocked}
+              onClick={() => expandable && onWeekClick(weekNum)}
+              disabled={!expandable}
               className={`flex-1 h-8 rounded-md flex items-center justify-center text-xs font-medium transition-all ${bgColor} ${
-                isActive ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
-              } ${isLocked ? 'cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}`}
-              title={isLocked
-                ? `Week ${weekNum} — Locked (complete Week ${gating.activeWeek} first)`
-                : `Week ${weekNum}: ${week.theme ?? ''} — ${completed} done, ${skipped} skipped of ${total}`}
+                phase === 'active' ? 'ring-2 ring-indigo-500 ring-offset-1' : ''
+              } ${!expandable ? 'cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}`}
+              title={
+                phase === 'locked'
+                  ? `Week ${weekNum} — Locked (${weekLockReason(gating).label})`
+                  : phase === 'scheduled'
+                    ? `Week ${weekNum}: ${week.theme ?? ''} — ${startLabel ?? 'Opens soon'} (preview)`
+                    : `Week ${weekNum}: ${week.theme ?? ''} — ${completed} done, ${skipped} skipped of ${total}`
+              }
             >
-              {isResolved ? '✓' : isLocked ? '🔒' : weekNum}
+              {phase === 'resolved' ? '✓' : phase === 'locked' ? '🔒' : weekNum}
             </button>
           );
         })}
@@ -1009,6 +902,14 @@ function AllWeeksAccordion({
   onSkip,
   clientId,
   practiceId,
+  sprintNumber,
+  pulseByWeek,
+  onSubmitPulse,
+  pulseLoading,
+  lifeScore,
+  reviewsByWeek,
+  onSubmitCheckpointReview,
+  checkpointReviewLoading = false,
 }: {
   weeks: any[];
   tasks: any[];
@@ -1019,12 +920,21 @@ function AllWeeksAccordion({
   onSkip?: (info: { dbTaskId: string | null; generatedTask: any; weekNumber: number; index: number }) => void;
   clientId?: string;
   practiceId?: string;
+  sprintNumber: number;
+  pulseByWeek: Map<number, PulseByWeekEntry>;
+  onSubmitPulse: (rating: number, categories: string[], protectText: string | undefined, weekNumber: number) => Promise<void>;
+  pulseLoading?: boolean;
+  lifeScore?: number | null;
+  reviewsByWeek: Map<number, CheckpointReview>;
+  onSubmitCheckpointReview: (week: CheckpointWeek, input: CheckpointReviewInput) => Promise<void>;
+  checkpointReviewLoading?: boolean;
 }) {
-  const [openWeek, setOpenWeek] = useState<number | null>(null);
+  const [openWeek, setOpenWeek] = useState<number | null>(gating.activeWeek);
   const weekRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const didInitialScroll = useRef(false);
 
   useEffect(() => {
-    if (scrollToWeek != null && weekRefs.current[scrollToWeek] && !gating.isWeekLocked(scrollToWeek)) {
+    if (scrollToWeek != null && weekRefs.current[scrollToWeek] && gating.isWeekExpandable(scrollToWeek)) {
       setOpenWeek(scrollToWeek);
       const el = weekRefs.current[scrollToWeek];
       if (el) {
@@ -1033,6 +943,18 @@ function AllWeeksAccordion({
       onScrolledToWeek?.();
     }
   }, [scrollToWeek, onScrolledToWeek, gating]);
+
+  // Land on the active week on first mount so its pulse is visible without hunting
+  useEffect(() => {
+    if (didInitialScroll.current) return;
+    const target = gating.activeWeek;
+    if (!target || !gating.isWeekExpandable(target)) return;
+    const el = weekRefs.current[target];
+    if (!el) return;
+    didInitialScroll.current = true;
+    setOpenWeek(target);
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [gating.activeWeek, gating]);
 
   const list = weeks?.length ? weeks : Array.from({ length: 12 }, (_, i) => ({ weekNumber: i + 1, theme: `Week ${i + 1}`, tasks: [] }));
 
@@ -1044,19 +966,29 @@ function AllWeeksAccordion({
       <div className="divide-y divide-slate-100">
         {list.map((week: any) => {
           const weekNum = week.weekNumber ?? week.week;
-          const isLocked = gating.isWeekLocked(weekNum);
-          const isResolved = gating.isWeekResolved(weekNum);
+          const phase = gating.weekPhase(weekNum);
+          const isLocked = phase === 'locked';
+          const isScheduled = phase === 'scheduled';
+          const isResolved = phase === 'resolved';
+          const expandable = gating.isWeekExpandable(weekNum);
           const weekTasks = tasks.filter((t: any) => t.week_number === weekNum);
           const weekTaskList = week.tasks || [];
+          const weekMatches = matchWeekTasks(weekTaskList, weekTasks, weekNum);
           const completedCount = weekTasks.filter((t: any) => t.status === 'completed').length;
           const skippedCount = weekTasks.filter((t: any) => t.status === 'skipped').length;
           const totalCount = weekTaskList.length > 0 ? weekTaskList.length : weekTasks.length;
-          const progress = totalCount > 0 ? Math.round(((completedCount + skippedCount) / totalCount) * 100) : 0;
-          const isActive = openWeek === weekNum;
-          const isActionable = gating.isWeekActionable(weekNum);
+          const isOpen = openWeek === weekNum;
+          const isActionable = phase === 'active' || phase === 'resolved'
+            ? gating.isWeekActionable(weekNum)
+            : false;
           const startDate = gating.weekStartDate(weekNum);
           const lifeTasks = weekTaskList.filter((t: any) => t.category?.startsWith?.('life_'));
           const businessTasks = weekTaskList.filter((t: any) => !t.category?.startsWith?.('life_'));
+          const existingPulse = pulseByWeek.get(weekNum) ?? null;
+          // Active week's live form lives in ThisWeekCard only — avoid two forms.
+          // Scheduled weeks never show a pulse form (not started yet).
+          const showPulseSection =
+            weekNum !== gating.activeWeek && !!existingPulse && phase === 'resolved';
 
           return (
             <div
@@ -1067,18 +999,21 @@ function AllWeeksAccordion({
               <button
                 type="button"
                 onClick={() => {
-                  if (isLocked) return;
-                  setOpenWeek(isActive ? null : weekNum);
+                  if (!expandable) return;
+                  setOpenWeek(isOpen ? null : weekNum);
                 }}
-                disabled={isLocked}
+                disabled={!expandable}
                 className={`w-full p-4 flex items-center gap-4 text-left transition-colors ${
-                  isLocked ? 'cursor-not-allowed' : 'hover:bg-slate-50'
-                } ${isResolved ? 'bg-emerald-50/50' : ''} ${weekNum === gating.activeWeek ? 'border-l-4 border-l-indigo-500' : ''}`}
+                  !expandable ? 'cursor-not-allowed' : 'hover:bg-slate-50'
+                } ${isResolved ? 'bg-emerald-50/50' : ''} ${isScheduled ? 'bg-amber-50/40' : ''} ${
+                  weekNum === gating.activeWeek ? 'border-l-4 border-l-indigo-500' : ''
+                }`}
               >
                 <div
                   className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
                     isResolved ? 'bg-emerald-500 text-white' :
-                    weekNum === gating.activeWeek ? 'bg-indigo-500 text-white' :
+                    phase === 'active' ? 'bg-indigo-500 text-white' :
+                    isScheduled ? 'bg-amber-100 text-amber-800' :
                     isLocked ? 'bg-slate-100 text-slate-300' :
                     'bg-slate-200 text-slate-600'
                   }`}
@@ -1092,30 +1027,29 @@ function AllWeeksAccordion({
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <span className="text-sm font-medium text-slate-900">{completedCount + skippedCount}/{totalCount} tasks</span>
                   {isLocked && (
-                    <span className="text-xs text-slate-400">Complete Week {gating.activeWeek} to unlock</span>
-                  )}
-                  {!isLocked && !isActionable && startDate && (
-                    <span className="text-xs text-amber-600">
-                      Opens {startDate.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                    <span className="text-xs text-slate-400 text-right max-w-[11rem]">
+                      {weekLockReason(gating).label}
                     </span>
                   )}
-                  {isActive ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                  {isScheduled && startDate && (
+                    <span className="text-xs text-amber-700 font-medium">
+                      {formatWeekStartLabel(startDate)}
+                    </span>
+                  )}
+                  {expandable ? (
+                    isOpen ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />
+                  ) : (
+                    <Lock className="w-4 h-4 text-slate-300" />
+                  )}
                 </div>
               </button>
-              {isActive && !isLocked && (
+              {isOpen && expandable && (
                 <div className="px-4 pb-4">
-                  {!isActionable && startDate && (
+                  {isScheduled && startDate && (
                     <div className="ml-16 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                       <p className="text-sm text-amber-900">
-                        Preview only — Week {weekNum} opens on{' '}
-                        <strong>
-                          {startDate.toLocaleDateString(undefined, {
-                            weekday: 'long',
-                            day: 'numeric',
-                            month: 'long',
-                          })}
-                        </strong>
-                        . Read ahead and plan, but tasks become tickable on that date.
+                        Preview — Week {weekNum} {formatWeekStartLabel(startDate)?.replace(/^Starts /, 'starts on ') ?? 'opens soon'}.
+                        {' '}Read ahead and plan; tasks become tickable on that date.
                       </p>
                     </div>
                   )}
@@ -1128,7 +1062,7 @@ function AllWeeksAccordion({
                         </div>
                         {lifeTasks.map((task: any, idx: number) => {
                           const taskIndex = weekTaskList.indexOf(task);
-                          const dbTask = findMatchingDbTask(task, weekTasks, weekNum, taskIndex);
+                          const dbTask = weekMatches[taskIndex] ?? null;
                           const status = dbTask?.status || 'pending';
                           return (
                             <TaskCard
@@ -1151,7 +1085,7 @@ function AllWeeksAccordion({
                     )}
                     {businessTasks.map((task: any, idx: number) => {
                       const taskIndex = weekTaskList.indexOf(task);
-                      const dbTask = findMatchingDbTask(task, weekTasks, weekNum, taskIndex);
+                      const dbTask = weekMatches[taskIndex] ?? null;
                       const status = dbTask?.status || 'pending';
                       return (
                         <TaskCard
@@ -1178,6 +1112,37 @@ function AllWeeksAccordion({
                       </p>
                     </div>
                   )}
+                  {showPulseSection && (
+                    <div className="ml-16 mt-4">
+                      <WeekPulseSection
+                        weekNumber={weekNum}
+                        sprintNumber={sprintNumber}
+                        existingPulse={existingPulse}
+                        needsPulse={false}
+                        onSubmit={async () => {}}
+                        loading={pulseLoading}
+                        currentScore={lifeScore}
+                      />
+                    </div>
+                  )}
+                  {shouldShowCheckpointReview({
+                    weekNumber: weekNum,
+                    hasPulseForWeek: !!existingPulse,
+                  }) &&
+                    isCheckpointWeek(weekNum) && (
+                      <div className="ml-16 mt-4">
+                        {checkpointReviewLoading && !reviewsByWeek.get(weekNum) ? (
+                          <div className="h-28 rounded-xl bg-slate-100 animate-pulse" aria-busy="true" />
+                        ) : (
+                          <CheckpointReviewCard
+                            checkpointWeek={weekNum}
+                            existingReview={reviewsByWeek.get(weekNum) ?? null}
+                            onSubmit={(input) => onSubmitCheckpointReview(weekNum, input)}
+                            loading={checkpointReviewLoading}
+                          />
+                        )}
+                      </div>
+                    )}
                 </div>
               )}
             </div>
@@ -1248,25 +1213,57 @@ export default function SprintDashboardPage() {
     trend: lifeTrend,
     categoryScores,
     submitPulse,
-    hasPulseThisWeek,
-    hasPulseForWeek,
     pulseWeeks,
+    pulseByWeek,
     recalculateScore,
     loading: lifeLoading,
   } = useLifeAlignment(currentSprintNumber, pulseTargetWeek);
 
-  // Compute gating WITH pulse data as a week-completion gate AND the chosen
-  // sprint start date as a calendar-time gate (next-week tasks become
-  // actionable only after 7 days have passed since the previous week began).
-  const gating = computeWeekGating(weeks, tasks, pulseWeeks, sprintStartDate);
+  const {
+    weekStartsByNumber,
+    loading: scheduleLoading,
+    refetch: refetchSchedule,
+    ensureWeek1,
+  } = useSprintWeekSchedule(currentSprintNumber);
 
-  const calendarWeek = getCalendarWeek(sprintStartDate);
-  const catchUpState = useCatchUpDetection(
+  const {
+    reviewsByWeek,
+    loading: checkpointReviewLoading,
+    submitReview: submitCheckpointReview,
+  } = useCheckpointReview(currentSprintNumber);
+
+  const [pulseInitialLoadDone, setPulseInitialLoadDone] = useState(false);
+  useEffect(() => {
+    if (!lifeLoading && !scheduleLoading) setPulseInitialLoadDone(true);
+  }, [lifeLoading, scheduleLoading]);
+
+  // Compute gating WITH pulse data as a week-completion gate AND rolling
+  // week start dates from sprint_week_schedule (fallback: fixed derivation).
+  const gating = computeWeekGating(
+    weeks,
+    tasks,
+    pulseWeeks,
     sprintStartDate,
-    { activeWeek: gating.activeWeek, resolvedWeeks: gating.resolvedWeeks },
-    12,
+    !pulseInitialLoadDone,
+    weekStartsByNumber,
   );
-  const isBehind = catchUpState.isCatchUpNeeded;
+
+  const catchUpState = useCatchUpDetection(gating, 12);
+  const showDormancyBanner =
+    catchUpState.dormancyLevel === 'gentle' || catchUpState.dormancyLevel === 'catch_up';
+
+  const handleSubmitPulse = useCallback(
+    async (
+      rating: number,
+      categories: string[],
+      protectText: string | undefined,
+      weekNumber?: number,
+    ) => {
+      await submitPulse(rating, categories, protectText, weekNumber);
+      await refetchSchedule();
+    },
+    [submitPulse, refetchSchedule],
+  );
 
   useEffect(() => {
     fetchRoadmap();
@@ -1461,6 +1458,7 @@ export default function SprintDashboardPage() {
       const { dbTaskId, generatedTask, weekNumber, index } = info;
       if (dbTaskId) {
         await updateTaskStatus(dbTaskId, 'skipped', undefined, reason);
+        await fetchTasks();
       } else {
         if (!clientSession?.clientId || !clientSession?.practiceId) return;
         const { error } = await supabase
@@ -1494,8 +1492,9 @@ export default function SprintDashboardPage() {
 
   const handleCatchUpComplete = useCallback(() => {
     fetchTasks();
+    refetchSchedule();
     setCatchUpMode(false);
-  }, [fetchTasks]);
+  }, [fetchTasks, refetchSchedule]);
 
   const handleTaskStatusChange = useCallback(
     async (taskId: string, newStatus: 'pending' | 'in_progress' | 'completed', task?: any) => {
@@ -1518,6 +1517,7 @@ export default function SprintDashboardPage() {
       const task = completingTask;
       const wasLifeTask = task?.category?.startsWith?.('life_');
       await updateTaskStatus(taskId, 'completed', feedback);
+      await fetchTasks();
       setCompletingTask(null);
       if (wasLifeTask && recalculateScore) {
         recalculateScore();
@@ -1548,7 +1548,7 @@ export default function SprintDashboardPage() {
         }
       }
     },
-    [updateTaskStatus, completingTask, recalculateScore, recalculateProgress, clientSession?.clientId, clientSession?.practiceId, currentSprintNumber]
+    [updateTaskStatus, fetchTasks, completingTask, recalculateScore, recalculateProgress, clientSession?.clientId, clientSession?.practiceId, currentSprintNumber]
   );
 
   const lifeAlignment = getLifeAlignmentSummary();
@@ -1583,6 +1583,14 @@ export default function SprintDashboardPage() {
   if (roadmapLoading && !roadmap) {
     return (
       <Layout title="Your Sprint">
+        <PageSkeleton />
+      </Layout>
+    );
+  }
+
+  if (weeks.length > 0 && !pulseInitialLoadDone) {
+    return (
+      <Layout title="Your Sprint" subtitle={sprint?.sprintTheme || 'Your 12-week transformation'}>
         <PageSkeleton />
       </Layout>
     );
@@ -1683,6 +1691,11 @@ export default function SprintDashboardPage() {
           clientId={clientSession?.clientId ?? ''}
           practiceId={clientSession?.practiceId ?? ''}
           sprintNumber={renewalState?.currentSprint ?? currentSprintNumber}
+          pulseWeeks={pulseWeeks}
+          pulseByWeek={pulseByWeek}
+          onSubmitPulse={(rating, categories, protectText, weekNumber) =>
+            handleSubmitPulse(rating, categories, protectText, weekNumber)
+          }
           onComplete={handleCatchUpComplete}
           onCancel={() => setCatchUpMode(false)}
         />
@@ -1701,6 +1714,7 @@ export default function SprintDashboardPage() {
                   if (sl?.id && clientSession?.clientId) {
                     await supabase.from('client_service_lines').update({ sprint_start_date: date }).eq('client_id', clientSession.clientId).eq('service_line_id', sl.id);
                     setSprintStartDate(date);
+                    await ensureWeek1(date);
                   }
                 }} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Start Sprint</button>
               </div>
@@ -1730,11 +1744,16 @@ export default function SprintDashboardPage() {
                 />
               </div>
             )}
-          {isBehind && (
+          {showDormancyBanner && (
             <CatchUpBanner
-              weeksBehind={catchUpState.weeksBehind}
-              unresolvedWeekCount={catchUpState.unresolvedWeeks.length}
-              onEnter={() => setCatchUpMode(true)}
+              dormancyLevel={catchUpState.dormancyLevel === 'catch_up' ? 'catch_up' : 'gentle'}
+              daysDormant={catchUpState.daysDormant}
+              activeWeek={catchUpState.activeWeek}
+              onEnter={
+                catchUpState.dormancyLevel === 'catch_up'
+                  ? () => setCatchUpMode(true)
+                  : undefined
+              }
             />
           )}
           {enrichmentSources && Object.values(enrichmentSources).some(Boolean) && (
@@ -1753,7 +1772,7 @@ export default function SprintDashboardPage() {
             </div>
           )}
           {/* Life Alignment overview */}
-          {!isBehind && !completionState.isSprintComplete && (
+          {!completionState.isSprintComplete && (
             <LifeAlignmentCard
               scores={lifeScores}
               currentScore={lifeScore}
@@ -1836,16 +1855,55 @@ export default function SprintDashboardPage() {
               dbTasks={thisWeekTasks}
               onTaskStatusChange={handleTaskStatusChange}
               onSkip={(info) => setSkippingTask(info)}
-              isBehind={isBehind}
-              activeWeek={gating.activeWeek}
-              calendarWeek={calendarWeek}
               isActionable={gating.isWeekActionable(gating.activeWeek)}
               weekStartDate={gating.weekStartDate(gating.activeWeek)}
-              onStartCatchUp={() => setCatchUpMode(true)}
               clientId={clientSession?.clientId}
               practiceId={clientSession?.practiceId}
+              sprintNumber={currentSprintNumber}
+              existingPulse={pulseByWeek.get(gating.activeWeek) ?? null}
+              needsPulse={
+                gating.weekPhase(gating.activeWeek) === 'active' &&
+                gating.needsPulse(gating.activeWeek)
+              }
+              onSubmitPulse={(rating, categories, protectText) =>
+                handleSubmitPulse(rating, categories, protectText, gating.activeWeek)
+              }
+              pulseLoading={lifeLoading}
+              lifeScore={lifeScore}
+              checkpointReview={reviewsByWeek.get(gating.activeWeek) ?? null}
+              onSubmitCheckpointReview={submitCheckpointReview}
+              checkpointReviewLoading={checkpointReviewLoading}
             />
           )}
+          {/* After pulse at 3/6/9, activeWeek advances — surface the review for the week just closed. */}
+          {(() => {
+            const justClosed = [4, 7, 10].includes(gating.activeWeek)
+              ? (gating.activeWeek - 1 as CheckpointWeek)
+              : null;
+            if (
+              !justClosed ||
+              !shouldShowCheckpointReview({
+                weekNumber: justClosed,
+                hasPulseForWeek: !!pulseByWeek.get(justClosed),
+              })
+            ) {
+              return null;
+            }
+            return (
+              <div className="mt-4">
+                {checkpointReviewLoading && !reviewsByWeek.get(justClosed) ? (
+                  <div className="h-28 rounded-xl bg-slate-100 animate-pulse" aria-busy="true" />
+                ) : (
+                  <CheckpointReviewCard
+                    checkpointWeek={justClosed}
+                    existingReview={reviewsByWeek.get(justClosed) ?? null}
+                    onSubmit={(input) => submitCheckpointReview(justClosed, input)}
+                    loading={checkpointReviewLoading}
+                  />
+                )}
+              </div>
+            );
+          })()}
           <WeeklyCheckInCard
             currentWeek={gating.activeWeek}
             existingCheckIn={checkIn?.weekNumber === gating.activeWeek ? checkIn : null}
@@ -1859,39 +1917,12 @@ export default function SprintDashboardPage() {
             }}
             loading={checkInLoading}
           />
-          {/* End-of-week Life Pulse — appears after the week's tasks are all
-              completed or skipped, as the final gate to unlock the next week. */}
-          {gating.needsPulse(gating.activeWeek) && !completionState.isSprintComplete && !isBehind && (
-            <div className="bg-gradient-to-br from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-5 ring-2 ring-rose-300/40">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500 text-white text-xs font-bold">
-                  ✓
-                </span>
-                <p className="text-sm font-semibold text-rose-900">
-                  All tasks done — submit your Life Pulse to unlock Week {Math.min(gating.activeWeek + 1, 12)}
-                </p>
-              </div>
-              <p className="text-xs text-rose-700/80 mb-3">
-                30-second weekly check-in: rate how aligned the week felt, tap the life areas you tended to, and submit.
-              </p>
-              <LifePulseCard
-                sprintNumber={currentSprintNumber}
-                weekNumber={gating.activeWeek}
-                isCatchUp={false}
-                isSprintComplete={false}
-                onSubmit={submitPulse}
-                currentScore={lifeScore}
-                loading={lifeLoading}
-              />
-            </div>
-          )}
           {/* Sticky progress strip — stays visible when scrolling */}
           <div className="sticky top-0 z-20 -mx-4 lg:-mx-8 px-4 lg:px-8 py-3 bg-white/95 backdrop-blur-sm border-b border-slate-100">
             <ProgressStrip
               weeks={weeks}
               tasks={tasks}
               gating={gating}
-              calendarWeek={calendarWeek}
               onWeekClick={(w) => setScrollToWeek(w)}
             />
           </div>
@@ -1905,6 +1936,14 @@ export default function SprintDashboardPage() {
             onSkip={(info) => setSkippingTask(info)}
             clientId={clientSession?.clientId}
             practiceId={clientSession?.practiceId}
+            sprintNumber={currentSprintNumber}
+            pulseByWeek={pulseByWeek}
+            onSubmitPulse={handleSubmitPulse}
+            pulseLoading={lifeLoading}
+            lifeScore={lifeScore}
+            reviewsByWeek={reviewsByWeek}
+            onSubmitCheckpointReview={submitCheckpointReview}
+            checkpointReviewLoading={checkpointReviewLoading}
           />
         </div>
       )}

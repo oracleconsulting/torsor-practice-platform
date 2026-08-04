@@ -5,6 +5,7 @@ import {
   weekLockReason,
   formatWeekStartLabel,
 } from './weekGating';
+import { shouldShowCheckpointReview } from '../../hooks/useCheckpointReview';
 
 function week(n: number, titles: string[]) {
   return {
@@ -74,7 +75,9 @@ describe('computeWeekGating + rolling schedule unlock path', () => {
   });
 
   it('prefers stored schedule dates over fixed derivation', () => {
-    const schedule = new Map<number, Date>([[4, new Date(2026, 7, 3)]]);
+    // Keep this clearly in the future relative to "today" so phase stays scheduled
+    const futureStart = new Date(2099, 0, 5); // Monday 5 Jan 2099
+    const schedule = new Map<number, Date>([[4, futureStart]]);
     const gating = computeWeekGating(
       weeks,
       tasksAllResolvedThrough3,
@@ -83,7 +86,7 @@ describe('computeWeekGating + rolling schedule unlock path', () => {
       false,
       schedule,
     );
-    expect(gating.weekStartDate(4)?.toDateString()).toBe(new Date(2026, 7, 3).toDateString());
+    expect(gating.weekStartDate(4)?.toDateString()).toBe(futureStart.toDateString());
     expect(formatWeekStartLabel(gating.weekStartDate(4))).toMatch(/Starts Monday/);
     // Week 4 is the active week with a future start → scheduled (expandable, not locked)
     expect(gating.weekPhase(4)).toBe('scheduled');
@@ -110,5 +113,86 @@ describe('computeWeekGating + rolling schedule unlock path', () => {
         catchUpCollectsPulse: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe('checkpoint review never gates progression', () => {
+  const weeksThrough10 = Array.from({ length: 10 }, (_, i) =>
+    week(i + 1, [`W${i + 1}a`, `W${i + 1}b`]),
+  );
+
+  function resolveThrough(n: number) {
+    const tasks = [];
+    for (let w = 1; w <= n; w++) {
+      tasks.push(dbTask(w, `W${w}a`, 'completed'));
+      tasks.push(dbTask(w, `W${w}b`, 'skipped'));
+    }
+    return tasks;
+  }
+
+  it('a client with no sprint_checkpoint_reviews progresses through weeks 3, 6 and 9', () => {
+    // No review input is passed — absence of reviews must not hold the gate.
+    const gating = computeWeekGating(
+      weeksThrough10,
+      resolveThrough(9),
+      new Set([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+      '2026-05-01',
+      false,
+    );
+    expect(gating.activeWeek).toBe(10);
+    expect(gating.weekPhase(3)).toBe('resolved');
+    expect(gating.weekPhase(6)).toBe('resolved');
+    expect(gating.weekPhase(9)).toBe('resolved');
+  });
+
+  it('computeWeekGating takes no checkpoint review input and its signature is unchanged', () => {
+    // weeks, dbTasks, pulseWeeks?, sprintStartDate?, pulseLoading?, weekStartsByNumber?
+    expect(computeWeekGating.length).toBe(6);
+    const gating = computeWeekGating(
+      weeksThrough10,
+      resolveThrough(3),
+      new Set([1, 2, 3]),
+      '2026-05-01',
+      false,
+    );
+    expect(gating.activeWeek).toBe(4);
+  });
+
+  it('review renders for a client who is behind schedule (no !isBehind wrapper)', () => {
+    expect(
+      shouldShowCheckpointReview({
+        weekNumber: 3,
+        hasPulseForWeek: true,
+        isBehind: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowCheckpointReview({
+        weekNumber: 6,
+        hasPulseForWeek: true,
+        isBehind: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowCheckpointReview({
+        weekNumber: 9,
+        hasPulseForWeek: true,
+        isBehind: true,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowCheckpointReview({
+        weekNumber: 3,
+        hasPulseForWeek: false,
+        isBehind: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowCheckpointReview({
+        weekNumber: 4,
+        hasPulseForWeek: true,
+        isBehind: false,
+      }),
+    ).toBe(false);
   });
 });

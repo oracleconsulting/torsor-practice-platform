@@ -41,8 +41,17 @@ import { QuarterlyLifeCheckForm } from '@/components/QuarterlyLifeCheckForm';
 import { SprintSummaryClientView } from '@/components/SprintSummaryClientView';
 import { TuesdayCheckInCard } from '@/components/sprint/TuesdayCheckInCard';
 import { WeekPulseSection } from '@/components/sprint/WeekPulseSection';
+import { CheckpointReviewCard } from '@/components/sprint/CheckpointReviewCard';
 import { LifeAlignmentCard } from '@/components/sprint/LifeAlignmentCard';
 import { useLifeAlignment, type PulseByWeekEntry } from '@/hooks/useLifeAlignment';
+import {
+  useCheckpointReview,
+  shouldShowCheckpointReview,
+  isCheckpointWeek,
+  type CheckpointReview,
+  type CheckpointReviewInput,
+  type CheckpointWeek,
+} from '@/hooks/useCheckpointReview';
 import { useSprintWeekSchedule } from '@/hooks/useSprintWeekSchedule';
 import { useProgress } from '@/hooks/useProgress';
 import { RenewalWaiting } from '@/components/sprint/RenewalWaiting';
@@ -439,6 +448,9 @@ function ThisWeekCard({
   onSubmitPulse,
   pulseLoading,
   lifeScore,
+  checkpointReview = null,
+  onSubmitCheckpointReview,
+  checkpointReviewLoading = false,
 }: {
   week: any;
   weekNumber: number;
@@ -457,6 +469,9 @@ function ThisWeekCard({
   onSubmitPulse: (rating: number, categories: string[], protectText?: string) => Promise<void>;
   pulseLoading?: boolean;
   lifeScore?: number | null;
+  checkpointReview?: CheckpointReview | null;
+  onSubmitCheckpointReview?: (week: CheckpointWeek, input: CheckpointReviewInput) => Promise<void>;
+  checkpointReviewLoading?: boolean;
 }) {
   const narrative = week.narrative || week.focus;
   const weekMilestone = week.weekMilestone || week.milestone;
@@ -600,6 +615,26 @@ function ThisWeekCard({
           />
         </div>
       )}
+
+      {shouldShowCheckpointReview({
+        weekNumber,
+        hasPulseForWeek: !!existingPulse,
+      }) &&
+        isCheckpointWeek(weekNumber) &&
+        onSubmitCheckpointReview && (
+          <div className="px-5 pb-5">
+            {checkpointReviewLoading && !checkpointReview ? (
+              <div className="h-28 rounded-xl bg-slate-100 animate-pulse" aria-busy="true" />
+            ) : (
+              <CheckpointReviewCard
+                checkpointWeek={weekNumber}
+                existingReview={checkpointReview}
+                onSubmit={(input) => onSubmitCheckpointReview(weekNumber, input)}
+                loading={checkpointReviewLoading}
+              />
+            )}
+          </div>
+        )}
     </div>
   );
 }
@@ -872,6 +907,9 @@ function AllWeeksAccordion({
   onSubmitPulse,
   pulseLoading,
   lifeScore,
+  reviewsByWeek,
+  onSubmitCheckpointReview,
+  checkpointReviewLoading = false,
 }: {
   weeks: any[];
   tasks: any[];
@@ -887,6 +925,9 @@ function AllWeeksAccordion({
   onSubmitPulse: (rating: number, categories: string[], protectText: string | undefined, weekNumber: number) => Promise<void>;
   pulseLoading?: boolean;
   lifeScore?: number | null;
+  reviewsByWeek: Map<number, CheckpointReview>;
+  onSubmitCheckpointReview: (week: CheckpointWeek, input: CheckpointReviewInput) => Promise<void>;
+  checkpointReviewLoading?: boolean;
 }) {
   const [openWeek, setOpenWeek] = useState<number | null>(gating.activeWeek);
   const weekRefs = useRef<Record<number, HTMLDivElement | null>>({});
@@ -1084,6 +1125,24 @@ function AllWeeksAccordion({
                       />
                     </div>
                   )}
+                  {shouldShowCheckpointReview({
+                    weekNumber: weekNum,
+                    hasPulseForWeek: !!existingPulse,
+                  }) &&
+                    isCheckpointWeek(weekNum) && (
+                      <div className="ml-16 mt-4">
+                        {checkpointReviewLoading && !reviewsByWeek.get(weekNum) ? (
+                          <div className="h-28 rounded-xl bg-slate-100 animate-pulse" aria-busy="true" />
+                        ) : (
+                          <CheckpointReviewCard
+                            checkpointWeek={weekNum}
+                            existingReview={reviewsByWeek.get(weekNum) ?? null}
+                            onSubmit={(input) => onSubmitCheckpointReview(weekNum, input)}
+                            loading={checkpointReviewLoading}
+                          />
+                        )}
+                      </div>
+                    )}
                 </div>
               )}
             </div>
@@ -1166,6 +1225,12 @@ export default function SprintDashboardPage() {
     refetch: refetchSchedule,
     ensureWeek1,
   } = useSprintWeekSchedule(currentSprintNumber);
+
+  const {
+    reviewsByWeek,
+    loading: checkpointReviewLoading,
+    submitReview: submitCheckpointReview,
+  } = useCheckpointReview(currentSprintNumber);
 
   const [pulseInitialLoadDone, setPulseInitialLoadDone] = useState(false);
   useEffect(() => {
@@ -1805,8 +1870,40 @@ export default function SprintDashboardPage() {
               }
               pulseLoading={lifeLoading}
               lifeScore={lifeScore}
+              checkpointReview={reviewsByWeek.get(gating.activeWeek) ?? null}
+              onSubmitCheckpointReview={submitCheckpointReview}
+              checkpointReviewLoading={checkpointReviewLoading}
             />
           )}
+          {/* After pulse at 3/6/9, activeWeek advances — surface the review for the week just closed. */}
+          {(() => {
+            const justClosed = [4, 7, 10].includes(gating.activeWeek)
+              ? (gating.activeWeek - 1 as CheckpointWeek)
+              : null;
+            if (
+              !justClosed ||
+              !shouldShowCheckpointReview({
+                weekNumber: justClosed,
+                hasPulseForWeek: !!pulseByWeek.get(justClosed),
+              })
+            ) {
+              return null;
+            }
+            return (
+              <div className="mt-4">
+                {checkpointReviewLoading && !reviewsByWeek.get(justClosed) ? (
+                  <div className="h-28 rounded-xl bg-slate-100 animate-pulse" aria-busy="true" />
+                ) : (
+                  <CheckpointReviewCard
+                    checkpointWeek={justClosed}
+                    existingReview={reviewsByWeek.get(justClosed) ?? null}
+                    onSubmit={(input) => submitCheckpointReview(justClosed, input)}
+                    loading={checkpointReviewLoading}
+                  />
+                )}
+              </div>
+            );
+          })()}
           <WeeklyCheckInCard
             currentWeek={gating.activeWeek}
             existingCheckIn={checkIn?.weekNumber === gating.activeWeek ? checkIn : null}
@@ -1844,6 +1941,9 @@ export default function SprintDashboardPage() {
             onSubmitPulse={handleSubmitPulse}
             pulseLoading={lifeLoading}
             lifeScore={lifeScore}
+            reviewsByWeek={reviewsByWeek}
+            onSubmitCheckpointReview={submitCheckpointReview}
+            checkpointReviewLoading={checkpointReviewLoading}
           />
         </div>
       )}

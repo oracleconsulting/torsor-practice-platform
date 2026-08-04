@@ -60,6 +60,13 @@ export interface GAClientSummary {
   riskLevel: 'red' | 'amber' | 'green';
   riskFlags: string[];
   clientStage: 'not_started' | 'in_progress' | 'behind' | 'completed' | 'renewal_pending';
+  /** Relevant checkpoint week (3/6/9) for their current position, or null */
+  checkpointWeek: 3 | 6 | 9 | null;
+  /** True when they are on or just past a checkpoint week */
+  atCheckpoint: boolean;
+  checkpointReviewSubmitted: boolean;
+  /** Full client answer — the signal that changes what gets generated */
+  whatsChanged: string | null;
 }
 
 // ----------------------------------------------------------------------------
@@ -150,7 +157,7 @@ async function fetchGADashboardData(practiceId: string) {
   }
 
   if (clientIds.length === 0) {
-    return { enrollments: [], sprintStages: [], allTasks: [] };
+    return { enrollments: [], sprintStages: [], allTasks: [], checkpointReviews: [] };
   }
 
   // 2. Sprint stages (most recent per client)
@@ -168,10 +175,17 @@ async function fetchGADashboardData(practiceId: string) {
     .select('id, client_id, week_number, title, status, completed_at, skipped_at, updated_at, category, completion_feedback')
     .in('client_id', clientIds);
 
+  // 4. Checkpoint reviews (weeks 3 / 6 / 9)
+  const { data: checkpointReviews } = await supabase
+    .from('sprint_checkpoint_reviews')
+    .select('client_id, sprint_number, checkpoint_week, whats_changed, capacity_outlook, updated_at')
+    .in('client_id', clientIds);
+
   return {
     enrollments,
     sprintStages: sprintStages || [],
     allTasks: allTasks || [],
+    checkpointReviews: checkpointReviews || [],
   };
 }
 
@@ -179,11 +193,27 @@ async function fetchGADashboardData(practiceId: string) {
 // Compute per-client summary
 // ----------------------------------------------------------------------------
 
+function relevantCheckpointWeek(activeWeek: number): 3 | 6 | 9 | null {
+  if (activeWeek >= 9) return 9;
+  if (activeWeek >= 6) return 6;
+  if (activeWeek >= 3) return 3;
+  return null;
+}
+
+function isAtCheckpoint(activeWeek: number): boolean {
+  return [3, 4, 6, 7, 9, 10].includes(activeWeek);
+}
+
 function computeClientSummary(
   client: { id: string; name: string; email: string; client_company?: string; program_status?: string; last_portal_login?: string },
   enrollment: { tier_name?: string | null } | null,
   sprintStage: { created_at?: string; published_at?: string; generated_content?: any } | null,
   tasks: Array<{ week_number: number; title: string; status: string; completed_at?: string; skipped_at?: string; updated_at?: string }>,
+  reviews: Array<{
+    client_id: string;
+    checkpoint_week: number;
+    whats_changed?: string | null;
+  }> = [],
 ): GAClientSummary {
   const sprintData = sprintStage?.generated_content?.sprint ?? sprintStage?.generated_content;
   const weeks = sprintData?.weeks || [];
@@ -280,6 +310,19 @@ function computeClientSummary(
   else if (weeksBehind >= 3) clientStage = 'behind';
   else if (totalResolvedTasks > 0) clientStage = 'in_progress';
 
+  const cappedActive = Math.min(activeWeek, 12);
+  const checkpointWeek = relevantCheckpointWeek(cappedActive);
+  const atCheckpoint = isAtCheckpoint(cappedActive);
+  const matchingReview = checkpointWeek
+    ? reviews.find((r) => r.checkpoint_week === checkpointWeek)
+    : undefined;
+  const checkpointReviewSubmitted = !!matchingReview;
+  const whatsChanged = matchingReview?.whats_changed?.trim() || null;
+
+  if (atCheckpoint && !checkpointReviewSubmitted) {
+    riskFlags.push(`Week ${checkpointWeek} checkpoint — no review yet`);
+  }
+
   return {
     clientId: client.id,
     name: client.name,
@@ -289,7 +332,7 @@ function computeClientSummary(
     hasSprint: weeks.length > 0,
     sprintStartDate,
     calendarWeek,
-    activeWeek: Math.min(activeWeek, 12),
+    activeWeek: cappedActive,
     weeksBehind,
     totalGeneratedTasks,
     totalResolvedTasks,
@@ -305,6 +348,10 @@ function computeClientSummary(
     riskLevel,
     riskFlags,
     clientStage,
+    checkpointWeek,
+    atCheckpoint,
+    checkpointReviewSubmitted,
+    whatsChanged,
   };
 }
 
@@ -354,6 +401,7 @@ function SummaryCards({ clients }: { clients: GAClientSummary[] }) {
   const behindClients = clients.filter(
     (c) => c.riskLevel === 'red' || c.riskLevel === 'amber',
   );
+  const atCheckpoint = clients.filter((c) => c.atCheckpoint);
   const avgCompletion =
     activeClients.length > 0
       ? Math.round(
@@ -373,12 +421,19 @@ function SummaryCards({ clients }: { clients: GAClientSummary[] }) {
   }, 0);
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
       <MetricCard
         label="Active Clients"
         value={activeClients.length}
         icon={Users}
         color="indigo"
+      />
+      <MetricCard
+        label="At Checkpoint"
+        value={atCheckpoint.length}
+        icon={Flag}
+        color={atCheckpoint.length > 0 ? 'amber' : 'slate'}
+        subtitle={`${atCheckpoint.filter((c) => c.checkpointReviewSubmitted).length} reviewed`}
       />
       <MetricCard
         label="Need Attention"
@@ -399,6 +454,53 @@ function SummaryCards({ clients }: { clients: GAClientSummary[] }) {
         color="slate"
         subtitle="across all clients"
       />
+    </div>
+  );
+}
+
+function CheckpointPanel({ clients }: { clients: GAClientSummary[] }) {
+  const atCheckpoint = clients.filter((c) => c.atCheckpoint && c.checkpointWeek);
+  if (atCheckpoint.length === 0) return null;
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="px-5 py-4 border-b border-slate-100">
+        <h3 className="font-semibold text-slate-900">Sprint checkpoints</h3>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Weeks 3, 6 and 9 — what&apos;s changed drives the refresh. Review is optional for the client.
+        </p>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {atCheckpoint.map((client) => (
+          <div key={client.clientId} className="px-5 py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="font-medium text-slate-900">
+                  {client.name}
+                  <span className="ml-2 text-sm font-normal text-slate-500">
+                    Week {client.activeWeek} · Checkpoint {client.checkpointWeek}
+                  </span>
+                </p>
+                <p className="text-xs mt-1">
+                  {client.checkpointReviewSubmitted ? (
+                    <span className="text-emerald-600">Review submitted</span>
+                  ) : (
+                    <span className="text-amber-600">No review yet</span>
+                  )}
+                </p>
+              </div>
+            </div>
+            {client.whatsChanged ? (
+              <div className="mt-3 p-3 bg-indigo-50/60 border border-indigo-100 rounded-lg">
+                <p className="text-xs font-medium text-indigo-700 mb-1">What&apos;s changed</p>
+                <p className="text-sm text-slate-800 whitespace-pre-wrap">{client.whatsChanged}</p>
+              </div>
+            ) : client.checkpointReviewSubmitted ? (
+              <p className="mt-2 text-sm text-slate-400 italic">Submitted without a what&apos;s-changed answer</p>
+            ) : null}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -538,6 +640,30 @@ function ClientRow({
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">
             All good
           </span>
+        )}
+      </div>
+
+      <div className="flex-shrink-0 w-52 hidden 2xl:block">
+        {client.atCheckpoint && client.checkpointWeek ? (
+          <div className="text-xs">
+            <p className="font-medium text-indigo-700">
+              Checkpoint W{client.checkpointWeek}
+              {client.checkpointReviewSubmitted ? (
+                <span className="ml-1 text-emerald-600 font-normal">· submitted</span>
+              ) : (
+                <span className="ml-1 text-amber-600 font-normal">· awaiting</span>
+              )}
+            </p>
+            {client.whatsChanged ? (
+              <p className="text-slate-600 mt-0.5 whitespace-pre-wrap break-words">
+                {client.whatsChanged}
+              </p>
+            ) : (
+              <p className="text-slate-400 mt-0.5 italic">No what&apos;s-changed answer</p>
+            )}
+          </div>
+        ) : (
+          <span className="text-[10px] text-slate-300">—</span>
         )}
       </div>
 
@@ -726,9 +852,8 @@ export function GADashboardPage() {
 
     setLoading(true);
     try {
-      const { enrollments, sprintStages, allTasks } = await fetchGADashboardData(
-        practiceId,
-      );
+      const { enrollments, sprintStages, allTasks, checkpointReviews } =
+        await fetchGADashboardData(practiceId);
 
       const summaries: GAClientSummary[] = enrollments.map((enrollment) => {
         const client = enrollment.practice_members as any;
@@ -737,11 +862,15 @@ export function GADashboardPage() {
           (s) => s.client_id === client.id,
         );
         const clientTasks = allTasks.filter((t) => t.client_id === client.id);
+        const clientReviews = checkpointReviews.filter(
+          (r) => r.client_id === client.id,
+        );
         return computeClientSummary(
           client,
           enrollment,
           clientSprintStage ?? null,
           clientTasks,
+          clientReviews,
         );
       }).filter(Boolean) as GAClientSummary[];
 
@@ -818,6 +947,7 @@ export function GADashboardPage() {
     >
       <div className="max-w-6xl mx-auto space-y-6">
         <SummaryCards clients={visibleClients} />
+        <CheckpointPanel clients={visibleClients} />
         <ClientList clients={visibleClients} onViewDetail={handleViewDetail} />
       </div>
     </AdminLayout>
