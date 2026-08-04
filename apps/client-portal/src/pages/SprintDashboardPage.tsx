@@ -1030,10 +1030,17 @@ function AllWeeksAccordion({
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="font-semibold text-slate-900">{week.theme}</h4>
-                  <p className="text-sm text-slate-500">{week.focus || week.narrative || ''}</p>
+                  {/* A locked week shows its theme and nothing else. The weeks
+                      ahead can still be revised, so there is nothing to read
+                      into yet. Scheduled weeks are fully readable. */}
+                  {!isLocked && (
+                    <p className="text-sm text-slate-500">{week.focus || week.narrative || ''}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <span className="text-sm font-medium text-slate-900">{completedCount + skippedCount}/{totalCount} tasks</span>
+                  {!isLocked && (
+                    <span className="text-sm font-medium text-slate-900">{completedCount + skippedCount}/{totalCount} tasks</span>
+                  )}
                   {isLocked && (
                     <span className="text-xs text-slate-400 text-right max-w-[11rem]">
                       {weekLockReason(gating).label}
