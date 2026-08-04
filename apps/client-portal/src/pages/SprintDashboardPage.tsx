@@ -470,7 +470,10 @@ function ThisWeekCard({
   pulseLoading?: boolean;
   lifeScore?: number | null;
   checkpointReview?: CheckpointReview | null;
-  onSubmitCheckpointReview?: (week: CheckpointWeek, input: CheckpointReviewInput) => Promise<void>;
+  onSubmitCheckpointReview?: (
+    week: CheckpointWeek,
+    input: CheckpointReviewInput,
+  ) => Promise<void | CheckpointReview>;
   checkpointReviewLoading?: boolean;
 }) {
   const narrative = week.narrative || week.focus;
@@ -629,7 +632,9 @@ function ThisWeekCard({
               <CheckpointReviewCard
                 checkpointWeek={weekNumber}
                 existingReview={checkpointReview}
-                onSubmit={(input) => onSubmitCheckpointReview(weekNumber, input)}
+                onSubmit={async (input) => {
+                  await onSubmitCheckpointReview(weekNumber, input);
+                }}
                 loading={checkpointReviewLoading}
               />
             )}
@@ -926,7 +931,10 @@ function AllWeeksAccordion({
   pulseLoading?: boolean;
   lifeScore?: number | null;
   reviewsByWeek: Map<number, CheckpointReview>;
-  onSubmitCheckpointReview: (week: CheckpointWeek, input: CheckpointReviewInput) => Promise<void>;
+  onSubmitCheckpointReview: (
+    week: CheckpointWeek,
+    input: CheckpointReviewInput,
+  ) => Promise<void | CheckpointReview>;
   checkpointReviewLoading?: boolean;
 }) {
   const [openWeek, setOpenWeek] = useState<number | null>(gating.activeWeek);
@@ -1137,7 +1145,9 @@ function AllWeeksAccordion({
                           <CheckpointReviewCard
                             checkpointWeek={weekNum}
                             existingReview={reviewsByWeek.get(weekNum) ?? null}
-                            onSubmit={(input) => onSubmitCheckpointReview(weekNum, input)}
+                            onSubmit={async (input) => {
+                              await onSubmitCheckpointReview(weekNum, input);
+                            }}
                             loading={checkpointReviewLoading}
                           />
                         )}
@@ -1897,7 +1907,9 @@ export default function SprintDashboardPage() {
                   <CheckpointReviewCard
                     checkpointWeek={justClosed}
                     existingReview={reviewsByWeek.get(justClosed) ?? null}
-                    onSubmit={(input) => submitCheckpointReview(justClosed, input)}
+                    onSubmit={async (input) => {
+                      await submitCheckpointReview(justClosed, input);
+                    }}
                     loading={checkpointReviewLoading}
                   />
                 )}
